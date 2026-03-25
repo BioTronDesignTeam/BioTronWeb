@@ -2,7 +2,7 @@
 import React, {useState} from 'react'
 const MCUStatus = () => {
   const [ESPStatus, SetESPStatus] = useState<boolean>(true)
-  const [STMStatus, SetSTMStatus] = useState<boolean>(true)
+  const [STMStatus, SetSTMStatus] = useState<boolean>(false)
   
   //TODO: change actual conditions for red yellow green
   const getBgColour = (state:boolean) => {
