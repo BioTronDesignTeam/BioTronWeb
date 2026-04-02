@@ -3,6 +3,7 @@ build/
 install/
 log/
 .vscode/
+.next/dev
 
 # editor folders and files
 .settings/
