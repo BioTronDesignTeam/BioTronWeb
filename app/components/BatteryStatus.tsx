@@ -3,79 +3,74 @@
 import React, { useState } from "react"
 
 const BatteryStatus = () => {
-  const [voltage, setVoltage] = useState<number>(12.6)
-  const [current, setCurrent] = useState<number>(1.8)
+  const [Highvoltage, setHighVoltage] = useState<number>(1)
+  const [Highcurrent, setHighCurrent] = useState<number>(2)
+  const [Medvoltage, setMedVoltage] = useState<number>(3)
+  const [Medcurrent, setMedCurrent] = useState<number>(4)
+  const [Lowvoltage, setLowVoltage] = useState<number>(5)
+  const [Lowcurrent, setLowCurrent] = useState<number>(6)
+  
+  //TODO: change actual conditions for red yellow green
+  const getColour = () => {
+    if (Highvoltage+Medvoltage+Lowvoltage > 4) return "bg-red-500"
+    if (Highvoltage+Medvoltage+Lowvoltage > 2) return "bg-yellow-400"
+    return "bg-green-500"
+  }
+  return (
+    <div className="w-[350px] rounded-2xl bg-white py-[16px] px-[16px] border-[3px] border-black">
+      <div className="flex justify-between items-center">
+        <h2 className="text-black font-bold text-2xl">Battery Status</h2>
+        <span className={`h-4 w-4  rounded-full ${getColour()}`}></span> 
+      </div>
+      <div className="flex flex-col gap-[8px]">
+        <hr className="border-black"></hr>
+        <Status title="High Power" voltage={Highvoltage} current={Highcurrent}></Status>
+        <hr className="border-black"></hr>
+        <Status title="Medium Power" voltage={Medvoltage} current={Medcurrent}></Status>
+        <hr className="border-black"></hr>
+        <Status title="Low Power" voltage={Lowvoltage} current={Lowcurrent}></Status>
+      </div>
 
-  // TODO: setup websocket communication
+    </div>
 
-  /*
-  useEffect(() => {
-    const ws = new WebSocket("ws://YOUR_FIRMWARE_IP:PORT")
+  )
+}
 
-    ws.onopen = () => {
-      console.log("WebSocket connected")
-    }
+type StatusProps = {
+  title: string
+  voltage: number
+  current: number
+}
+const Status = ({title, voltage, current} : StatusProps) => {
+  // change conditions here based on real numbers
+  const getCircleColour = () => {
+    if (voltage > 4) return "bg-red-500"
+    if (voltage > 2) return "bg-yellow-400"
+    return "bg-green-500"
+  }
 
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data)
-        // update voltage and current values. 
-        // The recieved data from firmwareformat must be { voltage: number, current: number }
-        setVoltage(data.voltage)
-        setCurrent(data.current)
-      } catch (err) {
-        console.error("Invalid WebSocket message", err)
-      }
-    }
-
-    ws.onerror = (err) => {
-      console.error("WebSocket error", err)
-    }
-
-    ws.onclose = () => {
-      console.log("WebSocket disconnected")
-    }
-
-    // Cleanup on component unmount
-    return () => {
-      ws.close()
-    }
-  }, []) // empty dependency = run once
-  */
+  const getBgColour = () => {
+      if (voltage > 4) return "bg-red-200"
+      if (voltage > 2) return "bg-yellow-100"
+      return "bg-green-200"
+  }
 
   return (
-    <div className="w-[320px] rounded-2xl bg-gray-800 p-5 shadow-lg">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-bold text-white">Battery Status</h2>
-        <span className="h-3 w-3 rounded-full bg-green-400" />
+    <div>
+      <div className="flex flex-row justify-between items-center">
+        <h3 className="text-black text-xl">{title}</h3>
+        <span className={`h-4 w-4 rounded-full ${getCircleColour()}`}></span>
       </div>
-
-      <div className="border-b border-gray-600 mb-4" />
-
-      {/* Metrics */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="rounded-xl bg-gray-700 p-4 text-center">
-          <p className="text-sm text-gray-300">Voltage</p>
-          <p className="text-2xl font-semibold text-white">
-            {voltage}
-            <span className="text-sm font-normal text-gray-300"> V</span>
-          </p>
+      <div className="flex justify-between gap-4">
+        <div className={`flex flex-col w-[50%] justify-center items-center border-[1px] border-black rounded-xl ${getBgColour()}`}>
+          <p className="text-black text-[13px]">Voltage</p>
+          <h2 className="text-black text-[30px]">{voltage}</h2>
         </div>
-
-        <div className="rounded-xl bg-gray-700 p-4 text-center">
-          <p className="text-sm text-gray-300">Current</p>
-          <p className="text-2xl font-semibold text-white">
-            {current}
-            <span className="text-sm font-normal text-gray-300"> A</span>
-          </p>
+        <div className={`flex flex-col w-[50%] justify-center items-center border-[1px] border-black rounded-xl ${getBgColour()}`}>
+          <p className="text-black text-[13px]">Current</p>
+          <h2 className="text-black text-[30px]">{current}</h2>
         </div>
       </div>
-
-      {/* Optional footer */}
-      <p className="mt-4 text-xs text-gray-400 text-center">
-        Live telemetry
-      </p>
     </div>
   )
 }
