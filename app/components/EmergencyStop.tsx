@@ -24,20 +24,12 @@ const EmergencyStop = () => {
 
   return (
     <>
-      {/* Control Panel */}
-      <div className="w-[320px] rounded-2xl bg-gray-800 p-5 shadow-lg">
-        <button
-          onClick={handleEmergencyStop}
-          className="w-full rounded-xl text-lg font-bold p-2
-                     bg-red-600 text-white hover:bg-red-500"
-        >
-          EMERGENCY STOP
-        </button>
-
-        <p className="mt-4 text-xs text-gray-400 text-center">
-          Immediately disables all motors
-        </p>
-      </div>
+      <button
+        onClick={handleEmergencyStop}
+        className="bg-red-600 text-white rounded-full font-bold text-xl hover:bg-red-500 p-4 flex justify-center items-center"
+      >
+        EMERGENCY STOP
+      </button>
 
       {/* Bottom Banner Alert */}
       <div

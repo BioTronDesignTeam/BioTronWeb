@@ -1,4 +1,4 @@
-import { BatteryStatus, Header, EmergencyStop, ParameterTuning, MotorStatus, MCUStatus} from "./components";
+import { BatteryStatus, Header, MotorStatus, MCUStatus, MotorInputs} from "./components";
 
 export default function Home() {
   return (
@@ -7,23 +7,17 @@ export default function Home() {
       <Header />
 
       {/* Main Layout */}
-      <main className="bg-sky-200 h-screen p-8 flex flex-col">
-          <div className="flex gap-4">
-            <BatteryStatus/>
-            <MCUStatus/>
-            <MotorStatus
-              title="Left Motor Status"
-              className="w-[350px] h-[380px]"
-            />
-            <MotorStatus
-              title="Right Motor Status"
-              className="w-[350px] h-[380px]"
-            />
-          </div>
-          <div className="flex gap-4 p-8">
-            <ParameterTuning />
-            <EmergencyStop />
-          </div>
+      <main className="bg-sky-200 h-screen p-8 flex flex-wrap gap-2">
+          <BatteryStatus/>
+          <MCUStatus/>
+          <MotorStatus
+            title="Left Hip Motor Status"
+          />
+          <MotorStatus
+            title="Right Hip Motor Status"
+          />
+          <MotorInputs title="Left Hip Motor Inputs" />
+          <MotorInputs title="Right Hip Motor Inputs" />
       </main>
     </div>
   );
