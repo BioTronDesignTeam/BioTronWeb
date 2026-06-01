@@ -1,7 +1,9 @@
 # exo-gui
 
-Telemetry pipeline for an exoskeleton: an STM32 (C++) streams telemetry to a
-Raspberry Pi, which stores it and serves a live, auth-gated web dashboard.
+Telemetry pipeline for an exoskeleton: an STM32 (C++) reads sensors/motors and a
+dedicated ESP32 WiFi coprocessor ships batched telemetry to a headless Debian
+server (Go backend + Postgres). A React SPA on Netlify renders it live for an
+authenticated operator.
 
 > **Mid-refactor** (branch `staging/refactor`). The full stack, data flow, and
 > open decisions are documented in `CLAUDE.md`.
