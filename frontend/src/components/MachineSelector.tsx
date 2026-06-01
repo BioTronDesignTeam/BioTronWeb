@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useDismissable } from '../hooks/useDismissable'
 
 interface MachineSelectorProps {
   machines: string[]
@@ -7,24 +7,7 @@ interface MachineSelectorProps {
 }
 
 export default function MachineSelector({ machines, selected, onSelect }: MachineSelectorProps) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!open) return
-    const onPointerDown = (e: PointerEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false)
-    }
-    document.addEventListener('pointerdown', onPointerDown)
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [open])
+  const { open, setOpen, ref } = useDismissable<HTMLDivElement>()
 
   return (
     <div ref={ref} className="relative">
