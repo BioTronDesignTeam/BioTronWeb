@@ -13,7 +13,14 @@ import (
 
 // New builds the Fiber app with CORS, logging, health, and the auth routes.
 func New(h *auth.Handler, frontendURL string) *fiber.App {
-	app := fiber.New(fiber.Config{DisableStartupMessage: true})
+	// ReadTimeout + IdleTimeout bound slowloris / idle connection exhaustion on
+	// public ingress. WriteTimeout is intentionally left off pending the live
+	// WebSocket fan-out, which needs long-lived responses.
+	app := fiber.New(fiber.Config{
+		DisableStartupMessage: true,
+		ReadTimeout:           15 * time.Second,
+		IdleTimeout:           60 * time.Second,
+	})
 
 	app.Use(logger.New())
 	app.Use(cors.New(cors.Config{
