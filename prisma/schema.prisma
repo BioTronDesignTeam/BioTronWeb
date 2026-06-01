@@ -35,3 +35,13 @@ model Session {
   @@index([expiresAt])
   @@map("sessions")
 }
+
+// Shared guest login key, one per UTC day. An admin fetches it and hands it to
+// guests; it rotates automatically each day.
+model GuestKey {
+  day       DateTime @id @db.Date
+  key       String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("guest_keys")
+}
