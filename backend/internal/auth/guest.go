@@ -21,13 +21,15 @@ const (
 )
 
 // easternZone is Waterloo/Toronto local time (EDT/EST, DST-aware), matching
-// Postgres `AT TIME ZONE 'America/Toronto'`. Falls back to fixed EST only if
-// tzdata is unavailable. See the time-zone convention in CLAUDE.md.
+// Postgres `AT TIME ZONE 'America/Toronto'`. tzdata is embedded (see main.go),
+// so the load can't fail in a correct build — there is no fixed-offset fallback
+// because none is right year-round (EDT is UTC-4, EST is UTC-5).
 var easternZone = func() *time.Location {
-	if loc, err := time.LoadLocation("America/Toronto"); err == nil {
-		return loc
+	loc, err := time.LoadLocation("America/Toronto")
+	if err != nil {
+		panic("auth: load America/Toronto (is time/tzdata embedded?): " + err.Error())
 	}
-	return time.FixedZone("EST", -5*60*60)
+	return loc
 }()
 
 // guestSessionExpiry returns the next Eastern midnight — the instant the daily

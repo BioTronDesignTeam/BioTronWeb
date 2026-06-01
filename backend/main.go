@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"time"
+	_ "time/tzdata" // embed zoneinfo so America/Toronto loads without OS tzdata
 
 	"github.com/joho/godotenv"
 
@@ -14,10 +15,13 @@ import (
 )
 
 func main() {
-	// Render all local times (logs, etc.) in Waterloo/Toronto Eastern. See CLAUDE.md.
-	if loc, err := time.LoadLocation("America/Toronto"); err == nil {
-		time.Local = loc
+	// Render all local times (logs, etc.) in Waterloo/Toronto Eastern. tzdata is
+	// embedded above, so a failure here means a broken build, not a missing OS zone.
+	loc, err := time.LoadLocation("America/Toronto")
+	if err != nil {
+		log.Fatalf("load America/Toronto timezone: %v", err)
 	}
+	time.Local = loc
 
 	// Load backend/.env if present; real environment variables take precedence.
 	_ = godotenv.Load()
