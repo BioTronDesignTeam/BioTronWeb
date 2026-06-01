@@ -33,12 +33,12 @@ export default function MachineSelector({ machines, selected, onSelect }: Machin
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="listbox"
         aria-expanded={open}
-        className="flex items-center gap-2 rounded-lg bg-slate-800/80 px-3 py-2 text-sm font-medium text-slate-100 ring-1 ring-white/10 transition hover:bg-slate-700/80"
+        className="flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm font-medium text-slate-900 ring-1 ring-slate-300 transition hover:bg-slate-100 dark:bg-slate-800/80 dark:text-slate-100 dark:ring-white/10 dark:hover:bg-slate-700/80"
       >
         <span className="h-2 w-2 rounded-full bg-emerald-400" />
         <span>{selected}</span>
         <svg
-          className={`h-4 w-4 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`}
+          className={`h-4 w-4 text-slate-500 transition-transform dark:text-slate-400 ${open ? 'rotate-180' : ''}`}
           viewBox="0 0 20 20"
           fill="currentColor"
           aria-hidden
@@ -54,7 +54,7 @@ export default function MachineSelector({ machines, selected, onSelect }: Machin
       {open && (
         <ul
           role="listbox"
-          className="absolute left-0 z-20 mt-2 min-w-full overflow-hidden rounded-lg bg-slate-800 py-1 shadow-xl ring-1 ring-white/10"
+          className="absolute left-0 z-20 mt-2 min-w-full overflow-hidden rounded-lg bg-white py-1 shadow-xl ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-white/10"
         >
           {machines.map((id) => {
             const active = id === selected
@@ -66,11 +66,11 @@ export default function MachineSelector({ machines, selected, onSelect }: Machin
                     onSelect(id)
                     setOpen(false)
                   }}
-                  className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition hover:bg-slate-700 ${
-                    active ? 'text-white' : 'text-slate-300'
+                  className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition hover:bg-slate-100 dark:hover:bg-slate-700 ${
+                    active ? 'text-slate-900 dark:text-white' : 'text-slate-700 dark:text-slate-300'
                   }`}
                 >
-                  <span className={`h-2 w-2 rounded-full ${active ? 'bg-emerald-400' : 'bg-slate-600'}`} />
+                  <span className={`h-2 w-2 rounded-full ${active ? 'bg-emerald-400' : 'bg-slate-300 dark:bg-slate-600'}`} />
                   {id}
                 </button>
               </li>
