@@ -5,10 +5,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	"golang.org/x/oauth2"
 	githuboauth "golang.org/x/oauth2/github"
 )
+
+// githubTimeout bounds every outbound GitHub call (token exchange + API) so a
+// slow/hung GitHub can't tie up an OAuth callback request indefinitely.
+const githubTimeout = 10 * time.Second
 
 // GitHubClient wraps the OAuth flow plus the two GitHub API calls we need:
 // fetching the user and checking org membership.
@@ -60,7 +65,7 @@ func NewGitHubClient(opts GitHubOptions) *GitHubClient {
 		},
 		apiBase: apiBase,
 		org:     opts.Org,
-		http:    http.DefaultClient,
+		http:    &http.Client{Timeout: githubTimeout},
 	}
 }
 
@@ -69,6 +74,7 @@ func (g *GitHubClient) AuthCodeURL(state string) string {
 }
 
 func (g *GitHubClient) Exchange(ctx context.Context, code string) (*oauth2.Token, error) {
+	ctx = context.WithValue(ctx, oauth2.HTTPClient, g.http)
 	return g.oauth.Exchange(ctx, code)
 }
 
