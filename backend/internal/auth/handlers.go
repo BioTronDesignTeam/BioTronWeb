@@ -112,7 +112,9 @@ func (h *Handler) Callback(c *fiber.Ctx) error {
 
 func (h *Handler) Logout(c *fiber.Ctx) error {
 	if token := c.Cookies(SessionCookie); token != "" {
-		_ = h.Store.DeleteSession(c.UserContext(), hashToken(token))
+		if err := h.Store.DeleteSession(c.UserContext(), hashToken(token)); err != nil {
+			log.Printf("auth: delete session on logout: %v", err)
+		}
 	}
 	clearSessionCookie(c, h.Cfg.CookieSecure, h.Cfg.CookieSameSite)
 	return c.SendStatus(fiber.StatusNoContent)
