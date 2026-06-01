@@ -39,11 +39,13 @@ func guestSessionExpiry(now time.Time) time.Time {
 }
 
 // newGuestKey returns a 12-char base32 code (~60 bits of entropy).
-func newGuestKey() string {
+func newGuestKey() (string, error) {
 	b := make([]byte, 8)
-	_, _ = rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
 	s := base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(b)
-	return s[:12]
+	return s[:12], nil
 }
 
 // formatGuestKey groups the canonical code as XXXX-XXXX-XXXX for display.
@@ -83,7 +85,12 @@ func (h *Handler) RequireAdmin(c *fiber.Ctx) error {
 
 // AdminGuestKey returns today's guest key (creating it on first request).
 func (h *Handler) AdminGuestKey(c *fiber.Ctx) error {
-	gk, err := h.Store.EnsureGuestKey(c.UserContext(), newGuestKey())
+	candidate, err := newGuestKey()
+	if err != nil {
+		log.Printf("auth: generate guest key: %v", err)
+		return fiber.ErrInternalServerError
+	}
+	gk, err := h.Store.EnsureGuestKey(c.UserContext(), candidate)
 	if err != nil {
 		log.Printf("auth: ensure guest key: %v", err)
 		return fiber.ErrInternalServerError
@@ -100,7 +107,12 @@ func (h *Handler) GuestLogin(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).SendString("missing key")
 	}
 
-	gk, err := h.Store.EnsureGuestKey(c.UserContext(), newGuestKey())
+	candidate, err := newGuestKey()
+	if err != nil {
+		log.Printf("auth: generate guest key: %v", err)
+		return fiber.ErrInternalServerError
+	}
+	gk, err := h.Store.EnsureGuestKey(c.UserContext(), candidate)
 	if err != nil {
 		log.Printf("auth: ensure guest key: %v", err)
 		return fiber.ErrInternalServerError
