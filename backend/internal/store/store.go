@@ -18,7 +18,14 @@ type Store struct {
 }
 
 func New(ctx context.Context, databaseURL string) (*Store, error) {
-	pool, err := pgxpool.New(ctx, sanitizeDSN(databaseURL))
+	cfg, err := pgxpool.ParseConfig(sanitizeDSN(databaseURL))
+	if err != nil {
+		return nil, err
+	}
+	// Every connection runs in Eastern (DST-aware) so timestamptz values render
+	// and day boundaries compute in local Waterloo time. See CLAUDE.md.
+	cfg.ConnConfig.RuntimeParams["timezone"] = "America/Toronto"
+	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -123,14 +130,14 @@ type GuestKey struct {
 func (s *Store) EnsureGuestKey(ctx context.Context, candidate string) (GuestKey, error) {
 	if _, err := s.pool.Exec(ctx, `
 		INSERT INTO guest_keys (day, key)
-		VALUES ((now() AT TIME ZONE 'utc')::date, $1)
+		VALUES ((now() AT TIME ZONE 'America/Toronto')::date, $1)
 		ON CONFLICT (day) DO NOTHING
 	`, candidate); err != nil {
 		return GuestKey{}, err
 	}
 	row := s.pool.QueryRow(ctx, `
 		SELECT day::text, key FROM guest_keys
-		WHERE day = (now() AT TIME ZONE 'utc')::date
+		WHERE day = (now() AT TIME ZONE 'America/Toronto')::date
 	`)
 	var gk GuestKey
 	if err := row.Scan(&gk.Day, &gk.Key); err != nil {

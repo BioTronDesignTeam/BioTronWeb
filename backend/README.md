@@ -24,8 +24,10 @@ Non-members are redirected to `FRONTEND_URL/?auth=denied` with no session.
 ### Guest login (shared daily key)
 
 An alternative to GitHub for when org OAuth isn't available. A random key is
-generated per UTC day and stored; guests enter it to get a (shared) session with
-the same access as an operator.
+generated per **Eastern** day (`America/Toronto`, DST-aware) and stored; guests
+enter it to get a (shared) session with the same access as an operator. The
+session expires when the key rotates (next Eastern midnight), so a leaked key is
+only good for the rest of the day.
 
 | Method | Path                | Purpose                                                          |
 |--------|---------------------|------------------------------------------------------------------|

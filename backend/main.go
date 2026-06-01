@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"time"
 
 	"github.com/joho/godotenv"
 
@@ -13,6 +14,11 @@ import (
 )
 
 func main() {
+	// Render all local times (logs, etc.) in Waterloo/Toronto Eastern. See CLAUDE.md.
+	if loc, err := time.LoadLocation("America/Toronto"); err == nil {
+		time.Local = loc
+	}
+
 	// Load backend/.env if present; real environment variables take precedence.
 	_ = godotenv.Load()
 

@@ -7,6 +7,7 @@ import (
 	"log"
 	"strings"
 	"time"
+	_ "time/tzdata" // embed zoneinfo so America/Toronto loads without OS tzdata
 
 	"github.com/gofiber/fiber/v2"
 
@@ -18,6 +19,24 @@ const (
 	guestGitHubID int64 = 0
 	guestLogin          = "guest"
 )
+
+// easternZone is Waterloo/Toronto local time (EDT/EST, DST-aware), matching
+// Postgres `AT TIME ZONE 'America/Toronto'`. Falls back to fixed EST only if
+// tzdata is unavailable. See the time-zone convention in CLAUDE.md.
+var easternZone = func() *time.Location {
+	if loc, err := time.LoadLocation("America/Toronto"); err == nil {
+		return loc
+	}
+	return time.FixedZone("EST", -5*60*60)
+}()
+
+// guestSessionExpiry returns the next Eastern midnight — the instant the daily
+// guest key rotates — so a guest session only lasts until the key it used expires.
+func guestSessionExpiry(now time.Time) time.Time {
+	t := now.In(easternZone)
+	y, m, d := t.Date()
+	return time.Date(y, m, d+1, 0, 0, 0, 0, easternZone)
+}
 
 // newGuestKey returns a 12-char base32 code (~60 bits of entropy).
 func newGuestKey() string {
@@ -103,12 +122,15 @@ func (h *Handler) GuestLogin(c *fiber.Ctx) error {
 	if err != nil {
 		return fiber.ErrInternalServerError
 	}
+	// Guest sessions expire when the key rotates (next EST midnight), not after
+	// the operator SessionTTL.
+	expiry := guestSessionExpiry(time.Now())
 	if err := h.Store.CreateSession(c.UserContext(), hashToken(token), guestGitHubID,
-		time.Now().Add(h.Cfg.SessionTTL), c.Get("User-Agent")); err != nil {
+		expiry, c.Get("User-Agent")); err != nil {
 		log.Printf("auth: create guest session: %v", err)
 		return fiber.ErrInternalServerError
 	}
 
-	setSessionCookie(c, token, h.Cfg.CookieSecure, h.Cfg.CookieSameSite, h.Cfg.SessionTTL)
+	setSessionCookie(c, token, h.Cfg.CookieSecure, h.Cfg.CookieSameSite, time.Until(expiry))
 	return c.SendStatus(fiber.StatusNoContent)
 }
