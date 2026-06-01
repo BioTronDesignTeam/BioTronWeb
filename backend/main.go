@@ -1,26 +1,50 @@
 package main
 
 import (
+	"context"
 	"log"
-	"net/http"
-	"os"
+
+	"github.com/BioTronDesignTeam/exo-gui/backend/internal/auth"
+	"github.com/BioTronDesignTeam/exo-gui/backend/internal/config"
+	"github.com/BioTronDesignTeam/exo-gui/backend/internal/server"
+	"github.com/BioTronDesignTeam/exo-gui/backend/internal/store"
 )
 
 func main() {
-	mux := http.NewServeMux()
-	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"status":"ok"}`))
+	cfg := config.Load()
+	if cfg.DatabaseURL == "" {
+		log.Fatal("DATABASE_URL is required")
+	}
+	if cfg.GitHubClientID == "" || cfg.GitHubClientSecret == "" {
+		log.Println("warning: GITHUB_CLIENT_ID/SECRET unset — operator login will fail until configured")
+	}
+
+	st, err := store.New(context.Background(), cfg.DatabaseURL)
+	if err != nil {
+		log.Fatalf("connect db: %v", err)
+	}
+	defer st.Close()
+
+	gh := auth.NewGitHubClient(auth.GitHubOptions{
+		ClientID:     cfg.GitHubClientID,
+		ClientSecret: cfg.GitHubClientSecret,
+		CallbackURL:  cfg.CallbackURL,
+		Org:          cfg.GitHubOrg,
 	})
 
-	addr := ":" + port()
-	log.Printf("backend skeleton listening on %s", addr)
-	log.Fatal(http.ListenAndServe(addr, mux))
-}
-
-func port() string {
-	if p := os.Getenv("PORT"); p != "" {
-		return p
+	h := &auth.Handler{
+		Store:  st,
+		GitHub: gh,
+		Cfg: auth.Config{
+			FrontendURL:    cfg.FrontendURL,
+			CookieSecure:   cfg.CookieSecure,
+			CookieSameSite: cfg.CookieSameSite,
+			SessionTTL:     cfg.SessionTTL,
+		},
 	}
-	return "8080"
+
+	app := server.New(h, cfg.FrontendURL)
+	addr := ":" + cfg.Port
+	log.Printf("backend listening on %s", addr)
+	log.Fatal(app.Listen(addr))
 }
