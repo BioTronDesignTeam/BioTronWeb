@@ -18,6 +18,7 @@ type Config struct {
 	CookieSecure   bool
 	CookieSameSite string
 	SessionTTL     time.Duration
+	AdminToken     string
 }
 
 type Handler struct {

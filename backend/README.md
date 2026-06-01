@@ -21,6 +21,26 @@ cookie, and only its SHA-256 hash is stored in Postgres.
 
 Non-members are redirected to `FRONTEND_URL/?auth=denied` with no session.
 
+### Guest login (shared daily key)
+
+An alternative to GitHub for when org OAuth isn't available. A random key is
+generated per UTC day and stored; guests enter it to get a (shared) session with
+the same access as an operator.
+
+| Method | Path                | Purpose                                                          |
+|--------|---------------------|------------------------------------------------------------------|
+| GET    | `/admin/guest-key`  | Today's key — requires `X-Admin-Token: $ADMIN_TOKEN` (404 if unset) |
+| POST   | `/auth/guest`       | `{"key":"…"}` → validates today's key → guest session (rate-limited) |
+
+Fetch and share today's key:
+```bash
+curl -H "X-Admin-Token: $ADMIN_TOKEN" http://localhost:8080/admin/guest-key
+# {"day":"2026-06-01","key":"ABCD-EFGH-JKLM"}
+```
+Set `ADMIN_TOKEN` to enable this; in prod the admin endpoint should also only be
+reachable over Tailscale. Note: a shared key has no per-person accountability,
+and guest sessions currently have full access.
+
 ### Layout
 
 ```

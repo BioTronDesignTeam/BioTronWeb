@@ -112,3 +112,29 @@ func sanitizeDSN(raw string) string {
 	u.RawQuery = q.Encode()
 	return u.String()
 }
+
+type GuestKey struct {
+	Day string
+	Key string
+}
+
+// EnsureGuestKey returns today's (UTC) guest key, creating it from candidate if
+// none exists yet.
+func (s *Store) EnsureGuestKey(ctx context.Context, candidate string) (GuestKey, error) {
+	if _, err := s.pool.Exec(ctx, `
+		INSERT INTO guest_keys (day, key)
+		VALUES ((now() AT TIME ZONE 'utc')::date, $1)
+		ON CONFLICT (day) DO NOTHING
+	`, candidate); err != nil {
+		return GuestKey{}, err
+	}
+	row := s.pool.QueryRow(ctx, `
+		SELECT day::text, key FROM guest_keys
+		WHERE day = (now() AT TIME ZONE 'utc')::date
+	`)
+	var gk GuestKey
+	if err := row.Scan(&gk.Day, &gk.Key); err != nil {
+		return GuestKey{}, err
+	}
+	return gk, nil
+}

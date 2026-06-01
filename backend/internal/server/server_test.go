@@ -79,6 +79,7 @@ func testApp(t *testing.T, member bool) *fiber.App {
 			CookieSecure:   false,
 			CookieSameSite: "Lax",
 			SessionTTL:     time.Hour,
+			AdminToken:     "test-admin-token",
 		},
 	}
 	return New(h, "http://localhost:5173")
@@ -190,5 +191,80 @@ func TestNonMemberDenied(t *testing.T) {
 	}
 	if sess := cookie(cbResp, "exo_session"); sess != nil && sess.Value != "" {
 		t.Fatal("non-member should not get a session cookie")
+	}
+}
+
+func jsonReq(target, body string) *http.Request {
+	req := httptest.NewRequest(http.MethodPost, target, strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	return req
+}
+
+func TestAdminGuestKeyAuth(t *testing.T) {
+	app := testApp(t, true)
+
+	noToken, _ := app.Test(httptest.NewRequest(http.MethodGet, "/admin/guest-key", nil), -1)
+	if noToken.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("no token = %d, want 401", noToken.StatusCode)
+	}
+
+	bad := httptest.NewRequest(http.MethodGet, "/admin/guest-key", nil)
+	bad.Header.Set("X-Admin-Token", "nope")
+	badResp, _ := app.Test(bad, -1)
+	if badResp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("wrong token = %d, want 401", badResp.StatusCode)
+	}
+}
+
+func TestGuestLoginFlow(t *testing.T) {
+	app := testApp(t, true)
+
+	// fetch today's key via the admin endpoint
+	keyReq := httptest.NewRequest(http.MethodGet, "/admin/guest-key", nil)
+	keyReq.Header.Set("X-Admin-Token", "test-admin-token")
+	keyResp, _ := app.Test(keyReq, -1)
+	if keyResp.StatusCode != http.StatusOK {
+		t.Fatalf("admin key = %d, want 200", keyResp.StatusCode)
+	}
+	var kr struct {
+		Day string `json:"day"`
+		Key string `json:"key"`
+	}
+	if err := json.NewDecoder(keyResp.Body).Decode(&kr); err != nil {
+		t.Fatalf("decode key: %v", err)
+	}
+	if kr.Key == "" {
+		t.Fatal("empty guest key")
+	}
+
+	// wrong key -> 401
+	wrong, _ := app.Test(jsonReq("/auth/guest", `{"key":"AAAA-BBBB-CCCC"}`), -1)
+	if wrong.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("wrong key = %d, want 401", wrong.StatusCode)
+	}
+
+	// correct key -> 204 + session cookie
+	ok, _ := app.Test(jsonReq("/auth/guest", `{"key":"`+kr.Key+`"}`), -1)
+	if ok.StatusCode != http.StatusNoContent {
+		t.Fatalf("guest login = %d, want 204", ok.StatusCode)
+	}
+	sess := cookie(ok, "exo_session")
+	if sess == nil || sess.Value == "" {
+		t.Fatal("guest login set no session cookie")
+	}
+
+	// /auth/me identifies the guest
+	me := httptest.NewRequest(http.MethodGet, "/auth/me", nil)
+	me.AddCookie(sess)
+	meResp, _ := app.Test(me, -1)
+	if meResp.StatusCode != http.StatusOK {
+		t.Fatalf("me = %d, want 200", meResp.StatusCode)
+	}
+	var body map[string]any
+	if err := json.NewDecoder(meResp.Body).Decode(&body); err != nil {
+		t.Fatalf("decode me: %v", err)
+	}
+	if body["login"] != "guest" {
+		t.Fatalf("me login = %v, want guest", body["login"])
 	}
 }

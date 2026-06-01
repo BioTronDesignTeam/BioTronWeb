@@ -45,6 +45,7 @@ func main() {
 			CookieSecure:   cfg.CookieSecure,
 			CookieSameSite: cfg.CookieSameSite,
 			SessionTTL:     cfg.SessionTTL,
+			AdminToken:     cfg.AdminToken,
 		},
 	}
 

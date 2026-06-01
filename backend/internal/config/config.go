@@ -19,6 +19,7 @@ type Config struct {
 	CookieSecure       bool
 	CookieSameSite     string
 	SessionTTL         time.Duration
+	AdminToken         string
 }
 
 func Load() Config {
@@ -33,6 +34,7 @@ func Load() Config {
 		CookieSecure:       getbool("COOKIE_SECURE", false),
 		CookieSameSite:     getenv("COOKIE_SAMESITE", "Lax"),
 		SessionTTL:         time.Duration(getint("SESSION_TTL_HOURS", 168)) * time.Hour,
+		AdminToken:         os.Getenv("ADMIN_TOKEN"),
 	}
 }
 
