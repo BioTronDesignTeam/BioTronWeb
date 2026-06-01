@@ -29,6 +29,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     window.location.href = `${API_URL}/auth/github/login`
   }, [])
 
+  const loginGuest = useCallback(
+    async (key: string) => {
+      try {
+        const res = await fetch(`${API_URL}/auth/guest`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key }),
+        })
+        if (!res.ok) return false
+        await refresh()
+        return true
+      } catch {
+        return false
+      }
+    },
+    [refresh],
+  )
+
   const logout = useCallback(async () => {
     try {
       await fetch(`${API_URL}/auth/logout`, { method: 'POST', credentials: 'include' })
@@ -38,6 +57,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   return (
-    <AuthContext.Provider value={{ state, login, logout, refresh }}>{children}</AuthContext.Provider>
+    <AuthContext.Provider value={{ state, login, loginGuest, logout, refresh }}>{children}</AuthContext.Provider>
   )
 }

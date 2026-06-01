@@ -17,6 +17,7 @@ export type AuthState =
 export interface AuthContextValue {
   state: AuthState
   login: () => void
+  loginGuest: (key: string) => Promise<boolean>
   logout: () => Promise<void>
   refresh: () => Promise<void>
 }

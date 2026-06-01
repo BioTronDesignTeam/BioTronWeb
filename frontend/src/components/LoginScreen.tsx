@@ -1,3 +1,4 @@
+import { useState, type FormEvent } from 'react'
 import { useAuth } from '../auth/context'
 
 const GitHubMark = () => (
@@ -7,8 +8,22 @@ const GitHubMark = () => (
 )
 
 export default function LoginScreen() {
-  const { login } = useAuth()
+  const { login, loginGuest } = useAuth()
   const denied = new URLSearchParams(window.location.search).get('auth') === 'denied'
+
+  const [key, setKey] = useState('')
+  const [error, setError] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+
+  const onGuest = async (e: FormEvent) => {
+    e.preventDefault()
+    if (!key.trim()) return
+    setSubmitting(true)
+    setError(false)
+    const ok = await loginGuest(key.trim())
+    setSubmitting(false)
+    if (!ok) setError(true)
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center px-6">
@@ -32,6 +47,37 @@ export default function LoginScreen() {
           <GitHubMark />
           Sign in with GitHub
         </button>
+
+        <div className="my-5 flex items-center gap-3 text-xs text-slate-400 dark:text-slate-500">
+          <span className="h-px flex-1 bg-slate-200 dark:bg-white/10" />
+          or
+          <span className="h-px flex-1 bg-slate-200 dark:bg-white/10" />
+        </div>
+
+        <form onSubmit={onGuest} className="space-y-2 text-left">
+          <label htmlFor="guest-key" className="text-xs font-medium text-slate-500 dark:text-slate-400">
+            Daily guest key
+          </label>
+          <input
+            id="guest-key"
+            value={key}
+            onChange={(e) => {
+              setKey(e.target.value)
+              setError(false)
+            }}
+            placeholder="XXXX-XXXX-XXXX"
+            autoComplete="off"
+            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-400 dark:border-white/10 dark:bg-slate-800 dark:text-slate-100"
+          />
+          {error && <p className="text-xs text-red-600 dark:text-red-400">Invalid or expired key.</p>}
+          <button
+            type="submit"
+            disabled={submitting || !key.trim()}
+            className="w-full rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            {submitting ? 'Checking…' : 'Continue as guest'}
+          </button>
+        </form>
       </div>
     </div>
   )
