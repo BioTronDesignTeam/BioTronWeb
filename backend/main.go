@@ -43,6 +43,8 @@ func main() {
 	}
 	defer st.Close()
 
+	go pruneSessions(st)
+
 	gh := auth.NewGitHubClient(auth.GitHubOptions{
 		ClientID:     cfg.GitHubClientID,
 		ClientSecret: cfg.GitHubClientSecret,
@@ -66,6 +68,18 @@ func main() {
 	addr := ":" + cfg.Port
 	log.Printf("backend listening on %s", addr)
 	log.Fatal(app.Listen(addr))
+}
+
+// pruneSessions sweeps expired session rows hourly for the life of the process.
+func pruneSessions(st *store.Store) {
+	for {
+		if n, err := st.DeleteExpiredSessions(context.Background()); err != nil {
+			log.Printf("prune sessions: %v", err)
+		} else if n > 0 {
+			log.Printf("pruned %d expired sessions", n)
+		}
+		time.Sleep(time.Hour)
+	}
 }
 
 // connectDB retries because on a cold boot the Postgres container may not be up

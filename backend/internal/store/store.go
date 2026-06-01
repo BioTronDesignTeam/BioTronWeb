@@ -100,6 +100,17 @@ func (s *Store) DeleteSession(ctx context.Context, idHash string) error {
 	return err
 }
 
+// DeleteExpiredSessions removes sessions past their expiry and returns how many
+// were pruned. GetSessionOperator already ignores expired rows; this reclaims the
+// disk they would otherwise hold forever.
+func (s *Store) DeleteExpiredSessions(ctx context.Context) (int64, error) {
+	tag, err := s.pool.Exec(ctx, `DELETE FROM sessions WHERE expires_at <= now()`)
+	if err != nil {
+		return 0, err
+	}
+	return tag.RowsAffected(), nil
+}
+
 func nullable(s string) any {
 	if s == "" {
 		return nil
