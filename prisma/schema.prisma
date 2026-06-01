@@ -36,8 +36,8 @@ model Session {
   @@map("sessions")
 }
 
-// Shared guest login key, one per UTC day. An admin fetches it and hands it to
-// guests; it rotates automatically each day.
+// Shared guest login key, one per Eastern (America/Toronto) day. An admin fetches
+// it and hands it to guests; it rotates automatically at Eastern midnight.
 model GuestKey {
   day       DateTime @id @db.Date
   key       String
