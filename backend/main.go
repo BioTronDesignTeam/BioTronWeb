@@ -30,7 +30,7 @@ func main() {
 		log.Println("warning: GITHUB_CLIENT_ID/SECRET unset — operator login will fail until configured")
 	}
 
-	st, err := store.New(context.Background(), cfg.DatabaseURL)
+	st, err := connectDB(cfg.DatabaseURL)
 	if err != nil {
 		log.Fatalf("connect db: %v", err)
 	}
@@ -59,4 +59,22 @@ func main() {
 	addr := ":" + cfg.Port
 	log.Printf("backend listening on %s", addr)
 	log.Fatal(app.Listen(addr))
+}
+
+// connectDB retries because on a cold boot the Postgres container may not be up
+// yet, and crash-looping would trip systemd's start limit and park the backend.
+func connectDB(databaseURL string) (*store.Store, error) {
+	const dbConnectTimeout = 2 * time.Minute
+	deadline := time.Now().Add(dbConnectTimeout)
+	for attempt := 1; ; attempt++ {
+		st, err := store.New(context.Background(), databaseURL)
+		if err == nil {
+			return st, nil
+		}
+		if time.Now().After(deadline) {
+			return nil, err
+		}
+		log.Printf("database not ready (attempt %d): %v; retrying in 3s", attempt, err)
+		time.Sleep(3 * time.Second)
+	}
 }
