@@ -4,6 +4,8 @@ import (
 	"context"
 	"log"
 
+	"github.com/joho/godotenv"
+
 	"github.com/BioTronDesignTeam/exo-gui/backend/internal/auth"
 	"github.com/BioTronDesignTeam/exo-gui/backend/internal/config"
 	"github.com/BioTronDesignTeam/exo-gui/backend/internal/server"
@@ -11,6 +13,9 @@ import (
 )
 
 func main() {
+	// Load backend/.env if present; real environment variables take precedence.
+	_ = godotenv.Load()
+
 	cfg := config.Load()
 	if cfg.DatabaseURL == "" {
 		log.Fatal("DATABASE_URL is required")

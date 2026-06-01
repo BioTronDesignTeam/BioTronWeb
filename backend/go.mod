@@ -5,6 +5,7 @@ go 1.23
 require (
 	github.com/gofiber/fiber/v2 v2.52.13
 	github.com/jackc/pgx/v5 v5.7.1
+	github.com/joho/godotenv v1.5.1
 	golang.org/x/oauth2 v0.24.0
 )
 
