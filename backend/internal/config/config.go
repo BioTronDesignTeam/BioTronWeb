@@ -1,8 +1,10 @@
 package config
 
 import (
+	"errors"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -36,6 +38,15 @@ func Load() Config {
 		SessionTTL:         time.Duration(getint("SESSION_TTL_HOURS", 168)) * time.Hour,
 		AdminToken:         os.Getenv("ADMIN_TOKEN"),
 	}
+}
+
+// Validate rejects configurations a browser would silently reject: a
+// SameSite=None cookie without Secure is dropped, breaking cross-origin login.
+func (c Config) Validate() error {
+	if strings.EqualFold(c.CookieSameSite, "none") && !c.CookieSecure {
+		return errors.New("COOKIE_SAMESITE=None requires COOKIE_SECURE=true (browsers drop a SameSite=None cookie that isn't Secure)")
+	}
+	return nil
 }
 
 func getenv(key, def string) string {

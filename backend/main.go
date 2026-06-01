@@ -23,6 +23,9 @@ func main() {
 	_ = godotenv.Load()
 
 	cfg := config.Load()
+	if err := cfg.Validate(); err != nil {
+		log.Fatalf("config: %v", err)
+	}
 	if cfg.DatabaseURL == "" {
 		log.Fatal("DATABASE_URL is required")
 	}
