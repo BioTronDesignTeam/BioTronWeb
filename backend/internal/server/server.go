@@ -7,6 +7,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/limiter"
 	"github.com/gofiber/fiber/v2/middleware/logger"
+	"github.com/gofiber/fiber/v2/middleware/recover"
 
 	"github.com/BioTronDesignTeam/exo-gui/backend/internal/auth"
 )
@@ -22,6 +23,8 @@ func New(h *auth.Handler, frontendURL string) *fiber.App {
 		IdleTimeout:           60 * time.Second,
 	})
 
+	// recover first so a handler panic becomes a logged 500, not a dropped connection.
+	app.Use(recover.New(recover.Config{EnableStackTrace: true}))
 	app.Use(logger.New())
 	app.Use(cors.New(cors.Config{
 		AllowOrigins:     frontendURL,
