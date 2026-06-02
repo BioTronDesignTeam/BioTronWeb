@@ -66,7 +66,7 @@ func main() {
 		},
 	}
 
-	app := server.New(h, cfg.FrontendURL)
+	app := server.New(h, cfg.FrontendURL, cfg.TrustedProxies)
 	addr := ":" + cfg.Port
 
 	go func() {

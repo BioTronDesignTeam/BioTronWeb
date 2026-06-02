@@ -82,7 +82,7 @@ func testApp(t *testing.T, member bool) *fiber.App {
 			AdminToken:     "test-admin-token",
 		},
 	}
-	return New(h, "http://localhost:5173")
+	return New(h, "http://localhost:5173", nil)
 }
 
 func cookie(resp *http.Response, name string) *http.Cookie {

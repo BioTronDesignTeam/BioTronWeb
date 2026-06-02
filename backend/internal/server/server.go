@@ -13,14 +13,20 @@ import (
 )
 
 // New builds the Fiber app with CORS, logging, health, and the auth routes.
-func New(h *auth.Handler, frontendURL string) *fiber.App {
+func New(h *auth.Handler, frontendURL string, trustedProxies []string) *fiber.App {
 	// ReadTimeout + IdleTimeout bound slowloris / idle connection exhaustion on
 	// public ingress. WriteTimeout is intentionally left off pending the live
 	// WebSocket fan-out, which needs long-lived responses.
+	// Trust only the cloudflared peer so c.IP() — and thus the guest limiter — keys
+	// on the real client IP (Cf-Connecting-Ip) instead of the single tunnel peer
+	// address; trusting the header from anyone else would let it be spoofed.
 	app := fiber.New(fiber.Config{
-		DisableStartupMessage: true,
-		ReadTimeout:           15 * time.Second,
-		IdleTimeout:           60 * time.Second,
+		DisableStartupMessage:   true,
+		ReadTimeout:             15 * time.Second,
+		IdleTimeout:             60 * time.Second,
+		EnableTrustedProxyCheck: true,
+		TrustedProxies:          trustedProxies,
+		ProxyHeader:             "Cf-Connecting-Ip",
 	})
 
 	// recover first so a handler panic becomes a logged 500, not a dropped connection.

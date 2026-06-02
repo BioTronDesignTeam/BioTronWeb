@@ -23,6 +23,7 @@ type Config struct {
 	CookieSameSite     string
 	SessionTTL         time.Duration
 	AdminToken         string
+	TrustedProxies     []string
 }
 
 func Load() Config {
@@ -38,7 +39,20 @@ func Load() Config {
 		CookieSameSite:     getenv("COOKIE_SAMESITE", "Lax"),
 		SessionTTL:         time.Duration(getint("SESSION_TTL_HOURS", 168)) * time.Hour,
 		AdminToken:         os.Getenv("ADMIN_TOKEN"),
+		// Default to loopback: cloudflared runs on the same box as the backend.
+		TrustedProxies: splitCSV(getenv("TRUSTED_PROXIES", "127.0.0.1,::1")),
 	}
+}
+
+func splitCSV(s string) []string {
+	parts := strings.Split(s, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 // Validate rejects configurations a browser would silently reject: a
