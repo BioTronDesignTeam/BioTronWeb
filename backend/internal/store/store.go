@@ -136,17 +136,18 @@ type GuestKey struct {
 	Key string
 }
 
-// EnsureGuestKey returns today's (Eastern) guest key, creating it from candidate
-// if none exists yet. A single statement so the Eastern date is evaluated once
-// (no midnight-rollover gap between an insert and a follow-up select) and the row
-// is always returned — the no-op DO UPDATE makes RETURNING fire on conflict too.
-func (s *Store) EnsureGuestKey(ctx context.Context, candidate string) (GuestKey, error) {
+// EnsureGuestKey returns the guest key for the given Eastern day (YYYY-MM-DD),
+// creating it from candidate if none exists yet. The caller passes the day so the
+// key's validity and the guest session's expiry share one clock read. A single
+// statement so the row is always returned — the no-op DO UPDATE fires RETURNING
+// on conflict too.
+func (s *Store) EnsureGuestKey(ctx context.Context, day, candidate string) (GuestKey, error) {
 	row := s.pool.QueryRow(ctx, `
 		INSERT INTO guest_keys (day, key)
-		VALUES ((now() AT TIME ZONE 'America/Toronto')::date, $1)
+		VALUES ($1::date, $2)
 		ON CONFLICT (day) DO UPDATE SET key = guest_keys.key
 		RETURNING day::text, key
-	`, candidate)
+	`, day, candidate)
 	var gk GuestKey
 	if err := row.Scan(&gk.Day, &gk.Key); err != nil {
 		return GuestKey{}, err

@@ -40,6 +40,12 @@ func guestSessionExpiry(now time.Time) time.Time {
 	return time.Date(y, m, d+1, 0, 0, 0, 0, easternZone)
 }
 
+// easternDay returns now's America/Toronto calendar date as YYYY-MM-DD — the
+// guest_keys row key, derived from the same clock read as the session expiry.
+func easternDay(now time.Time) string {
+	return now.In(easternZone).Format("2006-01-02")
+}
+
 // newGuestKey returns a 12-char base32 code (~60 bits of entropy).
 func newGuestKey() (string, error) {
 	b := make([]byte, 8)
@@ -92,7 +98,7 @@ func (h *Handler) AdminGuestKey(c *fiber.Ctx) error {
 		log.Printf("auth: generate guest key: %v", err)
 		return fiber.ErrInternalServerError
 	}
-	gk, err := h.Store.EnsureGuestKey(c.UserContext(), candidate)
+	gk, err := h.Store.EnsureGuestKey(c.UserContext(), easternDay(time.Now()), candidate)
 	if err != nil {
 		log.Printf("auth: ensure guest key: %v", err)
 		return fiber.ErrInternalServerError
@@ -109,12 +115,13 @@ func (h *Handler) GuestLogin(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).SendString("missing key")
 	}
 
+	now := time.Now()
 	candidate, err := newGuestKey()
 	if err != nil {
 		log.Printf("auth: generate guest key: %v", err)
 		return fiber.ErrInternalServerError
 	}
-	gk, err := h.Store.EnsureGuestKey(c.UserContext(), candidate)
+	gk, err := h.Store.EnsureGuestKey(c.UserContext(), easternDay(now), candidate)
 	if err != nil {
 		log.Printf("auth: ensure guest key: %v", err)
 		return fiber.ErrInternalServerError
@@ -136,9 +143,9 @@ func (h *Handler) GuestLogin(c *fiber.Ctx) error {
 	if err != nil {
 		return fiber.ErrInternalServerError
 	}
-	// Guest sessions expire when the key rotates (next EST midnight), not after
-	// the operator SessionTTL.
-	expiry := guestSessionExpiry(time.Now())
+	// Guest sessions expire when the key rotates (next Eastern midnight), not after
+	// the operator SessionTTL — from the same clock read as the key day above.
+	expiry := guestSessionExpiry(now)
 	if err := h.Store.CreateSession(c.UserContext(), hashToken(token), guestGitHubID,
 		expiry, c.Get("User-Agent")); err != nil {
 		log.Printf("auth: create guest session: %v", err)
