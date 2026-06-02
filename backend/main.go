@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"log"
+	"os/signal"
+	"syscall"
 	"time"
 	_ "time/tzdata" // embed zoneinfo so America/Toronto loads without OS tzdata
 
@@ -66,8 +68,23 @@ func main() {
 
 	app := server.New(h, cfg.FrontendURL)
 	addr := ":" + cfg.Port
-	log.Printf("backend listening on %s", addr)
-	log.Fatal(app.Listen(addr))
+
+	go func() {
+		log.Printf("backend listening on %s", addr)
+		if err := app.Listen(addr); err != nil {
+			log.Fatalf("listen: %v", err)
+		}
+	}()
+
+	// Drain in-flight requests on SIGTERM (the daily 03:00 reboot) so deferred
+	// cleanup like st.Close() actually runs instead of being killed mid-request.
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+	<-ctx.Done()
+	log.Println("shutting down")
+	if err := app.ShutdownWithTimeout(10 * time.Second); err != nil {
+		log.Printf("shutdown: %v", err)
+	}
 }
 
 // pruneSessions sweeps expired session rows hourly for the life of the process.
