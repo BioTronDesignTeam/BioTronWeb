@@ -1,6 +1,13 @@
 import { createContext, useContext } from 'react'
 
-export const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8080'
+const apiUrl = import.meta.env.VITE_API_URL
+if (import.meta.env.PROD && !apiUrl) {
+  // Fail the build/boot loudly rather than silently shipping a localhost API URL
+  // to every visitor (which also gets mixed-content-blocked over HTTPS).
+  throw new Error('VITE_API_URL must be set for production builds')
+}
+
+export const API_URL = apiUrl ?? 'http://localhost:8080'
 
 export interface Operator {
   github_id: number
