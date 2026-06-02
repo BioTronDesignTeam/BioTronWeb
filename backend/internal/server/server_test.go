@@ -50,6 +50,10 @@ func fakeGitHub(t *testing.T, member bool) *httptest.Server {
 }
 
 func testApp(t *testing.T, member bool) *fiber.App {
+	return buildApp(t, member, false, "Lax")
+}
+
+func buildApp(t *testing.T, member, cookieSecure bool, cookieSameSite string) *fiber.App {
 	t.Helper()
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
@@ -76,8 +80,8 @@ func testApp(t *testing.T, member bool) *fiber.App {
 		GitHub: client,
 		Cfg: auth.Config{
 			FrontendURL:    "http://localhost:5173",
-			CookieSecure:   false,
-			CookieSameSite: "Lax",
+			CookieSecure:   cookieSecure,
+			CookieSameSite: cookieSameSite,
 			SessionTTL:     time.Hour,
 			AdminToken:     "test-admin-token",
 		},
@@ -275,5 +279,46 @@ func TestGuestLoginFlow(t *testing.T) {
 	}
 	if body["login"] != "guest" {
 		t.Fatalf("me login = %v, want guest", body["login"])
+	}
+}
+
+// TestSessionCookieAttributes locks in the cross-origin cookie contract: the
+// session cookie MUST be Secure + HttpOnly + SameSite=None in production, and the
+// OAuth state cookie SameSite=Lax. A regression here silently breaks login.
+func TestSessionCookieAttributes(t *testing.T) {
+	app := buildApp(t, true, true, "none") // production cookie config
+
+	resp, _ := app.Test(httptest.NewRequest(http.MethodGet, "/auth/github/login", nil), -1)
+	state := cookie(resp, "exo_oauth_state")
+	if state == nil {
+		t.Fatal("no state cookie")
+	}
+	if !state.Secure || !state.HttpOnly || state.SameSite != http.SameSiteLaxMode {
+		t.Errorf("state cookie: Secure=%v HttpOnly=%v SameSite=%v, want true/true/Lax",
+			state.Secure, state.HttpOnly, state.SameSite)
+	}
+
+	cb := httptest.NewRequest(http.MethodGet, "/auth/github/callback?code=abc&state="+url.QueryEscape(state.Value), nil)
+	cb.AddCookie(state)
+	cbResp, _ := app.Test(cb, -1)
+	sess := cookie(cbResp, "exo_session")
+	if sess == nil {
+		t.Fatal("no session cookie")
+	}
+	if !sess.Secure || !sess.HttpOnly || sess.SameSite != http.SameSiteNoneMode {
+		t.Errorf("session cookie: Secure=%v HttpOnly=%v SameSite=%v, want true/true/None",
+			sess.Secure, sess.HttpOnly, sess.SameSite)
+	}
+}
+
+// TestAdminGuestKeyDisabled proves the disabled-when-unset safety toggle: with
+// AdminToken empty, RequireAdmin returns 404 before any store call — so it needs
+// no database and runs in a plain `go test ./...`.
+func TestAdminGuestKeyDisabled(t *testing.T) {
+	h := &auth.Handler{Cfg: auth.Config{AdminToken: ""}}
+	app := New(h, "http://localhost:5173", nil)
+	resp, _ := app.Test(httptest.NewRequest(http.MethodGet, "/admin/guest-key", nil), -1)
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("admin guest-key with empty token = %d, want 404", resp.StatusCode)
 	}
 }
