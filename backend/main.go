@@ -45,7 +45,7 @@ func main() {
 	}
 	defer st.Close()
 
-	go pruneSessions(st)
+	go prune(st)
 
 	gh := auth.NewGitHubClient(auth.GitHubOptions{
 		ClientID:     cfg.GitHubClientID,
@@ -87,13 +87,19 @@ func main() {
 	}
 }
 
-// pruneSessions sweeps expired session rows hourly for the life of the process.
-func pruneSessions(st *store.Store) {
+// prune sweeps expired session rows and stale guest keys hourly for the life of
+// the process.
+func prune(st *store.Store) {
 	for {
 		if n, err := st.DeleteExpiredSessions(context.Background()); err != nil {
 			log.Printf("prune sessions: %v", err)
 		} else if n > 0 {
 			log.Printf("pruned %d expired sessions", n)
+		}
+		if n, err := st.DeleteOldGuestKeys(context.Background()); err != nil {
+			log.Printf("prune guest keys: %v", err)
+		} else if n > 0 {
+			log.Printf("pruned %d stale guest keys", n)
 		}
 		time.Sleep(time.Hour)
 	}

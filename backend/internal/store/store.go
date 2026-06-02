@@ -111,6 +111,16 @@ func (s *Store) DeleteExpiredSessions(ctx context.Context) (int64, error) {
 	return tag.RowsAffected(), nil
 }
 
+// DeleteOldGuestKeys removes guest keys for past Eastern days and returns how many
+// were pruned, so the table doesn't accumulate one stale key per day forever.
+func (s *Store) DeleteOldGuestKeys(ctx context.Context) (int64, error) {
+	tag, err := s.pool.Exec(ctx, `DELETE FROM guest_keys WHERE day < (now() AT TIME ZONE 'America/Toronto')::date`)
+	if err != nil {
+		return 0, err
+	}
+	return tag.RowsAffected(), nil
+}
+
 func nullable(s string) any {
 	if s == "" {
 		return nil
