@@ -70,13 +70,13 @@ func (h *Handler) Callback(c *fiber.Ctx) error {
 	tok, err := h.GitHub.Exchange(ctx, code)
 	if err != nil {
 		log.Printf("auth: oauth exchange: %v", err)
-		return c.Status(fiber.StatusBadGateway).SendString("OAuth exchange failed")
+		return c.Status(fiber.StatusBadGateway).SendString("authentication failed, please try again")
 	}
 
 	member, err := h.GitHub.IsOrgMember(ctx, tok)
 	if err != nil {
 		log.Printf("auth: org membership check: %v", err)
-		return c.Status(fiber.StatusBadGateway).SendString("org membership check failed")
+		return c.Status(fiber.StatusBadGateway).SendString("authentication failed, please try again")
 	}
 	if !member {
 		return c.Redirect(h.Cfg.FrontendURL+"/?auth=denied", fiber.StatusFound)
@@ -85,7 +85,7 @@ func (h *Handler) Callback(c *fiber.Ctx) error {
 	user, err := h.GitHub.FetchUser(ctx, tok)
 	if err != nil {
 		log.Printf("auth: fetch user: %v", err)
-		return c.Status(fiber.StatusBadGateway).SendString("failed to fetch user")
+		return c.Status(fiber.StatusBadGateway).SendString("authentication failed, please try again")
 	}
 
 	if err := h.Store.UpsertOperator(ctx, store.Operator{
