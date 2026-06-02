@@ -30,7 +30,7 @@ func New(h *auth.Handler, frontendURL string) *fiber.App {
 		AllowOrigins:     frontendURL,
 		AllowCredentials: true,
 		AllowMethods:     "GET,POST,OPTIONS",
-		AllowHeaders:     "Content-Type",
+		AllowHeaders:     "Content-Type,X-Requested-With",
 	}))
 
 	app.Get("/health", func(c *fiber.Ctx) error {
@@ -41,7 +41,7 @@ func New(h *auth.Handler, frontendURL string) *fiber.App {
 	a.Get("/github/login", h.LoginRedirect)
 	a.Get("/github/callback", h.Callback)
 	a.Post("/guest", limiter.New(limiter.Config{Max: 20, Expiration: time.Minute}), h.GuestLogin)
-	a.Post("/logout", h.Logout)
+	a.Post("/logout", h.RequireXHR, h.RequireSession, h.Logout)
 	a.Get("/me", h.RequireSession, h.Me)
 
 	app.Get("/admin/guest-key", h.RequireAdmin, h.AdminGuestKey)

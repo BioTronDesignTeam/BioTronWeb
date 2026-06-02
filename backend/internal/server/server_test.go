@@ -156,9 +156,18 @@ func TestOperatorLoginFlow(t *testing.T) {
 		t.Fatalf("me without cookie = %d, want 401", naResp.StatusCode)
 	}
 
-	// 5) logout -> 204, and the session is no longer valid
+	// 5) logout without the X-Requested-With header is rejected (blocks CSRF)
+	loBad := httptest.NewRequest(http.MethodPost, "/auth/logout", nil)
+	loBad.AddCookie(sess)
+	loBadResp, _ := app.Test(loBad, -1)
+	if loBadResp.StatusCode != http.StatusForbidden {
+		t.Fatalf("logout without X-Requested-With = %d, want 403", loBadResp.StatusCode)
+	}
+
+	// 6) logout -> 204, and the session is no longer valid
 	lo := httptest.NewRequest(http.MethodPost, "/auth/logout", nil)
 	lo.AddCookie(sess)
+	lo.Header.Set("X-Requested-With", "XMLHttpRequest")
 	loResp, _ := app.Test(lo, -1)
 	if loResp.StatusCode != http.StatusNoContent {
 		t.Fatalf("logout = %d, want 204", loResp.StatusCode)

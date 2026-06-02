@@ -77,9 +77,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     try {
-      await fetch(`${API_URL}/auth/logout`, { method: 'POST', credentials: 'include' })
-    } finally {
-      setState({ status: 'anon' })
+      const res = await fetch(`${API_URL}/auth/logout`, {
+        method: 'POST',
+        credentials: 'include',
+        // The custom header forces a CORS preflight a cross-site page can't pass,
+        // and the backend requires it — together this blocks logout CSRF.
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      })
+      // Only treat ourselves as logged out once the server confirms it; otherwise a
+      // failed request would show "signed out" while the session cookie is still live.
+      if (res.ok) setState({ status: 'anon' })
+    } catch {
+      // Network error — keep the current state; the session may still be valid.
     }
   }, [])
 
