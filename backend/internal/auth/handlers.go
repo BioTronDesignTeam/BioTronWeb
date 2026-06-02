@@ -34,13 +34,15 @@ func (h *Handler) LoginRedirect(c *fiber.Ctx) error {
 	if err != nil {
 		return fiber.ErrInternalServerError
 	}
+	// Pinned to Lax, not the session's configurable SameSite: the GitHub->callback
+	// hop is a cross-site top-level GET that a Strict cookie would not be sent on.
 	c.Cookie(&fiber.Cookie{
 		Name:     stateCookie,
 		Value:    state,
 		Path:     "/",
 		HTTPOnly: true,
 		Secure:   h.Cfg.CookieSecure,
-		SameSite: sameSite(h.Cfg.CookieSameSite),
+		SameSite: fiber.CookieSameSiteLaxMode,
 		Expires:  time.Now().Add(10 * time.Minute),
 	})
 	return c.Redirect(h.GitHub.AuthCodeURL(state), fiber.StatusFound)
@@ -141,7 +143,7 @@ func clearStateCookie(c *fiber.Ctx, cfg Config) {
 		Path:     "/",
 		HTTPOnly: true,
 		Secure:   cfg.CookieSecure,
-		SameSite: sameSite(cfg.CookieSameSite),
+		SameSite: fiber.CookieSameSiteLaxMode,
 		Expires:  time.Now().Add(-time.Hour),
 	})
 }
