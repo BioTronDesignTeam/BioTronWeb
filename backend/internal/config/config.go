@@ -2,6 +2,7 @@ package config
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -43,6 +44,11 @@ func Load() Config {
 // Validate rejects configurations a browser would silently reject: a
 // SameSite=None cookie without Secure is dropped, breaking cross-origin login.
 func (c Config) Validate() error {
+	switch strings.ToLower(c.CookieSameSite) {
+	case "lax", "none", "strict":
+	default:
+		return fmt.Errorf("COOKIE_SAMESITE must be Lax, None, or Strict (got %q)", c.CookieSameSite)
+	}
 	if strings.EqualFold(c.CookieSameSite, "none") && !c.CookieSecure {
 		return errors.New("COOKIE_SAMESITE=None requires COOKIE_SECURE=true (browsers drop a SameSite=None cookie that isn't Secure)")
 	}
