@@ -9,7 +9,7 @@ The dev stand-in for the ESP32 WiFi coprocessor: POSTs **batched** telemetry JSO
 to the Fiber ingest endpoint at a configurable rate. Replaces the old Python dummy
 server. Each POST is one batch from one machine in the confirmed wire shape —
 `{ machine_id, samples: [ { sampled_at, seq, battery, left, right, mcu_status,
-link_status } ] }` (see the message contract in the root `CLAUDE.md`).
+link_status } ] }`.
 
 ```bash
 ./scripts/mock_telemetry.sh

@@ -23,7 +23,7 @@ func New(ctx context.Context, databaseURL string) (*Store, error) {
 		return nil, err
 	}
 	// Every connection runs in Eastern (DST-aware) so timestamptz values render
-	// and day boundaries compute in local Waterloo time. See CLAUDE.md.
+	// and day boundaries compute in local Waterloo time.
 	cfg.ConnConfig.RuntimeParams["timezone"] = "America/Toronto"
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
