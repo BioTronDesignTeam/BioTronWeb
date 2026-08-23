@@ -1,0 +1,11 @@
+name: biotron-site
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: biotron-site:latest
+    ports:
+      - "8080:80"
+    restart: unless-stopped
