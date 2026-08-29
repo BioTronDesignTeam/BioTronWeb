@@ -1,0 +1,110 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Operator = org member who can sign into Auth (GitHub org membership at login).
+model Operator {
+  githubId     BigInt          @id @map("github_id")
+  login        String
+  name         String?
+  avatarUrl    String?         @map("avatar_url")
+  isSuperuser  Boolean         @default(false) @map("is_superuser")
+  isManager    Boolean         @default(false) @map("is_manager")
+  isBanned     Boolean         @default(false) @map("is_banned")
+  createdAt    DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  lastLoginAt  DateTime        @default(now()) @map("last_login_at") @db.Timestamptz(6)
+  sessions     Session[]
+  grants       Grant[]
+  requests     AccessRequest[] @relation("Requester")
+  reviews      AccessRequest[] @relation("Reviewer")
+
+  @@map("operators")
+}
+
+model Session {
+  id         String   @id
+  operatorId BigInt   @map("operator_id")
+  operator   Operator @relation(fields: [operatorId], references: [githubId], onDelete: Cascade)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  expiresAt  DateTime @map("expires_at") @db.Timestamptz(6)
+  userAgent  String?  @map("user_agent")
+
+  @@index([operatorId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+// Shared guest login key, one per Eastern (America/Toronto) day. Staff fetch
+// it from the Org tab; it rotates automatically at Eastern midnight.
+model GuestKey {
+  day       DateTime @id @db.Date
+  key       String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("guest_keys")
+}
+
+// Registered BioTron tool. New apps are rows, not schema migrations.
+model App {
+  id          String          @id
+  name        String
+  description String          @default("")
+  createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  permissions Permission[]
+  grants      Grant[]
+  requests    AccessRequest[]
+
+  @@map("apps")
+}
+
+// Catalog of requestable/checkable permissions for an app.
+model Permission {
+  appId       String @map("app_id")
+  app         App    @relation(fields: [appId], references: [id], onDelete: Cascade)
+  key         String
+  label       String
+  description String @default("")
+
+  grants   Grant[]
+  requests AccessRequest[]
+
+  @@id([appId, key])
+  @@map("permissions")
+}
+
+model Grant {
+  operatorId    BigInt     @map("operator_id")
+  operator      Operator   @relation(fields: [operatorId], references: [githubId], onDelete: Cascade)
+  appId         String     @map("app_id")
+  permissionKey String     @map("permission_key")
+  permission    Permission @relation(fields: [appId, permissionKey], references: [appId, key], onDelete: Cascade)
+  createdAt     DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@id([operatorId, appId, permissionKey])
+  @@index([appId])
+  @@map("grants")
+}
+
+model AccessRequest {
+  id            String     @id @default(cuid())
+  requesterId   BigInt     @map("requester_id")
+  requester     Operator   @relation("Requester", fields: [requesterId], references: [githubId], onDelete: Cascade)
+  appId         String     @map("app_id")
+  permissionKey String     @map("permission_key")
+  permission    Permission @relation(fields: [appId, permissionKey], references: [appId, key], onDelete: Cascade)
+  status        String     @default("pending") // pending | approved | denied
+  reviewedBy    BigInt?    @map("reviewed_by")
+  reviewer      Operator?  @relation("Reviewer", fields: [reviewedBy], references: [githubId], onDelete: SetNull)
+  createdAt     DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  reviewedAt    DateTime?  @map("reviewed_at") @db.Timestamptz(6)
+
+  @@index([status])
+  @@index([requesterId])
+  @@index([appId])
+  @@map("access_requests")
+}

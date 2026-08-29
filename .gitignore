@@ -1,0 +1,11 @@
+# OS / editor
+.DS_Store
+*.swp
+.vscode/
+.idea/
+
+# Secrets / certs
+*.pem
+.env
+.env.*
+!.env.example

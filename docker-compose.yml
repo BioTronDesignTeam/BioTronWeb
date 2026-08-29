@@ -1,0 +1,92 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: oauth
+      POSTGRES_PASSWORD: oauth
+      POSTGRES_DB: oauth
+    volumes:
+      - oauth-db-data:/var/lib/postgresql/data
+    ports:
+      # 5432 = exo-gui, 5433 = personalwebsite — use 5434 for this service.
+      - "127.0.0.1:5434:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U oauth -d oauth"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  migrate:
+    image: node:22-alpine
+    working_dir: /prisma
+    volumes:
+      - ./prisma:/prisma
+    environment:
+      DATABASE_URL: postgresql://oauth:oauth@db:5432/oauth?schema=public
+    command: sh -c "npm ci && npx prisma migrate deploy"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    working_dir: /app
+    volumes:
+      - ./backend:/app
+      - api-go-mod:/go/pkg/mod
+      - api-go-build:/root/.cache/go-build
+    env_file:
+      - ./backend/.env
+    environment:
+      # Override host URLs from .env with compose service DNS.
+      DATABASE_URL: postgresql://oauth:oauth@db:5432/oauth?schema=public
+      REDIS_URL: redis://redis:6379/0
+      PORT: "8080"
+      FRONTEND_URL: http://localhost:5173
+      # Host publish is 18080 (8080 taken by personalwebsite on this box).
+      OAUTH_CALLBACK_URL: http://localhost:18080/auth/github/callback
+    ports:
+      - "127.0.0.1:18080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  web:
+    image: node:22-alpine
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
+      # Keep Linux node_modules in the container (don't use a host bind for them).
+      - web-node-modules:/app/node_modules
+    environment:
+      VITE_API_BASE: http://localhost:18080
+    command: sh -c "npm ci && npm run dev -- --host 0.0.0.0 --port 5173"
+    ports:
+      - "127.0.0.1:5173:5173"
+    depends_on:
+      - api
+
+volumes:
+  oauth-db-data:
+  api-go-mod:
+  api-go-build:
+  web-node-modules:
