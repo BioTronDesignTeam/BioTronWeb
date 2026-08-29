@@ -7,41 +7,5 @@ generator client {
   provider = "prisma-client-js"
 }
 
-// Operator = a human allowed to use the dashboard. Identity comes from GitHub;
-// access is gated on BioTronDesignTeam org membership at login time.
-model Operator {
-  githubId    BigInt    @id @map("github_id")
-  login       String
-  name        String?
-  avatarUrl   String?   @map("avatar_url")
-  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  lastLoginAt DateTime  @default(now()) @map("last_login_at") @db.Timestamptz(6)
-  sessions    Session[]
-
-  @@map("operators")
-}
-
-// Server-side session. The cookie carries an opaque random token; `id` stores
-// its SHA-256 hash so a DB leak can't be replayed as a live session.
-model Session {
-  id         String   @id
-  operatorId BigInt   @map("operator_id")
-  operator   Operator @relation(fields: [operatorId], references: [githubId], onDelete: Cascade)
-  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  expiresAt  DateTime @map("expires_at") @db.Timestamptz(6)
-  userAgent  String?  @map("user_agent")
-
-  @@index([operatorId])
-  @@index([expiresAt])
-  @@map("sessions")
-}
-
-// Shared guest login key, one per Eastern (America/Toronto) day. An admin fetches
-// it and hands it to guests; it rotates automatically at Eastern midnight.
-model GuestKey {
-  day       DateTime @id @db.Date
-  key       String
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  @@map("guest_keys")
-}
+// Telemetry models land with the ingest pipeline. Operator/session/guest_key
+// tables were a local auth copy and are dropped — OAuthManager owns that.
