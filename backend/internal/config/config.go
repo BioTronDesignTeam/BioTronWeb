@@ -21,6 +21,7 @@ type Config struct {
 	GitHubOrg          string
 	CallbackURL        string
 	FrontendURL        string
+	AllowedOrigins     []string
 	CookieSecure       bool
 	CookieSameSite     string
 	SessionTTL         time.Duration
@@ -29,6 +30,7 @@ type Config struct {
 }
 
 func Load() Config {
+	frontendURL := getenv("FRONTEND_URL", "http://localhost:5173")
 	return Config{
 		Port:               getenv("PORT", "8080"),
 		DatabaseURL:        os.Getenv("DATABASE_URL"),
@@ -38,7 +40,8 @@ func Load() Config {
 		GitHubClientSecret: os.Getenv("GITHUB_CLIENT_SECRET"),
 		GitHubOrg:          getenv("GITHUB_ORG", "BioTronDesignTeam"),
 		CallbackURL:        getenv("OAUTH_CALLBACK_URL", "http://localhost:8080/auth/github/callback"),
-		FrontendURL:        getenv("FRONTEND_URL", "http://localhost:5173"),
+		FrontendURL:        frontendURL,
+		AllowedOrigins:     parseOrigins(frontendURL, os.Getenv("CORS_ORIGINS")),
 		CookieSecure:       getbool("COOKIE_SECURE", false),
 		CookieSameSite:     getenv("COOKIE_SAMESITE", "Lax"),
 		SessionTTL:         time.Duration(getint("SESSION_TTL_HOURS", 168)) * time.Hour,
@@ -75,6 +78,24 @@ func parseIntSet(s string) map[int64]bool {
 			continue
 		}
 		out[n] = true
+	}
+	return out
+}
+
+func parseOrigins(frontendURL, extra string) []string {
+	seen := map[string]bool{}
+	var out []string
+	add := func(raw string) {
+		raw = strings.TrimRight(strings.TrimSpace(raw), "/")
+		if raw == "" || seen[raw] {
+			return
+		}
+		seen[raw] = true
+		out = append(out, raw)
+	}
+	add(frontendURL)
+	for _, p := range splitCSV(extra) {
+		add(p)
 	}
 	return out
 }

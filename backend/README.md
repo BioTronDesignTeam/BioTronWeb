@@ -8,7 +8,7 @@ Postgres via pgx; Prisma owns schema (`../prisma`). Redis caches sessions + gran
 | Method | Path | Notes |
 |--------|------|-------|
 | GET | `/health` | liveness |
-| GET | `/auth/github/login` | start OAuth |
+| GET | `/auth/github/login` | start OAuth; optional `?redirect=<allowed origin>` |
 | GET | `/auth/github/callback` | finish OAuth |
 | POST | `/auth/guest` | daily guest key login (rate limited) |
 | POST | `/auth/logout` | session + XHR |

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -12,7 +13,7 @@ import (
 	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/auth"
 )
 
-func New(h *auth.Handler, frontendURL string, trustedProxies []string) *fiber.App {
+func New(h *auth.Handler, allowedOrigins []string, trustedProxies []string) *fiber.App {
 	app := fiber.New(fiber.Config{
 		DisableStartupMessage:   true,
 		ReadTimeout:             15 * time.Second,
@@ -25,7 +26,7 @@ func New(h *auth.Handler, frontendURL string, trustedProxies []string) *fiber.Ap
 	app.Use(recover.New(recover.Config{EnableStackTrace: true}))
 	app.Use(logger.New())
 	app.Use(cors.New(cors.Config{
-		AllowOrigins:     frontendURL,
+		AllowOrigins:     strings.Join(allowedOrigins, ","),
 		AllowCredentials: true,
 		AllowMethods:     "GET,POST,DELETE,PATCH,OPTIONS",
 		AllowHeaders:     "Content-Type,X-Requested-With",

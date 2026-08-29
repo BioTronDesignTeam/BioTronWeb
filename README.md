@@ -7,6 +7,9 @@ with GitHub (org membership); tool access is granted via `read` / `write` /
 Guests can sign in with a daily rotating key (Eastern midnight). Staff copy
 today's key from the Org tab. Guest sessions expire when the key rotates.
 
+Other tools (exo-gui, …) sign in through this API. GitHub login accepts
+`?redirect=<origin>` when that origin is in `FRONTEND_URL` or `CORS_ORIGINS`.
+
 ## Layout
 
 | Path | What |

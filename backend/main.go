@@ -64,6 +64,7 @@ func main() {
 		GitHub: gh,
 		Cfg: auth.Config{
 			FrontendURL:    cfg.FrontendURL,
+			AllowedOrigins: cfg.AllowedOrigins,
 			CookieSecure:   cfg.CookieSecure,
 			CookieSameSite: cfg.CookieSameSite,
 			SessionTTL:     cfg.SessionTTL,
@@ -71,7 +72,7 @@ func main() {
 		},
 	}
 
-	app := server.New(h, cfg.FrontendURL, cfg.TrustedProxies)
+	app := server.New(h, cfg.AllowedOrigins, cfg.TrustedProxies)
 	addr := ":" + cfg.Port
 
 	go func() {

@@ -18,6 +18,7 @@ const stateCookie = "oauth_state"
 
 type Config struct {
 	FrontendURL    string
+	AllowedOrigins []string
 	CookieSecure   bool
 	CookieSameSite string
 	SessionTTL     time.Duration
@@ -45,6 +46,7 @@ func (h *Handler) LoginRedirect(c *fiber.Ctx) error {
 		SameSite: fiber.CookieSameSiteLaxMode,
 		Expires:  time.Now().Add(10 * time.Minute),
 	})
+	setReturnCookie(c, h.safeReturn(c.Query("redirect")), h.Cfg)
 	return c.Redirect(h.GitHub.AuthCodeURL(state), fiber.StatusFound)
 }
 
@@ -52,7 +54,9 @@ func (h *Handler) Callback(c *fiber.Ctx) error {
 	state := c.Query("state")
 	code := c.Query("code")
 	cookieState := c.Cookies(stateCookie)
+	dest := h.safeReturn(c.Cookies(returnCookie))
 	clearStateCookie(c, h.Cfg)
+	clearReturnCookie(c, h.Cfg)
 
 	if state == "" || cookieState == "" ||
 		subtle.ConstantTimeCompare([]byte(state), []byte(cookieState)) != 1 {
@@ -75,7 +79,7 @@ func (h *Handler) Callback(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadGateway).SendString("authentication failed, please try again")
 	}
 	if !member {
-		return c.Redirect(h.Cfg.FrontendURL+"/?auth=denied", fiber.StatusFound)
+		return c.Redirect(dest+"/?auth=denied", fiber.StatusFound)
 	}
 
 	user, err := h.GitHub.FetchUser(ctx, tok)
@@ -86,7 +90,7 @@ func (h *Handler) Callback(c *fiber.Ctx) error {
 
 	existing, _ := h.Store.GetOperator(ctx, user.ID)
 	if existing != nil && existing.IsBanned {
-		return c.Redirect(h.Cfg.FrontendURL+"/?auth=banned", fiber.StatusFound)
+		return c.Redirect(dest+"/?auth=banned", fiber.StatusFound)
 	}
 
 	forceSuper := h.Cfg.IsSuperuserID != nil && h.Cfg.IsSuperuserID(user.ID)
@@ -111,7 +115,7 @@ func (h *Handler) Callback(c *fiber.Ctx) error {
 	}
 
 	setSessionCookie(c, token, h.Cfg.CookieSecure, h.Cfg.CookieSameSite, h.Cfg.SessionTTL)
-	return c.Redirect(h.Cfg.FrontendURL, fiber.StatusFound)
+	return c.Redirect(dest, fiber.StatusFound)
 }
 
 func (h *Handler) Logout(c *fiber.Ctx) error {
