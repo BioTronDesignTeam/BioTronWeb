@@ -1,12 +1,15 @@
 import { createContext, useContext } from 'react'
 
+const authUrl = import.meta.env.VITE_AUTH_URL
 const apiUrl = import.meta.env.VITE_API_URL
+if (import.meta.env.PROD && !authUrl) {
+  throw new Error('VITE_AUTH_URL must be set for production builds')
+}
 if (import.meta.env.PROD && !apiUrl) {
-  // Fail the build/boot loudly rather than silently shipping a localhost API URL
-  // to every visitor (which also gets mixed-content-blocked over HTTPS).
   throw new Error('VITE_API_URL must be set for production builds')
 }
 
+export const AUTH_URL = authUrl ?? 'http://localhost:18080'
 export const API_URL = apiUrl ?? 'http://localhost:8080'
 
 export interface Operator {
@@ -14,6 +17,7 @@ export interface Operator {
   login: string
   name: string
   avatar_url: string
+  is_guest?: boolean
 }
 
 export type AuthState =

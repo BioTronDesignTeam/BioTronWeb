@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
-import { API_URL, AuthContext, type AuthState, type Operator } from './context'
+import { AUTH_URL, AuthContext, type AuthState, type Operator } from './context'
 
 // Re-check the session this often while the tab is open, so a guest session that
 // expires at Eastern midnight (or a revoked operator) is noticed without a reload.
@@ -12,7 +12,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     for (let attempt = 0; ; attempt++) {
       try {
         // credentials: 'include' so the cross-origin session cookie is sent.
-        const res = await fetch(`${API_URL}/auth/me`, { credentials: 'include' })
+        const res = await fetch(`${AUTH_URL}/auth/me`, { credentials: 'include' })
         if (res.ok) {
           setState({ status: 'authed', operator: (await res.json()) as Operator })
           return
@@ -53,13 +53,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [refresh])
 
   const login = useCallback(() => {
-    window.location.href = `${API_URL}/auth/github/login`
+    window.location.href = `${AUTH_URL}/auth/github/login?redirect=${encodeURIComponent(window.location.origin)}`
   }, [])
 
   const loginGuest = useCallback(
     async (key: string) => {
       try {
-        const res = await fetch(`${API_URL}/auth/guest`, {
+        const res = await fetch(`${AUTH_URL}/auth/guest`, {
           method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
@@ -77,7 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     try {
-      const res = await fetch(`${API_URL}/auth/logout`, {
+      const res = await fetch(`${AUTH_URL}/auth/logout`, {
         method: 'POST',
         credentials: 'include',
         // The custom header forces a CORS preflight a cross-site page can't pass,

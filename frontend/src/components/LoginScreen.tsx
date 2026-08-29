@@ -30,7 +30,8 @@ export default function LoginScreen() {
       <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm dark:border-white/10 dark:bg-slate-900">
         <h1 className="text-lg font-semibold text-slate-900 dark:text-slate-100">BioTron Exo Dashboard</h1>
         <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-          Sign in with GitHub to view telemetry. Access is limited to BioTronDesignTeam members.
+          Sign in with GitHub (BioTron Auth) to view telemetry. Access is limited to
+          BioTronDesignTeam members.
         </p>
 
         {denied && (
