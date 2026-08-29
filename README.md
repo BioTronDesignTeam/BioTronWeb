@@ -2,8 +2,7 @@
 
 Telemetry pipeline for an exoskeleton: an STM32 (C++) reads sensors/motors and a
 dedicated ESP32 WiFi coprocessor ships batched telemetry to a headless Debian
-server (Go backend + Postgres). A React SPA on Netlify renders it live for an
-authenticated operator.
+server (Go backend + Postgres). A React SPA renders it live for an operator signed in through OAuthManager.
 
 > **Mid-refactor** (branch `staging/refactor`).
 

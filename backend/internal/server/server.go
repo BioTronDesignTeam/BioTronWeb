@@ -5,21 +5,11 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
-	"github.com/gofiber/fiber/v2/middleware/limiter"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/recover"
-
-	"github.com/BioTronDesignTeam/exo-gui/backend/internal/auth"
 )
 
-// New builds the Fiber app with CORS, logging, health, and the auth routes.
-func New(h *auth.Handler, frontendURL string, trustedProxies []string) *fiber.App {
-	// ReadTimeout + IdleTimeout bound slowloris / idle connection exhaustion on
-	// public ingress. WriteTimeout is intentionally left off pending the live
-	// WebSocket fan-out, which needs long-lived responses.
-	// Trust only the cloudflared peer so c.IP() — and thus the guest limiter — keys
-	// on the real client IP (Cf-Connecting-Ip) instead of the single tunnel peer
-	// address; trusting the header from anyone else would let it be spoofed.
+func New(frontendURL string, trustedProxies []string) *fiber.App {
 	app := fiber.New(fiber.Config{
 		DisableStartupMessage:   true,
 		ReadTimeout:             15 * time.Second,
@@ -29,7 +19,6 @@ func New(h *auth.Handler, frontendURL string, trustedProxies []string) *fiber.Ap
 		ProxyHeader:             "Cf-Connecting-Ip",
 	})
 
-	// recover first so a handler panic becomes a logged 500, not a dropped connection.
 	app.Use(recover.New(recover.Config{EnableStackTrace: true}))
 	app.Use(logger.New())
 	app.Use(cors.New(cors.Config{
@@ -42,15 +31,6 @@ func New(h *auth.Handler, frontendURL string, trustedProxies []string) *fiber.Ap
 	app.Get("/health", func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{"status": "ok"})
 	})
-
-	a := app.Group("/auth")
-	a.Get("/github/login", h.LoginRedirect)
-	a.Get("/github/callback", h.Callback)
-	a.Post("/guest", limiter.New(limiter.Config{Max: 20, Expiration: time.Minute}), h.GuestLogin)
-	a.Post("/logout", h.RequireXHR, h.RequireSession, h.Logout)
-	a.Get("/me", h.RequireSession, h.Me)
-
-	app.Get("/admin/guest-key", h.RequireAdmin, h.AdminGuestKey)
 
 	return app
 }
