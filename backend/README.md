@@ -14,7 +14,9 @@ per-machine API keys. Operator-facing routes will call OAuthManager
 `/v1/check`.
 
 Exo guest sign-in uses the product id `exo-gui`; OAuthManager binds the daily
-key and resulting guest session to that product.
+key and resulting guest session to that product. Exo exposes `live`,
+`historical`, and `commands` permissions; daily-key guests receive the two
+telemetry-viewing permissions but never `commands`.
 
 ## Run
 
