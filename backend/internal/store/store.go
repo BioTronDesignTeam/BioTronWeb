@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"regexp"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -24,12 +25,13 @@ type Store struct {
 	pool *pgxpool.Pool
 }
 
+var schemaPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
 func New(ctx context.Context, databaseURL string) (*Store, error) {
-	cfg, err := pgxpool.ParseConfig(sanitizeDSN(databaseURL))
+	cfg, err := databaseConfig(databaseURL)
 	if err != nil {
 		return nil, err
 	}
-	cfg.ConnConfig.RuntimeParams["timezone"] = "America/Toronto"
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
 		return nil, err
@@ -84,17 +86,17 @@ type Grant struct {
 }
 
 type AccessRequest struct {
-	ID               string     `json:"id"`
-	RequesterID      int64      `json:"requester_id"`
-	RequesterLogin   string     `json:"requester_login"`
-	AppID            string     `json:"app_id"`
-	AppName          string     `json:"app_name"`
-	PermissionKey    string     `json:"permission_key"`
-	PermissionLabel  string     `json:"permission_label"`
-	Status           string     `json:"status"`
-	ReviewedBy       *int64     `json:"reviewed_by,omitempty"`
-	CreatedAt        time.Time  `json:"created_at"`
-	ReviewedAt       *time.Time `json:"reviewed_at,omitempty"`
+	ID              string     `json:"id"`
+	RequesterID     int64      `json:"requester_id"`
+	RequesterLogin  string     `json:"requester_login"`
+	AppID           string     `json:"app_id"`
+	AppName         string     `json:"app_name"`
+	PermissionKey   string     `json:"permission_key"`
+	PermissionLabel string     `json:"permission_label"`
+	Status          string     `json:"status"`
+	ReviewedBy      *int64     `json:"reviewed_by,omitempty"`
+	CreatedAt       time.Time  `json:"created_at"`
+	ReviewedAt      *time.Time `json:"reviewed_at,omitempty"`
 }
 
 type OrgMember struct {
@@ -586,13 +588,27 @@ func nullable(s string) any {
 	return s
 }
 
-func sanitizeDSN(raw string) string {
+func databaseConfig(raw string) (*pgxpool.Config, error) {
 	u, err := url.Parse(raw)
 	if err != nil {
-		return raw
+		return nil, fmt.Errorf("parse database URL: %w", err)
 	}
 	q := u.Query()
+	schema := q.Get("schema")
+	if schema == "" {
+		schema = "oauth"
+	}
+	if !schemaPattern.MatchString(schema) {
+		return nil, errors.New("database schema contains invalid characters")
+	}
 	q.Del("schema")
 	u.RawQuery = q.Encode()
-	return u.String()
+
+	cfg, err := pgxpool.ParseConfig(u.String())
+	if err != nil {
+		return nil, fmt.Errorf("parse database config: %w", err)
+	}
+	cfg.ConnConfig.RuntimeParams["search_path"] = schema + ",public"
+	cfg.ConnConfig.RuntimeParams["timezone"] = "America/Toronto"
+	return cfg, nil
 }
