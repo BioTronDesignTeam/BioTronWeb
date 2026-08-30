@@ -21,6 +21,9 @@ services:
       PORT: "8080"
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5174}
       TRUSTED_PROXIES: ${TRUSTED_PROXIES:-127.0.0.1,::1}
+      LOGGER_URL: ${LOGGER_URL:-http://logger-api:8080}
+      LOGGER_INGEST_TOKEN: ${LOGGER_INGEST_TOKEN:-}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
     ports:
       - "127.0.0.1:${API_PORT:-8080}:8080"
     networks:

@@ -6,7 +6,7 @@ import (
 )
 
 func TestHealth(t *testing.T) {
-	app := New("http://localhost:5173", []string{"127.0.0.1"})
+	app := New("http://localhost:5173", []string{"127.0.0.1"}, nil)
 	resp, err := app.Test(httptest.NewRequest("GET", "/health", nil), -1)
 	if err != nil {
 		t.Fatal(err)

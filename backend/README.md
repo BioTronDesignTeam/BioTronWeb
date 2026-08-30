@@ -18,6 +18,11 @@ key and resulting guest session to that product. Exo exposes `live`,
 `historical`, and `commands` permissions; daily-key guests receive the two
 telemetry-viewing permissions but never `commands`.
 
+The API sends lifecycle and completed-request events to Logger as `exo-api`.
+Set `LOGGER_INGEST_TOKEN` to the same shared secret used by Logger; leaving it
+empty disables structured delivery without preventing Exo from starting.
+Health probes and sensitive request data are excluded.
+
 ## Run
 
 ```bash
