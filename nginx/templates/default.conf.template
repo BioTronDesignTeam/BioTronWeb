@@ -1,0 +1,160 @@
+server {
+    listen 8080 default_server;
+    server_name _;
+
+    include /etc/nginx/snippets/edge-health.conf;
+
+    location / {
+        return 404;
+    }
+}
+
+server {
+    listen 8080;
+    server_name ${BASE_DOMAIN};
+
+    include /etc/nginx/snippets/edge-health.conf;
+
+    location / {
+        return 308 https://www.${BASE_DOMAIN}$request_uri;
+    }
+}
+
+server {
+    listen 8080;
+    server_name www.${BASE_DOMAIN};
+
+    include /etc/nginx/snippets/edge-health.conf;
+
+    location / {
+        set $frontend http://site-web:80;
+        proxy_pass $frontend;
+        include /etc/nginx/snippets/proxy-headers.conf;
+    }
+}
+
+server {
+    listen 8080;
+    server_name calendar.${BASE_DOMAIN};
+
+    include /etc/nginx/snippets/edge-health.conf;
+
+    location = /api {
+        return 308 /api/;
+    }
+
+    location /api/ {
+        set $backend http://calendar-api:8080;
+        rewrite ^/api/?(.*)$ /$1 break;
+        proxy_pass $backend;
+        include /etc/nginx/snippets/proxy-headers.conf;
+    }
+
+    location /feeds/ {
+        set $backend http://calendar-api:8080;
+        proxy_pass $backend;
+        include /etc/nginx/snippets/proxy-headers.conf;
+    }
+
+    location / {
+        set $frontend http://calendar-web:80;
+        proxy_pass $frontend;
+        include /etc/nginx/snippets/proxy-headers.conf;
+    }
+}
+
+server {
+    listen 8080;
+    server_name auth.${BASE_DOMAIN};
+
+    include /etc/nginx/snippets/edge-health.conf;
+
+    location = /api {
+        return 308 /api/;
+    }
+
+    location /api/ {
+        set $backend http://oauth-manager:8080;
+        rewrite ^/api/?(.*)$ /$1 break;
+        proxy_pass $backend;
+        include /etc/nginx/snippets/proxy-headers.conf;
+    }
+
+    location / {
+        set $frontend http://oauth-web:80;
+        proxy_pass $frontend;
+        include /etc/nginx/snippets/proxy-headers.conf;
+    }
+}
+
+server {
+    listen 8080;
+    server_name exo.${BASE_DOMAIN};
+
+    include /etc/nginx/snippets/edge-health.conf;
+
+    location = /api {
+        return 308 /api/;
+    }
+
+    location /api/ {
+        set $backend http://exo-api:8080;
+        rewrite ^/api/?(.*)$ /$1 break;
+        proxy_pass $backend;
+        include /etc/nginx/snippets/proxy-headers.conf;
+    }
+
+    location / {
+        set $frontend http://exo-web:80;
+        proxy_pass $frontend;
+        include /etc/nginx/snippets/proxy-headers.conf;
+    }
+}
+
+server {
+    listen 8080;
+    server_name logs.${BASE_DOMAIN};
+
+    include /etc/nginx/snippets/edge-health.conf;
+
+    location = /api {
+        return 308 /api/;
+    }
+
+    location /api/ {
+        set $backend http://logger-api:8080;
+        rewrite ^/api/?(.*)$ /$1 break;
+        proxy_pass $backend;
+        include /etc/nginx/snippets/proxy-headers.conf;
+    }
+
+    location / {
+        set $frontend http://logger-web:80;
+        proxy_pass $frontend;
+        include /etc/nginx/snippets/proxy-headers.conf;
+    }
+}
+
+server {
+    listen 8080;
+    server_name sprinter.${BASE_DOMAIN};
+
+    include /etc/nginx/snippets/edge-health.conf;
+
+    location = /api {
+        return 308 /api/;
+    }
+
+    location /api/ {
+        set $backend http://sprinter:8080;
+        rewrite ^/api/?(.*)$ /$1 break;
+        proxy_pass $backend;
+        include /etc/nginx/snippets/proxy-headers.conf;
+    }
+
+    location / {
+        set $frontend http://sprinter-web:80;
+        proxy_pass $frontend;
+        include /etc/nginx/snippets/proxy-headers.conf;
+    }
+}
