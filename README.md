@@ -21,5 +21,8 @@ Start the shared Postgres and Redis containers from `../Server`, copy
 docker compose up --build
 ```
 
+The backend, frontend, Prisma, and Compose all use the single root `.env`; do
+not create component-level environment files.
+
 The initial backend exposes `GET /health`. Calendar persistence and feed models
 remain intentionally uncommitted until that behavior is implemented.
