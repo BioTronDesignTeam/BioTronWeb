@@ -27,7 +27,9 @@ services:
     ports:
       - "127.0.0.1:${API_PORT:-18080}:8080"
     networks:
-      - biotron
+      biotron:
+        aliases:
+          - oauth-manager
     depends_on:
       migrate:
         condition: service_completed_successfully
