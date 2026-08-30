@@ -1,4 +1,4 @@
-# 3D Models — swapping placeholders for real SolidWorks parts
+# 3D Models: swapping placeholders for real SolidWorks parts
 
 The site ships with **procedural placeholder geometry** so the full experience
 (camera path, hotspots, popups, click-to-jump) works today. Everything is built
@@ -38,7 +38,7 @@ function ExoGLB({ color }: ModelProps) {
 // then in REGISTRY: exo: ExoGLB,
 ```
 
-Nothing else changes — anchors (`PROJECTS[].anchor` in `src/data/projects.ts`),
+Nothing else changes. Anchors (`PROJECTS[].anchor` in `src/data/projects.ts`),
 hotspots, the camera path and popups all stay the same. Call
 `useGLTF.preload('/models/exo.glb')` for snappier loads.
 

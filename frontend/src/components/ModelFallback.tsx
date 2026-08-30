@@ -2,7 +2,7 @@ import type { Project } from '../data/projects';
 
 /**
  * Lightweight static visual used in place of the live 3D model in the
- * reduced-motion / no-WebGL stacked layout. Pure CSS/SVG — no canvas.
+ * reduced-motion / no-WebGL stacked layout. Pure CSS/SVG, with no canvas.
  */
 export default function ModelFallback({ project }: { project: Project }) {
   return (

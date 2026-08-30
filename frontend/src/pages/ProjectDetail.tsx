@@ -24,7 +24,7 @@ export default function ProjectDetail() {
 
   return (
     <main id="main" className="detail" style={{ ['--card-accent' as string]: project.accentHex }}>
-      <PageMeta title={`${project.name} — Biotron`} description={project.blurb} />
+      <PageMeta title={`${project.name} | Biotron`} description={project.blurb} />
       <div className="container detail__top">
         <Link to="/projects" className="detail__back">
           <ArrowLeft size={16} /> All projects

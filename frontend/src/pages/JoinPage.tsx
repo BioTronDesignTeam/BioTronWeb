@@ -7,18 +7,18 @@ import { JOIN_EMAIL_HREF } from '../data/projects';
 import PageMeta from '../components/PageMeta';
 
 const PERKS = [
-  { t: 'Hands-on hardware', b: 'Design, build, and test real mechatronic systems — not just slides.' },
-  { t: 'Mentorship', b: 'Learn from senior members across mechanical, electrical, and software.' },
-  { t: 'Competitions', b: 'Represent Waterloo on international stages like ACE 2026.' },
-  { t: 'Community impact', b: 'Ship assistive devices that change lives through e-NABLE.' },
+  { t: 'Hands-on hardware', b: 'Build and test working mechatronic systems.' },
+  { t: 'Mentorship', b: 'Learn from experienced members across mechanical, electrical, and software.' },
+  { t: 'Competitions', b: 'Represent Waterloo at events such as ACE 2026.' },
+  { t: 'Community impact', b: 'Build e-NABLE devices for people who need them.' },
 ];
 
 export default function JoinPage() {
   return (
     <main id="main" className="joinpage">
       <PageMeta
-        title="Join Biotron — UW Design Team"
-        description="Join Biotron to design, build, and test biomechatronic systems with a multidisciplinary University of Waterloo team."
+        title="Join Biotron | UW Design Team"
+        description="Join our University of Waterloo team to design, build, and test biomechatronic systems."
       />
       <section className="container joinpage__head">
         <span className="eyebrow mono-label">Recruitment open</span>
@@ -29,16 +29,16 @@ export default function JoinPage() {
           by="word"
         />
         <p className="joinpage__lead">
-          We welcome all faculties and skill levels. Whether you live in CAD, solder boards, train
-          models, or rally a community — there’s a seat for you.
+          Students from any faculty can join. Design in CAD, build circuits, write software, or
+          grow our community.
         </p>
         <div className="joinpage__apply">
           <MagneticButton href={JOIN_EMAIL_HREF} variant="primary">
-            Start your application <ArrowUpRight size={18} />
+            Apply by email <ArrowUpRight size={18} />
           </MagneticButton>
           <p>
-            The email template asks for your name, program and year, interests, and what you want
-            to build or learn so we can route you to the right sub-team.
+            Tell us your program, year, interests, and what you hope to build or learn. We will
+            connect you with the right sub-team.
           </p>
         </div>
       </section>

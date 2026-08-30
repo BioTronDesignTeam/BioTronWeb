@@ -6,21 +6,20 @@ export default function CalendarPage() {
   return (
     <main id="main" className="calendarpage">
       <PageMeta
-        title="Calendar — Biotron"
-        description="BioTron’s public events calendar and subscription feeds are coming soon."
+        title="Calendar | Biotron"
+        description="Biotron’s public events calendar and subscription feed are coming soon."
       />
       <div className="container calendarpage__inner">
         <div className="calendarpage__icon" aria-hidden="true">
           <CalendarDays size={28} />
         </div>
         <span className="eyebrow mono-label">Public calendar</span>
-        <h1>Our events are still being wired in.</h1>
+        <h1>Our public calendar is coming soon.</h1>
         <p>
-          This will become the home for BioTron events and subscribable calendar feeds. The
-          calendar service is still on the workbench, so check back after the next build.
+          You will be able to find Biotron events here and subscribe from your calendar app.
         </p>
         <Link to="/" className="calendarpage__back">
-          <ArrowLeft size={16} /> Back to the workshop
+          <ArrowLeft size={16} /> Back home
         </Link>
       </div>
     </main>

@@ -7,15 +7,15 @@ export const SPONSORS = [
 
 export const SPONSORSHIP_AREAS = [
   {
-    title: 'Build capability',
-    body: 'Help equip our students with the components, materials, software, and fabrication access needed to turn ambitious concepts into tested systems.',
+    title: 'Build better prototypes',
+    body: 'Fund the parts, materials, software, and shop access we need to turn concepts into tested systems.',
   },
   {
     title: 'Develop engineers',
-    body: 'Support hands-on technical work where students learn to design across mechanical, electrical, firmware, controls, and biomedical disciplines.',
+    body: 'Give students hands-on experience across mechanical, electrical, software, controls, and biomedical engineering.',
   },
   {
-    title: 'Expand impact',
-    body: 'Enable assistive-technology projects, competition milestones, and community partnerships that move our work beyond the lab.',
+    title: 'Extend our reach',
+    body: 'Help us deliver assistive devices, reach competition milestones, and work with more community partners.',
   },
 ];

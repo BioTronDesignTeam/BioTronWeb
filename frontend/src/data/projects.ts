@@ -32,11 +32,11 @@ export const PROJECTS: Project[] = [
     shortName: 'EXO',
     tagline: 'Powered lower-body exoskeleton',
     blurb:
-      'A powered lower-body exoskeleton built to augment human strength and endurance — our entry for the Applied Collegiate Exoskeleton (ACE) International Competition 2026.',
+      'A powered lower-body exoskeleton that supports human strength and endurance. We are building it for ACE 2026.',
     description: [
-      'EXO is a powered lower-limb exoskeleton designed to amplify the wearer’s strength and reduce fatigue during demanding physical tasks.',
-      'Actuated hip and knee joints work with a lightweight load-bearing frame and a real-time control system that reads the wearer’s intent and delivers assistive torque in sync with natural gait.',
-      'The system is being engineered for the ACE International Competition 2026, where it will be benchmarked against exoskeletons from universities across the world.',
+      'EXO helps wearers handle demanding physical tasks with less fatigue.',
+      'Actuators at the hips and knees work with a lightweight frame. The control system reads the wearer’s intent and adds torque in step with their gait.',
+      'At the 2026 Applied Collegiate Exoskeleton (ACE) International Competition, university teams will test their systems side by side.',
     ],
     accentVar: '--exo',
     accentHex: '#3050b0',
@@ -55,13 +55,13 @@ export const PROJECTS: Project[] = [
     modelId: 'emg',
     name: 'EMG Fabric',
     shortName: 'EMG',
-    tagline: 'Reusable electrode wearable + ML',
+    tagline: 'Reusable EMG wearable with machine learning',
     blurb:
-      'A reusable smart-textile electrode array that captures muscle EMG signals and decodes intent with machine learning — bringing lab-grade biosensing into everyday wearables.',
+      'A reusable textile electrode array that records muscle signals and uses machine learning to read movement intent. It brings lab-grade sensing into a wearable.',
     description: [
-      'EMG Fabric integrates reusable dry electrodes directly into a flexible textile, removing the cost and waste of single-use adhesive electrodes.',
-      'A compact acquisition board streams multi-channel surface-EMG into a machine-learning pipeline that classifies gestures and muscle activation in real time.',
-      'The platform targets rehabilitation, prosthetics control, and human–machine interfaces where comfort and repeatability matter.',
+      'EMG Fabric embeds reusable dry electrodes in a flexible textile. It avoids the cost and waste of disposable adhesive electrodes.',
+      'A compact board streams eight channels of surface EMG data to a model that classifies gestures and muscle activity in real time.',
+      'The platform supports rehabilitation, prosthetic control, and human-machine interfaces that must stay comfortable and consistent.',
     ],
     accentVar: '--emg',
     accentHex: '#160b6c',
@@ -80,13 +80,13 @@ export const PROJECTS: Project[] = [
     modelId: 'enable',
     name: 'e-NABLE',
     shortName: 'e-NABLE',
-    tagline: 'Custom 3D-printed forearm prosthetics',
+    tagline: 'Custom 3D-printed forearm prostheses',
     blurb:
-      'Custom mechanical forearm prosthetics, 3D-printed and assembled by our students and tailored to each patient — making life-enhancing technology affordable and accessible.',
+      'Students 3D-print and assemble custom forearm prostheses for each recipient. The designs keep assistive technology practical and affordable.',
     description: [
-      'Started through our collaboration with e-NABLE, a global online community, our students 3D print and assemble custom forearm prosthetics, meticulously tailored to the exact size specifications of each patient.',
-      'These prosthetics use mechanical actuation for joint movement and object gripping — robust, electronics-free, and low-cost by design.',
-      'Our mission is to provide an affordable, accessible solution for patients with limited financial resources, ensuring everyone has access to life-enhancing technology.',
+      'Through e-NABLE, a global volunteer community, our students build forearm prostheses to each recipient’s measurements.',
+      'Body movement drives the joints and grip. The design is durable, affordable, and needs no electronics.',
+      'We aim to give more people access to assistive devices that fit their needs and budgets.',
     ],
     accentVar: '--enable',
     accentHex: '#ffffff',
@@ -113,15 +113,15 @@ export const PAST_PROJECTS: PastProject[] = [
   {
     name: 'Spine Biostickers',
     blurb:
-      'We pioneered software for Spine Biostickers, a wearable tool designed to monitor spinal lumbar (low-back) posture in post-surgical patients, helping prevent harmful movements during recovery. Using gyroscopes attached to the patient, our system collects data and delivers real-time alerts so patients maintain safe postures for a smoother, safer recovery.',
+      'Spine Biostickers tracked lower-back posture after surgery. Gyroscopes measured movement, and our software warned patients when they moved beyond safe limits.',
     tags: ['Wearable', 'Gyroscope', 'Recovery'],
   },
   {
     name: 'Tetra',
     partner: 'Tetra',
     blurb:
-      'In partnership with the non-profit Tetra, we designed and fabricated customized medical devices for the specific needs of real patients. Each project began with in-depth consultations to understand the unique challenges a patient faces, followed by development, rigorous testing, and delivery of a tailored solution by our engineering students — making a tangible difference for those who need it most.',
-    tags: ['Assistive Devices', 'Custom', 'Patient-centered'],
+      'Working with the nonprofit Tetra, we built custom assistive devices for individual clients. We met with each client, designed a solution, tested it, and delivered the finished device.',
+    tags: ['Assistive Devices', 'Custom', 'Client-led'],
   },
 ];
 
@@ -158,7 +158,7 @@ const JOIN_EMAIL_BODY = `Hi Biotron team,
 Name:
 Program and year:
 Areas of interest:
-What I would like to build or learn:
+What I want to build or learn:
 `;
 
 export const JOIN_EMAIL_HREF = `mailto:${CONTACT.email}?subject=${encodeURIComponent(

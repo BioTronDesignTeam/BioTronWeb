@@ -35,7 +35,7 @@ export function useIsMobile(breakpoint = 768): boolean {
   return isMobile;
 }
 
-/** True for fine pointers (mouse) — used to gate hover-only flourishes. */
+/** True for fine pointers (mouse). Used to gate hover-only flourishes. */
 export function useHasFinePointer(): boolean {
   const [fine, setFine] = useState(() => {
     if (typeof window === 'undefined') return true;

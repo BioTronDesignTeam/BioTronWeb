@@ -74,7 +74,7 @@ export default function Flythrough() {
             <span className="line accent">Biotron.</span>
           </h1>
           <p className="flythrough__lead">
-            Scroll to step inside our workshop.
+            Scroll through our workshop.
           </p>
           <div className="flythrough__cta">
             <MagneticButton onClick={() => jumpToStop('exo')} variant="primary">
@@ -98,7 +98,7 @@ export default function Flythrough() {
             <div className="flythrough__bootbar">
               <span />
             </div>
-            <span className="mono-label">Initializing workshop…</span>
+            <span className="mono-label">Loading workshop…</span>
           </div>
         )}
       </div>

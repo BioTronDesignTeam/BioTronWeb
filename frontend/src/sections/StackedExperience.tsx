@@ -5,7 +5,7 @@ import SplitText from '../components/SplitText';
 import CountUp from '../components/CountUp';
 import ModelFallback from '../components/ModelFallback';
 import MagneticButton from '../components/MagneticButton';
-import { PROJECTS, TEAM_STATS, CONTACT } from '../data/projects';
+import { PROJECTS, TEAM_STATS } from '../data/projects';
 
 /**
  * Conventional stacked layout shown when 3D is unavailable (no WebGL) or under
@@ -21,12 +21,12 @@ export default function StackedExperience() {
           <SplitText
             as="h1"
             className="shero__title"
-            text="Engineering mechatronic solutions to biomedical challenges."
+            text="We build technology that moves with people."
             by="word"
           />
           <p className="shero__lead">
-            From powered exoskeletons to EMG-driven wearables and 3D-printed assistive devices —
-            we design machines that move people.
+            Our projects include powered exoskeletons, EMG wearables, and 3D-printed assistive
+            devices.
           </p>
           <div className="shero__cta">
             <MagneticButton to="/projects" variant="primary">
@@ -47,8 +47,8 @@ export default function StackedExperience() {
         </Reveal>
         <Reveal delay={0.1}>
           <p className="sabout__body">
-            {CONTACT.org} is a student team of engineers, designers, and scientists building
-            mechatronic solutions to real biomedical challenges. We learn by shipping hardware.
+            We are a University of Waterloo student team that solves biomedical problems by
+            building and testing real hardware.
           </p>
         </Reveal>
         <div className="sabout__stats">

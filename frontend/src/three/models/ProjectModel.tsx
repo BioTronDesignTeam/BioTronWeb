@@ -13,7 +13,7 @@ import ENableModel from './ENableModel';
  *      drop it in `public/models/<id>.glb` (see public/models/README.md).
  *   2. Create a component that loads it with drei's `useGLTF('/models/<id>.glb')`
  *      and matches the ModelProps signature.
- *   3. Replace the entry below. Nothing else in the app needs to change — the
+ *   3. Replace the entry below. Nothing else in the app needs to change. The
  *      room anchors, hotspots, camera path and popups all stay the same.
  * ────────────────────────────────────────────────────────────────────────────
  */

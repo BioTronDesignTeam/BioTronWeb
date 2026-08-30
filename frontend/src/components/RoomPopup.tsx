@@ -3,7 +3,7 @@ import { ArrowUpRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { gsap, useGSAP } from '../lib/gsap';
 import { useScene } from '../lib/store';
-import { PROJECTS, TEAM_STATS, CONTACT } from '../data/projects';
+import { PROJECTS, TEAM_STATS } from '../data/projects';
 import CountUp from './CountUp';
 
 /**
@@ -36,11 +36,11 @@ export default function RoomPopup() {
     <div className="room-popup" ref={wrap} role="status" aria-live="polite">
       {activeStop === 'about' ? (
         <article className="glass popup-card">
-          <span className="mono-label">/ 00 — About</span>
+          <span className="mono-label">00 / About</span>
           <h2 className="popup-title">We build machines that move people.</h2>
           <p className="popup-body">
-            {CONTACT.org} — engineering mechatronic solutions to biomedical challenges, from
-            powered exoskeletons to EMG-driven wearables and 3D-printed assistive devices.
+            We are a University of Waterloo student team building powered exoskeletons, EMG
+            wearables, and 3D-printed assistive devices.
           </p>
           <div className="popup-stats">
             {TEAM_STATS.map((s) => (

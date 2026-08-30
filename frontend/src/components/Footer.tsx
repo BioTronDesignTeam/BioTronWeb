@@ -9,7 +9,7 @@ export default function Footer() {
       <div className="container-wide footer__inner">
         <div className="footer__brand">
           <span className="footer__word">BIOTRON</span>
-          <p className="footer__tag">Engineering mechatronic solutions to biomedical challenges.</p>
+          <p className="footer__tag">We build mechatronic systems for biomedical challenges.</p>
           <button className="footer__top" onClick={() => scrollToY(0)} aria-label="Back to top">
             <ArrowUp size={16} /> Back to top
           </button>

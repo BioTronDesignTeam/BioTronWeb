@@ -1,5 +1,5 @@
 /* ============================================================
-   Biotron — component & page styles
+   Biotron component and page styles
    ============================================================ */
 
 .app {
@@ -430,7 +430,7 @@
 }
 
 /* ============================================================
-   Post-room flow (sponsors / join) — opaque over canvas
+   Post-room flow (sponsors / join), opaque over canvas
    ============================================================ */
 .post-room {
   position: relative;

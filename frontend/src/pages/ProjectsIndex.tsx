@@ -33,8 +33,8 @@ export default function ProjectsIndex() {
   return (
     <main id="main" className="pindex">
       <PageMeta
-        title="Projects — Biotron"
-        description="Explore Biotron’s current biomechatronics work and the projects that shaped it."
+        title="Projects | Biotron"
+        description="See Biotron’s current projects and the work that shaped them."
       />
       <section className="container pindex__head" id="current">
         <span className="eyebrow mono-label">Active projects</span>
@@ -45,8 +45,8 @@ export default function ProjectsIndex() {
           by="word"
         />
         <p className="pindex__lead">
-          Each project is a year-round, multi-disciplinary engineering effort. Explore the work —
-          and the 3D models behind it.
+          Each project brings several disciplines together throughout the year. Explore the work
+          and its 3D model.
         </p>
       </section>
 
@@ -80,9 +80,9 @@ export default function ProjectsIndex() {
       <section className="pindex__archive" id="past">
         <div className="container past__head">
           <span className="eyebrow mono-label">Past projects</span>
-          <SplitText as="h2" className="past__title" text="Where we’ve been." by="word" />
+          <SplitText as="h2" className="past__title" text="Work that shaped our team." by="word" />
           <p className="past__lead">
-            A selection of the prototypes and devices that shaped our team — and seeded today’s work.
+            These prototypes and devices laid the groundwork for today’s projects.
           </p>
         </div>
 

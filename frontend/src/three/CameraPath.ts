@@ -19,7 +19,7 @@ export interface Keyframe {
  * back to reveal the whole room.
  */
 export const KEYFRAMES: Keyframe[] = [
-  // Establishing — isometric pull-back over the whole room.
+  // Establishing shot: isometric pull-back over the whole room.
   { at: 0.0, pos: [7.5, 6.5, 9.5], target: [0, 0.8, -1.5] },
   // About board (mounted on the back-left wall).
   { at: 0.14, pos: [-3.2, 2.2, 3.6], target: [-5.2, 1.8, -3.2], stop: 'about' },
@@ -29,7 +29,7 @@ export const KEYFRAMES: Keyframe[] = [
   { at: 0.64, pos: [0, 1.7, 1.2], target: [0, 0.7, -3.4], stop: 'emg' },
   // e-NABLE (right bench).
   { at: 0.88, pos: [2.0, 1.5, 2.2], target: [4.2, 0.5, -1.5], stop: 'enable' },
-  // Exit — pull back out before the page leaves the room.
+  // Exit shot: pull back out before the page leaves the room.
   { at: 1.0, pos: [6.5, 5.5, 10], target: [0, 0.6, -2] },
 ];
 

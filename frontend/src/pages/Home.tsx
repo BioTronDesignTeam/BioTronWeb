@@ -31,8 +31,8 @@ export default function Home() {
   return (
     <main id="main">
       <PageMeta
-        title="Biotron — UW Biomechatronics Design Team"
-        description="Meet the University of Waterloo team building exoskeletons, EMG wearables, and accessible biomechatronic devices."
+        title="Biotron | UW Biomechatronics Design Team"
+        description="We are a University of Waterloo student team building exoskeletons, EMG wearables, and assistive devices."
       />
       {immersive ? <Flythrough /> : <StackedExperience />}
       <div className="post-room">
