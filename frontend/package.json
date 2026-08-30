@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@biotron/style": "github:BioTronDesignTeam/BioTronStyle#495fe6c3b4e78a475e52b45642ad44a9a14052be",
     "@fontsource/inter": "^5.1.0",
     "@fontsource/jetbrains-mono": "^5.1.0",
     "@fontsource/space-grotesk": "^5.1.0",

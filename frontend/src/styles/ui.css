@@ -138,9 +138,12 @@
 }
 .nav__logo {
   width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  object-fit: cover;
+  height: 38px;
+  flex: 0 0 auto;
+}
+.nav__logo .biotron-brand__hand {
+  width: 100%;
+  height: 100%;
 }
 .nav__links {
   display: flex;

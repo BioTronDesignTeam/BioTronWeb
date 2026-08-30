@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
+import { Brand } from '@biotron/style';
 import { jumpToStop, hasFlythrough } from '../lib/flythrough';
 import type { Stop } from '../lib/store';
 
@@ -46,7 +47,7 @@ export default function Nav() {
     <header className={`nav ${scrolled ? 'nav--scrolled' : ''}`}>
       <div className="nav__inner container-wide">
         <Link to="/" className="nav__brand" aria-label="Biotron home" data-cursor>
-          <img className="nav__logo" src="/biotron-logo.png" alt="" width={30} height={30} />
+          <Brand compact label="" className="nav__logo" aria-hidden="true" />
           <span className="nav__brandtext">BIOTRON</span>
         </Link>
 

@@ -10,6 +10,7 @@ import '@fontsource/inter/400.css';
 import '@fontsource/inter/500.css';
 import '@fontsource/jetbrains-mono/400.css';
 import '@fontsource/jetbrains-mono/500.css';
+import '@biotron/style/styles.css';
 
 import './styles/tokens.css';
 import './styles/globals.css';
