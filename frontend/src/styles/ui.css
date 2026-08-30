@@ -557,6 +557,17 @@
   gap: 1.2rem;
   flex-wrap: wrap;
 }
+.join__apply {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.55rem;
+}
+.join__apply > span {
+  max-width: 34rem;
+  color: var(--text-faint);
+  font-size: 0.78rem;
+}
 .join__alt {
   color: var(--text-muted);
   font-size: var(--fs-sm);
@@ -735,6 +746,24 @@
 .joinpage__lead {
   font-size: var(--fs-lg);
   color: var(--text-muted);
+}
+.joinpage__apply {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  margin-top: 1.75rem;
+}
+.joinpage__apply p {
+  max-width: 31rem;
+  color: var(--text-faint);
+  font-size: var(--fs-sm);
+  line-height: 1.55;
+}
+@media (max-width: 620px) {
+  .joinpage__apply {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 }
 .pindex__list {
   display: grid;

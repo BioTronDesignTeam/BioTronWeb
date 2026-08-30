@@ -151,6 +151,18 @@ export const CONTACT = {
   org: 'University of Waterloo Biomechatronics Design Team',
 };
 
+const JOIN_EMAIL_BODY = `Hi Biotron team,
+
+Name:
+Program and year:
+Areas of interest:
+What I would like to build or learn:
+`;
+
+export const JOIN_EMAIL_HREF = `mailto:${CONTACT.email}?subject=${encodeURIComponent(
+  'Joining Biotron',
+)}&body=${encodeURIComponent(JOIN_EMAIL_BODY)}`;
+
 export function getProject(slug: string): Project | undefined {
   return PROJECTS.find((p) => p.slug === slug);
 }

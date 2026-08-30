@@ -1,6 +1,9 @@
+import { ArrowUpRight } from 'lucide-react';
 import Join from '../sections/Join';
 import SplitText from '../components/SplitText';
 import Reveal from '../components/Reveal';
+import MagneticButton from '../components/MagneticButton';
+import { JOIN_EMAIL_HREF } from '../data/projects';
 
 const PERKS = [
   { t: 'Hands-on hardware', b: 'Design, build, and test real mechatronic systems — not just slides.' },
@@ -24,6 +27,15 @@ export default function JoinPage() {
           We welcome all faculties and skill levels. Whether you live in CAD, solder boards, train
           models, or rally a community — there’s a seat for you.
         </p>
+        <div className="joinpage__apply">
+          <MagneticButton href={JOIN_EMAIL_HREF} variant="primary">
+            Start your application <ArrowUpRight size={18} />
+          </MagneticButton>
+          <p>
+            The email template asks for your name, program and year, interests, and what you want
+            to build or learn so we can route you to the right sub-team.
+          </p>
+        </div>
       </section>
 
       <section className="container joinpage__perks">
