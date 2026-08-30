@@ -11,6 +11,6 @@
     "validate": "prisma validate"
   },
   "devDependencies": {
-    "prisma": "^6.1.0"
+    "prisma": "6.12.0"
   }
 }
