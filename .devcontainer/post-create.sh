@@ -2,12 +2,12 @@
 
 set -euo pipefail
 
-if [[ ! -f frontend/package.json ]]; then
+if [[ ! -f package.json ]]; then
   exit 0
 fi
 
-if [[ -f frontend/package-lock.json ]]; then
-  npm --prefix frontend ci
+if [[ -f package-lock.json ]]; then
+  npm ci
 else
-  npm --prefix frontend install
+  npm install
 fi
