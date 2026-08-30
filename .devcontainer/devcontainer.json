@@ -1,20 +1,20 @@
 {
   "name": "exo-gui",
-  "dockerComposeFile": "docker-compose.yml",
-  "service": "app",
-  "workspaceFolder": "/workspaces/exo-gui",
-  "features": {
-    "ghcr.io/devcontainers/features/node:1": { "version": "22" },
-    "ghcr.io/devcontainers/features/go:1": { "version": "1.23" }
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
   },
-  "forwardPorts": [5173, 8080, 5432],
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+  "forwardPorts": [5173, 8080],
   "portsAttributes": {
     "5173": { "label": "Frontend (Vite dev)", "onAutoForward": "openBrowserOnce" },
-    "8080": { "label": "Backend API", "onAutoForward": "notify" },
-    "5432": { "label": "Postgres", "onAutoForward": "ignore" }
+    "8080": { "label": "Backend API", "onAutoForward": "notify" }
   },
-  "postCreateCommand": "cd frontend && npm install && cd ../prisma && npm install && cd ../backend && go mod download",
-  "remoteUser": "vscode",
+  "runArgs": [
+    "--add-host=host.docker.internal:host-gateway"
+  ],
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  "remoteUser": "node",
   "customizations": {
     "vscode": {
       "extensions": [
