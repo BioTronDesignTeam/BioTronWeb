@@ -1,1 +1,4 @@
+# Environment / secrets (the only committed template is /.env.example)
 .env
+.env.*
+!/.env.example

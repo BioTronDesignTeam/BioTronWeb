@@ -16,5 +16,8 @@ Start the shared Postgres and Redis containers from `../Server`, copy
 `.env.example` to `.env`, set the Postgres password and optionally a Discord bot
 token, then run `docker compose up --build`.
 
+The bot, frontend, Prisma, and Compose all use the single root `.env`; do not
+create component-level environment files.
+
 Without a Discord token, the scaffold still starts its admin API and reports
 `discord_connected: false` from `GET /health`.
