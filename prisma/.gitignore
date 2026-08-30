@@ -1,0 +1,10 @@
+# dependencies
+node_modules/
+
+# generated Prisma client
+generated/
+
+# local environment
+.env
+.env.*
+!.env.example

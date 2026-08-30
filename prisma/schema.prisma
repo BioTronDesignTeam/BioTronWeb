@@ -1,0 +1,43 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum LogLevel {
+  debug
+  info
+  warning
+  error
+
+  @@map("log_level")
+}
+
+model Log {
+  id        BigInt   @id @default(autoincrement())
+  service   String
+  level     LogLevel
+  message   String   @db.Text
+  payload   Json?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([service, createdAt(sort: Desc)])
+  @@index([level, createdAt(sort: Desc)])
+  @@index([createdAt(sort: Desc)])
+  @@map("logs")
+}
+
+model HealthCheck {
+  id        BigInt   @id @default(autoincrement())
+  service   String
+  ok        Boolean
+  detail    String?  @db.Text
+  checkedAt DateTime @default(now()) @map("checked_at") @db.Timestamptz(6)
+
+  @@index([service, checkedAt(sort: Desc)])
+  @@index([checkedAt(sort: Desc)])
+  @@map("health_checks")
+}
