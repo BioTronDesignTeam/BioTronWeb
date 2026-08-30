@@ -7,8 +7,7 @@ export default function LoginScreen() {
 
   return (
     <AuthScreen
-      productName="Exo Dashboard"
-      description="Sign in with BioTron Auth to view exoskeleton telemetry. Access is limited to BioTronDesignTeam members."
+      productName="Exo Telemetry"
       action={{ label: 'Sign in with GitHub', onClick: login, icon: 'github' }}
       notices={denied ? [{ content: "Access denied — your GitHub account isn't a BioTronDesignTeam member.", tone: 'error' }] : []}
       guestAccess={{ onSubmit: loginGuest }}
