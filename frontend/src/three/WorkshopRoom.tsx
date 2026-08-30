@@ -22,24 +22,9 @@ interface RoomProps {
  * the camera path (three/CameraPath.ts) and popups keep working unchanged.
  * ────────────────────────────────────────────────────────────────────────────
  */
-export default function WorkshopRoom({ reduced = false, mobile = false }: RoomProps) {
+export default function WorkshopRoom({ reduced = false }: RoomProps) {
   const activeStop = useScene((s) => s.activeStop);
   const accent = useMemo(() => cssVar('--accent'), []);
-
-  // Deterministic scatter of small "parts" for dressing the benches/floor.
-  const clutter = useMemo(() => {
-    const rng = mulberry32(1337);
-    const items: { p: [number, number, number]; t: number; s: number }[] = [];
-    const count = mobile ? 10 : 22;
-    for (let i = 0; i < count; i++) {
-      items.push({
-        p: [(rng() - 0.5) * 11, 0.05, -4.5 + rng() * 6],
-        t: Math.floor(rng() * 3),
-        s: 0.12 + rng() * 0.18,
-      });
-    }
-    return items;
-  }, [mobile]);
 
   return (
     <group>
@@ -81,16 +66,6 @@ export default function WorkshopRoom({ reduced = false, mobile = false }: RoomPr
         <boxGeometry args={[3, 0.1, 0.6]} />
         <meshStandardMaterial color="#1a232c" metalness={0.4} roughness={0.6} />
       </mesh>
-
-      {/* ---------- Dressing clutter ---------- */}
-      {clutter.map((c, i) => (
-        <mesh key={i} position={c.p} castShadow>
-          {c.t === 0 && <boxGeometry args={[c.s, c.s, c.s]} />}
-          {c.t === 1 && <cylinderGeometry args={[c.s * 0.5, c.s * 0.5, c.s, 12]} />}
-          {c.t === 2 && <torusGeometry args={[c.s * 0.5, c.s * 0.2, 8, 16]} />}
-          <meshStandardMaterial color="#2a3640" metalness={0.7} roughness={0.4} />
-        </mesh>
-      ))}
 
       {/* ---------- About board (wall-mounted, interactive) ---------- */}
       <Hotspot
@@ -167,15 +142,4 @@ function Bench({ x, z }: { x: number; z: number }) {
       ))}
     </group>
   );
-}
-
-/** Tiny seeded PRNG for stable clutter placement. */
-function mulberry32(seed: number) {
-  return function () {
-    seed |= 0;
-    seed = (seed + 0x6d2b79f5) | 0;
-    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
 }
