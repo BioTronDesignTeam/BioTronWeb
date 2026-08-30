@@ -12,7 +12,6 @@ directories.
 |---|---|
 | `src/` | React application source |
 | `public/` | Static assets and 3D models |
-| `archive/` | Previous site retained during the refactor |
 | `.devcontainer/` | Node 22 development environment on Debian slim |
 | `Dockerfile` | Multi-stage static-site production image |
 | `docker-compose.yml` | Local production-image runner |
