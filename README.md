@@ -14,6 +14,7 @@ server (Go backend + Postgres). A React SPA renders it live for an operator sign
 | `backend/`       | Go service (Fiber HTTP ingest + WebSocket fan-out + Postgres). Skeleton today. |
 | `prisma/`        | Postgres schema + migrations.                                              |
 | `.devcontainer/` | Slim Debian development image with Node 22 + Go 1.23.                     |
+| `docker-compose.yml` | Migration, API, and web containers on the shared `biotron` network.   |
 
 ## Develop & test
 
@@ -45,3 +46,14 @@ docker run --rm -p 5173:5173 -v "$PWD/frontend":/app -w /app node:22 \
 
 Vite is configured with `server.host: true` (`vite.config.ts`), so it binds all
 interfaces and is reachable through the published port.
+
+### Deployment-shaped Compose stack
+
+Start the one shared Postgres and Redis stack from `../Server`, copy
+`.env.example` to `.env`, replace the example Postgres password, then run:
+
+```bash
+docker compose up --build
+```
+
+The web container binds to port 5174 by default so OAuthManager can retain 5173.

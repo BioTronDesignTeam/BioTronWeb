@@ -10,3 +10,5 @@
 
 # Secrets / certs (any directory)
 *.pem
+.env
+!.env.example
