@@ -260,6 +260,7 @@
 }
 .biotron-preview h1, .biotron-preview p { margin: 0; }
 .biotron-preview__toolbar { display: flex; align-items: center; gap: 0.7rem; }
+.biotron-preview__toolbar .biotron-user-menu__popover { right: auto; left: 0; }
 .biotron-preview__actions { display: flex; flex-wrap: wrap; gap: 0.75rem; }
 .biotron-eyebrow { color: var(--biotron-accent); font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; }
 
