@@ -1,0 +1,4 @@
+.git/
+.devcontainer/
+dist/
+node_modules/
