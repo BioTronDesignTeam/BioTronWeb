@@ -334,8 +334,7 @@ export default function App() {
   if (!me) {
     return (
       <AuthScreen
-        productName="BioTron Auth"
-        description="Sign in with GitHub to request and manage tool access. Access is limited to BioTronDesignTeam members."
+        productName="Auth"
         action={{ label: 'Sign in with GitHub', href: loginURL, icon: 'github' }}
         notices={[
           ...(denied ? [{ content: "Access denied — your GitHub account isn't a BioTronDesignTeam member.", tone: 'error' as const }] : []),
