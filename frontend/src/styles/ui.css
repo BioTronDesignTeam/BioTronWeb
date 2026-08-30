@@ -191,12 +191,20 @@
   color: var(--text);
   border-bottom: 1px solid var(--border);
 }
+.nav__drawerlink--active {
+  color: var(--accent-secondary);
+}
 .nav__cta--block {
   margin-top: 1rem;
   text-align: center;
 }
 
 @media (max-width: 860px) {
+  .nav__inner.container-wide,
+  .nav__drawer {
+    padding-left: max(1.25rem, env(safe-area-inset-left));
+    padding-right: max(1.25rem, env(safe-area-inset-right));
+  }
   .nav__links {
     display: none;
   }
@@ -1398,7 +1406,12 @@
 }
 @media (max-width: 460px) {
   .footer__inner {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 1.5rem;
+  }
+  .footer__brand,
+  .footer__col:last-child {
+    grid-column: 1 / -1;
   }
 }
 
@@ -1406,16 +1419,25 @@
    Phone layout
    ============================================================ */
 @media (max-width: 640px) {
+  .container,
+  .container-wide {
+    padding-left: max(1.25rem, env(safe-area-inset-left));
+    padding-right: max(1.25rem, env(safe-area-inset-right));
+  }
+
   /* These sections are containers themselves. Preserve their side gutter when
      their section-specific vertical padding takes over. */
   .sabout {
-    padding: 5rem 1.25rem 4rem;
+    padding: 5rem max(1.25rem, env(safe-area-inset-right)) 4rem
+      max(1.25rem, env(safe-area-inset-left));
   }
   .sprojects {
-    padding: 4rem 1.25rem 5rem;
+    padding: 4rem max(1.25rem, env(safe-area-inset-right)) 5rem
+      max(1.25rem, env(safe-area-inset-left));
   }
   .joinpage__perks {
-    padding: 2.5rem 1.25rem 1rem;
+    padding: 2.5rem max(1.25rem, env(safe-area-inset-right)) 1rem
+      max(1.25rem, env(safe-area-inset-left));
   }
 
   .sponsors {
@@ -1442,6 +1464,40 @@
   .detail__spec {
     min-width: 0;
   }
+
+  .nav__brand,
+  .nav__cta--block,
+  .sproject__cta,
+  .detail__back,
+  .detail__sidecta,
+  .calendarpage__back,
+  .footer__top {
+    min-height: 44px;
+  }
+  .nav__brand,
+  .sproject__cta,
+  .detail__back,
+  .detail__sidecta,
+  .calendarpage__back,
+  .footer__top,
+  .footer__link,
+  .footer__contact {
+    align-items: center;
+  }
+  .footer__col {
+    gap: 0;
+  }
+  .footer__link,
+  .footer__contact {
+    display: flex;
+    min-height: 44px;
+  }
+  .footer__heading {
+    margin-bottom: 0.5rem;
+  }
+  .footer__base {
+    margin-top: 2rem;
+  }
 }
 
 @media (max-width: 400px) {
@@ -1457,5 +1513,19 @@
   }
   .shero__cta .magbtn {
     width: 100%;
+  }
+}
+
+@media (max-height: 520px) and (pointer: coarse) {
+  .sabout {
+    padding: 3rem max(clamp(1.25rem, 4vw, 3rem), env(safe-area-inset-right)) 3rem
+      max(clamp(1.25rem, 4vw, 3rem), env(safe-area-inset-left));
+  }
+  .sprojects {
+    padding: 3rem max(clamp(1.25rem, 4vw, 3rem), env(safe-area-inset-right)) 4rem
+      max(clamp(1.25rem, 4vw, 3rem), env(safe-area-inset-left));
+  }
+  .join {
+    padding-block: 4rem;
   }
 }
