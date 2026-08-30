@@ -50,8 +50,8 @@ export default function Scene() {
         camera={{ position: [7.5, 6.5, 9.5], fov: 38, near: 0.1, far: 100 }}
         gl={{ antialias: !mobile, powerPreference: 'high-performance' }}
       >
-        <color attach="background" args={['#070b0e']} />
-        <fog attach="fog" args={['#070b0e', 14, 30]} />
+        <color attach="background" args={['#16033c']} />
+        <fog attach="fog" args={['#16033c', 14, 30]} />
 
         <PerformanceMonitor
           onDecline={() => setDpr(1)}
@@ -67,8 +67,8 @@ export default function Scene() {
           castShadow={!mobile}
           shadow-mapSize={[1024, 1024]}
         />
-        <pointLight position={[-4, 3, 2]} intensity={20} color="#36a6dd" distance={12} />
-        <pointLight position={[4, 2, 1]} intensity={14} color="#a88bff" distance={12} />
+        <pointLight position={[-4, 3, 2]} intensity={20} color="#3050b0" distance={12} />
+        <pointLight position={[4, 2, 1]} intensity={14} color="#aedbfc" distance={12} />
 
         <Suspense fallback={null}>
           <WorkshopRoom reduced={reduced} mobile={mobile} />

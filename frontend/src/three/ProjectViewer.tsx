@@ -17,7 +17,7 @@ export default function ProjectViewer({ id, color }: { id: ModelId; color: strin
       camera={{ position: [2.4, 1.4, 3], fov: 40 }}
       gl={{ antialias: !mobile, powerPreference: 'high-performance' }}
     >
-      <color attach="background" args={['#080d12']} />
+      <color attach="background" args={['#16033c']} />
       <ambientLight intensity={0.4} />
       <directionalLight position={[4, 6, 3]} intensity={1.2} castShadow={!mobile} />
       <pointLight position={[-3, 2, 2]} intensity={16} color={color} distance={10} />

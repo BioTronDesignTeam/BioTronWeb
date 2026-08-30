@@ -1,35 +1,35 @@
 :root {
-  /* ---- Surfaces (dark techno-organic) ---- */
-  --bg: #070b0e;
-  --bg-deep: #04070a;
-  --surface: #0e151b;
-  --surface-2: #131c24;
+  /* ---- Surfaces (shared BioTron palette) ---- */
+  --bg: var(--biotron-ink);
+  --bg-deep: color-mix(in srgb, var(--biotron-ink) 82%, #000000);
+  --surface: var(--biotron-deep);
+  --surface-2: color-mix(in srgb, var(--biotron-accent) 28%, var(--biotron-deep));
   --glass: rgba(255, 255, 255, 0.04);
   --glass-strong: rgba(255, 255, 255, 0.06);
   --border: rgba(255, 255, 255, 0.08);
   --border-strong: rgba(255, 255, 255, 0.14);
 
-  /* ---- Brand accents (from Biotron logo) ---- */
-  --accent: #36a6dd; /* logo sky blue — primary */
-  --accent-dim: #2a7fb0;
-  --accent-glow: rgba(54, 166, 221, 0.38);
+  /* ---- Brand accents ---- */
+  --accent: var(--biotron-accent);
+  --accent-readable: var(--biotron-soft);
+  --accent-dim: var(--biotron-deep);
+  --accent-glow: rgba(48, 80, 176, 0.42);
 
-  /* Logo deep navy — secondary brand tone for gradients/depth */
-  --navy: #16357d;
-  --navy-bright: #2f6fd6;
+  --navy: var(--biotron-ink);
+  --navy-bright: var(--biotron-deep);
 
   /* Per-project accents */
-  --exo: #36a6dd; /* sky blue */
-  --exo-glow: rgba(54, 166, 221, 0.35);
-  --emg: #a88bff; /* signal violet */
-  --emg-glow: rgba(168, 139, 255, 0.35);
-  --enable: #ff9d5c; /* warm amber */
-  --enable-glow: rgba(255, 157, 92, 0.35);
+  --exo: var(--biotron-accent);
+  --exo-glow: rgba(48, 80, 176, 0.4);
+  --emg: var(--biotron-soft);
+  --emg-glow: rgba(174, 219, 252, 0.32);
+  --enable: var(--biotron-white);
+  --enable-glow: rgba(255, 255, 255, 0.28);
 
   /* ---- Text ---- */
-  --text: #e8f0f2;
-  --text-muted: #9fb0ba;
-  --text-faint: #6b7d87;
+  --text: var(--biotron-white);
+  --text-muted: rgba(174, 219, 252, 0.78);
+  --text-faint: rgba(174, 219, 252, 0.52);
 
   /* ---- Typography ---- */
   --font-display: 'Space Grotesk', system-ui, sans-serif;

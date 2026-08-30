@@ -79,7 +79,7 @@ export default function StackedExperience() {
                 <div className="sproject__content">
                   <span className="mono-label">{p.status}</span>
                   <h3 className="sproject__name">{p.name}</h3>
-                  <p className="sproject__tag" style={{ color: p.accentHex }}>
+                  <p className="sproject__tag">
                     {p.tagline}
                   </p>
                   <p className="sproject__blurb">{p.blurb}</p>

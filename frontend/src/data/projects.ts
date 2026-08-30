@@ -39,7 +39,7 @@ export const PROJECTS: Project[] = [
       'The system is being engineered for the ACE International Competition 2026, where it will be benchmarked against exoskeletons from universities across the world.',
     ],
     accentVar: '--exo',
-    accentHex: '#36a6dd',
+    accentHex: '#3050b0',
     status: 'In development · ACE 2026',
     specs: [
       { label: 'Actuated DOF', value: '4' },
@@ -64,7 +64,7 @@ export const PROJECTS: Project[] = [
       'The platform targets rehabilitation, prosthetics control, and human–machine interfaces where comfort and repeatability matter.',
     ],
     accentVar: '--emg',
-    accentHex: '#a88bff',
+    accentHex: '#aedbfc',
     status: 'Active research',
     specs: [
       { label: 'Channels', value: '8' },
@@ -89,7 +89,7 @@ export const PROJECTS: Project[] = [
       'Our mission is to provide an affordable, accessible solution for patients with limited financial resources, ensuring everyone has access to life-enhancing technology.',
     ],
     accentVar: '--enable',
-    accentHex: '#ff9d5c',
+    accentHex: '#ffffff',
     status: 'Ongoing · Community',
     specs: [
       { label: 'Device', value: 'Forearm' },

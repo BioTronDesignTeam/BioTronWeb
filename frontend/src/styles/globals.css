@@ -72,12 +72,12 @@ canvas {
 
 ::selection {
   background: var(--accent);
-  color: #021018;
+  color: var(--biotron-white);
 }
 
 /* Focus visibility */
 :focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--accent-readable);
   outline-offset: 3px;
   border-radius: 4px;
 }
@@ -118,7 +118,7 @@ canvas {
   content: '';
   width: 28px;
   height: 1px;
-  background: var(--accent);
+  background: var(--accent-readable);
 }
 
 /* Glass surface */
@@ -162,7 +162,7 @@ canvas {
   z-index: var(--z-modal);
   padding: var(--sp-3) var(--sp-4);
   background: var(--accent);
-  color: #021018;
+  color: var(--biotron-white);
   border-radius: var(--r-sm);
   font-weight: 600;
   transition: top var(--dur-fast) var(--ease-out);

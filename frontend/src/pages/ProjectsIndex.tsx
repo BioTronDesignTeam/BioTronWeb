@@ -41,7 +41,7 @@ export default function ProjectsIndex() {
               <div className="pindex__info">
                 <span className="mono-label">{p.status}</span>
                 <h2 className="pindex__name">{p.name}</h2>
-                <p className="pindex__tag" style={{ color: p.accentHex }}>
+                <p className="pindex__tag">
                   {p.tagline}
                 </p>
                 <p className="pindex__blurb">{p.blurb}</p>

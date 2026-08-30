@@ -35,7 +35,7 @@ export default function ProjectDetail() {
         <div className="detail__intro">
           <span className="mono-label">{project.status}</span>
           <SplitText as="h1" className="detail__title" text={project.name} by="char" />
-          <p className="detail__tagline" style={{ color: project.accentHex }}>
+          <p className="detail__tagline">
             {project.tagline}
           </p>
           <p className="detail__blurb">{project.blurb}</p>
