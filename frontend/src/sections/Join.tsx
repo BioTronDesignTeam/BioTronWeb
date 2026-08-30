@@ -2,7 +2,7 @@ import { ArrowUpRight } from 'lucide-react';
 import Reveal from '../components/Reveal';
 import SplitText from '../components/SplitText';
 import MagneticButton from '../components/MagneticButton';
-import { SUBTEAMS, CONTACT, JOIN_EMAIL_HREF } from '../data/projects';
+import { SUBTEAMS, JOIN_EMAIL_HREF } from '../data/projects';
 
 export default function Join() {
   return (
@@ -44,9 +44,6 @@ export default function Join() {
             </MagneticButton>
             <span>Tell us your program, year, interests, and what you want to build or learn.</span>
           </div>
-          <a href={CONTACT.facebook} target="_blank" rel="noreferrer" className="join__alt">
-            Follow us on Facebook
-          </a>
         </Reveal>
       </div>
     </section>

@@ -18,7 +18,7 @@ interface RoomProps {
  * ── ROOM SWAP POINT ──────────────────────────────────────────────────────────
  * Replace this body with a Blender-authored room loaded via
  * `useGLTF('/models/room.glb')`. Keep the project models mounted at the same
- * PROJECTS[].anchor coordinates and the About board near [-5.2, 1.8, -3.2] so
+ * PROJECTS[].anchor coordinates and the About board near [-3.2, 1.8, -3.2] so
  * the camera path (three/CameraPath.ts) and popups keep working unchanged.
  * ────────────────────────────────────────────────────────────────────────────
  */
@@ -95,13 +95,13 @@ export default function WorkshopRoom({ reduced = false, mobile = false }: RoomPr
       {/* ---------- About board (wall-mounted, interactive) ---------- */}
       <Hotspot
         stop="about"
-        position={[-5.2, 1.9, -3.2]}
+        position={[-3.2, 1.9, -3.2]}
         radius={1.1}
         active={activeStop === 'about'}
         color={accent}
         reduced={reduced}
       >
-        <group rotation={[0, Math.PI / 12, 0]}>
+        <group rotation={[0, 0, 0]}>
           {/* board */}
           <mesh castShadow>
             <boxGeometry args={[1.9, 1.3, 0.08]} />
