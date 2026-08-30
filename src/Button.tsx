@@ -1,7 +1,7 @@
 import type { ButtonHTMLAttributes } from 'react';
 
 export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
-  tone?: 'primary' | 'neutral';
+  tone?: 'primary' | 'neutral' | 'danger';
 };
 
 export function Button({ className = '', tone = 'primary', ...props }: ButtonProps) {

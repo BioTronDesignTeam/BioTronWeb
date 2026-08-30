@@ -1,6 +1,8 @@
 # BioTronStyle
 
-Shared UI component library for BioTron frontends.
+Shared UI component library for BioTron frontends. It owns the BioTron palette,
+brand assets, authentication surface, light/dark slider, account menu, and
+button primitives without requiring Tailwind or another CSS framework.
 
 ## Layout
 
@@ -25,6 +27,22 @@ npm install github:BioTronDesignTeam/BioTronStyle#<tag-or-commit>
 ```
 
 ```tsx
-import { Button } from '@biotron/style';
+import { AuthScreen, ThemeToggle, UserMenu } from '@biotron/style';
 import '@biotron/style/styles.css';
 ```
+
+## Theme bootstrap
+
+Every frontend must keep the full theme bootstrap directly in its
+`index.html`, before the application module. React runs too late to prevent a
+white flash on a stored dark-mode visit. The bootstrap reads `darkMode`, toggles
+the `dark` class on `<html>`, sets `color-scheme`, and paints the palette's dark
+or light page colour immediately.
+
+## Palette
+
+- Ink: `#16033c`
+- Deep: `#160b6c`
+- Soft: `#aedbfc`
+- Accent: `#3050b0`
+- White: `#ffffff`

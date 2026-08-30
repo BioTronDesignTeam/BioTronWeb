@@ -3,7 +3,25 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
     <title>BioTronStyle</title>
+    <style>
+      html { background: #ffffff; }
+      html.dark { background: #16033c; }
+    </style>
+    <script>
+      // This complete bootstrap must stay in HTML so theme state is applied
+      // before React and its CSS load, preventing a light first-paint flash.
+      (function () {
+        try {
+          var dark = localStorage.getItem('darkMode') === 'true'
+          var root = document.documentElement
+          root.classList.toggle('dark', dark)
+          root.style.colorScheme = dark ? 'dark' : 'light'
+          root.style.backgroundColor = dark ? '#16033c' : '#ffffff'
+        } catch (e) {}
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

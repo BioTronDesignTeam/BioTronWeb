@@ -1,55 +1,279 @@
 :root {
-  color: #ecf7f4;
-  background: #071512;
-  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  --biotron-ink: #16033c;
+  --biotron-deep: #160b6c;
+  --biotron-soft: #aedbfc;
+  --biotron-accent: #3050b0;
+  --biotron-white: #ffffff;
+  --biotron-page: var(--biotron-white);
+  --biotron-surface: var(--biotron-white);
+  --biotron-surface-muted: color-mix(in srgb, var(--biotron-soft) 20%, var(--biotron-white));
+  --biotron-text: var(--biotron-ink);
+  --biotron-text-muted: color-mix(in srgb, var(--biotron-deep) 62%, var(--biotron-white));
+  --biotron-border: color-mix(in srgb, var(--biotron-soft) 70%, var(--biotron-white));
+  --biotron-focus: var(--biotron-accent);
+  --biotron-shadow: color-mix(in srgb, var(--biotron-ink) 15%, transparent);
+  color-scheme: light;
 }
 
-body {
-  margin: 0;
+:root.dark {
+  --biotron-page: var(--biotron-ink);
+  --biotron-surface: var(--biotron-deep);
+  --biotron-surface-muted: color-mix(in srgb, var(--biotron-accent) 34%, var(--biotron-ink));
+  --biotron-text: var(--biotron-white);
+  --biotron-text-muted: var(--biotron-soft);
+  --biotron-border: color-mix(in srgb, var(--biotron-soft) 24%, transparent);
+  --biotron-focus: var(--biotron-soft);
+  --biotron-shadow: color-mix(in srgb, #000000 42%, transparent);
+  color-scheme: dark;
 }
+
+.biotron-button {
+  min-height: 2.65rem;
+  border: 1px solid transparent;
+  border-radius: 0.75rem;
+  padding: 0.7rem 1.1rem;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 160ms ease, background-color 220ms ease, border-color 220ms ease;
+}
+
+.biotron-button:hover { transform: translateY(-1px); }
+.biotron-button:disabled { cursor: not-allowed; opacity: 0.5; transform: none; }
+.biotron-button--primary { background: var(--biotron-accent); color: var(--biotron-white); }
+.biotron-button--primary:hover { background: var(--biotron-deep); }
+.dark .biotron-button--primary { background: var(--biotron-soft); color: var(--biotron-ink); }
+.biotron-button--neutral { border-color: var(--biotron-border); background: var(--biotron-surface-muted); color: var(--biotron-text); }
+.biotron-button--danger { border-color: #ef9a9a; background: #fff3f3; color: #9f1239; }
+.dark .biotron-button--danger { border-color: #9f4564; background: #40142c; color: #ffc1d1; }
+
+.biotron-brand { display: inline-flex; align-items: center; line-height: 0; }
+.biotron-brand__wordmark { display: block; width: min(100%, 11rem); height: auto; }
+.biotron-brand__wordmark--dark { display: none; }
+.dark .biotron-brand__wordmark--light { display: none; }
+.dark .biotron-brand__wordmark--dark { display: block; }
+.biotron-brand__hand { display: block; width: 2.1rem; height: 2.1rem; object-fit: contain; }
+
+.biotron-theme-toggle {
+  position: relative;
+  display: inline-grid;
+  grid-template-columns: repeat(2, 2.5rem);
+  align-items: center;
+  height: 2.5rem;
+  margin: 0;
+  border: 1px solid var(--biotron-border);
+  border-radius: 999px;
+  padding: 0;
+  overflow: hidden;
+  background: var(--biotron-surface-muted);
+  color: var(--biotron-text-muted);
+  cursor: pointer;
+  box-shadow: 0 0.2rem 0.8rem var(--biotron-shadow);
+  transition: background-color 220ms ease, border-color 220ms ease;
+}
+
+.biotron-theme-toggle:focus-visible,
+.biotron-user-menu__trigger:focus-visible,
+.biotron-auth-action:focus-visible,
+.biotron-guest-form input:focus-visible,
+.biotron-guest-form button:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--biotron-focus) 55%, transparent);
+  outline-offset: 2px;
+}
+
+.biotron-theme-toggle__thumb {
+  position: absolute;
+  inset: 0.2rem auto 0.2rem 0.2rem;
+  width: 2.1rem;
+  border-radius: 999px;
+  background: var(--biotron-white);
+  box-shadow: 0 0.15rem 0.5rem var(--biotron-shadow);
+  transform: translateX(0);
+  transition: transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.biotron-theme-toggle--dark .biotron-theme-toggle__thumb { transform: translateX(2.5rem); }
+.biotron-theme-toggle__option { position: relative; z-index: 1; display: grid; place-items: center; }
+.biotron-theme-toggle__option svg { width: 1.1rem; height: 1.1rem; }
+.biotron-theme-toggle:not(.biotron-theme-toggle--dark) .biotron-theme-toggle__option:nth-of-type(2),
+.biotron-theme-toggle--dark .biotron-theme-toggle__option:last-of-type { color: var(--biotron-ink); }
+
+.biotron-user-menu { position: relative; display: inline-flex; }
+.biotron-user-menu__trigger {
+  display: grid;
+  width: 2.5rem;
+  height: 2.5rem;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--biotron-border);
+  border-radius: 999px;
+  padding: 0;
+  background: var(--biotron-surface-muted);
+  color: var(--biotron-accent);
+  cursor: pointer;
+  box-shadow: 0 0.2rem 0.8rem var(--biotron-shadow);
+  transition: transform 160ms ease, border-color 220ms ease, background-color 220ms ease;
+}
+.biotron-user-menu__trigger:hover { transform: translateY(-1px); border-color: var(--biotron-accent); }
+.biotron-user-menu__trigger img { width: 100%; height: 100%; object-fit: cover; }
+.biotron-user-menu__trigger svg { width: 1.15rem; height: 1.15rem; }
+.dark .biotron-user-menu__trigger { color: var(--biotron-soft); }
+.biotron-user-menu__popover {
+  position: absolute;
+  z-index: 50;
+  top: calc(100% + 0.55rem);
+  right: 0;
+  width: 14rem;
+  overflow: hidden;
+  border: 1px solid var(--biotron-border);
+  border-radius: 0.85rem;
+  background: var(--biotron-surface);
+  color: var(--biotron-text);
+  box-shadow: 0 1rem 2.8rem var(--biotron-shadow);
+}
+.biotron-user-menu__identity { padding: 0.8rem 0.9rem; border-bottom: 1px solid var(--biotron-border); }
+.biotron-user-menu__identity strong,
+.biotron-user-menu__identity span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.biotron-user-menu__identity strong { font-size: 0.88rem; }
+.biotron-user-menu__identity span { margin-top: 0.2rem; color: var(--biotron-text-muted); font-size: 0.75rem; }
+.biotron-user-menu__logout {
+  width: 100%;
+  border: 0;
+  padding: 0.72rem 0.9rem;
+  background: transparent;
+  color: var(--biotron-text);
+  font: inherit;
+  font-size: 0.84rem;
+  text-align: left;
+  cursor: pointer;
+}
+.biotron-user-menu__logout:hover { background: var(--biotron-surface-muted); }
+
+.biotron-auth-screen {
+  position: relative;
+  display: grid;
+  min-height: 100vh;
+  box-sizing: border-box;
+  place-items: center;
+  padding: 5rem 1.25rem 3rem;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 12% 12%, color-mix(in srgb, var(--biotron-soft) 48%, transparent), transparent 34rem),
+    radial-gradient(circle at 88% 88%, color-mix(in srgb, var(--biotron-accent) 22%, transparent), transparent 38rem),
+    var(--biotron-page);
+  color: var(--biotron-text);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+.dark .biotron-auth-screen {
+  background:
+    radial-gradient(circle at 15% 10%, color-mix(in srgb, var(--biotron-accent) 42%, transparent), transparent 34rem),
+    radial-gradient(circle at 85% 92%, color-mix(in srgb, var(--biotron-soft) 12%, transparent), transparent 38rem),
+    var(--biotron-page);
+}
+.biotron-auth-screen *, .biotron-auth-screen *::before, .biotron-auth-screen *::after { box-sizing: border-box; }
+.biotron-auth-screen__theme { position: absolute; top: 1.5rem; right: 1.5rem; }
+.biotron-auth-card {
+  width: min(100%, 29rem);
+  border: 1px solid var(--biotron-border);
+  border-radius: 1.4rem;
+  padding: clamp(1.5rem, 5vw, 2.25rem);
+  background: color-mix(in srgb, var(--biotron-surface) 92%, transparent);
+  box-shadow: 0 1.6rem 4.5rem var(--biotron-shadow);
+  text-align: center;
+  backdrop-filter: blur(18px);
+}
+.biotron-auth-card__brand { display: flex; justify-content: center; margin-bottom: 1.7rem; }
+.biotron-auth-card__brand .biotron-brand__wordmark { width: 10rem; }
+.biotron-auth-card__eyebrow {
+  margin: 0 0 0.55rem;
+  color: var(--biotron-accent);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+.dark .biotron-auth-card__eyebrow { color: var(--biotron-soft); }
+.biotron-auth-card h1 { margin: 0; color: var(--biotron-text); font-size: clamp(1.4rem, 5vw, 1.85rem); letter-spacing: -0.03em; }
+.biotron-auth-card__description { margin-top: 0.8rem; color: var(--biotron-text-muted); font-size: 0.88rem; line-height: 1.65; }
+.biotron-auth-card__description p { margin: 0; }
+.biotron-auth-notice { margin-top: 1rem; border-radius: 0.7rem; padding: 0.7rem 0.8rem; font-size: 0.8rem; line-height: 1.5; }
+.biotron-auth-notice--info { background: var(--biotron-surface-muted); color: var(--biotron-text); }
+.biotron-auth-notice--error { background: #fff0f3; color: #9f1239; }
+.dark .biotron-auth-notice--error { background: #40142c; color: #ffc1d1; }
+.biotron-auth-action,
+.biotron-guest-form button {
+  display: inline-flex;
+  width: 100%;
+  min-height: 2.8rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  border: 1px solid transparent;
+  border-radius: 0.75rem;
+  padding: 0.7rem 1rem;
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 750;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 160ms ease, background-color 220ms ease, border-color 220ms ease;
+}
+.biotron-auth-action { margin-top: 1.4rem; background: var(--biotron-accent); color: var(--biotron-white); }
+.biotron-auth-action:hover { transform: translateY(-1px); background: var(--biotron-deep); }
+.dark .biotron-auth-action { background: var(--biotron-soft); color: var(--biotron-ink); }
+.biotron-auth-action svg { width: 1.2rem; height: 1.2rem; }
+.biotron-auth-divider { display: flex; align-items: center; gap: 0.75rem; margin: 1.2rem 0; color: var(--biotron-text-muted); font-size: 0.7rem; }
+.biotron-auth-divider span { height: 1px; flex: 1; background: var(--biotron-border); }
+.biotron-guest-form { text-align: left; }
+.biotron-guest-form label { display: block; margin-bottom: 0.45rem; color: var(--biotron-text-muted); font-size: 0.72rem; font-weight: 700; }
+.biotron-guest-form input {
+  width: 100%;
+  min-height: 2.7rem;
+  border: 1px solid var(--biotron-border);
+  border-radius: 0.7rem;
+  padding: 0.65rem 0.8rem;
+  background: var(--biotron-surface);
+  color: var(--biotron-text);
+  font: inherit;
+  font-size: 0.86rem;
+}
+.biotron-guest-form input::placeholder { color: var(--biotron-text-muted); opacity: 0.72; }
+.biotron-guest-form__error { margin: 0.45rem 0 0; color: #b42347; font-size: 0.72rem; }
+.dark .biotron-guest-form__error { color: #ff9bb6; }
+.biotron-guest-form button { margin-top: 0.65rem; border-color: var(--biotron-border); background: var(--biotron-surface-muted); color: var(--biotron-text); }
+.biotron-guest-form button:hover:not(:disabled) { transform: translateY(-1px); border-color: var(--biotron-accent); }
+.biotron-guest-form button:disabled { cursor: not-allowed; opacity: 0.45; }
+.biotron-auth-card__footer { margin-top: 1.25rem; color: var(--biotron-text-muted); font-size: 0.72rem; }
+.biotron-auth-loading { overflow: hidden; height: 0.22rem; margin-top: 1.5rem; border-radius: 999px; background: var(--biotron-surface-muted); }
+.biotron-auth-loading::after { display: block; width: 42%; height: 100%; background: var(--biotron-accent); content: ""; animation: biotron-loading 900ms ease-in-out infinite alternate; }
+@keyframes biotron-loading { from { transform: translateX(0); } to { transform: translateX(140%); } }
 
 .biotron-preview {
   display: grid;
   min-height: 100vh;
+  box-sizing: border-box;
   place-content: center;
-  gap: 1rem;
+  gap: 1.25rem;
   padding: 2rem;
+  background: var(--biotron-page);
+  color: var(--biotron-text);
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+}
+.biotron-preview h1, .biotron-preview p { margin: 0; }
+.biotron-preview__toolbar { display: flex; align-items: center; gap: 0.7rem; }
+.biotron-preview__actions { display: flex; flex-wrap: wrap; gap: 0.75rem; }
+.biotron-eyebrow { color: var(--biotron-accent); font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; }
+
+@media (prefers-reduced-motion: reduce) {
+  .biotron-theme-toggle__thumb,
+  .biotron-button,
+  .biotron-user-menu__trigger,
+  .biotron-auth-action,
+  .biotron-guest-form button { transition-duration: 0.01ms !important; }
+  .biotron-auth-loading::after { animation-duration: 0.01ms !important; }
 }
 
-.biotron-eyebrow {
-  margin: 0;
-  color: #59d9aa;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.biotron-preview h1 {
-  margin: 0;
-  font-size: clamp(2rem, 6vw, 4rem);
-}
-
-.biotron-preview__actions {
-  display: flex;
-  gap: 0.75rem;
-}
-
-.biotron-button {
-  border: 1px solid transparent;
-  border-radius: 999px;
-  padding: 0.75rem 1.1rem;
-  font: inherit;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.biotron-button--primary {
-  color: #071512;
-  background: #59d9aa;
-}
-
-.biotron-button--neutral {
-  color: #ecf7f4;
-  border-color: #35514a;
-  background: #14231f;
+@media (max-width: 34rem) {
+  .biotron-auth-screen { padding-inline: 0.85rem; }
+  .biotron-auth-screen__theme { top: 1rem; right: 1rem; }
+  .biotron-auth-card { border-radius: 1.1rem; }
 }
