@@ -17,5 +17,11 @@ having to reorganize the repository.
 | `docker-compose.yml` | Local production-image runner |
 
 Copy `.env.example` to `.env`. Then use `cd frontend && npm ci && npm run dev`
-for local development, or `docker compose up --build` to run the
-production-shaped container.
+for local development, or `docker compose up -d --build` to keep the
+production-shaped container running.
+
+The container is available at `http://127.0.0.1:18083` by default. That port is
+reserved for the public site after the local OAuth, Exo, and Logger ports ending
+at `18082`; override `WEB_PORT` in `.env` if the workspace map changes. The
+container also joins the shared `biotron` network as `site-web`, which is the
+stable alias used by the Server Nginx edge.
