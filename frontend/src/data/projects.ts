@@ -48,7 +48,7 @@ export const PROJECTS: Project[] = [
       { label: 'Competition', value: 'ACE 2026' },
     ],
     anchor: [-4.2, 0.4, -1.5],
-    team: ['Mechanical', 'Electrical', 'Controls', 'Firmware'],
+    team: ['Mechanical', 'Electrical', 'Software'],
   },
   {
     slug: 'emg-fabric',
@@ -133,15 +133,17 @@ export interface SubTeam {
 export const SUBTEAMS: SubTeam[] = [
   { name: 'Mechanical', blurb: 'CAD, structural design, actuation, and rapid prototyping.' },
   { name: 'Electrical', blurb: 'PCB design, power systems, and embedded hardware.' },
-  { name: 'Firmware & Controls', blurb: 'Real-time control loops, sensor fusion, and embedded software.' },
-  { name: 'Software & ML', blurb: 'Signal processing, machine learning, and tooling.' },
+  {
+    name: 'Software',
+    blurb: 'Firmware, controls, signal processing, machine learning, and team tooling.',
+  },
   { name: 'Outreach & Operations', blurb: 'Community partnerships, recruitment, sponsorship, and events.' },
 ];
 
 export const TEAM_STATS = [
   { value: 40, suffix: '+', label: 'Active members' },
   { value: 3, suffix: '', label: 'Live projects' },
-  { value: 5, suffix: '', label: 'Sub-teams' },
+  { value: 4, suffix: '', label: 'Sub-teams' },
   { value: 2021, suffix: '', label: 'Founded', plain: true },
 ];
 
