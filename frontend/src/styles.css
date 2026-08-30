@@ -1,0 +1,55 @@
+:root {
+  color: #ecf7f4;
+  background: #071512;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+}
+
+body {
+  margin: 0;
+}
+
+.biotron-preview {
+  display: grid;
+  min-height: 100vh;
+  place-content: center;
+  gap: 1rem;
+  padding: 2rem;
+}
+
+.biotron-eyebrow {
+  margin: 0;
+  color: #59d9aa;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.biotron-preview h1 {
+  margin: 0;
+  font-size: clamp(2rem, 6vw, 4rem);
+}
+
+.biotron-preview__actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.biotron-button {
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 0.75rem 1.1rem;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.biotron-button--primary {
+  color: #071512;
+  background: #59d9aa;
+}
+
+.biotron-button--neutral {
+  color: #ecf7f4;
+  border-color: #35514a;
+  background: #14231f;
+}

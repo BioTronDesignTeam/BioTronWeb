@@ -1,0 +1,15 @@
+name: biotron-style
+
+services:
+  preview:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    volumes:
+      - ./frontend:/app
+      - frontend-node-modules:/app/node_modules
+    ports:
+      - "127.0.0.1:5177:5177"
+
+volumes:
+  frontend-node-modules:
