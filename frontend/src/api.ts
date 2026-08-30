@@ -39,6 +39,16 @@ export type LogPage = {
   next_cursor?: string;
 };
 
+export type Identity = {
+  login: string;
+  name: string;
+  avatar_url: string;
+  is_superuser: boolean;
+  is_manager: boolean;
+  is_staff: boolean;
+  is_guest: boolean;
+};
+
 export class APIError extends Error {
   status: number;
 
@@ -69,6 +79,21 @@ export const loginURL = () =>
 export const accessManagerURL = () => AUTH_BASE.replace(/\/api$/, '');
 
 export const checkSession = () => api<{ allowed: boolean }>('/v1/session');
+
+export async function getIdentity() {
+  const response = await fetch(`${AUTH_BASE}/auth/me`, { credentials: 'include' });
+  if (!response.ok) throw new APIError(response.status, 'Could not load account');
+  return response.json() as Promise<Identity>;
+}
+
+export async function logout() {
+  const response = await fetch(`${AUTH_BASE}/auth/logout`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+  });
+  if (!response.ok) throw new APIError(response.status, 'Could not sign out');
+}
 
 export const getApplications = () => api<ApplicationsResponse>('/v1/apps');
 

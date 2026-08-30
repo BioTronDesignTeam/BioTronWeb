@@ -1,16 +1,20 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { AuthScreen, Brand, ThemeToggle, UserMenu } from '@biotron/style';
 import {
   APIError,
   type ApplicationStatus,
   type HealthState,
+  type Identity,
   type LogEntry,
   type LogLevel,
   accessManagerURL,
   checkSession,
+  getIdentity,
   getApplications,
   getHistoricalLogs,
   getRecentLogs,
   loginURL,
+  logout,
 } from './api';
 
 const levels: LogLevel[] = ['debug', 'info', 'warning', 'error'];
@@ -40,18 +44,40 @@ function StatusDot({ state }: { state: HealthState }) {
   return <span className={`status-dot status-dot--${state}`} aria-hidden="true" />;
 }
 
-function Shell({ children }: { children: ReactNode }) {
+function Shell({
+  children,
+  user,
+  onLogout,
+}: {
+  children: ReactNode;
+  user?: Identity;
+  onLogout?: () => void | Promise<void>;
+}) {
   return (
     <div className="shell">
       <header className="topbar">
         <a className="brand" href="/">
-          <span className="brand-mark">B</span>
+          <Brand compact />
           <span>
-            <strong>BioTron</strong>
-            <small>Operations</small>
+            <strong>Logger</strong>
+            <small>BioTron operations</small>
           </span>
         </a>
-        <div className="environment"><span /> Platform monitor</div>
+        <div className="topbar-actions">
+          <div className="environment"><span /> Platform monitor</div>
+          <ThemeToggle />
+          {onLogout && (
+            <UserMenu
+              user={user ? {
+                name: user.name,
+                login: user.login,
+                avatarUrl: user.avatar_url,
+                detail: `@${user.login}${user.is_guest ? ' · guest' : user.is_staff ? ' · staff' : ''}`,
+              } : undefined}
+              onLogout={onLogout}
+            />
+          )}
+        </div>
       </header>
       {children}
     </div>
@@ -68,23 +94,35 @@ function AccessGate({ state }: { state: AccessState }) {
   }[state];
 
   return (
-    <Shell>
-      <main className="access-page">
-        <div className="access-panel">
-          <p className="eyebrow">Internal tooling</p>
-          <h1>{content[0]}</h1>
-          <p>{content[1]}</p>
-          {state === 'login' && <a className="button button--primary" href={loginURL()}>Continue with GitHub</a>}
-          {state === 'forbidden' && <a className="button button--primary" href={accessManagerURL()}>Request access</a>}
-          {state === 'error' && <button className="button button--primary" onClick={() => window.location.reload()}>Retry</button>}
-          {state === 'checking' && <div className="loading-bar" />}
-        </div>
-      </main>
-    </Shell>
+    <AuthScreen
+      productName={content[0]}
+      description={content[1]}
+      eyebrow="BioTron Logger"
+      action={
+        state === 'login'
+          ? { label: 'Continue with GitHub', href: loginURL(), icon: 'github' }
+          : state === 'forbidden'
+            ? { label: 'Request Logger access', href: accessManagerURL() }
+            : state === 'error'
+              ? { label: 'Retry', onClick: () => window.location.reload() }
+              : undefined
+      }
+      loading={state === 'checking'}
+    />
   );
 }
 
-function Dashboard({ applications, refreshedAt }: { applications: ApplicationStatus[]; refreshedAt?: string }) {
+function Dashboard({
+  applications,
+  refreshedAt,
+  user,
+  onLogout,
+}: {
+  applications: ApplicationStatus[];
+  refreshedAt?: string;
+  user?: Identity;
+  onLogout: () => void | Promise<void>;
+}) {
   const healthy = applications.filter((app) => app.state === 'healthy').length;
   const headline = applications.some((app) => app.state === 'unhealthy')
     ? 'Some systems need attention'
@@ -93,7 +131,7 @@ function Dashboard({ applications, refreshedAt }: { applications: ApplicationSta
       : 'All systems operational';
 
   return (
-    <Shell>
+    <Shell user={user} onLogout={onLogout}>
       <main className="page">
         <section className="hero">
           <div>
@@ -188,7 +226,15 @@ function LogRow({ entry }: { entry: LogEntry }) {
   );
 }
 
-function ApplicationDetail({ application }: { application: ApplicationStatus }) {
+function ApplicationDetail({
+  application,
+  user,
+  onLogout,
+}: {
+  application: ApplicationStatus;
+  user?: Identity;
+  onLogout: () => void | Promise<void>;
+}) {
   const [mode, setMode] = useState<LogMode>('recent');
   const [selectedLevels, setSelectedLevels] = useState<Set<LogLevel>>(new Set(levels));
   const [search, setSearch] = useState('');
@@ -237,7 +283,7 @@ function ApplicationDetail({ application }: { application: ApplicationStatus }) 
   }
 
   return (
-    <Shell>
+    <Shell user={user} onLogout={onLogout}>
       <main className="page detail-page">
         <a className="back-link" href="/">← All applications</a>
         <section className="detail-header">
@@ -310,6 +356,7 @@ export function App() {
   const [access, setAccess] = useState<AccessState>('checking');
   const [applications, setApplications] = useState<ApplicationStatus[]>([]);
   const [refreshedAt, setRefreshedAt] = useState<string>();
+  const [user, setUser] = useState<Identity>();
 
   const refresh = useCallback(async () => {
     try {
@@ -317,6 +364,7 @@ export function App() {
       setApplications(response.applications);
       setRefreshedAt(response.generated_at);
       setAccess('allowed');
+      void getIdentity().then(setUser).catch(() => setUser(undefined));
     } catch (reason) {
       if (reason instanceof APIError && reason.status === 401) setAccess('login');
       else if (reason instanceof APIError && reason.status === 403) setAccess('forbidden');
@@ -338,14 +386,20 @@ export function App() {
     return () => window.clearInterval(timer);
   }, [access, refresh]);
 
+  const onLogout = useCallback(async () => {
+    await logout();
+    setUser(undefined);
+    setAccess('login');
+  }, []);
+
   if (access !== 'allowed') return <AccessGate state={access} />;
 
   const detailMatch = window.location.pathname.match(/^\/applications\/([^/]+)\/?$/);
   if (detailMatch) {
     const application = applications.find((candidate) => candidate.id === decodeURIComponent(detailMatch[1]));
-    if (application) return <ApplicationDetail application={application} />;
+    if (application) return <ApplicationDetail application={application} user={user} onLogout={onLogout} />;
     return <AccessGate state="error" />;
   }
 
-  return <Dashboard applications={applications} refreshedAt={refreshedAt} />;
+  return <Dashboard applications={applications} refreshedAt={refreshedAt} user={user} onLogout={onLogout} />;
 }
