@@ -5,7 +5,7 @@ import Hotspot from './Hotspot';
 import ProjectModel from './models/ProjectModel';
 
 const cssVar = (name: string) =>
-  getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#3050b0';
+  getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#160b6c';
 
 interface RoomProps {
   reduced?: boolean;
@@ -47,28 +47,28 @@ export default function WorkshopRoom({ reduced = false, mobile = false }: RoomPr
       {/* Floor */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.86, -1]} receiveShadow>
         <planeGeometry args={[20, 16]} />
-        <meshStandardMaterial color="#16033c" metalness={0.2} roughness={0.9} />
+        <meshStandardMaterial color="#0b1117" metalness={0.2} roughness={0.9} />
       </mesh>
       {/* Floor grid glow lines */}
       <gridHelper
-        args={[20, 20, accent, '#160b6c']}
+        args={[20, 20, accent, '#16212b']}
         position={[0, -0.85, -1]}
       />
       {/* Back wall */}
       <mesh position={[0, 2.5, -7]} receiveShadow>
         <boxGeometry args={[20, 7, 0.3]} />
-        <meshStandardMaterial color="#16033c" metalness={0.1} roughness={1} />
+        <meshStandardMaterial color="#0a1015" metalness={0.1} roughness={1} />
       </mesh>
       {/* Left wall */}
       <mesh position={[-9.8, 2.5, -1]} rotation={[0, Math.PI / 2, 0]} receiveShadow>
         <boxGeometry args={[12, 7, 0.3]} />
-        <meshStandardMaterial color="#16033c" metalness={0.1} roughness={1} />
+        <meshStandardMaterial color="#0a1015" metalness={0.1} roughness={1} />
       </mesh>
 
       {/* Pegboard on back wall */}
       <mesh position={[1.5, 3, -6.82]}>
         <boxGeometry args={[5, 2.2, 0.06]} />
-        <meshStandardMaterial color="#160b6c" metalness={0.3} roughness={0.7} />
+        <meshStandardMaterial color="#101922" metalness={0.3} roughness={0.7} />
       </mesh>
 
       {/* ---------- Benches under each project ---------- */}
@@ -79,7 +79,7 @@ export default function WorkshopRoom({ reduced = false, mobile = false }: RoomPr
       {/* Shelf on back wall */}
       <mesh position={[-5, 4, -6.7]} castShadow>
         <boxGeometry args={[3, 0.1, 0.6]} />
-        <meshStandardMaterial color="#160b6c" metalness={0.4} roughness={0.6} />
+        <meshStandardMaterial color="#1a232c" metalness={0.4} roughness={0.6} />
       </mesh>
 
       {/* ---------- Dressing clutter ---------- */}
@@ -88,7 +88,7 @@ export default function WorkshopRoom({ reduced = false, mobile = false }: RoomPr
           {c.t === 0 && <boxGeometry args={[c.s, c.s, c.s]} />}
           {c.t === 1 && <cylinderGeometry args={[c.s * 0.5, c.s * 0.5, c.s, 12]} />}
           {c.t === 2 && <torusGeometry args={[c.s * 0.5, c.s * 0.2, 8, 16]} />}
-          <meshStandardMaterial color="#3050b0" metalness={0.7} roughness={0.4} />
+          <meshStandardMaterial color="#2a3640" metalness={0.7} roughness={0.4} />
         </mesh>
       ))}
 
@@ -105,7 +105,7 @@ export default function WorkshopRoom({ reduced = false, mobile = false }: RoomPr
           {/* board */}
           <mesh castShadow>
             <boxGeometry args={[1.9, 1.3, 0.08]} />
-            <meshStandardMaterial color="#160b6c" metalness={0.2} roughness={0.6} />
+            <meshStandardMaterial color="#111a22" metalness={0.2} roughness={0.6} />
           </mesh>
           {/* frame glow */}
           <mesh position={[0, 0, 0.045]}>
@@ -151,7 +151,7 @@ function Bench({ x, z }: { x: number; z: number }) {
       {/* top */}
       <mesh position={[0, 0.62, 0]} castShadow receiveShadow>
         <boxGeometry args={[2.4, 0.12, 1.4]} />
-        <meshStandardMaterial color="#160b6c" metalness={0.3} roughness={0.7} />
+        <meshStandardMaterial color="#15202a" metalness={0.3} roughness={0.7} />
       </mesh>
       {/* legs */}
       {[
@@ -162,7 +162,7 @@ function Bench({ x, z }: { x: number; z: number }) {
       ].map(([lx, lz], i) => (
         <mesh key={i} position={[lx, 0.28, lz]}>
           <boxGeometry args={[0.1, 0.66, 0.1]} />
-          <meshStandardMaterial color="#16033c" metalness={0.5} roughness={0.5} />
+          <meshStandardMaterial color="#0e1620" metalness={0.5} roughness={0.5} />
         </mesh>
       ))}
     </group>

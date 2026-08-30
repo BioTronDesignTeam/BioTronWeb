@@ -118,7 +118,7 @@ canvas {
   content: '';
   width: 28px;
   height: 1px;
-  background: var(--accent-readable);
+  background: var(--accent-secondary);
 }
 
 /* Glass surface */

@@ -64,7 +64,7 @@ export const PROJECTS: Project[] = [
       'The platform targets rehabilitation, prosthetics control, and human–machine interfaces where comfort and repeatability matter.',
     ],
     accentVar: '--emg',
-    accentHex: '#aedbfc',
+    accentHex: '#160b6c',
     status: 'Active research',
     specs: [
       { label: 'Channels', value: '8' },
