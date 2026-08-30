@@ -6,7 +6,7 @@ import (
 )
 
 // Config is the backend's runtime configuration, sourced from environment
-// variables. See backend/.env.example for the full list.
+// variables. See ../.env.example for the full list.
 type Config struct {
 	Port           string
 	FrontendURL    string

@@ -21,7 +21,7 @@ func main() {
 	}
 	time.Local = loc
 
-	_ = godotenv.Load()
+	_ = godotenv.Load("../.env")
 
 	cfg := config.Load()
 	app := server.New(cfg.FrontendURL, cfg.TrustedProxies)

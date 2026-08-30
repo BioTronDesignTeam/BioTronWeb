@@ -57,3 +57,5 @@ docker compose up --build
 ```
 
 The web container binds to port 5174 by default so OAuthManager can retain 5173.
+The backend, frontend, Prisma, and Compose all use the single root `.env`; do
+not create component-level environment files.

@@ -5,8 +5,3 @@ tmp/
 # go test / profiling artifacts
 *.test
 *.out
-
-# env (commit .env.example only)
-.env
-.env.*
-!.env.example

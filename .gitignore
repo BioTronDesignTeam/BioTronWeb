@@ -8,7 +8,8 @@
 .vscode/
 .idea/
 
-# Secrets / certs (any directory)
+# Secrets / certs (the only committed environment template is /.env.example)
 *.pem
 .env
-!.env.example
+.env.*
+!/.env.example
