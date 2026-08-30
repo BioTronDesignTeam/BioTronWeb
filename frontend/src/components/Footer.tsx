@@ -22,8 +22,8 @@ export default function Footer() {
               {p.name}
             </Link>
           ))}
-          <Link to="/past-projects" className="footer__link">
-            Past projects
+          <Link to="/projects#past" className="footer__link">
+            Past work
           </Link>
         </nav>
 

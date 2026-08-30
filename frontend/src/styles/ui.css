@@ -778,6 +778,10 @@
   padding-top: 2.5rem;
   padding-bottom: 6rem;
 }
+.pindex__archive {
+  border-top: 1px solid var(--border);
+  padding-top: 5rem;
+}
 .pindex__row {
   --card-accent: var(--accent);
   --card-accent-readable: var(--text);

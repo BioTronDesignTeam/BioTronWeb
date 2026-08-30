@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { ArrowUpRight } from 'lucide-react';
-import { PROJECTS } from '../data/projects';
+import { PAST_PROJECTS, PROJECTS } from '../data/projects';
 import Reveal from '../components/Reveal';
 import SplitText from '../components/SplitText';
 import ModelFallback from '../components/ModelFallback';
@@ -11,9 +11,9 @@ export default function ProjectsIndex() {
     <main id="main" className="pindex">
       <PageMeta
         title="Projects — Biotron"
-        description="Explore Biotron’s active exoskeleton, EMG wearable, and assistive-device projects."
+        description="Explore Biotron’s current biomechatronics work and the projects that shaped it."
       />
-      <section className="container pindex__head">
+      <section className="container pindex__head" id="current">
         <span className="eyebrow mono-label">Active projects</span>
         <SplitText
           as="h1"
@@ -52,6 +52,37 @@ export default function ProjectsIndex() {
             </Link>
           </Reveal>
         ))}
+      </section>
+
+      <section className="pindex__archive" id="past">
+        <div className="container past__head">
+          <span className="eyebrow mono-label">Past projects</span>
+          <SplitText as="h2" className="past__title" text="Where we’ve been." by="word" />
+          <p className="past__lead">
+            A selection of the prototypes and devices that shaped our team — and seeded today’s work.
+          </p>
+        </div>
+
+        <div className="container past__grid">
+          {PAST_PROJECTS.map((p, i) => (
+            <Reveal key={p.name} delay={i * 0.05}>
+              <article className="past__card glass">
+                <div className="past__cardtop">
+                  <h3 className="past__name">{p.name}</h3>
+                  {p.partner && <span className="past__partner">with {p.partner}</span>}
+                </div>
+                <p className="past__blurb">{p.blurb}</p>
+                <div className="past__tags">
+                  {p.tags.map((tag) => (
+                    <span key={tag} className="past__tag">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              </article>
+            </Reveal>
+          ))}
+        </div>
       </section>
     </main>
   );

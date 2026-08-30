@@ -31,7 +31,7 @@ export function scrollToElement(target: string | HTMLElement, offset = 0) {
  */
 export default function SmoothScroll({ children }: { children: React.ReactNode }) {
   const reduced = useReducedMotion();
-  const { pathname } = useLocation();
+  const { pathname, hash } = useLocation();
 
   useEffect(() => {
     if (reduced) return;
@@ -56,12 +56,16 @@ export default function SmoothScroll({ children }: { children: React.ReactNode }
     };
   }, [reduced]);
 
-  // Reset scroll on route change.
+  // Reset on route changes, or honor an in-page destination when provided.
   useEffect(() => {
-    if (lenisInstance) lenisInstance.scrollTo(0, { immediate: true });
-    else window.scrollTo(0, 0);
-    ScrollTrigger.refresh();
-  }, [pathname]);
+    const frame = window.requestAnimationFrame(() => {
+      if (hash && document.querySelector(hash)) scrollToElement(hash, -96);
+      else scrollToY(0, { immediate: true });
+      ScrollTrigger.refresh();
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [hash, pathname]);
 
   return <>{children}</>;
 }
