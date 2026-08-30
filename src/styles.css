@@ -181,17 +181,8 @@
   text-align: center;
   backdrop-filter: blur(18px);
 }
-.biotron-auth-card__brand { display: flex; justify-content: center; margin-bottom: 1.7rem; }
+.biotron-auth-card__brand { display: flex; justify-content: center; margin-bottom: 1.35rem; }
 .biotron-auth-card__brand .biotron-brand__wordmark { width: 10rem; }
-.biotron-auth-card__eyebrow {
-  margin: 0 0 0.55rem;
-  color: var(--biotron-accent);
-  font-size: 0.68rem;
-  font-weight: 800;
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
-}
-.dark .biotron-auth-card__eyebrow { color: var(--biotron-soft); }
 .biotron-auth-card h1 { margin: 0; color: var(--biotron-text); font-size: clamp(1.4rem, 5vw, 1.85rem); letter-spacing: -0.03em; }
 .biotron-auth-card__description { margin-top: 0.8rem; color: var(--biotron-text-muted); font-size: 0.88rem; line-height: 1.65; }
 .biotron-auth-card__description p { margin: 0; }

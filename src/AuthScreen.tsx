@@ -31,8 +31,7 @@ export type GuestAccess = {
 
 export type AuthScreenProps = {
   productName: string;
-  description: ReactNode;
-  eyebrow?: string;
+  description?: ReactNode;
   action?: AuthAction;
   notices?: readonly AuthNotice[];
   guestAccess?: GuestAccess;
@@ -45,7 +44,6 @@ export type AuthScreenProps = {
 export function AuthScreen({
   productName,
   description,
-  eyebrow = 'BioTron tools',
   action,
   notices = [],
   guestAccess,
@@ -85,9 +83,8 @@ export function AuthScreen({
       {showThemeToggle && <ThemeToggle className="biotron-auth-screen__theme" />}
       <section className="biotron-auth-card">
         <Brand className="biotron-auth-card__brand" />
-        <p className="biotron-auth-card__eyebrow">{eyebrow}</p>
         <h1>{productName}</h1>
-        <div className="biotron-auth-card__description">{description}</div>
+        {description && <div className="biotron-auth-card__description">{description}</div>}
         {notices.map((notice, index) => (
           <div
             className={`biotron-auth-notice biotron-auth-notice--${notice.tone ?? 'info'}`}
