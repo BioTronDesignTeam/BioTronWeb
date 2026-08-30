@@ -1,4 +1,5 @@
-import { Link } from 'react-router-dom';
+import { useEffect } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { ArrowUpRight } from 'lucide-react';
 import { PAST_PROJECTS, PROJECTS } from '../data/projects';
 import Reveal from '../components/Reveal';
@@ -7,6 +8,28 @@ import ModelFallback from '../components/ModelFallback';
 import PageMeta from '../components/PageMeta';
 
 export default function ProjectsIndex() {
+  const { hash } = useLocation();
+
+  useEffect(() => {
+    if (hash !== '#past') return;
+
+    let layoutFrame = 0;
+    const renderFrame = window.requestAnimationFrame(() => {
+      layoutFrame = window.requestAnimationFrame(() => {
+        const archive = document.getElementById('past');
+        if (archive) {
+          const top = archive.getBoundingClientRect().top + window.scrollY - 96;
+          window.scrollTo({ top, behavior: 'auto' });
+        }
+      });
+    });
+
+    return () => {
+      window.cancelAnimationFrame(renderFrame);
+      window.cancelAnimationFrame(layoutFrame);
+    };
+  }, [hash]);
+
   return (
     <main id="main" className="pindex">
       <PageMeta
