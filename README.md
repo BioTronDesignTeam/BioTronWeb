@@ -52,9 +52,9 @@ The portal is available on `http://localhost:5175`; the API is bound to
 |---|---|---|---|
 | `GET` | `/health` | none | Postgres + Redis readiness |
 | `POST` | `/v1/logs` | ingestion bearer token | Store one structured event |
-| `GET` | `/v1/session` | OAuthManager `logger/read` | Portal access check |
-| `GET` | `/v1/apps` | OAuthManager `logger/read` | Application/component status |
-| `GET` | `/v1/apps/:app/logs/recent` | OAuthManager `logger/read` | Redis-backed recent tail |
+| `GET` | `/v1/session` | OAuthManager `logger/view` | Portal access check |
+| `GET` | `/v1/apps` | OAuthManager `logger/view` | Application/component status |
+| `GET` | `/v1/apps/:app/logs/recent` | OAuthManager `logger/view` | Redis-backed recent tail |
 | `GET` | `/v1/apps/:app/logs/history` | OAuthManager `logger/view` | Postgres historical query |
 
 Recent and historical routes accept `levels=debug,info`, `q=search text`, and
@@ -92,6 +92,11 @@ sets:
 
 The client keeps all four methods in source and suppresses events below
 `LOG_LEVEL` before making a network request. See `client/README.md` for usage.
+
+OAuthManager and Exo emit lifecycle and safe completed-request metadata under
+the catalog services `oauth-manager` and `exo-api`. Logger writes its own
+startup and shutdown events directly as `logger-api`; bypassing its HTTP
+ingestion route prevents recursive self-logging.
 
 ## Storage behavior
 

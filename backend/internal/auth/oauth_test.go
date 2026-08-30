@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestOAuthAuthorizerForwardsSessionAndChecksLoggerRead(t *testing.T) {
+func TestOAuthAuthorizerForwardsSessionAndChecksLoggerView(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		if request.URL.Path != "/v1/check" || request.URL.Query().Get("app") != "logger" || request.URL.Query().Get("permission") != "view" {
 			t.Errorf("unexpected permission request: %s", request.URL.String())
