@@ -101,7 +101,7 @@ export default function WorkshopRoom({ reduced = false, mobile = false }: RoomPr
         color={accent}
         reduced={reduced}
       >
-        <group rotation={[0, Math.PI / 2, 0]}>
+        <group rotation={[0, Math.PI / 12, 0]}>
           {/* board */}
           <mesh castShadow>
             <boxGeometry args={[1.9, 1.3, 0.08]} />

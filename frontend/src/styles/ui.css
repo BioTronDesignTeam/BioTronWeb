@@ -269,6 +269,7 @@
   gap: 1.4rem;
   padding: 0 clamp(1.5rem, 6vw, 6rem);
   max-width: 40rem;
+  translate: 0 clamp(3rem, 8vh, 5rem);
   z-index: var(--z-content);
   pointer-events: none;
 }
@@ -276,12 +277,15 @@
   pointer-events: auto;
 }
 .flythrough__title {
-  font-size: var(--fs-display);
+  font-size: clamp(3rem, 2rem + 3.8vw, 5.5rem);
   line-height: 0.95;
   font-weight: 700;
 }
 .flythrough__title .line {
   display: block;
+}
+.flythrough__title .line:first-child {
+  white-space: nowrap;
 }
 .flythrough__title .accent {
   color: var(--accent-secondary);
