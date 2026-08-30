@@ -1,7 +1,7 @@
+# Dependencies and generated frontend output.
 node_modules/
 dist/
 .vite/
 *.tsbuildinfo
 coverage/
 *.log
-.env*
