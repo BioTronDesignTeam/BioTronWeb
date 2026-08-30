@@ -22,7 +22,7 @@ export const KEYFRAMES: Keyframe[] = [
   // Establishing shot: isometric pull-back over the whole room.
   { at: 0.0, pos: [7.5, 6.5, 9.5], target: [0, 0.8, -1.5] },
   // About board (mounted on the back-left wall).
-  { at: 0.14, pos: [-3.2, 2.2, 3.6], target: [-5.2, 1.8, -3.2], stop: 'about' },
+  { at: 0.14, pos: [-3.2, 2.2, 3.6], target: [-3.2, 1.8, -3.2], stop: 'about' },
   // EXO (left bench).
   { at: 0.4, pos: [-2.0, 1.5, 2.2], target: [-4.2, 0.6, -1.5], stop: 'exo' },
   // EMG Fabric (center-back bench).
