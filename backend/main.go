@@ -98,10 +98,10 @@ func prune(st *store.Store) {
 		} else if n > 0 {
 			log.Printf("pruned %d expired sessions", n)
 		}
-		if n, err := st.DeleteOldGuestKeys(context.Background()); err != nil {
-			log.Printf("prune guest keys: %v", err)
+		if n, err := st.DeleteOldProductDailyKeys(context.Background()); err != nil {
+			log.Printf("prune product daily keys: %v", err)
 		} else if n > 0 {
-			log.Printf("pruned %d stale guest keys", n)
+			log.Printf("pruned %d stale product daily keys", n)
 		}
 		time.Sleep(time.Hour)
 	}

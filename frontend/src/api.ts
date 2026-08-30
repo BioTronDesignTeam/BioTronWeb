@@ -38,7 +38,9 @@ export type Me = {
   is_guest: boolean;
 };
 
-export type GuestKey = {
+export type ProductDailyKey = {
+  app_id: string;
+  app_name: string;
   day: string;
   key: string;
 };
@@ -47,6 +49,7 @@ export type AppInfo = {
   id: string;
   name: string;
   description: string;
+  daily_key_enabled: boolean;
 };
 
 export type Permission = {
@@ -94,9 +97,7 @@ export type OrgMember = {
 export const loginURL = `${API_BASE}/auth/github/login`;
 
 export const getMe = () => api<Me>('/auth/me');
-export const guestLogin = (key: string) =>
-  api<void>('/auth/guest', { method: 'POST', body: JSON.stringify({ key }) });
-export const getGuestKey = () => api<GuestKey>('/auth/guest-key');
+export const getProductDailyKeys = () => api<ProductDailyKey[]>('/auth/guest-keys');
 export const logout = () => api<void>('/auth/logout', { method: 'POST' });
 export const listApps = () => api<AppInfo[]>('/apps');
 export const listPermissions = () => api<Permission[]>('/permissions');

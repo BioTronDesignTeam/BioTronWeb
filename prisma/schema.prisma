@@ -30,32 +30,41 @@ model Session {
   id         String   @id
   operatorId BigInt   @map("operator_id")
   operator   Operator @relation(fields: [operatorId], references: [githubId], onDelete: Cascade)
+  guestAppId String?  @map("guest_app_id")
+  guestApp   App?     @relation("GuestSessions", fields: [guestAppId], references: [id], onDelete: Cascade)
   createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   expiresAt  DateTime @map("expires_at") @db.Timestamptz(6)
   userAgent  String?  @map("user_agent")
 
   @@index([operatorId])
+  @@index([guestAppId])
   @@index([expiresAt])
   @@map("sessions")
 }
 
-// Shared guest login key, one per Eastern (America/Toronto) day. Staff fetch
-// it from the Org tab; it rotates automatically at Eastern midnight.
+// Product-scoped guest login key, one per app and Eastern day. Only apps with
+// dailyKeyEnabled participate; keys rotate automatically at Eastern midnight.
 model GuestKey {
-  day       DateTime @id @db.Date
+  appId     String   @map("app_id")
+  app       App      @relation(fields: [appId], references: [id], onDelete: Cascade)
+  day       DateTime @db.Date
   key       String
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
+  @@id([appId, day])
   @@map("guest_keys")
 }
 
 // Registered BioTron tool. New apps are rows, not schema migrations.
 model App {
-  id          String          @id
-  name        String
-  description String          @default("")
-  createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
-  permissions Permission[]
+  id              String          @id
+  name            String
+  description     String          @default("")
+  dailyKeyEnabled Boolean         @default(false) @map("daily_key_enabled")
+  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  permissions     Permission[]
+  guestKeys       GuestKey[]
+  guestSessions   Session[]       @relation("GuestSessions")
 
   @@map("apps")
 }

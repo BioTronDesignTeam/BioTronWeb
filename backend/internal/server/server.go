@@ -42,7 +42,7 @@ func New(h *auth.Handler, allowedOrigins []string, trustedProxies []string) *fib
 	a.Post("/guest", limiter.New(limiter.Config{Max: 20, Expiration: time.Minute}), h.GuestLogin)
 	a.Post("/logout", h.RequireXHR, h.RequireSession, h.Logout)
 	a.Get("/me", h.RequireSession, h.Me)
-	a.Get("/guest-key", h.RequireSession, h.RequireStaff, h.StaffGuestKey)
+	a.Get("/guest-keys", h.RequireSession, h.RequireStaff, h.StaffProductDailyKeys)
 
 	app.Get("/apps", h.RequireSession, h.ListApps)
 	app.Get("/permissions", h.RequireSession, h.ListPermissions)

@@ -108,7 +108,7 @@ func (h *Handler) Callback(c *fiber.Ctx) error {
 	if err != nil {
 		return fiber.ErrInternalServerError
 	}
-	if err := h.Store.CreateSession(ctx, hashToken(token), user.ID,
+	if err := h.Store.CreateSession(ctx, hashToken(token), user.ID, "",
 		time.Now().Add(h.Cfg.SessionTTL), c.Get("User-Agent")); err != nil {
 		log.Printf("auth: create session: %v", err)
 		return fiber.ErrInternalServerError
@@ -137,6 +137,9 @@ func (h *Handler) Me(c *fiber.Ctx) error {
 	if op == nil {
 		return fiber.ErrUnauthorized
 	}
+	if op.IsGuest() && (c.Query("app") == "" || c.Query("app") != op.GuestAppID) {
+		return fiber.ErrForbidden
+	}
 	return c.JSON(fiber.Map{
 		"github_id":    op.GitHubID,
 		"login":        op.Login,
@@ -146,6 +149,7 @@ func (h *Handler) Me(c *fiber.Ctx) error {
 		"is_manager":   op.IsManager,
 		"is_staff":     op.IsStaff(),
 		"is_guest":     op.IsGuest(),
+		"guest_app_id": op.GuestAppID,
 	})
 }
 
@@ -206,8 +210,8 @@ func (h *Handler) MyGrants(c *fiber.Ctx) error {
 		grants = []store.Grant{}
 	}
 	return c.JSON(fiber.Map{
-		"grants":       grants,
-		"full_access":  op.IsStaff(),
+		"grants":      grants,
+		"full_access": op.IsStaff(),
 	})
 }
 

@@ -6,7 +6,7 @@ import {
   type Grant,
   type Me,
   type OrgMember,
-  type GuestKey,
+  type ProductDailyKey,
   type Permission,
   approveRequest,
   banMember,
@@ -14,9 +14,8 @@ import {
   createRequest,
   deleteGrant,
   denyRequest,
-  getGuestKey,
+  getProductDailyKeys,
   getMe,
-  guestLogin,
   listApps,
   listOrgMembers,
   listPermissions,
@@ -30,7 +29,7 @@ import {
   unbanMember,
 } from './api';
 
-type Tab = 'access' | 'approvals' | 'org';
+type Tab = 'access' | 'approvals' | 'keys' | 'org';
 
 function TabButton({
   active,
@@ -86,8 +85,9 @@ export default function App() {
   const [memberGrantList, setMemberGrantList] = useState<Grant[]>([]);
   const [grantAppId, setGrantAppId] = useState('');
   const [grantPermissionKey, setGrantPermissionKey] = useState('');
-  const [todayGuestKey, setTodayGuestKey] = useState<GuestKey | null>(null);
-  const [keyCopied, setKeyCopied] = useState(false);
+  const [dailyKeys, setDailyKeys] = useState<ProductDailyKey[]>([]);
+  const [revealedKeyIds, setRevealedKeyIds] = useState<Set<string>>(new Set());
+  const [copiedKeyId, setCopiedKeyId] = useState<string | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -122,14 +122,14 @@ export default function App() {
         setPending(pendingList);
         setMembers(memberList);
         try {
-          setTodayGuestKey(await getGuestKey());
+          setDailyKeys(await getProductDailyKeys());
         } catch {
-          setTodayGuestKey(null);
+          setDailyKeys([]);
         }
       } else {
         setPending([]);
         setMembers([]);
-        setTodayGuestKey(null);
+        setDailyKeys([]);
       }
     } catch {
       setMe(null);
@@ -241,23 +241,27 @@ export default function App() {
   async function onLogout() {
     await logout();
     setMe(null);
-    setTodayGuestKey(null);
+    setDailyKeys([]);
+    setRevealedKeyIds(new Set());
   }
 
-  async function onGuestLogin(key: string) {
-    await guestLogin(key);
-    await refresh();
-  }
-
-  async function onCopyGuestKey() {
-    if (!todayGuestKey) return;
+  async function onCopyDailyKey(key: ProductDailyKey) {
     try {
-      await navigator.clipboard.writeText(todayGuestKey.key);
-      setKeyCopied(true);
-      window.setTimeout(() => setKeyCopied(false), 2000);
+      await navigator.clipboard.writeText(key.key);
+      setCopiedKeyId(key.app_id);
+      window.setTimeout(() => setCopiedKeyId((current) => (current === key.app_id ? null : current)), 2000);
     } catch {
       setError('Could not copy key');
     }
+  }
+
+  function toggleDailyKey(appId: string) {
+    setRevealedKeyIds((current) => {
+      const next = new Set(current);
+      if (next.has(appId)) next.delete(appId);
+      else next.add(appId);
+      return next;
+    });
   }
 
   async function refreshMemberGrants() {
@@ -337,12 +341,11 @@ export default function App() {
           ...(denied ? [{ content: "Access denied — your GitHub account isn't a BioTronDesignTeam member.", tone: 'error' as const }] : []),
           ...(banned ? [{ content: 'Your account has been banned. Contact an administrator if you believe this is a mistake.', tone: 'error' as const }] : []),
         ]}
-        guestAccess={{ onSubmit: onGuestLogin }}
       />
     );
   }
 
-  const staffTabs: Tab[] = me.is_staff ? ['access', 'approvals', 'org'] : ['access'];
+  const staffTabs: Tab[] = me.is_staff ? ['access', 'approvals', 'keys', 'org'] : ['access'];
 
   return (
     <div className="min-h-screen">
@@ -399,6 +402,11 @@ export default function App() {
           {me.is_staff && (
             <TabButton active={tab === 'approvals'} onClick={() => setTab('approvals')}>
               Approvals{pending.length ? ` (${pending.length})` : ''}
+            </TabButton>
+          )}
+          {me.is_staff && (
+            <TabButton active={tab === 'keys'} onClick={() => setTab('keys')}>
+              Keys
             </TabButton>
           )}
           {me.is_staff && (
@@ -541,32 +549,61 @@ export default function App() {
           </section>
         )}
 
+        {tab === 'keys' && me.is_staff && (
+          <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-900">
+            <div className="border-b border-slate-200 px-4 py-4 sm:px-6 dark:border-white/10">
+              <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Daily product keys</h2>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                Each enabled product receives its own key. Keys rotate independently at Eastern midnight.
+              </p>
+            </div>
+            {dailyKeys.length === 0 ? (
+              <p className="px-4 py-10 text-sm text-slate-500 sm:px-6 dark:text-slate-400">
+                No products currently use daily keys.
+              </p>
+            ) : (
+              <ul className="divide-y divide-slate-200 dark:divide-white/10">
+                {dailyKeys.map((key) => {
+                  const revealed = revealedKeyIds.has(key.app_id);
+                  return (
+                    <li key={key.app_id} className="flex flex-col gap-4 px-4 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+                      <div className="min-w-0">
+                        <h3 className="text-base font-medium text-slate-900 dark:text-slate-100">{key.app_name}</h3>
+                        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                          Valid for {key.day} in America/Toronto
+                        </p>
+                        <p
+                          className="mt-3 font-mono text-lg tracking-[0.16em] text-slate-900 dark:text-slate-100"
+                          aria-label={revealed ? `${key.app_name} daily key ${key.key}` : `${key.app_name} daily key hidden`}
+                        >
+                          {revealed ? key.key : '••••-••••-••••'}
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 sm:flex">
+                        <button
+                          type="button"
+                          onClick={() => toggleDailyKey(key.app_id)}
+                          className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-100 dark:border-white/10 dark:text-slate-200 dark:hover:bg-slate-800"
+                        >
+                          {revealed ? 'Hide' : 'Reveal'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void onCopyDailyKey(key)}
+                          className="rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
+                        >
+                          {copiedKeyId === key.app_id ? 'Copied' : 'Copy'}
+                        </button>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </section>
+        )}
+
         {tab === 'org' && me.is_staff && (
-          <>
-          {todayGuestKey && (
-            <section className="mb-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-900">
-              <div className="flex flex-col gap-3 px-4 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-                <div className="min-w-0">
-                  <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
-                    Today&apos;s guest key
-                  </h2>
-                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                    Rotates at Eastern midnight ({todayGuestKey.day}). Hand this to guests.
-                  </p>
-                  <p className="mt-2 font-mono text-lg tracking-wide text-slate-900 dark:text-slate-100">
-                    {todayGuestKey.key}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => void onCopyGuestKey()}
-                  className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-100 dark:border-white/10 dark:text-slate-200 dark:hover:bg-slate-800"
-                >
-                  {keyCopied ? 'Copied' : 'Copy'}
-                </button>
-              </div>
-            </section>
-          )}
           <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-900">
             <div className="grid min-h-[28rem] grid-cols-1 lg:grid-cols-[minmax(0,16rem)_1fr]">
               <div className="border-b border-slate-200 lg:border-b-0 lg:border-r dark:border-white/10">
@@ -759,7 +796,6 @@ export default function App() {
               </div>
             </div>
           </section>
-          </>
         )}
       </main>
     </div>

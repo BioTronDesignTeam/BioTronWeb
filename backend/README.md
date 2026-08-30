@@ -10,10 +10,10 @@ Postgres via pgx; Prisma owns schema (`../prisma`). Redis caches sessions + gran
 | GET | `/health` | liveness |
 | GET | `/auth/github/login` | start OAuth; optional `?redirect=<allowed origin>` |
 | GET | `/auth/github/callback` | finish OAuth |
-| POST | `/auth/guest` | daily guest key login (rate limited) |
+| POST | `/auth/guest` | product daily-key login; requires `app_id` + `key` (rate limited) |
 | POST | `/auth/logout` | session + XHR |
 | GET | `/auth/me` | current operator |
-| GET | `/auth/guest-key` | today's key (staff) |
+| GET | `/auth/guest-keys` | today's product keys (manager/superuser) |
 | GET | `/apps` | app catalog |
 | POST | `/apps` | superuser create app |
 | GET | `/me/grants` | my grants |

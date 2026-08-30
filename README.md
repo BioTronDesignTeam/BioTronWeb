@@ -4,8 +4,10 @@ Central GitHub OAuth + per-app permissions for BioTron tools. Operators sign in
 with GitHub (org membership); tool access is granted via `read` / `write` /
 `admin` rows. Privileged users approve or deny access requests in the UI.
 
-Guests can sign in with a daily rotating key (Eastern midnight). Staff copy
-today's key from the Org tab. Guest sessions expire when the key rotates.
+Products can opt into independently generated daily guest keys that rotate at
+Eastern midnight. Managers and superusers reveal or copy them from the Keys
+tab. Guest sessions expire with the key and are restricted to the product that
+issued them. Exo GUI is currently the only product with daily keys enabled.
 
 Other tools (exo-gui, …) sign in through this API. GitHub login accepts
 `?redirect=<origin>` when that origin is in `FRONTEND_URL` or `CORS_ORIGINS`.

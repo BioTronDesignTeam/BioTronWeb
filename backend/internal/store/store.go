@@ -63,12 +63,14 @@ type SessionOperator struct {
 	IsSuperuser bool   `json:"is_superuser"`
 	IsManager   bool   `json:"is_manager"`
 	IsBanned    bool   `json:"is_banned"`
+	GuestAppID  string `json:"guest_app_id,omitempty"`
 }
 
 type App struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
+	ID              string `json:"id"`
+	Name            string `json:"name"`
+	Description     string `json:"description"`
+	DailyKeyEnabled bool   `json:"daily_key_enabled"`
 }
 
 type Permission struct {
@@ -134,25 +136,25 @@ func (s *Store) UpsertOperator(ctx context.Context, op Operator, forceSuperuser 
 	return err
 }
 
-func (s *Store) CreateSession(ctx context.Context, idHash string, githubID int64, expiresAt time.Time, userAgent string) error {
+func (s *Store) CreateSession(ctx context.Context, idHash string, githubID int64, guestAppID string, expiresAt time.Time, userAgent string) error {
 	_, err := s.pool.Exec(ctx, `
-		INSERT INTO sessions (id, operator_id, expires_at, user_agent)
-		VALUES ($1, $2, $3, $4)
-	`, idHash, githubID, expiresAt, nullable(userAgent))
+		INSERT INTO sessions (id, operator_id, guest_app_id, expires_at, user_agent)
+		VALUES ($1, $2, $3, $4, $5)
+	`, idHash, githubID, nullable(guestAppID), expiresAt, nullable(userAgent))
 	return err
 }
 
 func (s *Store) GetSessionOperator(ctx context.Context, idHash string) (*SessionOperator, error) {
 	row := s.pool.QueryRow(ctx, `
 		SELECT o.github_id, o.login, COALESCE(o.name, ''), COALESCE(o.avatar_url, ''),
-		       o.is_superuser, o.is_manager, o.is_banned
+		       o.is_superuser, o.is_manager, o.is_banned, COALESCE(s.guest_app_id, '')
 		FROM sessions s
 		JOIN operators o ON o.github_id = s.operator_id
 		WHERE s.id = $1 AND s.expires_at > now()
 	`, idHash)
 	var so SessionOperator
 	if err := row.Scan(&so.GitHubID, &so.Login, &so.Name, &so.AvatarURL,
-		&so.IsSuperuser, &so.IsManager, &so.IsBanned); err != nil {
+		&so.IsSuperuser, &so.IsManager, &so.IsBanned, &so.GuestAppID); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrNotFound
 		}
@@ -249,7 +251,7 @@ func (s *Store) SetManager(ctx context.Context, githubID int64, manager bool) er
 }
 
 func (s *Store) ListApps(ctx context.Context) ([]App, error) {
-	rows, err := s.pool.Query(ctx, `SELECT id, name, description FROM apps ORDER BY name`)
+	rows, err := s.pool.Query(ctx, `SELECT id, name, description, daily_key_enabled FROM apps ORDER BY name`)
 	if err != nil {
 		return nil, err
 	}
@@ -257,7 +259,7 @@ func (s *Store) ListApps(ctx context.Context) ([]App, error) {
 	var out []App
 	for rows.Next() {
 		var a App
-		if err := rows.Scan(&a.ID, &a.Name, &a.Description); err != nil {
+		if err := rows.Scan(&a.ID, &a.Name, &a.Description, &a.DailyKeyEnabled); err != nil {
 			return nil, err
 		}
 		out = append(out, a)
@@ -344,6 +346,9 @@ func (s *Store) HasGrant(ctx context.Context, operatorID int64, appID, permissio
 func (s *Store) Allowed(ctx context.Context, op *SessionOperator, appID, permissionKey string) (bool, error) {
 	if op.IsSuperuser || op.IsManager {
 		return true, nil
+	}
+	if op.IsGuest() {
+		return op.GuestAppID == appID && permissionKey == "view", nil
 	}
 	return s.HasGrant(ctx, op.GitHubID, appID, permissionKey)
 }
@@ -550,30 +555,56 @@ func (s *Store) DenyRequest(ctx context.Context, requestID string, reviewerID in
 	return s.GetAccessRequest(ctx, requestID)
 }
 
-type GuestKey struct {
-	Day string
-	Key string
+type ProductDailyKey struct {
+	AppID   string `json:"app_id"`
+	AppName string `json:"app_name"`
+	Day     string `json:"day"`
+	Key     string `json:"key"`
 }
 
-// EnsureGuestKey returns the guest key for the given Eastern day (YYYY-MM-DD),
-// creating it from candidate if none exists yet. One statement so RETURNING
-// always fires — the no-op DO UPDATE covers the conflict path.
-func (s *Store) EnsureGuestKey(ctx context.Context, day, candidate string) (GuestKey, error) {
+// EnsureProductDailyKey returns the key for one product and Eastern day,
+// creating it from candidate if necessary. Only explicitly enabled apps can
+// have daily keys.
+func (s *Store) EnsureProductDailyKey(ctx context.Context, appID, day, candidate string) (ProductDailyKey, error) {
 	row := s.pool.QueryRow(ctx, `
-		INSERT INTO guest_keys (day, key)
-		VALUES ($1::date, $2)
-		ON CONFLICT (day) DO UPDATE SET key = guest_keys.key
-		RETURNING day::text, key
-	`, day, candidate)
-	var gk GuestKey
-	if err := row.Scan(&gk.Day, &gk.Key); err != nil {
-		return GuestKey{}, err
+		INSERT INTO guest_keys (app_id, day, key)
+		SELECT id, $2::date, $3 FROM apps
+		WHERE id = $1 AND daily_key_enabled = true
+		ON CONFLICT (app_id, day) DO UPDATE SET key = guest_keys.key
+		RETURNING app_id, day::text, key
+	`, appID, day, candidate)
+	var key ProductDailyKey
+	if err := row.Scan(&key.AppID, &key.Day, &key.Key); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ProductDailyKey{}, ErrNotFound
+		}
+		return ProductDailyKey{}, err
 	}
-	return gk, nil
+	return key, nil
 }
 
-// DeleteOldGuestKeys removes guest keys for past Eastern days.
-func (s *Store) DeleteOldGuestKeys(ctx context.Context) (int64, error) {
+func (s *Store) ListDailyKeyApps(ctx context.Context) ([]App, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT id, name, description, daily_key_enabled
+		FROM apps WHERE daily_key_enabled = true ORDER BY name
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []App
+	for rows.Next() {
+		var app App
+		if err := rows.Scan(&app.ID, &app.Name, &app.Description, &app.DailyKeyEnabled); err != nil {
+			return nil, err
+		}
+		out = append(out, app)
+	}
+	return out, rows.Err()
+}
+
+// DeleteOldProductDailyKeys removes product keys for past Eastern days.
+func (s *Store) DeleteOldProductDailyKeys(ctx context.Context) (int64, error) {
 	tag, err := s.pool.Exec(ctx, `DELETE FROM guest_keys WHERE day < (now() AT TIME ZONE 'America/Toronto')::date`)
 	if err != nil {
 		return 0, err
