@@ -1,20 +1,19 @@
 # Biotron Site
 
 Public BioTron team website built with React, TypeScript, Vite, and Three.js.
-
-This repository is intentionally frontend-only, so the Vite application stays
-at the repository root rather than adding empty `backend/` or `prisma/`
-directories.
+The application lives under `frontend/` so a future API can be added without
+having to reorganize the repository.
 
 ## Layout
 
 | Path | What |
 |---|---|
-| `src/` | React application source |
-| `public/` | Static assets and 3D models |
+| `frontend/src/` | React application source |
+| `frontend/public/` | Static assets and 3D models |
+| `frontend/Dockerfile` | Multi-stage static-site production image |
+| `frontend/nginx.conf` | Nginx configuration for the static frontend container |
 | `.devcontainer/` | Node 22 development environment on Debian slim |
-| `Dockerfile` | Multi-stage static-site production image |
 | `docker-compose.yml` | Local production-image runner |
 
-Use `npm ci && npm run dev` for local development, or
+Use `cd frontend && npm ci && npm run dev` for local development, or
 `docker compose up --build` to run the production-shaped container.

@@ -17,7 +17,7 @@
       "onAutoForward": "silent"
     }
   },
-  "postCreateCommand": "npm ci",
+  "postCreateCommand": "npm --prefix frontend ci",
   "customizations": {
     "vscode": {
       "extensions": [

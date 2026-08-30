@@ -3,7 +3,7 @@ name: biotron-site
 services:
   web:
     build:
-      context: .
+      context: ./frontend
       dockerfile: Dockerfile
     image: biotron-site:latest
     ports:
