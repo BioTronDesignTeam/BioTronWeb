@@ -1,8 +1,8 @@
 # OAuthManager
 
 Central GitHub OAuth + per-app permissions for BioTron tools. Operators sign in
-with GitHub (org membership); tool access is granted via `read` / `write` /
-`admin` rows. Privileged users approve or deny access requests in the UI.
+with GitHub (org membership); each product defines its own named capability
+catalog. Privileged users approve or deny access requests in the UI.
 
 Products can opt into independently generated daily guest keys that rotate at
 Eastern midnight. Managers and superusers reveal or copy them from the Keys

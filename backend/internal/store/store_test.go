@@ -21,21 +21,23 @@ func TestDatabaseConfigRejectsInvalidSchema(t *testing.T) {
 	}
 }
 
-func TestGuestAccessIsScopedToProductView(t *testing.T) {
+func TestGuestAccessIsScopedToProductTelemetry(t *testing.T) {
 	st := &Store{}
 	guest := &SessionOperator{GitHubID: GuestGitHubID, GuestAppID: "exo-gui"}
 
-	allowed, err := st.Allowed(context.Background(), guest, "exo-gui", "view")
-	if err != nil || !allowed {
-		t.Fatalf("expected Exo guest view to be allowed, allowed=%v err=%v", allowed, err)
+	for _, permission := range []string{"live", "historical"} {
+		allowed, err := st.Allowed(context.Background(), guest, "exo-gui", permission)
+		if err != nil || !allowed {
+			t.Fatalf("expected Exo guest %s to be allowed, allowed=%v err=%v", permission, allowed, err)
+		}
 	}
 
 	for _, tc := range []struct {
 		appID      string
 		permission string
 	}{
-		{appID: "calendar", permission: "view"},
-		{appID: "exo-gui", permission: "write"},
+		{appID: "calendar", permission: "live"},
+		{appID: "exo-gui", permission: "commands"},
 	} {
 		allowed, err := st.Allowed(context.Background(), guest, tc.appID, tc.permission)
 		if err != nil {

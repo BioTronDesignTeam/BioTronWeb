@@ -348,7 +348,7 @@ func (s *Store) Allowed(ctx context.Context, op *SessionOperator, appID, permiss
 		return true, nil
 	}
 	if op.IsGuest() {
-		return op.GuestAppID == appID && permissionKey == "view", nil
+		return op.GuestAppID == appID && (permissionKey == "live" || permissionKey == "historical"), nil
 	}
 	return s.HasGrant(ctx, op.GitHubID, appID, permissionKey)
 }

@@ -2,7 +2,7 @@
 
 Vite + React UI for BioTron Auth.
 
-- **My access** — see grants, request `read` / `write` / `admin` per app
+- **My access** — see and request the capabilities defined by each product
 - **Approvals** — pending queue for managers and superusers
 - **Keys** — reveal or copy independently rotating product guest keys (managers and superusers)
 
