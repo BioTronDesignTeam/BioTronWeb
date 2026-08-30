@@ -1,6 +1,7 @@
 package server
 
 import (
+	"errors"
 	"strings"
 	"time"
 
@@ -11,9 +12,10 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/recover"
 
 	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/auth"
+	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/eventlog"
 )
 
-func New(h *auth.Handler, allowedOrigins []string, trustedProxies []string) *fiber.App {
+func New(h *auth.Handler, allowedOrigins []string, trustedProxies []string, events *eventlog.Client) *fiber.App {
 	app := fiber.New(fiber.Config{
 		DisableStartupMessage:   true,
 		ReadTimeout:             15 * time.Second,
@@ -23,6 +25,7 @@ func New(h *auth.Handler, allowedOrigins []string, trustedProxies []string) *fib
 		ProxyHeader:             "Cf-Connecting-Ip",
 	})
 
+	app.Use(logRequests(events))
 	app.Use(recover.New(recover.Config{EnableStackTrace: true}))
 	app.Use(logger.New())
 	app.Use(cors.New(cors.Config{
@@ -68,4 +71,39 @@ func New(h *auth.Handler, allowedOrigins []string, trustedProxies []string) *fib
 	org.Patch("/members/:id/manager", h.RequireXHR, h.RequireSuperuser, h.SetManager)
 
 	return app
+}
+
+func logRequests(events *eventlog.Client) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		started := time.Now()
+		err := c.Next()
+		if c.Path() == "/health" {
+			return err
+		}
+
+		status := c.Response().StatusCode()
+		if err != nil {
+			status = fiber.StatusInternalServerError
+			var fiberError *fiber.Error
+			if errors.As(err, &fiberError) {
+				status = fiberError.Code
+			}
+		}
+		if status < 400 && (c.Method() == fiber.MethodOptions || c.Path() == "/v1/check" || c.Path() == "/auth/me") {
+			return err
+		}
+		level := eventlog.Info
+		if status >= 500 {
+			level = eventlog.Error
+		} else if status >= 400 {
+			level = eventlog.Warning
+		}
+		events.LogAsync(level, "HTTP request completed", map[string]any{
+			"method":      c.Method(),
+			"path":        c.Path(),
+			"status":      status,
+			"duration_ms": time.Since(started).Milliseconds(),
+		})
+		return err
+	}
 }

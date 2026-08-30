@@ -45,6 +45,12 @@ The repository has one environment file at its root. Compose, the backend, the
 frontend, and Prisma all use values from that file; do not create
 component-level environment files.
 
+The API sends lifecycle and completed-request events to Logger as
+`oauth-manager`. Set `LOGGER_INGEST_TOKEN` to the same shared secret used by
+Logger; leaving it empty disables structured delivery without preventing Auth
+from starting. Request metadata never includes query strings, cookies, or
+credentials.
+
 Register a GitHub OAuth App under BioTronDesignTeam with callback
 `http://localhost:18080/auth/github/callback`. Put your GitHub numeric user id in
 `SUPERUSER_GITHUB_IDS` so the first login can approve requests.
