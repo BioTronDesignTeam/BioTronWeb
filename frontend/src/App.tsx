@@ -90,7 +90,7 @@ function AccessGate({ state }: { state: AccessState }) {
     login: { productName: 'Logger' },
     forbidden: {
       productName: 'Logger access required',
-      description: 'You are signed in, but do not have the Logger read permission.',
+      description: 'You are signed in, but do not have the Logger View permission.',
     },
     error: {
       productName: 'Logger is unavailable',

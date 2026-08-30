@@ -13,7 +13,7 @@ explorer.
   durable log warehouse.
 - Provides recent and historical application log views with level, text, and
   time filters.
-- Checks OAuthManager's `logger/read` permission before serving operational
+- Checks OAuthManager's `logger/view` permission before serving operational
   data.
 
 ## Layout
@@ -55,7 +55,7 @@ The portal is available on `http://localhost:5175`; the API is bound to
 | `GET` | `/v1/session` | OAuthManager `logger/read` | Portal access check |
 | `GET` | `/v1/apps` | OAuthManager `logger/read` | Application/component status |
 | `GET` | `/v1/apps/:app/logs/recent` | OAuthManager `logger/read` | Redis-backed recent tail |
-| `GET` | `/v1/apps/:app/logs/history` | OAuthManager `logger/read` | Postgres historical query |
+| `GET` | `/v1/apps/:app/logs/history` | OAuthManager `logger/view` | Postgres historical query |
 
 Recent and historical routes accept `levels=debug,info`, `q=search text`, and
 `limit=1..200`. History additionally accepts RFC3339 `from`, `to`, and the
@@ -108,9 +108,9 @@ per-poll history growth.
 ## Production authentication
 
 Logger forwards the browser's `oauth_session` cookie to OAuthManager's
-`/v1/check?app=logger&permission=read` endpoint. OAuthManager must therefore:
+`/v1/check?app=logger&permission=view` endpoint. OAuthManager must therefore:
 
-1. register a `logger` app with a `read` permission; and
+1. register a `logger` app with a `view` permission; and
 2. issue its session cookie for the shared base domain so it is sent to trusted
    application subdomains.
 

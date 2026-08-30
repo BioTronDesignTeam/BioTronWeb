@@ -24,7 +24,7 @@ type OAuthAuthorizer struct {
 }
 
 func NewOAuthAuthorizer(baseURL string) *OAuthAuthorizer {
-	query := url.Values{"app": {"logger"}, "permission": {"read"}}
+	query := url.Values{"app": {"logger"}, "permission": {"view"}}
 	return &OAuthAuthorizer{
 		endpoint: baseURL + "/v1/check?" + query.Encode(),
 		client:   &http.Client{Timeout: 5 * time.Second},
