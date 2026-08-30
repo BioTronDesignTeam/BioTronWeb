@@ -11,6 +11,7 @@ if (import.meta.env.PROD && !apiUrl) {
 
 export const AUTH_URL = authUrl ?? 'http://localhost:18080'
 export const API_URL = apiUrl ?? 'http://localhost:8080'
+export const AUTH_APP_ID = 'exo-gui'
 
 export interface Operator {
   github_id: number
@@ -18,6 +19,7 @@ export interface Operator {
   name: string
   avatar_url: string
   is_guest?: boolean
+  guest_app_id?: string
 }
 
 export type AuthState =

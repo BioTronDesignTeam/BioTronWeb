@@ -13,6 +13,9 @@ Telemetry ingest and WebSocket fan-out land next. Device ingest will use
 per-machine API keys. Operator-facing routes will call OAuthManager
 `/v1/check`.
 
+Exo guest sign-in uses the product id `exo-gui`; OAuthManager binds the daily
+key and resulting guest session to that product.
+
 ## Run
 
 ```bash

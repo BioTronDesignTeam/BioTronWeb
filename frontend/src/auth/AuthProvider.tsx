@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
-import { AUTH_URL, AuthContext, type AuthState, type Operator } from './context'
+import { AUTH_APP_ID, AUTH_URL, AuthContext, type AuthState, type Operator } from './context'
 
 // Re-check the session this often while the tab is open, so a guest session that
 // expires at Eastern midnight (or a revoked operator) is noticed without a reload.
@@ -12,7 +12,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     for (let attempt = 0; ; attempt++) {
       try {
         // credentials: 'include' so the cross-origin session cookie is sent.
-        const res = await fetch(`${AUTH_URL}/auth/me`, { credentials: 'include' })
+        const res = await fetch(`${AUTH_URL}/auth/me?app=${encodeURIComponent(AUTH_APP_ID)}`, {
+          credentials: 'include',
+        })
         if (res.ok) {
           setState({ status: 'authed', operator: (await res.json()) as Operator })
           return
@@ -63,7 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ key }),
+          body: JSON.stringify({ app_id: AUTH_APP_ID, key }),
         })
         if (!res.ok) return false
         await refresh()
