@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Mail, Facebook, ArrowUp } from 'lucide-react';
+import { Mail, Instagram, ArrowUp } from 'lucide-react';
 import { CONTACT, PROJECTS } from '../data/projects';
 import { scrollToY } from '../lib/SmoothScroll';
 
@@ -38,9 +38,6 @@ export default function Footer() {
           <Link to="/join" className="footer__link">
             Join us
           </Link>
-          <a href={CONTACT.facebook} target="_blank" rel="noreferrer" className="footer__link">
-            Facebook
-          </a>
         </nav>
 
         <div className="footer__col">
@@ -48,8 +45,8 @@ export default function Footer() {
           <a href={`mailto:${CONTACT.email}`} className="footer__contact">
             <Mail size={16} /> {CONTACT.email}
           </a>
-          <a href={CONTACT.facebook} target="_blank" rel="noreferrer" className="footer__contact">
-            <Facebook size={16} /> /uwbiotron
+          <a href={CONTACT.instagram} target="_blank" rel="noreferrer" className="footer__contact">
+            <Instagram size={16} /> @uwaterloo_biotron
           </a>
         </div>
       </div>

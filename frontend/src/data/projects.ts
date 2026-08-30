@@ -149,7 +149,7 @@ export const TEAM_STATS = [
 
 export const CONTACT = {
   email: 'biotron@uwaterloo.ca',
-  facebook: 'https://www.facebook.com/uwbiotron',
+  instagram: 'https://www.instagram.com/uwaterloo_biotron/',
   org: 'University of Waterloo Biomechatronics Design Team',
 };
 
