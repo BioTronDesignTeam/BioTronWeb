@@ -32,6 +32,9 @@ export default function Footer() {
           <Link to="/sponsors" className="footer__link">
             Sponsors
           </Link>
+          <Link to="/calendar" className="footer__link">
+            Calendar
+          </Link>
           <Link to="/join" className="footer__link">
             Join us
           </Link>

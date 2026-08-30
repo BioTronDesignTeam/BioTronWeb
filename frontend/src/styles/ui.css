@@ -727,6 +727,7 @@
 .past,
 .joinpage,
 .sponsorspage,
+.calendarpage,
 .detail,
 .notfound {
   padding-top: calc(var(--nav-h) + 3rem);
@@ -734,6 +735,45 @@
   position: relative;
   z-index: var(--z-content);
   background: var(--bg);
+}
+
+/* ---------- Calendar placeholder ---------- */
+.calendarpage__inner {
+  display: flex;
+  min-height: 68vh;
+  max-width: 44rem;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+}
+.calendarpage__icon {
+  display: grid;
+  width: 3.5rem;
+  height: 3.5rem;
+  margin-bottom: 1.5rem;
+  place-items: center;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  background: var(--glass);
+  color: var(--accent-secondary);
+}
+.calendarpage__inner h1 {
+  margin: 0.6rem 0 1rem;
+  font-size: var(--fs-3xl);
+}
+.calendarpage__inner > p {
+  max-width: 39rem;
+  color: var(--text-muted);
+  font-size: var(--fs-lg);
+}
+.calendarpage__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 1.75rem;
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-weight: 600;
 }
 
 /* ---------- Sponsors page ---------- */
