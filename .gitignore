@@ -27,7 +27,7 @@ lerna-debug.log*
 # ---- Environment / secrets ----
 .env
 .env.*
-!.env.example
+!/.env.example
 
 # ---- Editor / IDE ----
 .vscode/*
