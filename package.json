@@ -15,11 +15,16 @@
       "import": "./dist/biotron-style.js",
       "require": "./dist/biotron-style.umd.cjs"
     },
-    "./styles.css": "./dist/biotron-style.css"
+    "./styles.css": "./dist/biotron-style.css",
+    "./favicon.png": "./dist/biotron-hand.png",
+    "./vite": {
+      "types": "./dist/vite.d.ts",
+      "import": "./dist/vite.js"
+    }
   },
   "scripts": {
     "dev": "vite",
-    "build": "vite build && tsc -p tsconfig.build.json",
+    "build": "vite build && tsc -p tsconfig.build.json && node scripts/copy-static.mjs",
     "prepare": "npm run build",
     "preview": "vite preview"
   },
