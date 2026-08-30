@@ -9,5 +9,8 @@
     "studio": "prisma studio",
     "format": "prisma format",
     "validate": "prisma validate"
+  },
+  "devDependencies": {
+    "prisma": "^6.1.0"
   }
 }
