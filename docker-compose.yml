@@ -41,7 +41,9 @@ services:
     ports:
       - "127.0.0.1:${WEB_PORT:-5176}:80"
     networks:
-      - biotron
+      biotron:
+        aliases:
+          - sprinter-web
     depends_on:
       - bot
     restart: unless-stopped
