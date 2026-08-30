@@ -14,7 +14,21 @@
       // before React and its CSS load, preventing a light first-paint flash.
       (function () {
         try {
-          var dark = localStorage.getItem('darkMode') === 'true'
+          var match = document.cookie.match(/(?:^|;\s*)biotron-theme=(dark|light)(?:;|$)/)
+          var theme = match ? match[1] : null
+          if (!theme) {
+            var legacy = localStorage.getItem('darkMode')
+            if (legacy === 'true' || legacy === 'false') {
+              theme = legacy === 'true' ? 'dark' : 'light'
+              var hostname = window.location.hostname
+              var domain = ''
+              if (hostname === 'biotron.ca' || hostname.endsWith('.biotron.ca')) domain = '; Domain=biotron.ca'
+              if (hostname === 'biotron-dev.com' || hostname.endsWith('.biotron-dev.com')) domain = '; Domain=biotron-dev.com'
+              var secure = window.location.protocol === 'https:' ? '; Secure' : ''
+              document.cookie = 'biotron-theme=' + theme + '; Path=/; Max-Age=31536000; SameSite=Lax' + domain + secure
+            }
+          }
+          var dark = theme === 'dark'
           var root = document.documentElement
           root.classList.toggle('dark', dark)
           root.style.colorScheme = dark ? 'dark' : 'light'
