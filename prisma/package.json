@@ -1,0 +1,14 @@
+{
+  "name": "biotron-calendar-prisma",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "migrate": "prisma migrate dev",
+    "deploy": "prisma migrate deploy",
+    "format": "prisma format",
+    "validate": "prisma validate"
+  },
+  "devDependencies": {
+    "prisma": "^6.1.0"
+  }
+}
