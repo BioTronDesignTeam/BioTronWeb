@@ -18,8 +18,14 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL in .env}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      LOGGER_INGEST_TOKEN: ${LOGGER_INGEST_TOKEN:?set LOGGER_INGEST_TOKEN in .env}
+      OAUTH_MANAGER_URL: ${OAUTH_MANAGER_URL:-http://oauth-manager:8080}
+      AUTH_DISABLED: ${AUTH_DISABLED:-false}
+      REDIS_TAIL_SIZE: ${REDIS_TAIL_SIZE:-500}
+      HEALTH_INTERVAL: ${HEALTH_INTERVAL:-15s}
+      HEALTH_HISTORY_INTERVAL: ${HEALTH_HISTORY_INTERVAL:-5m}
+      HEALTH_TIMEOUT: ${HEALTH_TIMEOUT:-3s}
       PORT: "8080"
-      LOG_LEVEL: ${LOG_LEVEL:-info}
     ports:
       - "127.0.0.1:${API_PORT:-18081}:8080"
     networks:
@@ -36,7 +42,8 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        VITE_API_URL: ${VITE_API_URL:-http://localhost:18081}
+        VITE_API_URL: ${VITE_API_URL:-/api}
+        VITE_IDP_URL: ${VITE_IDP_URL:-http://localhost:18080}
     ports:
       - "127.0.0.1:${WEB_PORT:-5175}:80"
     networks:

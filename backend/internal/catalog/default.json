@@ -1,0 +1,55 @@
+[
+  {
+    "id": "site",
+    "name": "BioTron Site",
+    "description": "Public team website",
+    "components": [
+      { "id": "site-web", "name": "Website", "health_url": "http://site-web/" }
+    ]
+  },
+  {
+    "id": "calendar",
+    "name": "BioTron Calendar",
+    "description": "Public event calendars and feeds",
+    "components": [
+      { "id": "calendar-web", "name": "Web", "health_url": "http://calendar-web/" },
+      { "id": "calendar-api", "name": "API", "health_url": "http://calendar-api:8080/health" }
+    ]
+  },
+  {
+    "id": "oauth",
+    "name": "OAuth Manager",
+    "description": "Authentication and application permissions",
+    "components": [
+      { "id": "oauth-web", "name": "Web", "health_url": "http://oauth-web/" },
+      { "id": "oauth-manager", "name": "API", "health_url": "http://oauth-manager:8080/health" }
+    ]
+  },
+  {
+    "id": "exo",
+    "name": "Exoskeleton GUI",
+    "description": "Operator interface and telemetry API",
+    "components": [
+      { "id": "exo-web", "name": "Web", "health_url": "http://exo-web/" },
+      { "id": "exo-api", "name": "API", "health_url": "http://exo-api:8080/health" }
+    ]
+  },
+  {
+    "id": "logger",
+    "name": "Logger",
+    "description": "Platform health and structured logs",
+    "components": [
+      { "id": "logger-web", "name": "Web", "health_url": "http://logger-web/" },
+      { "id": "logger-api", "name": "API", "health_url": "http://127.0.0.1:8080/health" }
+    ]
+  },
+  {
+    "id": "sprinter",
+    "name": "Sprinter",
+    "description": "Discord automation and administration",
+    "components": [
+      { "id": "sprinter-web", "name": "Web", "health_url": "http://sprinter-web/" },
+      { "id": "sprinter", "name": "Bot API", "health_url": "http://sprinter:8080/health" }
+    ]
+  }
+]
