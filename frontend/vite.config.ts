@@ -1,8 +1,9 @@
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
+import { biotronFavicon } from '@biotron/style/vite';
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), biotronFavicon()],
   envDir: '..',
   server: {
     host: true,

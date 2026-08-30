@@ -9,7 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@biotron/style": "git+https://github.com/BioTronDesignTeam/BioTronStyle.git#b4c6a8a6a1144fcd50d978dc494e2e8d6870582b",
+    "@biotron/style": "git+https://github.com/BioTronDesignTeam/BioTronStyle.git#c974cb80db1fb9b894df78a72ea32b8086d76704",
     "react": "^19.2.6",
     "react-dom": "^19.2.6"
   },
