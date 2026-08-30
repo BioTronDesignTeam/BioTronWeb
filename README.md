@@ -36,6 +36,9 @@ cp .env.example .env
 docker compose up --build
 ```
 
+The backend, frontend, Prisma, and Compose all use the single root `.env`; do
+not create component-level environment files.
+
 Set a long random `LOGGER_INGEST_TOKEN` in `.env`. OAuthManager is required by
 default. `AUTH_DISABLED=true` is available for isolated local UI work only and
 must never be used in staging or production.
