@@ -85,16 +85,26 @@ export default function Nav() {
       <div className={`nav__drawer ${open ? 'nav__drawer--open' : ''}`} aria-hidden={!open}>
         {ITEMS.map((item) =>
           item.stop ? (
-            <button key={item.label} className="nav__drawerlink" onClick={() => handleStop(item.stop!)}>
+            <button
+              key={item.label}
+              className="nav__drawerlink"
+              tabIndex={open ? 0 : -1}
+              onClick={() => handleStop(item.stop!)}
+            >
               {item.label}
             </button>
           ) : (
-            <Link key={item.label} to={item.to!} className="nav__drawerlink">
+            <Link
+              key={item.label}
+              to={item.to!}
+              className="nav__drawerlink"
+              tabIndex={open ? 0 : -1}
+            >
               {item.label}
             </Link>
           ),
         )}
-        <Link to="/join" className="nav__cta nav__cta--block">
+        <Link to="/join" className="nav__cta nav__cta--block" tabIndex={open ? 0 : -1}>
           Apply to join
         </Link>
       </div>
