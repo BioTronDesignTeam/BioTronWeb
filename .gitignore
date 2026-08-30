@@ -4,8 +4,8 @@
 .vscode/
 .idea/
 
-# Secrets / certs
+# Secrets / certs (the only committed environment template is /.env.example)
 *.pem
 .env
 .env.*
-!.env.example
+!/.env.example

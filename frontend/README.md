@@ -6,7 +6,9 @@ Vite + React UI for BioTron Auth.
 - **Approvals** — pending queue for superusers and app admins
 
 ```bash
-cp .env.example .env   # VITE_API_BASE=http://localhost:8080
+cp ../.env.example ../.env
 npm install
 npm run dev            # http://localhost:5173
 ```
+
+Vite reads public `VITE_*` configuration from the repository-root `.env`.

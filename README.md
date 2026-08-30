@@ -27,8 +27,7 @@ cp ../Server/.env.example ../Server/.env
 (cd ../Server && docker compose up -d)
 
 cp .env.example .env
-cp backend/.env.example backend/.env
-# Use the same Postgres password and fill GitHub OAuth settings.
+# Use the same Postgres password and fill GitHub OAuth settings in this file.
 
 docker compose up --build
 ```
@@ -39,6 +38,10 @@ docker compose up --build
 For live development, reopen the repository in its devcontainer and run the
 Vite and Go processes directly. The root Compose file builds deployment-shaped
 containers and does not create another Postgres or Redis instance.
+
+The repository has one environment file at its root. Compose, the backend, the
+frontend, and Prisma all use values from that file; do not create
+component-level environment files.
 
 Register a GitHub OAuth App under BioTronDesignTeam with callback
 `http://localhost:18080/auth/github/callback`. Put your GitHub numeric user id in

@@ -24,7 +24,7 @@ func main() {
 	}
 	time.Local = loc
 
-	_ = godotenv.Load()
+	_ = godotenv.Load("../.env")
 
 	cfg := config.Load()
 	if err := cfg.Validate(); err != nil {

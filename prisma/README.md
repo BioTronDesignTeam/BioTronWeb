@@ -9,12 +9,9 @@ Prisma is **migrations-only** — the Go runtime queries via pgx
 ## Usage
 
 ```bash
-# from repo root, with docker compose up
-cp .env.example .env   # if needed
-npm install
-npm run migrate        # prisma migrate dev
-npm run studio         # browse the DB
+# From the repository root after copying .env.example to .env:
+docker compose run --rm migrate npm run migrate
 ```
 
-`DATABASE_URL` defaults to the local compose Postgres:
-`postgresql://oauth:oauth@127.0.0.1:5434/oauth?schema=public`
+Compose passes the repository-root `DATABASE_URL` to Prisma. Do not create a
+second environment file in this directory.

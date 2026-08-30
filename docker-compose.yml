@@ -15,15 +15,22 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    env_file:
-      - path: ./backend/.env
-        required: false
     environment:
       DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL in .env}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      CACHE_TTL_SECONDS: ${CACHE_TTL_SECONDS:-300}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      GITHUB_ORG: ${GITHUB_ORG:-BioTronDesignTeam}
+      OAUTH_CALLBACK_URL: ${OAUTH_CALLBACK_URL:-http://localhost:18080/auth/github/callback}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      COOKIE_SAMESITE: ${COOKIE_SAMESITE:-Lax}
+      SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-168}
+      SUPERUSER_GITHUB_IDS: ${SUPERUSER_GITHUB_IDS:-}
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-127.0.0.1,::1}
       PORT: "8080"
-      FRONTEND_URL: http://localhost:${WEB_PORT:-5173}
-      OAUTH_CALLBACK_URL: http://localhost:${API_PORT:-18080}/auth/github/callback
     ports:
       - "127.0.0.1:${API_PORT:-18080}:8080"
     networks:
