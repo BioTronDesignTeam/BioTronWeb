@@ -17,13 +17,18 @@ Other tools (exo-gui, …) sign in through this API. GitHub login accepts
 | `prisma/` | Schema + migrations |
 | `backend/` | Go Fiber API (air live-reload in Compose) |
 | `frontend/` | Vite + React UI (HMR in Compose) |
-| `docker-compose.yml` | Postgres + Redis + migrate + api + web |
+| `docker-compose.yml` | Migration, API, and web containers on the shared `biotron` network |
 
 ## Quick start
 
 ```bash
+cp ../Server/.env.example ../Server/.env
+# Replace the shared Postgres password, then start infrastructure once.
+(cd ../Server && docker compose up -d)
+
+cp .env.example .env
 cp backend/.env.example backend/.env
-# fill GITHUB_CLIENT_ID / SECRET and SUPERUSER_GITHUB_IDS
+# Use the same Postgres password and fill GitHub OAuth settings.
 
 docker compose up --build
 ```
@@ -31,10 +36,13 @@ docker compose up --build
 - UI: http://localhost:5173  
 - API: http://localhost:18080/health  
 
-Edit code on the host — frontend hot-reloads via Vite; backend rebuilds via [air](https://github.com/air-verse/air) when `.go` files change. No separate dev profile.
+For live development, reopen the repository in its devcontainer and run the
+Vite and Go processes directly. The root Compose file builds deployment-shaped
+containers and does not create another Postgres or Redis instance.
 
 Register a GitHub OAuth App under BioTronDesignTeam with callback
 `http://localhost:18080/auth/github/callback`. Put your GitHub numeric user id in
 `SUPERUSER_GITHUB_IDS` so the first login can approve requests.
 
-Host ports on this box: API **18080** (8080 is already used), Postgres **5434**, Redis **6379**, UI **5173**.
+Default host ports: API **18080** and UI **5173**. Shared Postgres and Redis are
+owned by `Server`.

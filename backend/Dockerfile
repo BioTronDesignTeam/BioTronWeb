@@ -1,10 +1,25 @@
-# Live-reload Go API. Source is bind-mounted; air rebuilds on .go changes.
-FROM golang:1.23-alpine
+# syntax=docker/dockerfile:1
 
-RUN apk add --no-cache git \
- && go install github.com/air-verse/air@v1.61.7
+FROM golang:1.23-bookworm AS build
 
-WORKDIR /app
+WORKDIR /src
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/oauth-manager .
+
+FROM debian:bookworm-slim
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd --system --uid 10001 app
+
+COPY --from=build /out/oauth-manager /usr/local/bin/oauth-manager
+
+USER app
 EXPOSE 8080
 
-CMD ["air", "-c", ".air.toml"]
+CMD ["oauth-manager"]
