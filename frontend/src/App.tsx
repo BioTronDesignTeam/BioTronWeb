@@ -2,7 +2,6 @@ import { Navigate, Routes, Route } from 'react-router-dom';
 import SmoothScroll from './lib/SmoothScroll';
 import Nav from './components/Nav';
 import Footer from './components/Footer';
-import Cursor from './components/Cursor';
 import ScrollProgress from './components/ScrollProgress';
 import PageTransition from './components/PageTransition';
 import Home from './pages/Home';
@@ -20,7 +19,6 @@ export default function App() {
         <a href="#main" className="skip-link">
           Skip to content
         </a>
-        <Cursor />
         <ScrollProgress />
         <Nav />
 

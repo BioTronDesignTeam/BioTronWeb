@@ -69,7 +69,7 @@ export default function RoomPopup() {
               </div>
             ))}
           </div>
-          <Link to={`/projects/${project.slug}`} className="popup-cta" data-cursor>
+          <Link to={`/projects/${project.slug}`} className="popup-cta">
             View project <ArrowUpRight size={16} />
           </Link>
         </article>
