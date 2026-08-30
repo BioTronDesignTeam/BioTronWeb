@@ -1,14 +1,10 @@
 {
   "name": "Logger",
-  "image": "mcr.microsoft.com/devcontainers/base:bookworm",
-  "features": {
-    "ghcr.io/devcontainers/features/node:1": {
-      "version": "22"
-    },
-    "ghcr.io/devcontainers/features/go:1": {
-      "version": "1.23"
-    }
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
   },
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
   "forwardPorts": [5175, 18081],
   "portsAttributes": {
     "5175": {
@@ -24,7 +20,7 @@
     "--add-host=host.docker.internal:host-gateway"
   ],
   "postCreateCommand": "bash .devcontainer/post-create.sh",
-  "remoteUser": "vscode",
+  "remoteUser": "node",
   "customizations": {
     "vscode": {
       "extensions": [
