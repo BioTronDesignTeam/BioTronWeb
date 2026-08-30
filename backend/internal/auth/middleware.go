@@ -11,6 +11,8 @@ import (
 
 const OperatorLocal = "operator"
 
+// RequireSession accepts any unexpired session. Org membership is not
+// re-checked here — see DEFERRED.md (C2) before shipping a control path.
 func (h *Handler) RequireSession(c *fiber.Ctx) error {
 	token := c.Cookies(SessionCookie)
 	if token == "" {
