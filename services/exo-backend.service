@@ -1,0 +1,20 @@
+[Unit]
+Description=exo telemetry backend (Go Fiber)
+After=network-online.target docker.service
+Wants=network-online.target docker.service
+# Never park 'failed': a slow cold-boot Postgres container would otherwise trip
+# the default start limit, and the nightly reboot would repeat it daily.
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=exo
+WorkingDirectory=/opt/exo/backend
+ExecStart=/opt/exo/backend/exo-backend
+Environment=PORT=8080
+EnvironmentFile=-/etc/exo/backend.env
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
