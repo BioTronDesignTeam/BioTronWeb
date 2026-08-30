@@ -2,9 +2,46 @@ import { useEffect, useState } from 'react';
 
 export type Theme = 'light' | 'dark';
 
+const themeCookie = 'biotron-theme';
+const themeCookieMaxAge = 60 * 60 * 24 * 365;
+const sharedCookieDomains = ['biotron.ca', 'biotron-dev.com'];
+
+function cookieDomain(hostname: string) {
+  const domain = sharedCookieDomains.find(
+    (candidate) => hostname === candidate || hostname.endsWith(`.${candidate}`),
+  );
+  return domain ? `; Domain=${domain}` : '';
+}
+
+export function storedTheme(): Theme | null {
+  if (typeof document === 'undefined') return null;
+  const cookie = document.cookie.match(/(?:^|;\s*)biotron-theme=(dark|light)(?:;|$)/);
+  if (cookie) return cookie[1] as Theme;
+
+  try {
+    const legacy = localStorage.getItem('darkMode');
+    if (legacy === 'true') return 'dark';
+    if (legacy === 'false') return 'light';
+  } catch {
+    // Storage can be unavailable in private or hardened browser contexts.
+  }
+  return null;
+}
+
+function persistTheme(theme: Theme) {
+  try {
+    localStorage.setItem('darkMode', String(theme === 'dark'));
+  } catch {
+    // Storage can be unavailable in private or hardened browser contexts.
+  }
+
+  const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+  document.cookie = `${themeCookie}=${theme}; Path=/; Max-Age=${themeCookieMaxAge}; SameSite=Lax${cookieDomain(window.location.hostname)}${secure}`;
+}
+
 function documentTheme(): Theme {
   if (typeof document === 'undefined') return 'light';
-  return document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+  return storedTheme() ?? (document.documentElement.classList.contains('dark') ? 'dark' : 'light');
 }
 
 export function applyTheme(theme: Theme, persist = true) {
@@ -14,13 +51,7 @@ export function applyTheme(theme: Theme, persist = true) {
   root.classList.toggle('dark', dark);
   root.style.colorScheme = theme;
   root.style.backgroundColor = dark ? '#16033c' : '#ffffff';
-  if (persist) {
-    try {
-      localStorage.setItem('darkMode', String(dark));
-    } catch {
-      // Storage can be unavailable in private or hardened browser contexts.
-    }
-  }
+  if (persist) persistTheme(theme);
 }
 
 const SunIcon = () => (
@@ -47,11 +78,26 @@ export function ThemeToggle({ className = '' }: ThemeToggleProps) {
   }, [theme]);
 
   useEffect(() => {
-    const onStorage = (event: StorageEvent) => {
-      if (event.key === 'darkMode') setTheme(event.newValue === 'true' ? 'dark' : 'light');
+    const synchronize = () => {
+      const stored = storedTheme();
+      if (stored) setTheme((current) => current === stored ? current : stored);
     };
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === 'darkMode') synchronize();
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') synchronize();
+    };
+    const interval = window.setInterval(synchronize, 1000);
+    window.addEventListener('focus', synchronize);
     window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', synchronize);
+      window.removeEventListener('storage', onStorage);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
   }, []);
 
   const dark = theme === 'dark';

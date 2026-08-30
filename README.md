@@ -35,9 +35,16 @@ import '@biotron/style/styles.css';
 
 Every frontend must keep the full theme bootstrap directly in its
 `index.html`, before the application module. React runs too late to prevent a
-white flash on a stored dark-mode visit. The bootstrap reads `darkMode`, toggles
-the `dark` class on `<html>`, sets `color-scheme`, and paints the palette's dark
-or light page colour immediately.
+white flash on a stored dark-mode visit. The bootstrap reads the shared
+`biotron-theme` cookie first, migrates the legacy per-origin `darkMode` value,
+toggles the `dark` class on `<html>`, sets `color-scheme`, and paints the
+palette's dark or light page colour immediately.
+
+The cookie is host-wide on `localhost`, so it crosses local development ports.
+On BioTron hosts it is scoped to `biotron.ca` (and the current
+`biotron-dev.com` development domain), so the preference crosses application
+subdomains. `ThemeToggle` also checks the cookie while a page is open, allowing
+already-open applications to follow a change made in another tab.
 
 ## Palette
 
