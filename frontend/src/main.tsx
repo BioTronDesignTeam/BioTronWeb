@@ -1,5 +1,6 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import '@biotron/style/styles.css';
 import App from './App';
 import './index.css';
 
