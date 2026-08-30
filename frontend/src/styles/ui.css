@@ -552,6 +552,12 @@
   color: var(--text-faint);
   font-size: 0.78rem;
 }
+.join-email-button .magbtn__inner {
+  white-space: nowrap;
+}
+.join-email-button .magbtn__inner svg {
+  flex: 0 0 auto;
+}
 .join__alt {
   color: var(--text-muted);
   font-size: var(--fs-sm);

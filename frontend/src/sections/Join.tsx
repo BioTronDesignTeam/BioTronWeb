@@ -39,7 +39,12 @@ export default function Join() {
 
         <Reveal className="join__cta">
           <div className="join__apply">
-            <MagneticButton href={JOIN_EMAIL_HREF} variant="primary">
+            <MagneticButton
+              href={JOIN_EMAIL_HREF}
+              variant="primary"
+              className="join-email-button"
+              magnetic={false}
+            >
               Apply by email <ArrowUpRight size={18} />
             </MagneticButton>
             <span>Tell us your program, year, interests, and what you want to build or learn.</span>

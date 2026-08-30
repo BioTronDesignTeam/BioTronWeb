@@ -11,6 +11,7 @@ interface MagneticButtonProps {
   variant?: 'primary' | 'ghost';
   className?: string;
   accent?: string;
+  magnetic?: boolean;
 }
 
 /**
@@ -25,14 +26,15 @@ export default function MagneticButton({
   variant = 'primary',
   className = '',
   accent,
+  magnetic = true,
 }: MagneticButtonProps) {
   const ref = useRef<HTMLSpanElement>(null);
   const fine = useHasFinePointer();
   const reduced = useReducedMotion();
-  const magnetic = fine && !reduced;
+  const followsPointer = magnetic && fine && !reduced;
 
   const onMove = (e: MouseEvent) => {
-    if (!magnetic || !ref.current) return;
+    if (!followsPointer || !ref.current) return;
     const r = ref.current.getBoundingClientRect();
     const x = e.clientX - (r.left + r.width / 2);
     const y = e.clientY - (r.top + r.height / 2);

@@ -33,7 +33,12 @@ export default function JoinPage() {
           grow our community.
         </p>
         <div className="joinpage__apply">
-          <MagneticButton href={JOIN_EMAIL_HREF} variant="primary">
+          <MagneticButton
+            href={JOIN_EMAIL_HREF}
+            variant="primary"
+            className="join-email-button"
+            magnetic={false}
+          >
             Apply by email <ArrowUpRight size={18} />
           </MagneticButton>
           <p>
