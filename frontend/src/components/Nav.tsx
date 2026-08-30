@@ -47,8 +47,7 @@ export default function Nav() {
     <header className={`nav ${scrolled ? 'nav--scrolled' : ''}`}>
       <div className="nav__inner container-wide">
         <Link to="/" className="nav__brand" aria-label="Biotron home" data-cursor>
-          <Brand compact label="" className="nav__logo" aria-hidden="true" />
-          <span className="nav__brandtext">BIOTRON</span>
+          <Brand label="" className="nav__logo" aria-hidden="true" />
         </Link>
 
         <nav className="nav__links" aria-label="Primary">
