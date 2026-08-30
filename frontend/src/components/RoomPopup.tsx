@@ -54,7 +54,7 @@ export default function RoomPopup() {
           </div>
         </article>
       ) : project ? (
-        <article className="glass popup-card" style={{ ['--card-accent' as string]: project.accentHex }}>
+        <article className="glass popup-card">
           <span className="mono-label">{project.status}</span>
           <h2 className="popup-title">{project.name}</h2>
           <p className="popup-tagline">

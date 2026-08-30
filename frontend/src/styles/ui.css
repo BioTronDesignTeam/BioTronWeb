@@ -343,7 +343,7 @@
   pointer-events: none;
 }
 .popup-card {
-  --card-accent: var(--accent);
+  --card-accent: var(--exo);
   --card-accent-readable: var(--text);
   padding: 1.75rem;
   pointer-events: auto;
@@ -374,7 +374,7 @@
   display: block;
   font-family: var(--font-display);
   font-size: var(--fs-2xl);
-  color: var(--accent-secondary);
+  color: var(--text);
 }
 .popup-stat__label {
   font-size: var(--fs-mono-label);
