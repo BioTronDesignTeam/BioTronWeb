@@ -35,6 +35,24 @@ export function useIsMobile(breakpoint = 768): boolean {
   return isMobile;
 }
 
+/** True for short, touch-first viewports such as a phone held in landscape. */
+export function useIsLandscapePhone(maxHeight = 520): boolean {
+  const [isLandscapePhone, setIsLandscapePhone] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia(`(max-height: ${maxHeight}px) and (pointer: coarse)`).matches;
+  });
+
+  useEffect(() => {
+    const mq = window.matchMedia(`(max-height: ${maxHeight}px) and (pointer: coarse)`);
+    const onChange = () => setIsLandscapePhone(mq.matches);
+    onChange();
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, [maxHeight]);
+
+  return isLandscapePhone;
+}
+
 /** True for fine pointers (mouse). Used to gate hover-only flourishes. */
 export function useHasFinePointer(): boolean {
   const [fine, setFine] = useState(() => {

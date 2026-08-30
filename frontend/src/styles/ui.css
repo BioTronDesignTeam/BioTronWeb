@@ -1401,3 +1401,61 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ============================================================
+   Phone layout
+   ============================================================ */
+@media (max-width: 640px) {
+  /* These sections are containers themselves. Preserve their side gutter when
+     their section-specific vertical padding takes over. */
+  .sabout {
+    padding: 5rem 1.25rem 4rem;
+  }
+  .sprojects {
+    padding: 4rem 1.25rem 5rem;
+  }
+  .joinpage__perks {
+    padding: 2.5rem 1.25rem 1rem;
+  }
+
+  .sponsors {
+    padding-block: 4rem 2.5rem;
+  }
+  .join {
+    padding-block: 5rem 6rem;
+  }
+  .sponsorspage__hero {
+    padding-bottom: 4rem;
+  }
+  .sponsorspage__supporters,
+  .sponsorspage__areas {
+    padding-block: 4rem;
+  }
+
+  .pindex__visual {
+    margin-inline: auto;
+  }
+
+  .detail__specs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .detail__spec {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 400px) {
+  .join__title {
+    font-size: clamp(2rem, 9.5vw, 2.35rem);
+  }
+}
+
+@media (max-width: 360px) {
+  .shero__cta {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .shero__cta .magbtn {
+    width: 100%;
+  }
+}
