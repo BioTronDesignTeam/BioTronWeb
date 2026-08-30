@@ -3,10 +3,15 @@ import { ArrowUpRight } from 'lucide-react';
 import { PAST_PROJECTS } from '../data/projects';
 import Reveal from '../components/Reveal';
 import SplitText from '../components/SplitText';
+import PageMeta from '../components/PageMeta';
 
 export default function PastProjects() {
   return (
     <main id="main" className="past">
+      <PageMeta
+        title="Past Projects — Biotron"
+        description="Explore the prototypes and assistive devices that shaped Biotron’s current work."
+      />
       <section className="container past__head">
         <span className="eyebrow mono-label">Archive</span>
         <SplitText as="h1" className="past__title" text="Where we’ve been." by="word" />

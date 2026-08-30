@@ -4,6 +4,7 @@ import SplitText from '../components/SplitText';
 import Reveal from '../components/Reveal';
 import MagneticButton from '../components/MagneticButton';
 import { JOIN_EMAIL_HREF } from '../data/projects';
+import PageMeta from '../components/PageMeta';
 
 const PERKS = [
   { t: 'Hands-on hardware', b: 'Design, build, and test real mechatronic systems — not just slides.' },
@@ -15,6 +16,10 @@ const PERKS = [
 export default function JoinPage() {
   return (
     <main id="main" className="joinpage">
+      <PageMeta
+        title="Join Biotron — UW Design Team"
+        description="Join Biotron to design, build, and test biomechatronic systems with a multidisciplinary University of Waterloo team."
+      />
       <section className="container joinpage__head">
         <span className="eyebrow mono-label">Recruitment open</span>
         <SplitText

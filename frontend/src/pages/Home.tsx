@@ -7,6 +7,7 @@ import Join from '../sections/Join';
 import { useReducedMotion, useWebGLSupported, useIsMobile } from '../lib/hooks';
 import { scrollToElement } from '../lib/SmoothScroll';
 import type { Stop } from '../lib/store';
+import PageMeta from '../components/PageMeta';
 
 export default function Home() {
   const reduced = useReducedMotion();
@@ -29,6 +30,10 @@ export default function Home() {
 
   return (
     <main id="main">
+      <PageMeta
+        title="Biotron — UW Biomechatronics Design Team"
+        description="Meet the University of Waterloo team building exoskeletons, EMG wearables, and accessible biomechatronic devices."
+      />
       {immersive ? <Flythrough /> : <StackedExperience />}
       <div className="post-room">
         <Sponsors />

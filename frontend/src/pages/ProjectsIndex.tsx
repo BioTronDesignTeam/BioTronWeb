@@ -4,10 +4,15 @@ import { PROJECTS } from '../data/projects';
 import Reveal from '../components/Reveal';
 import SplitText from '../components/SplitText';
 import ModelFallback from '../components/ModelFallback';
+import PageMeta from '../components/PageMeta';
 
 export default function ProjectsIndex() {
   return (
     <main id="main" className="pindex">
+      <PageMeta
+        title="Projects — Biotron"
+        description="Explore Biotron’s active exoskeleton, EMG wearable, and assistive-device projects."
+      />
       <section className="container pindex__head">
         <span className="eyebrow mono-label">Active projects</span>
         <SplitText

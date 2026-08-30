@@ -7,6 +7,7 @@ import SplitText from '../components/SplitText';
 import ModelFallback from '../components/ModelFallback';
 import { useReducedMotion, useWebGLSupported } from '../lib/hooks';
 import NotFound from './NotFound';
+import PageMeta from '../components/PageMeta';
 
 const ProjectViewer = lazy(() => import('../three/ProjectViewer'));
 
@@ -23,6 +24,7 @@ export default function ProjectDetail() {
 
   return (
     <main id="main" className="detail" style={{ ['--card-accent' as string]: project.accentHex }}>
+      <PageMeta title={`${project.name} — Biotron`} description={project.blurb} />
       <div className="container detail__top">
         <Link to="/projects" className="detail__back" data-cursor>
           <ArrowLeft size={16} /> All projects
