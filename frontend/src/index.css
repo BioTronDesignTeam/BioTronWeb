@@ -6,7 +6,13 @@
 
 @layer base {
   body {
-    @apply bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100;
+    background: #ffffff;
+    color: #16033c;
+  }
+
+  .dark body {
+    background: #16033c;
+    color: #ffffff;
   }
 
   /* Ease color changes app-wide so flipping light <-> dark cross-fades instead
