@@ -111,13 +111,6 @@ export interface PastProject {
 
 export const PAST_PROJECTS: PastProject[] = [
   {
-    name: 'e-NABLE',
-    partner: 'e-NABLE community',
-    blurb:
-      'Started through our collaboration with e-NABLE, a global online community, our students 3D printed and assembled custom forearm prosthetics, meticulously tailored to the exact size specifications of each patient. These prosthetics use mechanical actuation for joint movement and object gripping. Our mission is to provide an affordable, accessible solution for patients with limited financial resources — ensuring everyone has access to life-enhancing technology.',
-    tags: ['Prosthetics', '3D Printing', 'Accessibility'],
-  },
-  {
     name: 'Spine Biostickers',
     blurb:
       'We pioneered software for Spine Biostickers, a wearable tool designed to monitor spinal lumbar (low-back) posture in post-surgical patients, helping prevent harmful movements during recovery. Using gyroscopes attached to the patient, our system collects data and delivers real-time alerts so patients maintain safe postures for a smoother, safer recovery.',

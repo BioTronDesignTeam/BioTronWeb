@@ -1,3 +1,5 @@
+import { Link } from 'react-router-dom';
+import { ArrowUpRight } from 'lucide-react';
 import { PAST_PROJECTS } from '../data/projects';
 import Reveal from '../components/Reveal';
 import SplitText from '../components/SplitText';
@@ -32,6 +34,24 @@ export default function PastProjects() {
             </article>
           </Reveal>
         ))}
+      </section>
+
+      <section className="container past__next">
+        <div className="past__nextcard glass">
+          <div>
+            <span className="eyebrow mono-label">What’s next</span>
+            <h2>See what those lessons are powering now.</h2>
+            <p>Explore today’s projects, or join the team building the next one.</p>
+          </div>
+          <div className="past__nextactions">
+            <Link to="/projects" className="past__nextprimary">
+              Active projects <ArrowUpRight size={17} />
+            </Link>
+            <Link to="/join" className="past__nextsecondary">
+              Join the team
+            </Link>
+          </div>
+        </div>
       </section>
     </main>
   );

@@ -1,11 +1,12 @@
 import { Suspense, lazy } from 'react';
-import { useParams, Link, Navigate } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, ArrowUpRight, Rotate3d } from 'lucide-react';
 import { getProject, PROJECTS, CONTACT } from '../data/projects';
 import Reveal from '../components/Reveal';
 import SplitText from '../components/SplitText';
 import ModelFallback from '../components/ModelFallback';
 import { useReducedMotion, useWebGLSupported } from '../lib/hooks';
+import NotFound from './NotFound';
 
 const ProjectViewer = lazy(() => import('../three/ProjectViewer'));
 
@@ -15,7 +16,7 @@ export default function ProjectDetail() {
   const reduced = useReducedMotion();
   const webgl = useWebGLSupported();
 
-  if (!project) return <Navigate to="/" replace />;
+  if (!project) return <NotFound />;
 
   const others = PROJECTS.filter((p) => p.slug !== project.slug);
   const showLive = webgl && !reduced;

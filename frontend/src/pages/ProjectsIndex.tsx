@@ -41,8 +41,8 @@ export default function ProjectsIndex() {
                 </p>
                 <p className="pindex__blurb">{p.blurb}</p>
               </div>
-              <span className="pindex__arrow">
-                <ArrowUpRight size={22} />
+              <span className="pindex__cta">
+                View project <ArrowUpRight size={18} />
               </span>
             </Link>
           </Reveal>
