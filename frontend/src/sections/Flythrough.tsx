@@ -68,25 +68,27 @@ export default function Flythrough() {
 
         {/* Hero overlay */}
         <div className="flythrough__hero" ref={hero}>
-          <span className="eyebrow mono-label">UW Biomechatronics Design Team</span>
-          <h1 className="flythrough__title">
-            <span className="line">Welcome to</span>
-            <span className="line accent">Biotron.</span>
-          </h1>
-          <p className="flythrough__lead">
-            Scroll through our workshop.
-          </p>
-          <div className="flythrough__cta">
-            <MagneticButton onClick={() => jumpToStop('exo')} variant="primary">
-              Explore projects <ArrowUpRight size={18} />
-            </MagneticButton>
-            <MagneticButton to="/join" variant="ghost">
-              Join us
-            </MagneticButton>
-          </div>
-          <div className={`flythrough__hint ${ready ? 'is-ready' : ''}`}>
-            <ChevronDown size={18} />
-            <span>Scroll to begin</span>
+          <div className="flythrough__hero-content">
+            <span className="eyebrow mono-label">UW Biomechatronics Design Team</span>
+            <h1 className="flythrough__title">
+              <span className="line">Welcome to</span>
+              <span className="line accent">Biotron.</span>
+            </h1>
+            <p className="flythrough__lead">
+              Scroll through our workshop.
+            </p>
+            <div className="flythrough__cta">
+              <MagneticButton onClick={() => jumpToStop('exo')} variant="primary">
+                Explore projects <ArrowUpRight size={18} />
+              </MagneticButton>
+              <MagneticButton to="/join" variant="ghost">
+                Join us
+              </MagneticButton>
+            </div>
+            <div className={`flythrough__hint ${ready ? 'is-ready' : ''}`}>
+              <ChevronDown size={18} />
+              <span>Scroll to begin</span>
+            </div>
           </div>
         </div>
 

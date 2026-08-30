@@ -266,12 +266,16 @@
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 1.4rem;
   padding: 0 clamp(1.5rem, 6vw, 6rem);
   max-width: 40rem;
-  translate: 0 clamp(3rem, 8vh, 5rem);
   z-index: var(--z-content);
   pointer-events: none;
+}
+.flythrough__hero-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.4rem;
+  translate: 0 clamp(3rem, 8vh, 5rem);
 }
 .flythrough__hero .eyebrow {
   pointer-events: auto;
