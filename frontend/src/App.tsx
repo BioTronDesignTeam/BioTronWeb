@@ -9,6 +9,7 @@ import Home from './pages/Home';
 import ProjectsIndex from './pages/ProjectsIndex';
 import ProjectDetail from './pages/ProjectDetail';
 import JoinPage from './pages/JoinPage';
+import SponsorsPage from './pages/SponsorsPage';
 import NotFound from './pages/NotFound';
 
 export default function App() {
@@ -29,6 +30,7 @@ export default function App() {
             <Route path="/projects/:slug" element={<ProjectDetail />} />
             <Route path="/past-projects" element={<Navigate to="/projects#past" replace />} />
             <Route path="/join" element={<JoinPage />} />
+            <Route path="/sponsors" element={<SponsorsPage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </PageTransition>

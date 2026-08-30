@@ -1,12 +1,5 @@
 import Reveal from '../components/Reveal';
-
-// Placeholder partner names — swap for real sponsor logos when provided.
-const SPONSORS = [
-  'University of Waterloo',
-  'Engineering Society',
-  'WEEF',
-  'Sedra Student Design Centre',
-];
+import { SPONSORS } from '../data/sponsors';
 
 export default function Sponsors() {
   const row = [...SPONSORS, ...SPONSORS];

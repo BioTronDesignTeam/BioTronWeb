@@ -29,6 +29,9 @@ export default function Footer() {
 
         <nav className="footer__col" aria-label="Team">
           <h3 className="footer__heading">Team</h3>
+          <Link to="/sponsors" className="footer__link">
+            Sponsors
+          </Link>
           <Link to="/join" className="footer__link">
             Join us
           </Link>
