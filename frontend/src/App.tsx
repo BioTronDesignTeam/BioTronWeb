@@ -85,22 +85,27 @@ function Shell({
 }
 
 function AccessGate({ state }: { state: AccessState }) {
-  const content = {
-    checking: ['Checking access', 'Confirming your BioTron session…'],
-    login: ['Sign in required', 'Use your BioTron GitHub account to view internal service logs.'],
-    forbidden: ['Logger access required', 'You are signed in, but do not have the Logger read permission.'],
-    error: ['Logger is unavailable', 'The portal could not verify your session. Try again shortly.'],
-    allowed: ['', ''],
-  }[state];
+  const content = ({
+    checking: { productName: 'Logger' },
+    login: { productName: 'Logger' },
+    forbidden: {
+      productName: 'Logger access required',
+      description: 'You are signed in, but do not have the Logger read permission.',
+    },
+    error: {
+      productName: 'Logger is unavailable',
+      description: 'The portal could not verify your session. Try again shortly.',
+    },
+    allowed: { productName: 'Logger' },
+  } satisfies Record<AccessState, { productName: string; description?: string }>)[state];
 
   return (
     <AuthScreen
-      productName={content[0]}
-      description={content[1]}
-      eyebrow="BioTron Logger"
+      productName={content.productName}
+      description={content.description}
       action={
         state === 'login'
-          ? { label: 'Continue with GitHub', href: loginURL(), icon: 'github' }
+          ? { label: 'Sign in with GitHub', href: loginURL(), icon: 'github' }
           : state === 'forbidden'
             ? { label: 'Request Logger access', href: accessManagerURL() }
             : state === 'error'
