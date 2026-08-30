@@ -1,11 +1,11 @@
 {
-  "name": "Biotron Site (Ubuntu)",
+  "name": "Biotron Site",
   "build": {
     "dockerfile": "Dockerfile",
     "context": ".."
   },
-  "workspaceFolder": "/workspace",
-  "remoteUser": "vscode",
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+  "remoteUser": "node",
   "forwardPorts": [5173, 4173],
   "portsAttributes": {
     "5173": {
