@@ -59,7 +59,7 @@ export default function Nav() {
             </NavLink>
           ))}
           <Link to="/join" className="nav__cta">
-            Apply
+            How to join
           </Link>
         </nav>
 
@@ -99,7 +99,7 @@ export default function Nav() {
           tabIndex={open ? 0 : -1}
           onClick={() => setOpen(false)}
         >
-          Apply to join
+          How to join
         </Link>
       </div>
     </header>

@@ -1,10 +1,14 @@
-import { ArrowUpRight } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import Reveal from '../components/Reveal';
 import SplitText from '../components/SplitText';
 import MagneticButton from '../components/MagneticButton';
-import { SUBTEAMS, JOIN_EMAIL_HREF } from '../data/projects';
+import { SUBTEAMS } from '../data/projects';
 
-export default function Join() {
+interface JoinProps {
+  showGuideLink?: boolean;
+}
+
+export default function Join({ showGuideLink = true }: JoinProps) {
   return (
     <section className="join" id="join">
       <div className="container join__inner">
@@ -37,19 +41,16 @@ export default function Join() {
           ))}
         </div>
 
-        <Reveal className="join__cta">
-          <div className="join__apply">
-            <MagneticButton
-              href={JOIN_EMAIL_HREF}
-              variant="primary"
-              className="join-email-button"
-              magnetic={false}
-            >
-              Apply by email <ArrowUpRight size={18} />
-            </MagneticButton>
-            <span>Tell us your program, year, interests, and what you want to build or learn.</span>
-          </div>
-        </Reveal>
+        {showGuideLink && (
+          <Reveal className="join__cta">
+            <div className="join__guide">
+              <MagneticButton to="/join" variant="primary" magnetic={false}>
+                See how to join <ArrowRight size={18} />
+              </MagneticButton>
+              <span>No application. Find a meeting, show up, and start building with us.</span>
+            </div>
+          </Reveal>
+        )}
       </div>
     </section>
   );

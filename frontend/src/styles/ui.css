@@ -541,22 +541,16 @@
   gap: 1.2rem;
   flex-wrap: wrap;
 }
-.join__apply {
+.join__guide {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 0.55rem;
 }
-.join__apply > span {
+.join__guide > span {
   max-width: 34rem;
   color: var(--text-faint);
   font-size: 0.78rem;
-}
-.join-email-button .magbtn__inner {
-  white-space: nowrap;
-}
-.join-email-button .magbtn__inner svg {
-  flex: 0 0 auto;
 }
 .join__alt {
   color: var(--text-muted);
@@ -751,14 +745,45 @@
   color: var(--text-muted);
   font-size: var(--fs-lg);
 }
+.calendarpage__inner > .calendarpage__current {
+  margin-top: 1.5rem;
+  color: var(--text);
+  font-size: var(--fs-base);
+}
+.calendarpage__actions {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  margin-top: 1.75rem;
+}
+.calendarpage__primary,
 .calendarpage__back {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  margin-top: 1.75rem;
+}
+.calendarpage__primary {
+  min-height: 44px;
+  padding: 0.7rem 1rem;
+  border-radius: var(--r-pill);
+  background: var(--accent);
   color: var(--text);
   font-size: var(--fs-sm);
   font-weight: 600;
+}
+.calendarpage__primary:hover {
+  background: var(--accent-secondary);
+}
+.calendarpage__back {
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+@media (max-width: 480px) {
+  .calendarpage__actions {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 }
 
 /* ---------- Sponsors page ---------- */
@@ -888,20 +913,14 @@
   font-size: var(--fs-lg);
   color: var(--text-muted);
 }
-.joinpage__apply {
+.joinpage__actions {
   display: flex;
   align-items: center;
   gap: 1.25rem;
   margin-top: 1.75rem;
 }
-.joinpage__apply p {
-  max-width: 31rem;
-  color: var(--text-faint);
-  font-size: var(--fs-sm);
-  line-height: 1.55;
-}
 @media (max-width: 620px) {
-  .joinpage__apply {
+  .joinpage__actions {
     align-items: flex-start;
     flex-direction: column;
   }
@@ -1085,6 +1104,40 @@
 }
 
 /* ---------- Join page ---------- */
+.joinpage__steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  padding-block: 2.5rem 4rem;
+}
+.joinpage__step {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-height: 22rem;
+  padding: 1.6rem;
+}
+.joinpage__stephead {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--accent-readable);
+}
+.joinpage__stepnum {
+  font-size: var(--fs-sm);
+}
+.joinpage__step h2 {
+  margin: 2.5rem 0 0.7rem;
+  font-size: var(--fs-xl);
+}
+.joinpage__step p {
+  color: var(--text-muted);
+}
+.joinpage__step .magbtn {
+  margin-top: auto;
+  padding-top: 1.5rem;
+}
 .joinpage__perks {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
@@ -1444,6 +1497,14 @@
   .joinpage__perks {
     padding: 2.5rem max(1.25rem, env(safe-area-inset-right)) 1rem
       max(1.25rem, env(safe-area-inset-left));
+  }
+  .joinpage__steps {
+    grid-template-columns: 1fr;
+    padding: 2.5rem max(1.25rem, env(safe-area-inset-right)) 3rem
+      max(1.25rem, env(safe-area-inset-left));
+  }
+  .joinpage__step {
+    min-height: 19rem;
   }
 
   .sponsors {

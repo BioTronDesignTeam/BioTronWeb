@@ -150,20 +150,9 @@ export const TEAM_STATS = [
 export const CONTACT = {
   email: 'biotron@uwaterloo.ca',
   instagram: 'https://www.instagram.com/uwaterloo_biotron/',
+  discord: 'https://discord.gg/YBNN5ThRAA',
   org: 'University of Waterloo Biomechatronics Design Team',
 };
-
-const JOIN_EMAIL_BODY = `Hi Biotron team,
-
-Name:
-Program and year:
-Areas of interest:
-What I want to build or learn:
-`;
-
-export const JOIN_EMAIL_HREF = `mailto:${CONTACT.email}?subject=${encodeURIComponent(
-  'Joining Biotron',
-)}&body=${encodeURIComponent(JOIN_EMAIL_BODY)}`;
 
 export function getProject(slug: string): Project | undefined {
   return PROJECTS.find((p) => p.slug === slug);
