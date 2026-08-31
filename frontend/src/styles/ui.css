@@ -8,45 +8,48 @@
 }
 
 /* ---------- Buttons ---------- */
-.magbtn {
+.actionbtn {
   --btn-accent: var(--accent);
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  border: 1px solid transparent;
   border-radius: var(--r-pill);
   font-weight: 600;
   font-size: var(--fs-sm);
   letter-spacing: 0.01em;
   padding: 0;
-  transition: transform var(--dur-fast) var(--ease-out),
-    background var(--dur-base) var(--ease-out), color var(--dur-base) var(--ease-out),
+  transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out),
     border-color var(--dur-base) var(--ease-out);
-  will-change: transform;
 }
-.magbtn__inner {
+.actionbtn__inner {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
   padding: 0.85rem 1.5rem;
-  will-change: transform;
 }
-.magbtn--primary {
+.actionbtn--primary {
   background: var(--btn-accent);
   color: var(--biotron-white);
   box-shadow: 0 8px 30px -8px var(--accent-glow);
 }
-.magbtn--primary:hover {
-  filter: brightness(1.08);
+.actionbtn--primary:hover {
+  background: color-mix(in srgb, var(--btn-accent) 76%, var(--bg-deep));
 }
-.magbtn--ghost {
+.actionbtn--ghost {
   background: var(--glass);
   color: var(--text);
-  border: 1px solid var(--border-strong);
+  border-color: var(--border-strong);
   backdrop-filter: blur(8px);
 }
-.magbtn--ghost:hover {
+.actionbtn--ghost:hover {
+  background: var(--glass-strong);
   border-color: var(--accent-readable);
   color: var(--accent-readable);
+}
+.actionbtn:focus-visible {
+  outline: 2px solid var(--accent-readable);
+  outline-offset: 3px;
 }
 
 /* ---------- Scroll progress ---------- */
@@ -1134,7 +1137,7 @@
 .joinpage__step p {
   color: var(--text-muted);
 }
-.joinpage__step .magbtn {
+.joinpage__step .actionbtn {
   margin-top: auto;
   padding-top: 1.5rem;
 }
@@ -1578,7 +1581,7 @@
     align-items: stretch;
     flex-direction: column;
   }
-  .shero__cta .magbtn {
+  .shero__cta .actionbtn {
     width: 100%;
   }
 }

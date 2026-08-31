@@ -4,7 +4,7 @@ import { ChevronDown, ArrowUpRight } from 'lucide-react';
 import { gsap, ScrollTrigger } from '../lib/gsap';
 import { useScene, type Stop } from '../lib/store';
 import { registerFlythroughRange, clearFlythroughRange, jumpToStop } from '../lib/flythrough';
-import MagneticButton from '../components/MagneticButton';
+import ActionButton from '../components/ActionButton';
 import RoomPopup from '../components/RoomPopup';
 
 const Scene = lazy(() => import('../three/Scene'));
@@ -78,12 +78,12 @@ export default function Flythrough() {
               Scroll through our workshop.
             </p>
             <div className="flythrough__cta">
-              <MagneticButton onClick={() => jumpToStop('exo')} variant="primary">
+              <ActionButton onClick={() => jumpToStop('exo')} variant="primary">
                 Explore projects <ArrowUpRight size={18} />
-              </MagneticButton>
-              <MagneticButton to="/join" variant="ghost">
+              </ActionButton>
+              <ActionButton to="/join" variant="ghost">
                 Join us
-              </MagneticButton>
+              </ActionButton>
             </div>
             <div className={`flythrough__hint ${ready ? 'is-ready' : ''}`}>
               <ChevronDown size={18} />

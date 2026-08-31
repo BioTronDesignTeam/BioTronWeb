@@ -4,7 +4,7 @@ import Reveal from '../components/Reveal';
 import SplitText from '../components/SplitText';
 import CountUp from '../components/CountUp';
 import ModelFallback from '../components/ModelFallback';
-import MagneticButton from '../components/MagneticButton';
+import ActionButton from '../components/ActionButton';
 import { PROJECTS, TEAM_STATS } from '../data/projects';
 
 /**
@@ -29,12 +29,12 @@ export default function StackedExperience() {
             devices.
           </p>
           <div className="shero__cta">
-            <MagneticButton to="/projects" variant="primary">
+            <ActionButton to="/projects" variant="primary">
               Explore projects <ArrowUpRight size={18} />
-            </MagneticButton>
-            <MagneticButton to="/join" variant="ghost">
+            </ActionButton>
+            <ActionButton to="/join" variant="ghost">
               Join us
-            </MagneticButton>
+            </ActionButton>
           </div>
         </div>
       </section>

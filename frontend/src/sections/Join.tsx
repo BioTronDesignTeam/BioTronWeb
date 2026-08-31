@@ -1,7 +1,7 @@
 import { ArrowRight } from 'lucide-react';
 import Reveal from '../components/Reveal';
 import SplitText from '../components/SplitText';
-import MagneticButton from '../components/MagneticButton';
+import ActionButton from '../components/ActionButton';
 import { SUBTEAMS } from '../data/projects';
 
 interface JoinProps {
@@ -44,9 +44,9 @@ export default function Join({ showGuideLink = true }: JoinProps) {
         {showGuideLink && (
           <Reveal className="join__cta">
             <div className="join__guide">
-              <MagneticButton to="/join" variant="primary" magnetic={false}>
+              <ActionButton to="/join" variant="primary">
                 See how to join <ArrowRight size={18} />
-              </MagneticButton>
+              </ActionButton>
               <span>No application. Find a meeting, show up, and start building with us.</span>
             </div>
           </Reveal>

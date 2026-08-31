@@ -2,7 +2,7 @@ import { ArrowRight, CalendarDays, MessageCircle, Users } from 'lucide-react';
 import Join from '../sections/Join';
 import SplitText from '../components/SplitText';
 import Reveal from '../components/Reveal';
-import MagneticButton from '../components/MagneticButton';
+import ActionButton from '../components/ActionButton';
 import { CONTACT } from '../data/projects';
 import PageMeta from '../components/PageMeta';
 
@@ -33,12 +33,12 @@ export default function JoinPage() {
           meeting, meet the team, and find something worth building.
         </p>
         <div className="joinpage__actions">
-          <MagneticButton to="/calendar" variant="primary" magnetic={false}>
+          <ActionButton to="/calendar" variant="primary">
             Check the calendar <ArrowRight size={18} />
-          </MagneticButton>
-          <MagneticButton href={CONTACT.discord} variant="ghost" magnetic={false}>
+          </ActionButton>
+          <ActionButton href={CONTACT.discord} variant="ghost">
             Join Discord <ArrowRight size={18} />
-          </MagneticButton>
+          </ActionButton>
         </div>
       </section>
 
@@ -53,9 +53,9 @@ export default function JoinPage() {
             Check the calendar for the next open meeting. Discord carries the latest time and room
             if plans change.
           </p>
-          <MagneticButton to="/calendar" variant="ghost" magnetic={false}>
+          <ActionButton to="/calendar" variant="ghost">
             Open calendar <ArrowRight size={16} />
-          </MagneticButton>
+          </ActionButton>
         </Reveal>
         <Reveal delay={0.05} className="joinpage__step glass">
           <div className="joinpage__stephead">
@@ -78,9 +78,9 @@ export default function JoinPage() {
             Join Discord, choose your sub-team roles, and open the team Notion from the welcome
             channel. That is where work, docs, and updates live.
           </p>
-          <MagneticButton href={CONTACT.discord} variant="ghost" magnetic={false}>
+          <ActionButton href={CONTACT.discord} variant="ghost">
             Join Discord <ArrowRight size={16} />
-          </MagneticButton>
+          </ActionButton>
         </Reveal>
       </section>
 
