@@ -353,6 +353,9 @@
   z-index: var(--z-overlay);
   pointer-events: none;
 }
+.room-popup--about {
+  top: 44%;
+}
 .popup-card {
   --card-accent: var(--exo);
   --card-accent-readable: var(--text);
@@ -439,6 +442,9 @@
     bottom: 5rem;
     transform: none;
   }
+  .room-popup--about {
+    top: auto;
+  }
   .popup-specs {
     grid-template-columns: repeat(4, 1fr);
   }
@@ -502,7 +508,7 @@
   padding: 7rem 0 9rem;
 }
 .join__head {
-  max-width: 44rem;
+  max-width: 50rem;
 }
 .join__title {
   font-size: var(--fs-3xl);
@@ -759,8 +765,7 @@
   gap: 1.25rem;
   margin-top: 1.75rem;
 }
-.calendarpage__primary,
-.calendarpage__back {
+.calendarpage__primary {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
@@ -776,11 +781,6 @@
 }
 .calendarpage__primary:hover {
   background: var(--accent-secondary);
-}
-.calendarpage__back {
-  color: var(--text);
-  font-size: var(--fs-sm);
-  font-weight: 600;
 }
 @media (max-width: 480px) {
   .calendarpage__actions {
@@ -899,9 +899,12 @@
 
 /* ---------- Projects index ---------- */
 .pindex__head,
-.past__head,
-.joinpage__head {
+.past__head {
   max-width: 46rem;
+  padding-bottom: 1rem;
+}
+.joinpage__head {
+  max-width: 64rem;
   padding-bottom: 1rem;
 }
 .pindex__title,
@@ -911,22 +914,9 @@
   margin: 0.6rem 0 1rem;
 }
 .pindex__lead,
-.past__lead,
-.joinpage__lead {
+.past__lead {
   font-size: var(--fs-lg);
   color: var(--text-muted);
-}
-.joinpage__actions {
-  display: flex;
-  align-items: center;
-  gap: 1.25rem;
-  margin-top: 1.75rem;
-}
-@media (max-width: 620px) {
-  .joinpage__actions {
-    align-items: flex-start;
-    flex-direction: column;
-  }
 }
 .pindex__list {
   display: grid;
@@ -1139,7 +1129,6 @@
 }
 .joinpage__step .actionbtn {
   margin-top: auto;
-  padding-top: 1.5rem;
 }
 .joinpage__perks {
   display: grid;
@@ -1540,7 +1529,6 @@
   .sproject__cta,
   .detail__back,
   .detail__sidecta,
-  .calendarpage__back,
   .footer__top {
     min-height: 44px;
   }
@@ -1548,7 +1536,6 @@
   .sproject__cta,
   .detail__back,
   .detail__sidecta,
-  .calendarpage__back,
   .footer__top,
   .footer__link,
   .footer__contact {

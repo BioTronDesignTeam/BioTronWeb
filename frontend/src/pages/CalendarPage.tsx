@@ -1,5 +1,4 @@
-import { CalendarDays, ArrowLeft, ArrowUpRight } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { CalendarDays, ArrowUpRight } from 'lucide-react';
 import PageMeta from '../components/PageMeta';
 import { CONTACT } from '../data/projects';
 
@@ -27,9 +26,6 @@ export default function CalendarPage() {
           <a href={CONTACT.discord} target="_blank" rel="noreferrer" className="calendarpage__primary">
             Join Discord <ArrowUpRight size={16} />
           </a>
-          <Link to="/" className="calendarpage__back">
-            <ArrowLeft size={16} /> Back home
-          </Link>
         </div>
       </div>
     </main>

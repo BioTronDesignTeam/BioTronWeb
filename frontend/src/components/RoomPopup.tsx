@@ -33,7 +33,12 @@ export default function RoomPopup() {
   const project = PROJECTS.find((p) => p.modelId === activeStop);
 
   return (
-    <div className="room-popup" ref={wrap} role="status" aria-live="polite">
+    <div
+      className={`room-popup${activeStop === 'about' ? ' room-popup--about' : ''}`}
+      ref={wrap}
+      role="status"
+      aria-live="polite"
+    >
       {activeStop === 'about' ? (
         <article className="glass popup-card">
           <span className="mono-label">00 / About</span>

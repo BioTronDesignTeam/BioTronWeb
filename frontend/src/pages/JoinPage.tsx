@@ -28,18 +28,6 @@ export default function JoinPage() {
           text="Start by showing up."
           by="word"
         />
-        <p className="joinpage__lead">
-          There is no application. Students from any faculty and experience level can come to a
-          meeting, meet the team, and find something worth building.
-        </p>
-        <div className="joinpage__actions">
-          <ActionButton to="/calendar" variant="primary">
-            Check the calendar <ArrowRight size={18} />
-          </ActionButton>
-          <ActionButton href={CONTACT.discord} variant="ghost">
-            Join Discord <ArrowRight size={18} />
-          </ActionButton>
-        </div>
       </section>
 
       <section className="container joinpage__steps" aria-label="How to join Biotron">
