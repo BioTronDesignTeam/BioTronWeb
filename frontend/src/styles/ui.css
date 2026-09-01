@@ -354,7 +354,8 @@
   pointer-events: none;
 }
 .room-popup--about {
-  top: 44%;
+  top: calc(var(--nav-h) + 1rem);
+  transform: none;
 }
 .popup-card {
   --card-accent: var(--exo);
