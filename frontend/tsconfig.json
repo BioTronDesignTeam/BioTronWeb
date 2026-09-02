@@ -23,7 +23,7 @@
     "paths": {
       "@/*": ["src/*"]
     },
-    "types": ["node", "@react-three/fiber"]
+    "types": ["node", "@react-three/fiber", "vite/client"]
   },
   "include": ["src", "vite.config.ts"]
 }

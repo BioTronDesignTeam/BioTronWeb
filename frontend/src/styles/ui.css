@@ -726,14 +726,14 @@
   background: var(--bg);
 }
 
-/* ---------- Calendar placeholder ---------- */
+/* ---------- Calendar ---------- */
 .calendarpage__inner {
-  display: flex;
-  min-height: 68vh;
-  max-width: 44rem;
-  flex-direction: column;
-  justify-content: center;
-  align-items: flex-start;
+  display: grid;
+  min-height: 72vh;
+  grid-template-columns: minmax(0, 0.8fr) minmax(30rem, 1.2fr);
+  align-items: center;
+  gap: clamp(3rem, 8vw, 8rem);
+  padding-bottom: 5rem;
 }
 .calendarpage__icon {
   display: grid;
@@ -746,47 +746,163 @@
   background: var(--glass);
   color: var(--accent-secondary);
 }
-.calendarpage__inner h1 {
+.calendarpage__intro h1 {
   margin: 0.6rem 0 1rem;
   font-size: var(--fs-3xl);
 }
-.calendarpage__inner > p {
+.calendarpage__intro > p {
   max-width: 39rem;
   color: var(--text-muted);
   font-size: var(--fs-lg);
 }
-.calendarpage__inner > .calendarpage__current {
-  margin-top: 1.5rem;
-  color: var(--text);
-  font-size: var(--fs-base);
-}
 .calendarpage__actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 1.25rem;
+  gap: 0.8rem;
   margin-top: 1.75rem;
 }
-.calendarpage__primary {
+.calendarpage__primary,
+.calendarpage__secondary {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-}
-.calendarpage__primary {
   min-height: 44px;
-  padding: 0.7rem 1rem;
+  padding: 0.7rem 1.1rem;
   border-radius: var(--r-pill);
-  background: var(--accent);
   color: var(--text);
   font-size: var(--fs-sm);
   font-weight: 600;
 }
+.calendarpage__primary {
+  background: var(--accent);
+}
 .calendarpage__primary:hover {
   background: var(--accent-secondary);
+}
+.calendarpage__secondary {
+  border: 1px solid var(--border-strong);
+  background: var(--glass);
+}
+.calendarpage__secondary:hover {
+  border-color: var(--accent-secondary);
+  background: var(--glass-strong);
+}
+.calendarpage__upcoming {
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-glass);
+}
+.calendarpage__upcoming-head {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+.calendarpage__upcoming-head h2 {
+  margin-top: 0.35rem;
+  font-size: var(--fs-xl);
+}
+.calendarpage__timezone {
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.calendarpage__events {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.calendarpage__event {
+  display: grid;
+  grid-template-columns: 6rem minmax(0, 1fr);
+  gap: 1.25rem;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+.calendarpage__event:last-child {
+  border-bottom: 0;
+}
+.calendarpage__date {
+  padding-top: 0.2rem;
+  color: var(--accent-secondary);
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.calendarpage__event-main {
+  min-width: 0;
+}
+.calendarpage__event-main h3 {
+  display: inline;
+  font-size: var(--fs-base);
+}
+.calendarpage__scope {
+  display: inline-block;
+  margin-left: 0.65rem;
+  padding: 0.18rem 0.48rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-pill);
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  vertical-align: 0.08rem;
+}
+.calendarpage__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem 1rem;
+  margin-top: 0.55rem;
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+}
+.calendarpage__meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.calendarpage__status {
+  padding: 3rem 1.5rem;
+  color: var(--text-muted);
+  text-align: center;
+}
+@media (max-width: 900px) {
+  .calendarpage__inner {
+    grid-template-columns: 1fr;
+    align-items: start;
+    gap: 3.5rem;
+  }
+  .calendarpage__intro {
+    max-width: 44rem;
+  }
 }
 @media (max-width: 480px) {
   .calendarpage__actions {
     align-items: flex-start;
     flex-direction: column;
+  }
+  .calendarpage__primary,
+  .calendarpage__secondary {
+    justify-content: center;
+    width: 100%;
+  }
+  .calendarpage__upcoming-head {
+    align-items: start;
+    flex-direction: column;
+  }
+  .calendarpage__event {
+    grid-template-columns: 1fr;
+    gap: 0.55rem;
+  }
+  .calendarpage__date {
+    padding-top: 0;
   }
 }
 
