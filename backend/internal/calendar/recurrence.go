@@ -1,0 +1,301 @@
+package calendar
+
+import (
+	"bytes"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net/url"
+	"sort"
+	"strings"
+	"time"
+
+	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/model"
+)
+
+const (
+	LocalDateTimeLayout = "2006-01-02T15:04:05"
+	LocalDateLayout     = "2006-01-02"
+	maxOccurrences      = 1000
+)
+
+var allowedPatchKeys = map[string]bool{
+	"title":           true,
+	"description":     true,
+	"location":        true,
+	"url":             true,
+	"starts_at_local": true,
+	"ends_at_local":   true,
+}
+
+type occurrencePatch struct {
+	Title         *string
+	Description   *string
+	Location      *string
+	URL           *string
+	StartsAtLocal *time.Time
+	EndsAtLocal   *time.Time
+}
+
+func ParseLocalDateTime(value string) (time.Time, error) {
+	value = strings.TrimSpace(value)
+	for _, layout := range []string{LocalDateTimeLayout, "2006-01-02T15:04"} {
+		if parsed, err := time.ParseInLocation(layout, value, time.UTC); err == nil {
+			return parsed, nil
+		}
+	}
+	return time.Time{}, fmt.Errorf("local date-time must use YYYY-MM-DDTHH:MM[:SS]")
+}
+
+func ParseLocalDate(value string) (time.Time, error) {
+	parsed, err := time.ParseInLocation(LocalDateLayout, strings.TrimSpace(value), time.UTC)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("date must use YYYY-MM-DD")
+	}
+	return parsed, nil
+}
+
+func FormatLocal(value time.Time) string {
+	return value.Format(LocalDateTimeLayout)
+}
+
+func InLocation(value time.Time, location *time.Location) time.Time {
+	return time.Date(value.Year(), value.Month(), value.Day(), value.Hour(), value.Minute(), value.Second(), value.Nanosecond(), location)
+}
+
+func ValidatePatch(raw json.RawMessage) (json.RawMessage, error) {
+	if len(bytes.TrimSpace(raw)) == 0 {
+		raw = json.RawMessage(`{}`)
+	}
+	var values map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &values); err != nil {
+		return nil, errors.New("patch must be a JSON object")
+	}
+	for key, value := range values {
+		if !allowedPatchKeys[key] {
+			return nil, fmt.Errorf("patch field %q is not allowed", key)
+		}
+		if key == "starts_at_local" || key == "ends_at_local" {
+			if bytes.Equal(bytes.TrimSpace(value), []byte("null")) {
+				return nil, fmt.Errorf("%s cannot be cleared", key)
+			}
+			var text string
+			if err := json.Unmarshal(value, &text); err != nil {
+				return nil, fmt.Errorf("%s must be a local date-time string", key)
+			}
+			if _, err := ParseLocalDateTime(text); err != nil {
+				return nil, fmt.Errorf("%s: %w", key, err)
+			}
+			continue
+		}
+		if !bytes.Equal(bytes.TrimSpace(value), []byte("null")) {
+			var text string
+			if err := json.Unmarshal(value, &text); err != nil {
+				return nil, fmt.Errorf("%s must be a string or null", key)
+			}
+			switch key {
+			case "title":
+				if len(strings.TrimSpace(text)) < 2 || len(text) > 160 {
+					return nil, errors.New("title must be between 2 and 160 characters")
+				}
+			case "description":
+				if len(text) > 5000 {
+					return nil, errors.New("description must not exceed 5000 characters")
+				}
+			case "location":
+				if len(text) > 300 {
+					return nil, errors.New("location must not exceed 300 characters")
+				}
+			case "url":
+				if len(text) > 1000 {
+					return nil, errors.New("url must not exceed 1000 characters")
+				}
+			}
+			if key == "url" && text != "" {
+				parsed, err := url.ParseRequestURI(text)
+				if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+					return nil, errors.New("url must be an http or https URL")
+				}
+			}
+		}
+	}
+	return json.Marshal(values)
+}
+
+func PatchIsEmpty(raw json.RawMessage) bool {
+	var values map[string]json.RawMessage
+	return json.Unmarshal(raw, &values) == nil && len(values) == 0
+}
+
+func DecodePatch(raw json.RawMessage) (occurrencePatch, error) {
+	var values map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &values); err != nil {
+		return occurrencePatch{}, err
+	}
+	var patch occurrencePatch
+	decodeString := func(key string, destination **string) error {
+		value, present := values[key]
+		if !present {
+			return nil
+		}
+		text := ""
+		if !bytes.Equal(bytes.TrimSpace(value), []byte("null")) {
+			if err := json.Unmarshal(value, &text); err != nil {
+				return err
+			}
+		}
+		*destination = &text
+		return nil
+	}
+	if err := decodeString("title", &patch.Title); err != nil {
+		return occurrencePatch{}, err
+	}
+	if err := decodeString("description", &patch.Description); err != nil {
+		return occurrencePatch{}, err
+	}
+	if err := decodeString("location", &patch.Location); err != nil {
+		return occurrencePatch{}, err
+	}
+	if err := decodeString("url", &patch.URL); err != nil {
+		return occurrencePatch{}, err
+	}
+	for key, destination := range map[string]**time.Time{
+		"starts_at_local": &patch.StartsAtLocal,
+		"ends_at_local":   &patch.EndsAtLocal,
+	} {
+		value, present := values[key]
+		if !present {
+			continue
+		}
+		var text string
+		if err := json.Unmarshal(value, &text); err != nil {
+			return occurrencePatch{}, err
+		}
+		parsed, err := ParseLocalDateTime(text)
+		if err != nil {
+			return occurrencePatch{}, err
+		}
+		*destination = &parsed
+	}
+	return patch, nil
+}
+
+func GeneratedStarts(series model.EventSeries) ([]time.Time, error) {
+	starts := []time.Time{series.StartsAtLocal}
+	if series.RecurrenceUntil == nil {
+		return starts, nil
+	}
+	until := *series.RecurrenceUntil
+	if dateAfter(series.StartsAtLocal, until) {
+		return nil, errors.New("recurrence end is before the first occurrence")
+	}
+	for next := series.StartsAtLocal.AddDate(0, 0, 7); !dateAfter(next, until); next = next.AddDate(0, 0, 7) {
+		if len(starts) >= maxOccurrences {
+			return nil, errors.New("recurrence exceeds 1000 occurrences")
+		}
+		starts = append(starts, next)
+	}
+	return starts, nil
+}
+
+func IsGeneratedStart(series model.EventSeries, candidate time.Time) bool {
+	starts, err := GeneratedStarts(series)
+	if err != nil {
+		return false
+	}
+	for _, start := range starts {
+		if start.Equal(candidate) {
+			return true
+		}
+	}
+	return false
+}
+
+func Expand(series []model.EventSeries, from, to time.Time, location *time.Location) ([]model.Occurrence, error) {
+	var occurrences []model.Occurrence
+	for _, event := range series {
+		if event.State != model.EventPublished {
+			continue
+		}
+		starts, err := GeneratedStarts(event)
+		if err != nil {
+			return nil, fmt.Errorf("expand %s: %w", event.ID, err)
+		}
+		overrides := make(map[string]model.EventOverride, len(event.Overrides))
+		for _, override := range event.Overrides {
+			overrides[FormatLocal(override.RecurrenceIDLocal)] = override
+		}
+		duration := event.EndsAtLocal.Sub(event.StartsAtLocal)
+		for _, generatedStart := range starts {
+			generatedEnd := generatedStart.Add(duration)
+			occurrence := model.Occurrence{
+				SeriesID:       event.ID,
+				UID:            event.UID,
+				ScopeID:        event.ScopeID,
+				ScopeName:      event.ScopeName,
+				ScopeKind:      event.ScopeKind,
+				Title:          event.Title,
+				Description:    event.Description,
+				Location:       event.Location,
+				URL:            event.URL,
+				AllDay:         event.AllDay,
+				Timezone:       event.Timezone,
+				RecurrenceID:   FormatLocal(generatedStart),
+				Recurring:      event.RecurrenceUntil != nil,
+				SeriesSequence: event.Sequence,
+			}
+			if override, ok := overrides[occurrence.RecurrenceID]; ok {
+				if override.State == model.OverrideCancelled {
+					continue
+				}
+				patch, err := DecodePatch(override.Patch)
+				if err != nil {
+					return nil, fmt.Errorf("decode override %s: %w", override.ID, err)
+				}
+				if patch.Title != nil {
+					occurrence.Title = *patch.Title
+				}
+				if patch.Description != nil {
+					occurrence.Description = *patch.Description
+				}
+				if patch.Location != nil {
+					occurrence.Location = *patch.Location
+				}
+				if patch.URL != nil {
+					occurrence.URL = *patch.URL
+				}
+				if patch.StartsAtLocal != nil {
+					generatedStart = *patch.StartsAtLocal
+				}
+				if patch.EndsAtLocal != nil {
+					generatedEnd = *patch.EndsAtLocal
+				} else if patch.StartsAtLocal != nil {
+					generatedEnd = generatedStart.Add(duration)
+				}
+				occurrence.Modified = !PatchIsEmpty(override.Patch)
+				occurrence.OverrideSequence = override.Sequence
+			}
+			if !generatedEnd.After(generatedStart) {
+				return nil, fmt.Errorf("event %s occurrence %s ends before it starts", event.ID, occurrence.RecurrenceID)
+			}
+			occurrence.StartsAt = InLocation(generatedStart, location)
+			occurrence.EndsAt = InLocation(generatedEnd, location)
+			if occurrence.EndsAt.After(from) && occurrence.StartsAt.Before(to) {
+				occurrences = append(occurrences, occurrence)
+			}
+		}
+	}
+	sort.Slice(occurrences, func(i, j int) bool {
+		if occurrences[i].StartsAt.Equal(occurrences[j].StartsAt) {
+			return occurrences[i].Title < occurrences[j].Title
+		}
+		return occurrences[i].StartsAt.Before(occurrences[j].StartsAt)
+	})
+	return occurrences, nil
+}
+
+func dateAfter(value, date time.Time) bool {
+	valueDate := time.Date(value.Year(), value.Month(), value.Day(), 0, 0, 0, 0, time.UTC)
+	dateOnly := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, time.UTC)
+	return valueDate.After(dateOnly)
+}

@@ -17,9 +17,21 @@ services:
       dockerfile: Dockerfile
     environment:
       DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL in .env}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5176}
+      SITE_URL: ${SITE_URL:-http://localhost:18083}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:18084}
+      OAUTH_MANAGER_URL: ${OAUTH_MANAGER_URL:-http://oauth-manager:8080}
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+      ADMIN_CORS_ORIGINS: ${ADMIN_CORS_ORIGINS:-}
+      DEFAULT_TIMEZONE: ${DEFAULT_TIMEZONE:-America/Toronto}
+      MAX_RANGE_DAYS: ${MAX_RANGE_DAYS:-370}
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-127.0.0.1,::1}
+      LOGGER_URL: ${LOGGER_URL:-http://logger-api:8080}
+      LOGGER_INGEST_TOKEN: ${LOGGER_INGEST_TOKEN:-}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
       PORT: "8080"
     ports:
-      - "127.0.0.1:${API_PORT:-18082}:8080"
+      - "127.0.0.1:${API_PORT:-18084}:8080"
     networks:
       biotron:
         aliases:
@@ -34,9 +46,11 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        VITE_API_URL: ${VITE_API_URL:-http://localhost:18082}
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:18084}
+        VITE_AUTH_URL: ${VITE_AUTH_URL:-http://localhost:18080}
+        VITE_SITE_URL: ${VITE_SITE_URL:-http://localhost:18083}
     ports:
-      - "127.0.0.1:${WEB_PORT:-5172}:80"
+      - "127.0.0.1:${WEB_PORT:-5176}:80"
     networks:
       biotron:
         aliases:

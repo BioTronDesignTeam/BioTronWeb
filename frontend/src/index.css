@@ -1,41 +1,26 @@
-:root {
-  color: #eaf7f2;
-  background: #071512;
-  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  :root {
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+  }
+  * { box-sizing: border-box; }
+  body { min-width: 320px; margin: 0; background: #f8f9ff; }
+  .dark body { background: #16033c; }
+  button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+  button, select { cursor: pointer; }
+  button:disabled { cursor: not-allowed; }
+  :focus-visible { outline: 2px solid #3050b0; outline-offset: 2px; }
 }
 
-body {
-  margin: 0;
-}
-
-main {
-  display: grid;
-  min-height: 100vh;
-  place-content: center;
-  gap: 1rem;
-  max-width: 44rem;
-  padding: 2rem;
-}
-
-.eyebrow {
-  margin: 0;
-  color: #59d9aa;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-h1,
-p {
-  margin: 0;
-}
-
-h1 {
-  font-size: clamp(2.5rem, 8vw, 5rem);
-}
-
-main > p:last-child {
-  color: #a8c4bb;
-  font-size: 1.15rem;
-  line-height: 1.6;
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
 }

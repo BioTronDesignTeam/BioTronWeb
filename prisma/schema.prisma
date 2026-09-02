@@ -3,4 +3,95 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Calendar event models will be added with the first feed implementation.
+enum CalendarScopeKind {
+  TEAM
+  PROJECT
+  SUBTEAM
+}
+
+enum CalendarScopeStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum EventState {
+  DRAFT
+  PUBLISHED
+  CANCELLED
+}
+
+enum EventOverrideState {
+  MODIFIED
+  CANCELLED
+}
+
+// One hierarchy represents the team, projects, and project subteams. Feed URLs
+// use the immutable id, so names and slugs can change without breaking existing
+// calendar subscriptions.
+model CalendarScope {
+  id         String              @id @default(uuid()) @db.Uuid
+  kind       CalendarScopeKind
+  name       String
+  slug       String
+  status     CalendarScopeStatus @default(ACTIVE)
+  parentId   String?             @map("parent_id") @db.Uuid
+  parent     CalendarScope?      @relation("ScopeTree", fields: [parentId], references: [id], onDelete: Restrict)
+  children   CalendarScope[]     @relation("ScopeTree")
+  archivedAt DateTime?           @map("archived_at") @db.Timestamptz(6)
+  createdAt  DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+  events     EventSeries[]
+
+  @@unique([parentId, slug])
+  @@index([kind, status])
+  @@map("calendar_scopes")
+}
+
+// A null recurrenceUntil is a one-off event. A non-null value represents a
+// weekly wall-clock recurrence on the start date's weekday, ending inclusively
+// on recurrenceUntil. New academic terms intentionally create new series.
+model EventSeries {
+  id              String          @id @default(uuid()) @db.Uuid
+  uid             String          @unique
+  scopeId         String          @map("scope_id") @db.Uuid
+  scope           CalendarScope   @relation(fields: [scopeId], references: [id], onDelete: Restrict)
+  state           EventState      @default(DRAFT)
+  title           String
+  description     String          @default("")
+  location        String          @default("")
+  url             String          @default("")
+  startsAtLocal   DateTime        @map("starts_at_local") @db.Timestamp(6)
+  endsAtLocal     DateTime        @map("ends_at_local") @db.Timestamp(6)
+  timezone        String          @default("America/Toronto")
+  allDay          Boolean         @default(false) @map("all_day")
+  recurrenceUntil DateTime?       @map("recurrence_until") @db.Date
+  sequence        Int             @default(0)
+  publishedAt     DateTime?       @map("published_at") @db.Timestamptz(6)
+  cancelledAt     DateTime?       @map("cancelled_at") @db.Timestamptz(6)
+  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+  overrides       EventOverride[]
+
+  @@index([scopeId, state])
+  @@index([startsAtLocal])
+  @@map("event_series")
+}
+
+// recurrenceIdLocal always names the occurrence's original generated local
+// start, even if the occurrence is moved. patch is a validated JSON merge-patch
+// containing only fields that differ from the series.
+model EventOverride {
+  id                String             @id @default(uuid()) @db.Uuid
+  seriesId          String             @map("series_id") @db.Uuid
+  series            EventSeries        @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  recurrenceIdLocal DateTime           @map("recurrence_id_local") @db.Timestamp(6)
+  state             EventOverrideState @default(MODIFIED)
+  patch             Json               @default("{}")
+  sequence          Int                @default(0)
+  createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([seriesId, recurrenceIdLocal])
+  @@index([seriesId])
+  @@map("event_overrides")
+}
