@@ -43,7 +43,9 @@ containers and does not create another Postgres or Redis instance.
 
 The repository has one environment file at its root. Compose, the backend, the
 frontend, and Prisma all use values from that file; do not create
-component-level environment files.
+component-level environment files. Leave `COOKIE_DOMAIN` blank for localhost;
+set it to the shared parent domain (for example `.biotron.ca`) when products
+are deployed on sibling subdomains so the OAuth session reaches each tool.
 
 The API sends lifecycle and completed-request events to Logger as
 `oauth-manager`. Set `LOGGER_INGEST_TOKEN` to the same shared secret used by

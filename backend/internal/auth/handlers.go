@@ -21,6 +21,7 @@ type Config struct {
 	AllowedOrigins []string
 	CookieSecure   bool
 	CookieSameSite string
+	CookieDomain   string
 	SessionTTL     time.Duration
 	IsSuperuserID  func(int64) bool
 }
@@ -114,7 +115,7 @@ func (h *Handler) Callback(c *fiber.Ctx) error {
 		return fiber.ErrInternalServerError
 	}
 
-	setSessionCookie(c, token, h.Cfg.CookieSecure, h.Cfg.CookieSameSite, h.Cfg.SessionTTL)
+	setSessionCookie(c, token, h.Cfg.CookieSecure, h.Cfg.CookieSameSite, h.Cfg.CookieDomain, h.Cfg.SessionTTL)
 	return c.Redirect(dest, fiber.StatusFound)
 }
 
@@ -128,7 +129,7 @@ func (h *Handler) Logout(c *fiber.Ctx) error {
 			_ = h.Cache.InvalidateSession(c.UserContext(), hash)
 		}
 	}
-	clearSessionCookie(c, h.Cfg.CookieSecure, h.Cfg.CookieSameSite)
+	clearSessionCookie(c, h.Cfg.CookieSecure, h.Cfg.CookieSameSite, h.Cfg.CookieDomain)
 	return c.SendStatus(fiber.StatusNoContent)
 }
 

@@ -37,7 +37,7 @@ func sameSite(s string) string {
 	}
 }
 
-func setSessionCookie(c *fiber.Ctx, token string, secure bool, sameSiteStr string, ttl time.Duration) {
+func setSessionCookie(c *fiber.Ctx, token string, secure bool, sameSiteStr, domain string, ttl time.Duration) {
 	c.Cookie(&fiber.Cookie{
 		Name:     SessionCookie,
 		Value:    token,
@@ -45,11 +45,12 @@ func setSessionCookie(c *fiber.Ctx, token string, secure bool, sameSiteStr strin
 		HTTPOnly: true,
 		Secure:   secure,
 		SameSite: sameSite(sameSiteStr),
+		Domain:   domain,
 		Expires:  time.Now().Add(ttl),
 	})
 }
 
-func clearSessionCookie(c *fiber.Ctx, secure bool, sameSiteStr string) {
+func clearSessionCookie(c *fiber.Ctx, secure bool, sameSiteStr, domain string) {
 	c.Cookie(&fiber.Cookie{
 		Name:     SessionCookie,
 		Value:    "",
@@ -57,6 +58,7 @@ func clearSessionCookie(c *fiber.Ctx, secure bool, sameSiteStr string) {
 		HTTPOnly: true,
 		Secure:   secure,
 		SameSite: sameSite(sameSiteStr),
+		Domain:   domain,
 		Expires:  time.Now().Add(-time.Hour),
 	})
 }

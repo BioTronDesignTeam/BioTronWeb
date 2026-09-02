@@ -24,6 +24,7 @@ type Config struct {
 	AllowedOrigins     []string
 	CookieSecure       bool
 	CookieSameSite     string
+	CookieDomain       string
 	SessionTTL         time.Duration
 	TrustedProxies     []string
 	SuperuserIDs       map[int64]bool
@@ -44,6 +45,7 @@ func Load() Config {
 		AllowedOrigins:     parseOrigins(frontendURL, os.Getenv("CORS_ORIGINS")),
 		CookieSecure:       getbool("COOKIE_SECURE", false),
 		CookieSameSite:     getenv("COOKIE_SAMESITE", "Lax"),
+		CookieDomain:       strings.TrimSpace(os.Getenv("COOKIE_DOMAIN")),
 		SessionTTL:         time.Duration(getint("SESSION_TTL_HOURS", 168)) * time.Hour,
 		TrustedProxies:     splitCSV(getenv("TRUSTED_PROXIES", "127.0.0.1,::1")),
 		SuperuserIDs:       parseIntSet(os.Getenv("SUPERUSER_GITHUB_IDS")),
@@ -62,6 +64,9 @@ func (c Config) Validate() error {
 	}
 	if strings.EqualFold(c.CookieSameSite, "none") && !c.CookieSecure {
 		return errors.New("COOKIE_SAMESITE=None requires COOKIE_SECURE=true")
+	}
+	if strings.ContainsAny(c.CookieDomain, "/: \t\r\n") {
+		return errors.New("COOKIE_DOMAIN must be a bare domain such as .biotron.ca")
 	}
 	return nil
 }

@@ -144,6 +144,6 @@ func (h *Handler) GuestLogin(c *fiber.Ctx) error {
 		return fiber.ErrInternalServerError
 	}
 
-	setSessionCookie(c, token, h.Cfg.CookieSecure, h.Cfg.CookieSameSite, time.Until(expiry))
+	setSessionCookie(c, token, h.Cfg.CookieSecure, h.Cfg.CookieSameSite, h.Cfg.CookieDomain, time.Until(expiry))
 	return c.SendStatus(fiber.StatusNoContent)
 }

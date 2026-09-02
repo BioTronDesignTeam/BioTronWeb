@@ -72,6 +72,7 @@ func main() {
 			AllowedOrigins: cfg.AllowedOrigins,
 			CookieSecure:   cfg.CookieSecure,
 			CookieSameSite: cfg.CookieSameSite,
+			CookieDomain:   cfg.CookieDomain,
 			SessionTTL:     cfg.SessionTTL,
 			IsSuperuserID:  cfg.IsSuperuserID,
 		},
