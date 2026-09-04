@@ -153,3 +153,131 @@ For releases, build multi-architecture application images once, test immutable
 digests in staging, and promote the same digests to production. The local image
 name `biotron-edge-nginx:local` can be replaced through `NGINX_IMAGE` when the
 edge image is published by CI.
+
+## Data service major upgrades: Postgres 16 to 18, Redis 7 to 8
+
+The pinned images moved from `postgres:16-alpine` and `redis:7-alpine` to
+`postgres:18.6-alpine` and `redis:8.10.1-alpine`. Redis needs nothing from you.
+Postgres does: **a Postgres major upgrade cannot read an existing data
+directory from an older major**, so the existing
+`biotron-infrastructure_postgres-data` volume has to be dealt with deliberately
+before the stack will come up.
+
+Nothing in this repository performs any of the steps below. They are commands
+for a human to run at a moment of their choosing.
+
+### What changes about the Postgres volume
+
+Postgres 18 images store the cluster in a major-version-specific directory and
+expect the mount one level above it:
+
+| | 16 | 18 |
+|---|---|---|
+| `PGDATA` | `/var/lib/postgresql/data` | `/var/lib/postgresql/18/docker` |
+| Mount point | `/var/lib/postgresql/data` | `/var/lib/postgresql` |
+
+`docker-compose.yml` has been updated to mount `postgres-data` at
+`/var/lib/postgresql` to match. This is why the old volume cannot simply be
+carried across: its contents sit at the layout 16 used.
+
+The failure is loud, not silent. Starting 18.6 against a volume that still
+holds a 16 cluster aborts with a long explanatory error rather than quietly
+initialising an empty database:
+
+```text
+Error: in 18+, these Docker images are configured to store database data in a
+       format which is compatible with "pg_ctlcluster" ...
+       Counter to that, there appears to be PostgreSQL data in:
+         /var/lib/postgresql/data
+```
+
+### Recreating the volume (the normal procedure here)
+
+This volume holds local development data only, so the expected path is simply
+to discard it and rebuild the schemas from each repository's migrations.
+
+**This destroys every row in every schema.** It is the right thing to do in
+this workspace, and the wrong thing to do anywhere with data worth keeping.
+
+```bash
+# 1. Stop the stack.
+cd Server
+docker compose down
+
+# 2. Delete the old 16 volume.
+docker volume rm biotron-infrastructure_postgres-data
+
+# 3. Bring it back up. Postgres 18.6 initialises a fresh cluster.
+docker compose up -d
+docker compose ps
+docker compose exec postgres pg_isready -U biotron -d biotron
+
+# 4. Rebuild the five schemas.
+for repo in OAuthManager Logger exo-gui BiotronCalendar Sprinter; do
+  (cd "../$repo/prisma" && npm install && npm run deploy)
+done
+```
+
+The five repositories each own one schema inside the single shared `biotron`
+database — `oauth`, `logger`, `exo`, `calendar` and `sprinter` — so they do not
+contend and the order they run in does not matter. All five must run before the
+platform is fully functional. Sprinter currently defines no models and has no
+`prisma/migrations` directory, so its `migrate deploy` applies nothing; that is
+expected, not a failure.
+
+### If you ever need to preserve the data
+
+Dump from a temporary 16 container mounted the way 16 expects, then restore
+into the new 18 cluster. The old image must be used for the dump, because 18
+cannot read the 16 directory at all.
+
+```bash
+# Dump, with the stack down. Mount the existing volume at the OLD path.
+docker run --rm -d --name pg-dump-tmp \
+  -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
+  -v biotron-infrastructure_postgres-data:/var/lib/postgresql/data \
+  postgres:16-alpine
+until docker exec pg-dump-tmp pg_isready -U biotron -d biotron; do sleep 1; done
+docker exec pg-dump-tmp pg_dumpall -U biotron > biotron-16.sql
+docker rm -f pg-dump-tmp
+
+# Then delete the volume, start 18.6, and load the dump back in.
+docker volume rm biotron-infrastructure_postgres-data
+docker compose up -d postgres
+until docker compose exec -T postgres pg_isready -U biotron -d biotron; do sleep 1; done
+docker compose exec -T postgres psql -U biotron -d biotron < biotron-16.sql
+```
+
+Keep `biotron-16.sql` until the restore has been verified. `pg_dumpall` carries
+roles as well as data; the `biotron` role is recreated from `POSTGRES_USER` and
+`POSTGRES_PASSWORD` regardless, so role errors on restore are harmless.
+
+`pg_upgrade` is the other option and is why the mount now sits at
+`/var/lib/postgresql`: both clusters can live inside one mount point. It needs
+an image carrying both major versions' binaries, which neither official image
+provides, so dump and restore is the simpler path at this size.
+
+### Connection settings are unaffected
+
+Checked against both images before the bump: `password_encryption`,
+`listen_addresses` and `port` are identical in 16 and 18 (`scram-sha-256`, `*`,
+`5432`), the `biotron` role is stored as `scram-sha-256` in both, and the
+generated `pg_hba.conf` still ends in `host all all all scram-sha-256`. The
+`postgresql://biotron:...@postgres:5432/biotron?schema=<name>` URLs the five
+repositories use need no change, and `pgx` already speaks SCRAM.
+
+### Redis 7 to 8
+
+No procedure required. The RDB and AOF formats are forward compatible, so 8.10.1
+opens a volume written by 7 and starts normally; this was confirmed against a
+throwaway volume seeded on `redis:7-alpine`, including that existing keys
+survived and `redis-cli ping` still answers the compose healthcheck.
+
+Nothing this workspace asks of Redis is affected. Logger uses it for the health
+cache and log tails and OAuthManager for grant-set caching, all through
+`go-redis/v9`, which supports Redis 8 — and both are plain key, list and TTL
+operations, well away from anything Redis 8 changed. Redis 8 folds in the
+former Redis Stack modules and changes defaults around them, none of which this
+workspace enables. The instance remains unauthenticated on the `biotron`
+network, which is a separate open item (MEDIUM-3 in the security audit) and is
+neither improved nor worsened by this bump.
