@@ -15,8 +15,10 @@ import (
 )
 
 type fakeStore struct {
-	inserted model.NewLog
-	health   map[string]model.Health
+	inserted     model.NewLog
+	health       map[string]model.Health
+	history      map[string][]model.HealthPoint
+	historyCalls int
 }
 
 func (f *fakeStore) Ping(context.Context) error { return nil }
@@ -33,6 +35,10 @@ func (f *fakeStore) QueryLogs(context.Context, model.HistoryQuery) (model.LogPag
 func (f *fakeStore) LatestHealth(context.Context, []string) (map[string]model.Health, error) {
 	return f.health, nil
 }
+func (f *fakeStore) HealthHistory(context.Context, []string, time.Time, time.Time) (map[string][]model.HealthPoint, error) {
+	f.historyCalls++
+	return f.history, nil
+}
 
 func TestIngestRequiresTokenAndAcceptsStructuredLog(t *testing.T) {
 	dataStore := &fakeStore{}
@@ -40,7 +46,7 @@ func TestIngestRequiresTokenAndAcceptsStructuredLog(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	app := New(dataStore, serviceCatalog, auth.AllowAll{}, "secret")
+	app := New(dataStore, serviceCatalog, auth.AllowAll{}, Options{IngestToken: "secret"})
 	body := []byte(`{"service":"exo-api","level":"warning","message":"temperature high","payload":{"celsius":73}}`)
 
 	request := httptest.NewRequest(http.MethodPost, "/v1/logs", bytes.NewReader(body))
@@ -77,7 +83,7 @@ func TestApplicationsAggregateComponentHealth(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	app := New(dataStore, serviceCatalog, auth.AllowAll{}, "secret")
+	app := New(dataStore, serviceCatalog, auth.AllowAll{}, Options{IngestToken: "secret"})
 
 	response, err := app.Test(httptest.NewRequest(http.MethodGet, "/v1/apps", nil), -1)
 	if err != nil {
@@ -102,7 +108,7 @@ func TestHistoryRejectsUnknownLevel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	app := New(&fakeStore{}, serviceCatalog, auth.AllowAll{}, "secret")
+	app := New(&fakeStore{}, serviceCatalog, auth.AllowAll{}, Options{IngestToken: "secret"})
 	response, err := app.Test(httptest.NewRequest(http.MethodGet, "/v1/apps/exo/logs/history?levels=critical", nil), -1)
 	if err != nil {
 		t.Fatal(err)

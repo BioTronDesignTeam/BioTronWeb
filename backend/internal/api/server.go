@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/limiter"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 
 	"github.com/BioTronDesignTeam/Logger/backend/internal/auth"
@@ -24,17 +25,72 @@ type Store interface {
 	RecentLogs(context.Context, []string, []model.LogLevel, string, int) ([]model.Log, error)
 	QueryLogs(context.Context, model.HistoryQuery) (model.LogPage, error)
 	LatestHealth(context.Context, []string) (map[string]model.Health, error)
+	HealthHistory(context.Context, []string, time.Time, time.Time) (map[string][]model.HealthPoint, error)
+}
+
+// Options carries the settings the public status layer needs. Health durations
+// come from the same configuration the monitor uses, so the "is this reading
+// stale?" threshold always tracks the real polling cadence.
+type Options struct {
+	IngestToken           string
+	HealthInterval        time.Duration
+	HealthHistoryInterval time.Duration
+	StatusCacheTTL        time.Duration
+	StatusRateLimit       int
+	// Now is injectable so tests can pin a window without sleeping.
+	Now func() time.Time
+}
+
+func (o Options) withDefaults() Options {
+	if o.HealthInterval <= 0 {
+		o.HealthInterval = 15 * time.Second
+	}
+	if o.HealthHistoryInterval <= 0 {
+		o.HealthHistoryInterval = 5 * time.Minute
+	}
+	if o.StatusCacheTTL <= 0 {
+		o.StatusCacheTTL = 30 * time.Second
+	}
+	if o.StatusRateLimit <= 0 {
+		o.StatusRateLimit = 60
+	}
+	if o.Now == nil {
+		o.Now = time.Now
+	}
+	return o
 }
 
 type Server struct {
-	store       Store
-	catalog     *catalog.Catalog
-	authorizer  auth.Authorizer
-	ingestToken string
+	store          Store
+	catalog        *catalog.Catalog
+	authorizer     auth.Authorizer
+	ingestToken    string
+	healthInterval time.Duration
+	maxGap         time.Duration
+	location       *time.Location
+	statusCache    *ttlCache
+	now            func() time.Time
 }
 
-func New(store Store, serviceCatalog *catalog.Catalog, authorizer auth.Authorizer, ingestToken string) *fiber.App {
-	server := &Server{store: store, catalog: serviceCatalog, authorizer: authorizer, ingestToken: ingestToken}
+func New(store Store, serviceCatalog *catalog.Catalog, authorizer auth.Authorizer, options Options) *fiber.App {
+	options = options.withDefaults()
+	location, err := time.LoadLocation(bucketTimeZone)
+	if err != nil {
+		log.Printf("load %s, falling back to UTC: %v", bucketTimeZone, err)
+		location = time.UTC
+	}
+	server := &Server{
+		store:          store,
+		catalog:        serviceCatalog,
+		authorizer:     authorizer,
+		ingestToken:    options.IngestToken,
+		healthInterval: options.HealthInterval,
+		// A stretch longer than three heartbeats means nobody was watching.
+		maxGap:      3 * options.HealthHistoryInterval,
+		location:    location,
+		statusCache: newTTLCache(options.StatusCacheTTL, options.Now),
+		now:         options.Now,
+	}
 	app := fiber.New(fiber.Config{
 		BodyLimit: 256 * 1024,
 		ErrorHandler: func(c *fiber.Ctx, err error) error {
@@ -55,11 +111,31 @@ func New(store Store, serviceCatalog *catalog.Catalog, authorizer auth.Authorize
 	app.Get("/health", server.health)
 	v1 := app.Group("/v1")
 	v1.Post("/logs", server.requireIngestToken, server.ingestLog)
-	v1.Get("/session", server.requireRead, server.session)
+
+	// The public layer answers with no session at all. It runs time-series
+	// queries for anyone who asks, so it is rate limited per client address.
+	public := v1.Group("", limiter.New(limiter.Config{
+		Max:        options.StatusRateLimit,
+		Expiration: time.Minute,
+	}))
+	public.Get("/status", cacheFor(30*time.Second), server.status)
+	public.Get("/status/history", cacheFor(30*time.Second), server.statusHistory)
+	public.Get("/session", server.session)
+
 	v1.Get("/apps", server.requireRead, server.apps)
 	v1.Get("/apps/:app/logs/recent", server.requireRead, server.recentLogs)
 	v1.Get("/apps/:app/logs/history", server.requireRead, server.historyLogs)
 	return app
+}
+
+// cacheFor lets shared caches hold the public status responses briefly. They are
+// world-readable by design and change no faster than the health poll.
+func cacheFor(ttl time.Duration) fiber.Handler {
+	value := "public, max-age=" + strconv.Itoa(int(ttl.Seconds()))
+	return func(c *fiber.Ctx) error {
+		c.Set(fiber.HeaderCacheControl, value)
+		return c.Next()
+	}
 }
 
 func (s *Server) health(c *fiber.Ctx) error {
@@ -96,8 +172,20 @@ func (s *Server) requireRead(c *fiber.Ctx) error {
 	return c.Next()
 }
 
+// session always answers HTTP 200. The portal needs to tell "signed out" from
+// "signed in without logger/view", and a 401 or 403 collapses those two into
+// one, which is what sent permission-less users round the sign-in loop.
 func (s *Server) session(c *fiber.Ctx) error {
-	return c.JSON(fiber.Map{"allowed": true})
+	c.Set(fiber.HeaderCacheControl, "no-store")
+	decision, err := s.authorizer.Authorize(c.UserContext(), c.Get(fiber.HeaderCookie))
+	if err != nil {
+		// The permission service is unreachable. Reporting a signed-out visitor
+		// is the safe answer: it grants nothing and offers a sign-in button that
+		// will work again once OAuthManager is back.
+		log.Printf("session check: %v", err)
+		decision = auth.Decision{}
+	}
+	return c.JSON(fiber.Map{"authenticated": decision.Authenticated, "allowed": decision.Allowed})
 }
 
 func (s *Server) ingestLog(c *fiber.Ctx) error {

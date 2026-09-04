@@ -46,7 +46,13 @@ func main() {
 	healthMonitor := monitor.New(dataStore, serviceCatalog, cfg.HealthInterval, cfg.HealthHistoryInterval, cfg.HealthTimeout)
 	go healthMonitor.Run(ctx)
 
-	app := api.New(dataStore, serviceCatalog, authorizer, cfg.IngestToken)
+	app := api.New(dataStore, serviceCatalog, authorizer, api.Options{
+		IngestToken:           cfg.IngestToken,
+		HealthInterval:        cfg.HealthInterval,
+		HealthHistoryInterval: cfg.HealthHistoryInterval,
+		StatusCacheTTL:        cfg.StatusCacheTTL,
+		StatusRateLimit:       cfg.StatusRateLimit,
+	})
 	go func() {
 		log.Printf("Logger API listening on :%s", cfg.Port)
 		if err := app.Listen(":" + cfg.Port); err != nil {

@@ -20,6 +20,8 @@ type Config struct {
 	HealthInterval        time.Duration
 	HealthHistoryInterval time.Duration
 	HealthTimeout         time.Duration
+	StatusCacheTTL        time.Duration
+	StatusRateLimit       int
 }
 
 func Load() Config {
@@ -35,6 +37,8 @@ func Load() Config {
 		HealthInterval:        getduration("HEALTH_INTERVAL", 15*time.Second),
 		HealthHistoryInterval: getduration("HEALTH_HISTORY_INTERVAL", 5*time.Minute),
 		HealthTimeout:         getduration("HEALTH_TIMEOUT", 3*time.Second),
+		StatusCacheTTL:        getduration("STATUS_CACHE_TTL", 30*time.Second),
+		StatusRateLimit:       getint("STATUS_RATE_LIMIT", 60),
 	}
 }
 
@@ -53,6 +57,9 @@ func (c Config) Validate() error {
 	}
 	if c.TailSize < 1 || c.HealthInterval <= 0 || c.HealthHistoryInterval <= 0 || c.HealthTimeout <= 0 {
 		return errors.New("tail size and health durations must be positive")
+	}
+	if c.StatusCacheTTL <= 0 || c.StatusRateLimit < 1 {
+		return errors.New("status cache TTL and rate limit must be positive")
 	}
 	return nil
 }
