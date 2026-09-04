@@ -34,6 +34,8 @@ const SCOPE_NAME_MAX = 80;
 const actionClass = 'min-h-11 rounded-full px-3 text-xs font-semibold hover:bg-soft/25 dark:hover:bg-white/10';
 const destructiveActionClass = 'min-h-11 rounded-full px-3 text-xs font-semibold text-red-700 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950/30';
 const destructiveEventClass = 'min-h-11 rounded-full px-4 text-sm font-semibold text-red-700 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950/30';
+const panelClass = 'overflow-hidden rounded-3xl border border-ink/10 bg-white dark:border-white/10 dark:bg-white/[0.04]';
+const fieldClass = 'mt-1 min-h-11 w-full rounded-xl border border-ink/15 bg-transparent px-3 text-sm dark:border-white/20';
 
 function stateStyle(state: EventSeries['state']) {
   if (state === 'PUBLISHED') return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-400/15 dark:text-emerald-200';
@@ -53,11 +55,6 @@ function deleteBlockedReason(scope: Scope) {
 
 export function AdminPanel(props: AdminPanelProps) {
   const [tab, setTab] = useState<'events' | 'scopes'>('events');
-  const [scopeKind, setScopeKind] = useState<'PROJECT' | 'SUBTEAM'>('PROJECT');
-  const [scopeName, setScopeName] = useState('');
-  const [chosenParentId, setChosenParentId] = useState('');
-  const [savingScope, setSavingScope] = useState(false);
-  const [scopeError, setScopeError] = useState('');
   const [confirming, setConfirming] = useState<PendingConfirm>();
   const [renaming, setRenaming] = useState<Scope>();
 
@@ -77,35 +74,6 @@ export function AdminPanel(props: AdminPanelProps) {
     return { projects, activeProjects, subteamsByParent };
   }, [props.scopes]);
 
-  // Derived during render rather than corrected by an effect, so the form never
-  // paints one frame with an empty parent before catching up.
-  const defaultParentId = scopeKind === 'PROJECT' ? team?.id || '' : activeProjects[0]?.id || '';
-  const parentId = chosenParentId || defaultParentId;
-
-  const sortedEvents = useMemo(
-    () => [...props.events].sort((a, b) => a.starts_at_local.localeCompare(b.starts_at_local)),
-    [props.events],
-  );
-
-  async function addScope(event: FormEvent) {
-    event.preventDefault();
-    setSavingScope(true);
-    setScopeError('');
-    try {
-      await props.onCreateScope(scopeKind, scopeName, parentId);
-      setScopeName('');
-    } catch (caught) {
-      setScopeError(caught instanceof Error ? caught.message : 'Could not create the calendar.');
-    } finally {
-      setSavingScope(false);
-    }
-  }
-
-  function changeKind(kind: 'PROJECT' | 'SUBTEAM') {
-    setScopeKind(kind);
-    setChosenParentId('');
-  }
-
   function confirmThen(pending: Omit<PendingConfirm, 'run'>, run: () => Promise<void>) {
     setConfirming({
       ...pending,
@@ -116,6 +84,9 @@ export function AdminPanel(props: AdminPanelProps) {
     });
   }
 
+  const tabClass = (name: 'events' | 'scopes') =>
+    `min-h-11 flex-1 rounded-full px-5 text-sm font-semibold sm:flex-none ${tab === name ? 'bg-white text-ink dark:bg-soft dark:text-ink' : 'text-ink/60 dark:text-white/60'}`;
+
   return (
     <main className="mx-auto w-full max-w-[1200px] px-4 pb-16 pt-8 sm:px-6 lg:px-8">
       <div className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -123,46 +94,33 @@ export function AdminPanel(props: AdminPanelProps) {
         {tab === 'events' && <button type="button" onClick={props.onCreateEvent} className="min-h-12 rounded-full bg-deep px-6 text-sm font-semibold text-white hover:bg-brand">Create event</button>}
       </div>
       <div className="mb-6 flex gap-1 rounded-full bg-ink/5 p-1 dark:bg-white/10 sm:w-fit">
-        <button type="button" onClick={() => setTab('events')} className={`min-h-11 flex-1 rounded-full px-5 text-sm font-semibold sm:flex-none ${tab === 'events' ? 'bg-white text-ink dark:bg-soft dark:text-ink' : 'text-ink/60 dark:text-white/60'}`}>Events</button>
-        <button type="button" onClick={() => setTab('scopes')} className={`min-h-11 flex-1 rounded-full px-5 text-sm font-semibold sm:flex-none ${tab === 'scopes' ? 'bg-white text-ink dark:bg-soft dark:text-ink' : 'text-ink/60 dark:text-white/60'}`}>Projects &amp; subteams</button>
+        <button type="button" onClick={() => setTab('events')} className={tabClass('events')}>Events</button>
+        <button type="button" onClick={() => setTab('scopes')} className={tabClass('scopes')}>Projects &amp; subteams</button>
       </div>
       {props.error && <p className="mb-5 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800 dark:bg-red-950/30 dark:text-red-200">{props.error}</p>}
       {props.loading && <div className="mb-4 h-1 animate-pulse rounded-full bg-brand" />}
 
       {tab === 'events' ? (
-        <section className="overflow-hidden rounded-3xl border border-ink/10 bg-white dark:border-white/10 dark:bg-white/[0.04]">
-          {sortedEvents.length === 0 ? <div className="px-6 py-16 text-center"><p className="font-semibold">No events yet.</p><p className="mt-2 text-sm text-ink/60 dark:text-white/60">Create the first team, project, or subteam event.</p></div> : (
-            <div className="divide-y divide-ink/10 dark:divide-white/10">
-              {sortedEvents.map((event) => (
-                <article key={event.id} className="grid gap-4 p-5 sm:grid-cols-[1fr_auto] sm:items-center">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2"><h2 className="truncate font-semibold">{event.title}</h2><span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${stateStyle(event.state)}`}>{event.state.toLowerCase()}</span></div>
-                    <p className="mt-1 text-sm text-ink/60 dark:text-white/60">{event.scope_name} · {localDate(event.starts_at_local)} at {timeOfDayLabel(event.starts_at_local)}{event.recurrence_until ? ` · weekly through ${localDate(event.recurrence_until)}` : ''}</p>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <button type="button" onClick={() => props.onEditEvent(event)} className="min-h-11 rounded-full border border-ink/15 px-4 text-sm font-semibold hover:bg-soft/25 dark:border-white/20 dark:hover:bg-white/10">Edit</button>
-                    {event.state !== 'PUBLISHED' && <button type="button" onClick={() => void props.onPublishEvent(event)} className="min-h-11 rounded-full bg-deep px-4 text-sm font-semibold text-white hover:bg-brand">{event.state === 'CANCELLED' ? 'Republish' : 'Publish'}</button>}
-                    {event.state === 'PUBLISHED' && <button type="button" onClick={() => confirmThen({
-                      title: 'Cancel this series?',
-                      message: `Every remaining occurrence of "${event.title}" is cancelled and subscribers receive the cancellation. The series stays in the feed so their calendars can reconcile it, and it can be republished later.`,
-                      confirmLabel: 'Cancel the series',
-                      destructive: true,
-                    }, () => props.onCancelEvent(event))} className={destructiveEventClass}>Cancel series</button>}
-                    {event.state === 'DRAFT' && <button type="button" onClick={() => confirmThen({
-                      title: 'Delete this draft?',
-                      message: `"${event.title}" has never been published, so nothing has it yet. Deleting it cannot be undone.`,
-                      confirmLabel: 'Delete draft',
-                      destructive: true,
-                    }, () => props.onDeleteEvent(event))} className={destructiveEventClass}>Delete</button>}
-                  </div>
-                </article>
-              ))}
-            </div>
-          )}
-        </section>
+        <EventList
+          events={props.events}
+          onEdit={props.onEditEvent}
+          onPublish={props.onPublishEvent}
+          onCancel={(event) => confirmThen({
+            title: 'Cancel this series?',
+            message: `Every remaining occurrence of "${event.title}" is cancelled and subscribers receive the cancellation. The series stays in the feed so their calendars can reconcile it, and it can be republished later.`,
+            confirmLabel: 'Cancel the series',
+            destructive: true,
+          }, () => props.onCancelEvent(event))}
+          onDelete={(event) => confirmThen({
+            title: 'Delete this draft?',
+            message: `"${event.title}" has never been published, so nothing has it yet. Deleting it cannot be undone.`,
+            confirmLabel: 'Delete draft',
+            destructive: true,
+          }, () => props.onDeleteEvent(event))}
+        />
       ) : (
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
-          <section className="overflow-hidden rounded-3xl border border-ink/10 bg-white dark:border-white/10 dark:bg-white/[0.04]">
+          <section className={panelClass}>
             <div className="border-b border-ink/10 px-5 py-4 dark:border-white/10"><h2 className="font-semibold">Calendar structure</h2><p className="mt-1 text-sm text-ink/60 dark:text-white/60">Archived calendars keep their history and subscription URL.</p></div>
             <div className="divide-y divide-ink/10 dark:divide-white/10">
               {projects.map((project) => (
@@ -187,18 +145,7 @@ export function AdminPanel(props: AdminPanelProps) {
               ))}
             </div>
           </section>
-          <aside className="h-fit rounded-3xl border border-ink/10 bg-white p-5 dark:border-white/10 dark:bg-white/[0.04]">
-            <h2 className="font-semibold">Add a calendar</h2>
-            <form onSubmit={(event) => void addScope(event)} className="mt-4 space-y-4">
-              <label className="block"><span className="text-sm font-semibold">Type</span><select value={scopeKind} onChange={(e) => changeKind(e.target.value as 'PROJECT' | 'SUBTEAM')} className="mt-1 min-h-11 w-full rounded-xl border border-ink/15 bg-transparent px-3 text-sm dark:border-white/20"><option value="PROJECT">Project</option><option value="SUBTEAM">Subteam</option></select></label>
-              <label className="block"><span className="text-sm font-semibold">Name</span><input required minLength={SCOPE_NAME_MIN} maxLength={SCOPE_NAME_MAX} value={scopeName} onChange={(e) => setScopeName(e.target.value)} className="mt-1 min-h-11 w-full rounded-xl border border-ink/15 bg-transparent px-3 text-sm dark:border-white/20" /></label>
-              {scopeKind === 'SUBTEAM' && <label className="block"><span className="text-sm font-semibold">Project</span><select required value={parentId} onChange={(e) => setChosenParentId(e.target.value)} className="mt-1 min-h-11 w-full rounded-xl border border-ink/15 bg-transparent px-3 text-sm dark:border-white/20">{activeProjects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label>}
-              {scopeKind === 'SUBTEAM' && activeProjects.length === 0 && <p className="text-sm text-ink/60 dark:text-white/60">A subteam has to sit under an active project. Add or restore a project first.</p>}
-              {scopeError && <p className="text-sm text-red-700 dark:text-red-300">{scopeError}</p>}
-              <button type="submit" disabled={savingScope || !parentId} className="min-h-11 w-full rounded-full bg-deep px-4 text-sm font-semibold text-white hover:bg-brand disabled:opacity-50">Add {scopeKind === 'PROJECT' ? 'project' : 'subteam'}</button>
-            </form>
-            <p className="mt-5 text-xs leading-5 text-ink/50 dark:text-white/50">Permanent deletion is available only for empty calendars. Archive anything with event history.</p>
-          </aside>
+          <AddScopeForm teamId={team?.id || ''} activeProjects={activeProjects} onCreate={props.onCreateScope} />
         </div>
       )}
 
@@ -232,6 +179,120 @@ export function AdminPanel(props: AdminPanelProps) {
   );
 }
 
+function EventList({ events, onEdit, onPublish, onCancel, onDelete }: {
+  events: EventSeries[];
+  onEdit: (event: EventSeries) => void;
+  onPublish: (event: EventSeries) => Promise<void>;
+  onCancel: (event: EventSeries) => void;
+  onDelete: (event: EventSeries) => void;
+}) {
+  const sorted = useMemo(
+    () => [...events].sort((a, b) => a.starts_at_local.localeCompare(b.starts_at_local)),
+    [events],
+  );
+  if (sorted.length === 0) {
+    return (
+      <section className={panelClass}>
+        <div className="px-6 py-16 text-center">
+          <p className="font-semibold">No events yet.</p>
+          <p className="mt-2 text-sm text-ink/60 dark:text-white/60">Create the first team, project, or subteam event.</p>
+        </div>
+      </section>
+    );
+  }
+  return (
+    <section className={panelClass}>
+      <div className="divide-y divide-ink/10 dark:divide-white/10">
+        {sorted.map((event) => (
+          <article key={event.id} className="grid gap-4 p-5 sm:grid-cols-[1fr_auto] sm:items-center">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="truncate font-semibold">{event.title}</h2>
+                <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${stateStyle(event.state)}`}>{event.state.toLowerCase()}</span>
+              </div>
+              <p className="mt-1 text-sm text-ink/60 dark:text-white/60">
+                {event.scope_name} · {localDate(event.starts_at_local)} at {timeOfDayLabel(event.starts_at_local)}
+                {event.recurrence_until ? ` · weekly through ${localDate(event.recurrence_until)}` : ''}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => onEdit(event)} className="min-h-11 rounded-full border border-ink/15 px-4 text-sm font-semibold hover:bg-soft/25 dark:border-white/20 dark:hover:bg-white/10">Edit</button>
+              {event.state !== 'PUBLISHED' && <button type="button" onClick={() => void onPublish(event)} className="min-h-11 rounded-full bg-deep px-4 text-sm font-semibold text-white hover:bg-brand">{event.state === 'CANCELLED' ? 'Republish' : 'Publish'}</button>}
+              {event.state === 'PUBLISHED' && <button type="button" onClick={() => onCancel(event)} className={destructiveEventClass}>Cancel series</button>}
+              {event.state === 'DRAFT' && <button type="button" onClick={() => onDelete(event)} className={destructiveEventClass}>Delete</button>}
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function AddScopeForm({ teamId, activeProjects, onCreate }: {
+  teamId: string;
+  activeProjects: Scope[];
+  onCreate: AdminPanelProps['onCreateScope'];
+}) {
+  const [kind, setKind] = useState<'PROJECT' | 'SUBTEAM'>('PROJECT');
+  const [name, setName] = useState('');
+  const [chosenParentId, setChosenParentId] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  // Derived during render rather than corrected by an effect, so the form never
+  // paints one frame with an empty parent before catching up.
+  const parentId = chosenParentId || (kind === 'PROJECT' ? teamId : activeProjects[0]?.id || '');
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setSaving(true);
+    setError('');
+    try {
+      await onCreate(kind, name, parentId);
+      setName('');
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Could not create the calendar.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <aside className="h-fit rounded-3xl border border-ink/10 bg-white p-5 dark:border-white/10 dark:bg-white/[0.04]">
+      <h2 className="font-semibold">Add a calendar</h2>
+      <form onSubmit={(event) => void submit(event)} className="mt-4 space-y-4">
+        <label className="block">
+          <span className="text-sm font-semibold">Type</span>
+          <select value={kind} onChange={(e) => { setKind(e.target.value as 'PROJECT' | 'SUBTEAM'); setChosenParentId(''); }} className={fieldClass}>
+            <option value="PROJECT">Project</option>
+            <option value="SUBTEAM">Subteam</option>
+          </select>
+        </label>
+        <label className="block">
+          <span className="text-sm font-semibold">Name</span>
+          <input required minLength={SCOPE_NAME_MIN} maxLength={SCOPE_NAME_MAX} value={name} onChange={(e) => setName(e.target.value)} className={fieldClass} />
+        </label>
+        {kind === 'SUBTEAM' && (
+          <label className="block">
+            <span className="text-sm font-semibold">Project</span>
+            <select required value={parentId} onChange={(e) => setChosenParentId(e.target.value)} className={fieldClass}>
+              {activeProjects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
+            </select>
+          </label>
+        )}
+        {kind === 'SUBTEAM' && activeProjects.length === 0 && (
+          <p className="text-sm text-ink/60 dark:text-white/60">A subteam has to sit under an active project. Add or restore a project first.</p>
+        )}
+        {error && <p className="text-sm text-red-700 dark:text-red-300">{error}</p>}
+        <button type="submit" disabled={saving || !parentId} className="min-h-11 w-full rounded-full bg-deep px-4 text-sm font-semibold text-white hover:bg-brand disabled:opacity-50">
+          Add {kind === 'PROJECT' ? 'project' : 'subteam'}
+        </button>
+      </form>
+      <p className="mt-5 text-xs leading-5 text-ink/50 dark:text-white/50">Permanent deletion is available only for empty calendars. Archive anything with event history.</p>
+    </aside>
+  );
+}
+
 function ScopeGroup({ project, subteams, onRename, onArchive, onRestore, onDelete }: {
   project: Scope;
   subteams: Scope[];
@@ -240,27 +301,54 @@ function ScopeGroup({ project, subteams, onRename, onArchive, onRestore, onDelet
   onRestore: (scope: Scope) => Promise<void>;
   onDelete: (scope: Scope) => void;
 }) {
-  const actionRow = (scope: Scope, nested = false) => {
-    const blocked = deleteBlockedReason(scope);
-    // Restore refuses while an ancestor is archived, so do not offer it there.
-    const restorable = scope.kind === 'PROJECT' || project.status === 'ACTIVE';
-    return (
-      <div className={`flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center ${nested ? 'bg-ink/[0.018] pl-9 dark:bg-black/10' : ''}`}>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2"><p className="truncate font-semibold">{scope.name}</p>{scope.status === 'ARCHIVED' && <span className="rounded-full bg-ink/8 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider dark:bg-white/10">Archived</span>}</div>
-          <p className="mt-1 text-xs text-ink/50 dark:text-white/50">
-            {scope.event_count} events{scope.kind === 'PROJECT' ? ` · ${scope.child_count} subteams` : ''}{blocked ? ` · cannot be deleted: ${blocked}` : ''}
-          </p>
+  return (
+    <div>
+      <ScopeRow scope={project} onRename={onRename} onArchive={onArchive} onRestore={onRestore} onDelete={onDelete} />
+      {subteams.map((subteam) => (
+        <ScopeRow
+          key={subteam.id}
+          scope={subteam}
+          nested
+          // Restore refuses while an ancestor is archived, so do not offer it there.
+          restorable={project.status === 'ACTIVE'}
+          onRename={onRename}
+          onArchive={onArchive}
+          onRestore={onRestore}
+          onDelete={onDelete}
+        />
+      ))}
+    </div>
+  );
+}
+
+function ScopeRow({ scope, nested = false, restorable = true, onRename, onArchive, onRestore, onDelete }: {
+  scope: Scope;
+  nested?: boolean;
+  restorable?: boolean;
+  onRename: (scope: Scope) => void;
+  onArchive: (scope: Scope) => void;
+  onRestore: (scope: Scope) => Promise<void>;
+  onDelete: (scope: Scope) => void;
+}) {
+  const blocked = deleteBlockedReason(scope);
+  return (
+    <div className={`flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center ${nested ? 'bg-ink/[0.018] pl-9 dark:bg-black/10' : ''}`}>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <p className="truncate font-semibold">{scope.name}</p>
+          {scope.status === 'ARCHIVED' && <span className="rounded-full bg-ink/8 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider dark:bg-white/10">Archived</span>}
         </div>
-        <div className="flex flex-wrap gap-1">
-          <button type="button" onClick={() => onRename(scope)} className={actionClass}>Rename</button>
-          {scope.status === 'ACTIVE'
-            ? <button type="button" onClick={() => onArchive(scope)} className={actionClass}>Archive</button>
-            : restorable && <button type="button" onClick={() => void onRestore(scope)} className={actionClass}>Restore</button>}
-          {!blocked && <button type="button" onClick={() => onDelete(scope)} className={destructiveActionClass}>Delete</button>}
-        </div>
+        <p className="mt-1 text-xs text-ink/50 dark:text-white/50">
+          {scope.event_count} events{scope.kind === 'PROJECT' ? ` · ${scope.child_count} subteams` : ''}
+          {blocked ? ` · cannot be deleted: ${blocked}` : ''}
+        </p>
       </div>
-    );
-  };
-  return <div>{actionRow(project)}{subteams.map((subteam) => <div key={subteam.id}>{actionRow(subteam, true)}</div>)}</div>;
+      <div className="flex flex-wrap gap-1">
+        <button type="button" onClick={() => onRename(scope)} className={actionClass}>Rename</button>
+        {scope.status === 'ACTIVE' && <button type="button" onClick={() => onArchive(scope)} className={actionClass}>Archive</button>}
+        {scope.status === 'ARCHIVED' && restorable && <button type="button" onClick={() => void onRestore(scope)} className={actionClass}>Restore</button>}
+        {!blocked && <button type="button" onClick={() => onDelete(scope)} className={destructiveActionClass}>Delete</button>}
+      </div>
+    </div>
+  );
 }

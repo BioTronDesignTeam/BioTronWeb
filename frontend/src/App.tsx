@@ -63,26 +63,30 @@ export function App() {
   // and only the newest request is allowed to touch state.
   const occurrenceRequest = useRef(0);
   const occurrenceAbort = useRef<AbortController>(undefined);
+  const occurrencesInFlight = useRef(0);
 
   const loadOccurrences = useCallback(async () => {
     occurrenceAbort.current?.abort();
     const controller = new AbortController();
     occurrenceAbort.current = controller;
     const request = ++occurrenceRequest.current;
-    const current = () => request === occurrenceRequest.current;
+    occurrencesInFlight.current += 1;
     setLoading(true);
     setError('');
     try {
       const next = await calendarApi.occurrences(range.from, range.to, selectedScope || undefined, controller.signal);
-      if (current()) setOccurrences(next);
+      if (request === occurrenceRequest.current) setOccurrences(next);
     } catch (caught) {
-      if (!current() || controller.signal.aborted) return;
+      if (request !== occurrenceRequest.current || controller.signal.aborted) return;
       // Leaving the previous month's or previous scope's events on screen under
       // an error banner reads as if they belong to the selection that failed.
       setOccurrences([]);
       setError(caught instanceof Error ? caught.message : 'Could not load the calendar.');
     } finally {
-      if (current()) setLoading(false);
+      occurrencesInFlight.current -= 1;
+      // The progress bar belongs to the newest request rather than the first
+      // one to settle, so it stays up while a superseded fetch unwinds.
+      setLoading(occurrencesInFlight.current > 0);
     }
   }, [range.from, range.to, selectedScope]);
 
@@ -196,7 +200,7 @@ export function App() {
       ) : (
         <PublicCalendar month={month} scopes={scopes} occurrences={occurrences} selectedScope={selectedScope} loading={loading} error={error} onMonthChange={setMonth} onScopeChange={setSelectedScope} onSubscribe={() => setShowSubscribe(true)} onSelectEvent={(occurrence) => { setEventActionError(''); setSelectedOccurrence(occurrence); }} />
       )}
-      <footer className="border-t border-ink/10 px-4 py-6 text-center text-xs text-ink/50 dark:border-white/10 dark:text-white/45">Times use America/Toronto · Calendar subscriptions update on each calendar app’s schedule</footer>
+      <footer className="border-t border-ink/10 px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] pt-6 text-center text-xs text-ink/50 dark:border-white/10 dark:text-white/45">Times use America/Toronto · Calendar subscriptions update on each calendar app’s schedule</footer>
 
       {showSubscribe && <SubscribePanel scopes={scopes} onClose={() => setShowSubscribe(false)} />}
       {selectedOccurrence && <EventDetails occurrence={selectedOccurrence} canWrite={auth.can_write} error={eventActionError} onClose={() => { setEventActionError(''); setSelectedOccurrence(undefined); }} onEditSeries={() => void openEditor(selectedOccurrence, 'series')} onEditOccurrence={() => void openEditor(selectedOccurrence, 'occurrence')} onCancelOccurrence={() => setCancellingOccurrence(selectedOccurrence)} />}
