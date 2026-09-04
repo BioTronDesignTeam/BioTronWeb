@@ -189,8 +189,14 @@ func logRequests(events *eventlog.Client) fiber.Handler {
 		} else if status >= 400 {
 			level = eventlog.Warning
 		}
+		// Method and Path point into fasthttp's pooled request buffer, and
+		// LogAsync marshals the payload on another goroutine. Without a copy
+		// the buffer can be refilled from a different request first, and the
+		// line then names a path nobody chose to log — wrong during an
+		// incident, and a way for an unlogged path to leak into the event.
 		events.LogAsync(level, "HTTP request completed", map[string]any{
-			"method": c.Method(), "path": c.Path(), "status": status,
+			"method": strings.Clone(c.Method()), "path": strings.Clone(c.Path()),
+			"status":      status,
 			"duration_ms": time.Since(started).Milliseconds(),
 		})
 		return err
