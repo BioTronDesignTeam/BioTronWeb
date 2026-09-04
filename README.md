@@ -9,7 +9,7 @@ and the lightweight upcoming-events view on the BioTron public site.
 - `frontend/` is React, TypeScript, Tailwind, and shared `BioTronStyle` UI.
 - `backend/` is the Go/Fiber public API, permission-enforced editor API, recurrence engine, and feed generator.
 - `prisma/` owns the `calendar` schema and its PostgreSQL migrations.
-- `.devcontainer/` provides Node 22, Go 1.23, Prisma tooling, and forwarded UI/API ports.
+- `.devcontainer/` provides Node 22, Go 1.25, Prisma tooling, and forwarded UI/API ports.
 - `docker-compose.yml` runs the migration, API, and static frontend containers on the shared `biotron` network.
 
 PostgreSQL is the source of truth. Redis is intentionally not part of the
@@ -157,8 +157,8 @@ serve a body that should have changed.
 ## Verification
 
 ```bash
-docker run --rm -v "$PWD/backend:/src" -w /src golang:1.23-bookworm go test ./...
-docker run --rm -v "$PWD/backend:/src" -w /src golang:1.23-bookworm go vet ./...
+docker run --rm -v "$PWD/backend:/src" -w /src golang:1.25-bookworm go test ./...
+docker run --rm -v "$PWD/backend:/src" -w /src golang:1.25-bookworm go vet ./...
 npm --prefix frontend run build
 npm --prefix prisma run format
 npm --prefix prisma run validate
@@ -170,7 +170,7 @@ Point them at a throwaway PostgreSQL with the calendar schema migrated:
 ```bash
 docker run --rm -v "$PWD/backend:/src" -w /src \
   -e CALENDAR_TEST_DATABASE_URL='postgresql://user:pass@host:5432/db?schema=calendar' \
-  golang:1.23-bookworm go test ./... -run Live -v
+  golang:1.25-bookworm go test ./... -run Live -v
 ```
 
 They cover what cannot be observed from Go alone: that a windowed read loads

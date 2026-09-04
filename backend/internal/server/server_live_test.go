@@ -28,7 +28,7 @@ import (
 //
 //	docker run --rm -v "$PWD/backend:/src" -w /src \
 //	  -e CALENDAR_TEST_DATABASE_URL='postgresql://user:pass@host:5432/db?schema=calendar' \
-//	  golang:1.23-bookworm go test ./internal/server/ -run Live -v
+//	  golang:1.25-bookworm go test ./internal/server/ -run Live -v
 
 const (
 	liveTeamScopeID = "00000000-0000-4000-8000-000000000001"
