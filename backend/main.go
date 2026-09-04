@@ -8,6 +8,7 @@ import (
 	"time"
 	_ "time/tzdata"
 
+	"github.com/gofiber/fiber/v3"
 	"github.com/joho/godotenv"
 
 	"github.com/BioTronDesignTeam/exo-gui/backend/internal/auth"
@@ -42,7 +43,8 @@ func main() {
 
 	go func() {
 		log.Printf("backend listening on %s", addr)
-		if err := app.Listen(addr); err != nil {
+		// v3 moved DisableStartupMessage out of fiber.Config and onto Listen.
+		if err := app.Listen(addr, fiber.ListenConfig{DisableStartupMessage: true}); err != nil {
 			log.Fatalf("listen: %v", err)
 		}
 	}()

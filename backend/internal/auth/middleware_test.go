@@ -9,7 +9,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
 // silenceLog keeps the deliberate fail-closed log lines out of test output.
@@ -42,12 +42,16 @@ func stubOAuthManager(t *testing.T, respond func(w http.ResponseWriter, permissi
 
 // gatedApp mounts a single route behind Require, the way a real Exo route will.
 func gatedApp(client *Client, permission string) *fiber.App {
-	app := fiber.New(fiber.Config{DisableStartupMessage: true})
-	app.Get("/v1/probe", client.Require(permission), func(c *fiber.Ctx) error {
+	app := fiber.New()
+	app.Get("/v1/probe", client.Require(permission), func(c fiber.Ctx) error {
 		return c.JSON(fiber.Map{"ok": true})
 	})
 	return app
 }
+
+// v3 replaced Test's timeout argument with a config struct; a zero Timeout
+// disables the deadline, which is what -1 meant in v2.
+var noTestTimeout = fiber.TestConfig{Timeout: 0, FailOnTimeout: false}
 
 func request(t *testing.T, app *fiber.App, cookie string) *http.Response {
 	t.Helper()
@@ -55,7 +59,7 @@ func request(t *testing.T, app *fiber.App, cookie string) *http.Response {
 	if cookie != "" {
 		req.Header.Set("Cookie", cookie)
 	}
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, noTestTimeout)
 	if err != nil {
 		t.Fatalf("request: %v", err)
 	}

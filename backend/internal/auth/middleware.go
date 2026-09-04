@@ -4,7 +4,7 @@ import (
 	"errors"
 	"log"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
 // decisionLocal is where Require stashes the decision it made, so a handler
@@ -28,8 +28,8 @@ const decisionLocal = "exo.auth.decision"
 //	transport error, unexpected status,
 //	  or OAUTH_MANAGER_URL unset         -> 503  (fail closed, never open)
 func (c *Client) Require(permission string) fiber.Handler {
-	return func(ctx *fiber.Ctx) error {
-		decision, err := c.Check(ctx.UserContext(), ctx.Get(fiber.HeaderCookie), permission)
+	return func(ctx fiber.Ctx) error {
+		decision, err := c.Check(ctx.Context(), ctx.Get(fiber.HeaderCookie), permission)
 		if err != nil {
 			// An authorization service Exo cannot reach is an outage, not a
 			// pass. Log it — this is the one branch an operator needs to see.
@@ -55,7 +55,7 @@ func (c *Client) Require(permission string) fiber.Handler {
 }
 
 // DecisionFrom returns the decision Require recorded for this request.
-func DecisionFrom(ctx *fiber.Ctx) (Decision, bool) {
+func DecisionFrom(ctx fiber.Ctx) (Decision, bool) {
 	decision, ok := ctx.Locals(decisionLocal).(Decision)
 	return decision, ok
 }

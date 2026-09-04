@@ -4,10 +4,10 @@ import (
 	"errors"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/cors"
-	"github.com/gofiber/fiber/v2/middleware/logger"
-	"github.com/gofiber/fiber/v2/middleware/recover"
+	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/cors"
+	"github.com/gofiber/fiber/v3/middleware/logger"
+	"github.com/gofiber/fiber/v3/middleware/recover"
 
 	"github.com/BioTronDesignTeam/exo-gui/backend/internal/auth"
 	"github.com/BioTronDesignTeam/exo-gui/backend/internal/eventlog"
@@ -17,27 +17,31 @@ import (
 // route must sit behind; see the route table below.
 func New(frontendURL string, trustedProxies []string, events *eventlog.Client, authz *auth.Client) *fiber.App {
 	app := fiber.New(fiber.Config{
-		DisableStartupMessage:   true,
-		ReadTimeout:             15 * time.Second,
-		IdleTimeout:             60 * time.Second,
-		EnableTrustedProxyCheck: true,
-		TrustedProxies:          trustedProxies,
-		ProxyHeader:             "Cf-Connecting-Ip",
+		ReadTimeout: 15 * time.Second,
+		IdleTimeout: 60 * time.Second,
+		// Fiber v3 renamed the v2 pair EnableTrustedProxyCheck/TrustedProxies to
+		// TrustProxy plus TrustProxyConfig.Proxies. Same behaviour, same reason:
+		// without it every request appears to come from the edge proxy and the
+		// per-IP rate limiters all share one bucket.
+		TrustProxy:       true,
+		TrustProxyConfig: fiber.TrustProxyConfig{Proxies: trustedProxies},
+		ProxyHeader:      "Cf-Connecting-Ip",
 	})
 
 	app.Use(logRequests(events))
 	app.Use(recover.New(recover.Config{EnableStackTrace: true}))
 	app.Use(logger.New())
+	// v3 takes these as slices rather than comma-separated strings.
 	app.Use(cors.New(cors.Config{
-		AllowOrigins:     frontendURL,
+		AllowOrigins:     []string{frontendURL},
 		AllowCredentials: true,
-		AllowMethods:     "GET,POST,OPTIONS",
-		AllowHeaders:     "Content-Type,X-Requested-With",
+		AllowMethods:     []string{fiber.MethodGet, fiber.MethodPost, fiber.MethodOptions},
+		AllowHeaders:     []string{fiber.HeaderContentType, "X-Requested-With"},
 	}))
 
 	// /health is public on purpose: the container healthcheck and Logger's
 	// monitor poll it, and it reveals nothing.
-	app.Get("/health", func(c *fiber.Ctx) error {
+	app.Get("/health", func(c fiber.Ctx) error {
 		return c.JSON(fiber.Map{"status": "ok"})
 	})
 
@@ -64,7 +68,7 @@ func New(frontendURL string, trustedProxies []string, events *eventlog.Client, a
 }
 
 func logRequests(events *eventlog.Client) fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		started := time.Now()
 		err := c.Next()
 		if c.Path() == "/health" {
