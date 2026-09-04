@@ -6,13 +6,13 @@
   },
   "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
   "remoteUser": "node",
-  "forwardPorts": [5176, 18083],
+  "forwardPorts": [5178, 8084],
   "portsAttributes": {
-    "5176": {
+    "5178": {
       "label": "Sprinter admin UI",
       "onAutoForward": "openBrowserOnce"
     },
-    "18083": {
+    "8084": {
       "label": "Sprinter admin API",
       "onAutoForward": "notify"
     }
