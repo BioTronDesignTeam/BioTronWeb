@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	calendarlogic "github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/calendar"
@@ -115,7 +115,7 @@ func liveSeed(t *testing.T, calendarStore *store.Store, ctx context.Context, uid
 
 func liveGet(t *testing.T, app *fiber.App, target string) []model.Occurrence {
 	t.Helper()
-	response, err := app.Test(httptest.NewRequest(fiber.MethodGet, target, nil), 10_000)
+	response, err := app.Test(httptest.NewRequest(fiber.MethodGet, target, nil), fiber.TestConfig{Timeout: 10 * time.Second})
 	if err != nil {
 		t.Fatal(err)
 	}

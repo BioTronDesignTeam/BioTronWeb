@@ -7,30 +7,30 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 
 	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/ical"
 	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/model"
 )
 
-func (h *Handler) allFeed(c *fiber.Ctx) error {
-	series, err := h.store.ListFeedSeries(c.UserContext(), "")
+func (h *Handler) allFeed(c fiber.Ctx) error {
+	series, err := h.store.ListFeedSeries(c.Context(), "")
 	if err != nil {
 		return err
 	}
 	return h.sendFeed(c, "All BioTron events", "all-biotron-events.ics", h.config.PublicBaseURL+"/v1/feeds/all.ics", time.Time{}, series)
 }
 
-func (h *Handler) scopeFeed(c *fiber.Ctx) error {
+func (h *Handler) scopeFeed(c fiber.Ctx) error {
 	if uuid.Validate(c.Params("id")) != nil {
 		return fiber.ErrNotFound
 	}
-	scope, err := h.store.GetScope(c.UserContext(), c.Params("id"))
+	scope, err := h.store.GetScope(c.Context(), c.Params("id"))
 	if err != nil {
 		return err
 	}
-	series, err := h.store.ListFeedSeries(c.UserContext(), scope.ID)
+	series, err := h.store.ListFeedSeries(c.Context(), scope.ID)
 	if err != nil {
 		return err
 	}
@@ -43,7 +43,7 @@ func (h *Handler) scopeFeed(c *fiber.Ctx) error {
 	return h.sendFeed(c, name, filename, source, scope.UpdatedAt, series)
 }
 
-func (h *Handler) sendFeed(c *fiber.Ctx, name, filename, source string, metadataModified time.Time, series []model.EventSeries) error {
+func (h *Handler) sendFeed(c fiber.Ctx, name, filename, source string, metadataModified time.Time, series []model.EventSeries) error {
 	feed, err := ical.Build(name, source, series, h.location)
 	if err != nil {
 		return err
@@ -62,7 +62,7 @@ func (h *Handler) sendFeed(c *fiber.Ctx, name, filename, source string, metadata
 // cache window. honourModifiedSince is false for resources whose content also
 // changes with the clock, where an unchanged Last-Modified would hand a client
 // a stale 304 long after the body should have changed.
-func sendCacheable(c *fiber.Ctx, body []byte, lastModified time.Time, honourModifiedSince bool) error {
+func sendCacheable(c fiber.Ctx, body []byte, lastModified time.Time, honourModifiedSince bool) error {
 	etag := fmt.Sprintf(`"%x"`, sha256.Sum256(body))
 	lastModified = lastModified.UTC().Truncate(time.Second)
 	c.Set(fiber.HeaderETag, etag)
@@ -82,7 +82,7 @@ func sendCacheable(c *fiber.Ctx, body []byte, lastModified time.Time, honourModi
 
 // A 304 must not carry a body, and Fiber's SendStatus writes the status text as
 // one when the body is empty.
-func notModified(c *fiber.Ctx) error {
+func notModified(c fiber.Ctx) error {
 	return c.Status(fiber.StatusNotModified).Send(nil)
 }
 

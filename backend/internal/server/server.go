@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/cors"
-	"github.com/gofiber/fiber/v2/middleware/logger"
-	"github.com/gofiber/fiber/v2/middleware/recover"
+	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/cors"
+	"github.com/gofiber/fiber/v3/middleware/logger"
+	"github.com/gofiber/fiber/v3/middleware/recover"
 
 	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/auth"
 	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/config"
@@ -31,29 +31,36 @@ type Handler struct {
 func New(cfg config.Config, calendarStore *store.Store, authClient *auth.Client, events *eventlog.Client, location *time.Location) *fiber.App {
 	handler := &Handler{store: calendarStore, auth: authClient, config: cfg, location: location, now: time.Now}
 	app := fiber.New(fiber.Config{
-		DisableStartupMessage:   true,
-		BodyLimit:               256 * 1024,
-		ReadTimeout:             15 * time.Second,
-		IdleTimeout:             60 * time.Second,
-		EnableTrustedProxyCheck: true,
-		TrustedProxies:          cfg.TrustedProxies,
-		ProxyHeader:             "Cf-Connecting-Ip",
-		ErrorHandler:            jsonErrorHandler,
+		BodyLimit:   256 * 1024,
+		ReadTimeout: 15 * time.Second,
+		IdleTimeout: 60 * time.Second,
+		// Per-request client identity comes from Cloudflare, but only when the
+		// peer is one of our own proxies. TrustProxy plus an explicit Proxies
+		// allow-list is Fiber v3's spelling of v2's EnableTrustedProxyCheck and
+		// TrustedProxies; without both, c.IP() would take a spoofable header
+		// from any caller.
+		TrustProxy:       true,
+		TrustProxyConfig: fiber.TrustProxyConfig{Proxies: cfg.TrustedProxies},
+		ProxyHeader:      "Cf-Connecting-Ip",
+		ErrorHandler:     jsonErrorHandler,
 	})
 
 	app.Use(logRequests(events))
 	app.Use(recover.New(recover.Config{EnableStackTrace: true}))
 	app.Use(logger.New())
 	publicCORS := cors.New(cors.Config{
-		AllowOrigins: strings.Join(cfg.PublicAllowedOrigins(), ","),
-		AllowMethods: "GET,HEAD,OPTIONS",
-		AllowHeaders: "Content-Type",
+		AllowOrigins: cfg.PublicAllowedOrigins(),
+		AllowMethods: []string{fiber.MethodGet, fiber.MethodHead, fiber.MethodOptions},
+		AllowHeaders: []string{fiber.HeaderContentType},
 	})
 	adminCORS := cors.New(cors.Config{
-		AllowOrigins:     strings.Join(cfg.AdminAllowedOrigins(), ","),
+		AllowOrigins:     cfg.AdminAllowedOrigins(),
 		AllowCredentials: true,
-		AllowMethods:     "GET,POST,PUT,PATCH,DELETE,OPTIONS",
-		AllowHeaders:     "Content-Type,X-Requested-With",
+		AllowMethods: []string{
+			fiber.MethodGet, fiber.MethodPost, fiber.MethodPut,
+			fiber.MethodPatch, fiber.MethodDelete, fiber.MethodOptions,
+		},
+		AllowHeaders: []string{fiber.HeaderContentType, "X-Requested-With"},
 	})
 
 	app.Get("/health", handler.health)
@@ -89,8 +96,8 @@ func New(cfg config.Config, calendarStore *store.Store, authClient *auth.Client,
 	return app
 }
 
-func (h *Handler) health(c *fiber.Ctx) error {
-	ctx, cancel := context.WithTimeout(c.UserContext(), time.Second)
+func (h *Handler) health(c fiber.Ctx) error {
+	ctx, cancel := context.WithTimeout(c.Context(), time.Second)
 	defer cancel()
 	if err := h.store.Ping(ctx); err != nil {
 		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
@@ -100,8 +107,8 @@ func (h *Handler) health(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"service": "biotron-calendar", "status": "ok"})
 }
 
-func (h *Handler) authStatus(c *fiber.Ctx) error {
-	status, err := h.auth.Status(c.UserContext(), c.Get("Cookie"))
+func (h *Handler) authStatus(c fiber.Ctx) error {
+	status, err := h.auth.Status(c.Context(), c.Get("Cookie"))
 	if err != nil {
 		log.Printf("auth status: %v", err)
 		return fiber.ErrServiceUnavailable
@@ -109,11 +116,11 @@ func (h *Handler) authStatus(c *fiber.Ctx) error {
 	return c.JSON(status)
 }
 
-func (h *Handler) requireWrite(c *fiber.Ctx) error {
+func (h *Handler) requireWrite(c fiber.Ctx) error {
 	if requiresRequestHeader(c.Method()) && c.Get("X-Requested-With") != "XMLHttpRequest" {
 		return fiber.ErrForbidden
 	}
-	allowed, err := h.auth.CanWrite(c.UserContext(), c.Get("Cookie"))
+	allowed, err := h.auth.CanWrite(c.Context(), c.Get("Cookie"))
 	if err != nil {
 		switch {
 		case errors.Is(err, auth.ErrUnauthenticated):
@@ -140,7 +147,7 @@ func requiresRequestHeader(method string) bool {
 	}
 }
 
-func jsonErrorHandler(c *fiber.Ctx, err error) error {
+func jsonErrorHandler(c fiber.Ctx, err error) error {
 	status := fiber.StatusInternalServerError
 	message := "internal server error"
 	var fiberError *fiber.Error
@@ -159,7 +166,7 @@ func jsonErrorHandler(c *fiber.Ctx, err error) error {
 }
 
 func logRequests(events *eventlog.Client) fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		started := time.Now()
 		err := c.Next()
 		if c.Path() == "/health" {

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 
 	calendarlogic "github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/calendar"
@@ -29,7 +29,7 @@ type eventInput struct {
 	ExpectedSequence int    `json:"expected_sequence"`
 }
 
-func (h *Handler) listOccurrences(c *fiber.Ctx) error {
+func (h *Handler) listOccurrences(c fiber.Ctx) error {
 	from, to, err := h.parseRange(c)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
@@ -38,7 +38,7 @@ func (h *Handler) listOccurrences(c *fiber.Ctx) error {
 	if scopeID != "" && uuid.Validate(scopeID) != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "scope_id must be a UUID"})
 	}
-	series, err := h.store.ListSeries(c.UserContext(), scopeID, false, h.window(from, to))
+	series, err := h.store.ListSeries(c.Context(), scopeID, false, h.window(from, to))
 	if err != nil {
 		return err
 	}
@@ -65,12 +65,12 @@ const (
 // reimplemented per client. It returns the same occurrence objects as
 // GET /v1/events, already filtered to occurrences still running or still to
 // come, ordered by start, and truncated to limit.
-func (h *Handler) listUpcoming(c *fiber.Ctx) error {
+func (h *Handler) listUpcoming(c fiber.Ctx) error {
 	limit := clampQuery(c.Query("limit"), upcomingDefaultLimit, 1, upcomingMaxLimit)
 	days := clampQuery(c.Query("days"), upcomingDefaultDays, 1, upcomingMaxDays)
 	now := h.now().In(h.location)
 	until := now.AddDate(0, 0, days)
-	series, err := h.store.ListSeries(c.UserContext(), "", false, h.window(now, until))
+	series, err := h.store.ListSeries(c.Context(), "", false, h.window(now, until))
 	if err != nil {
 		return err
 	}
@@ -163,8 +163,8 @@ func (h *Handler) window(from, to time.Time) *store.Window {
 
 // The editor lists the whole calendar, past and future, drafts included, so
 // this read is deliberately not windowed.
-func (h *Handler) listAdminEvents(c *fiber.Ctx) error {
-	series, err := h.store.ListSeries(c.UserContext(), strings.TrimSpace(c.Query("scope_id")), true, nil)
+func (h *Handler) listAdminEvents(c fiber.Ctx) error {
+	series, err := h.store.ListSeries(c.Context(), strings.TrimSpace(c.Query("scope_id")), true, nil)
 	if err != nil {
 		return err
 	}
@@ -174,36 +174,36 @@ func (h *Handler) listAdminEvents(c *fiber.Ctx) error {
 	return c.JSON(series)
 }
 
-func (h *Handler) createEvent(c *fiber.Ctx) error {
+func (h *Handler) createEvent(c fiber.Ctx) error {
 	var body eventInput
-	if err := c.BodyParser(&body); err != nil {
+	if err := c.Bind().Body(&body); err != nil {
 		return fiber.ErrBadRequest
 	}
 	event, err := h.eventFromInput(body)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
-	active, err := h.store.ScopeIsActive(c.UserContext(), event.ScopeID)
+	active, err := h.store.ScopeIsActive(c.Context(), event.ScopeID)
 	if err != nil {
 		return err
 	}
 	if !active {
 		return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "events can only be created in an active scope"})
 	}
-	event, err = h.store.CreateSeries(c.UserContext(), event)
+	event, err = h.store.CreateSeries(c.Context(), event)
 	if err != nil {
 		return err
 	}
 	return c.Status(fiber.StatusCreated).JSON(event)
 }
 
-func (h *Handler) updateEvent(c *fiber.Ctx) error {
-	current, err := h.store.GetSeries(c.UserContext(), c.Params("id"))
+func (h *Handler) updateEvent(c fiber.Ctx) error {
+	current, err := h.store.GetSeries(c.Context(), c.Params("id"))
 	if err != nil {
 		return err
 	}
 	var body eventInput
-	if err := c.BodyParser(&body); err != nil {
+	if err := c.Bind().Body(&body); err != nil {
 		return fiber.ErrBadRequest
 	}
 	updated, err := h.eventFromInput(body)
@@ -217,7 +217,7 @@ func (h *Handler) updateEvent(c *fiber.Ctx) error {
 		})
 	}
 	if updated.ScopeID != current.ScopeID {
-		active, err := h.store.ScopeIsActive(c.UserContext(), updated.ScopeID)
+		active, err := h.store.ScopeIsActive(c.Context(), updated.ScopeID)
 		if err != nil {
 			return err
 		}
@@ -248,19 +248,19 @@ func (h *Handler) updateEvent(c *fiber.Ctx) error {
 			}
 		}
 	}
-	updated, err = h.store.UpdateSeries(c.UserContext(), updated, body.ExpectedSequence)
+	updated, err = h.store.UpdateSeries(c.Context(), updated, body.ExpectedSequence)
 	if err != nil {
 		return err
 	}
 	return c.JSON(updated)
 }
 
-func (h *Handler) publishEvent(c *fiber.Ctx) error {
-	current, err := h.store.GetSeries(c.UserContext(), c.Params("id"))
+func (h *Handler) publishEvent(c fiber.Ctx) error {
+	current, err := h.store.GetSeries(c.Context(), c.Params("id"))
 	if err != nil {
 		return err
 	}
-	active, err := h.store.ScopeIsActive(c.UserContext(), current.ScopeID)
+	active, err := h.store.ScopeIsActive(c.Context(), current.ScopeID)
 	if err != nil {
 		return err
 	}
@@ -271,34 +271,34 @@ func (h *Handler) publishEvent(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	event, err := h.store.PublishSeries(c.UserContext(), current.ID, sequence)
+	event, err := h.store.PublishSeries(c.Context(), current.ID, sequence)
 	if err != nil {
 		return err
 	}
 	return c.JSON(event)
 }
 
-func (h *Handler) cancelEvent(c *fiber.Ctx) error {
+func (h *Handler) cancelEvent(c fiber.Ctx) error {
 	sequence, err := expectedSequence(c)
 	if err != nil {
 		return err
 	}
-	event, err := h.store.CancelSeries(c.UserContext(), c.Params("id"), sequence)
+	event, err := h.store.CancelSeries(c.Context(), c.Params("id"), sequence)
 	if err != nil {
 		return err
 	}
 	return c.JSON(event)
 }
 
-func (h *Handler) deleteEvent(c *fiber.Ctx) error {
-	if err := h.store.DeleteDraftSeries(c.UserContext(), c.Params("id")); err != nil {
+func (h *Handler) deleteEvent(c fiber.Ctx) error {
+	if err := h.store.DeleteDraftSeries(c.Context(), c.Params("id")); err != nil {
 		return err
 	}
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
-func (h *Handler) upsertOccurrence(c *fiber.Ctx) error {
-	event, err := h.store.GetSeries(c.UserContext(), c.Params("id"))
+func (h *Handler) upsertOccurrence(c fiber.Ctx) error {
+	event, err := h.store.GetSeries(c.Context(), c.Params("id"))
 	if err != nil {
 		return err
 	}
@@ -314,7 +314,7 @@ func (h *Handler) upsertOccurrence(c *fiber.Ctx) error {
 		Patch             json.RawMessage `json:"patch"`
 		ExpectedSequence  int             `json:"expected_sequence"`
 	}
-	if err := c.BodyParser(&body); err != nil {
+	if err := c.Bind().Body(&body); err != nil {
 		return fiber.ErrBadRequest
 	}
 	if body.ExpectedSequence != event.Sequence {
@@ -358,7 +358,7 @@ func (h *Handler) upsertOccurrence(c *fiber.Ctx) error {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "the occurrence title cannot be empty"})
 		}
 	}
-	override, err := h.store.UpsertOverride(c.UserContext(), model.EventOverride{
+	override, err := h.store.UpsertOverride(c.Context(), model.EventOverride{
 		SeriesID: event.ID, RecurrenceIDLocal: recurrenceID, State: body.State, Patch: patch,
 	}, body.ExpectedSequence)
 	if err != nil {
@@ -367,7 +367,7 @@ func (h *Handler) upsertOccurrence(c *fiber.Ctx) error {
 	return c.JSON(override)
 }
 
-func (h *Handler) deleteOccurrenceOverride(c *fiber.Ctx) error {
+func (h *Handler) deleteOccurrenceOverride(c fiber.Ctx) error {
 	recurrenceID, err := calendarlogic.ParseLocalDateTime(c.Query("recurrence_id_local"))
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
@@ -376,7 +376,7 @@ func (h *Handler) deleteOccurrenceOverride(c *fiber.Ctx) error {
 	if err != nil || expected < 1 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "expected_sequence is required"})
 	}
-	if err := h.store.ResetOverride(c.UserContext(), c.Params("id"), recurrenceID, expected); err != nil {
+	if err := h.store.ResetOverride(c.Context(), c.Params("id"), recurrenceID, expected); err != nil {
 		return err
 	}
 	return c.SendStatus(fiber.StatusNoContent)
@@ -433,7 +433,7 @@ func (h *Handler) eventFromInput(body eventInput) (model.EventSeries, error) {
 	return event, nil
 }
 
-func (h *Handler) parseRange(c *fiber.Ctx) (time.Time, time.Time, error) {
+func (h *Handler) parseRange(c fiber.Ctx) (time.Time, time.Time, error) {
 	today := time.Now().In(h.location)
 	fromDate := c.Query("from", today.Format(calendarlogic.LocalDateLayout))
 	toDate := c.Query("to", today.AddDate(0, 3, 0).Format(calendarlogic.LocalDateLayout))
@@ -456,11 +456,11 @@ func (h *Handler) parseRange(c *fiber.Ctx) (time.Time, time.Time, error) {
 	return from, to, nil
 }
 
-func expectedSequence(c *fiber.Ctx) (int, error) {
+func expectedSequence(c fiber.Ctx) (int, error) {
 	var body struct {
 		ExpectedSequence *int `json:"expected_sequence"`
 	}
-	if err := c.BodyParser(&body); err != nil || body.ExpectedSequence == nil {
+	if err := c.Bind().Body(&body); err != nil || body.ExpectedSequence == nil {
 		return 0, fiber.ErrBadRequest
 	}
 	return *body.ExpectedSequence, nil

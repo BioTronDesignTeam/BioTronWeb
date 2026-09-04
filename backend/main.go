@@ -8,6 +8,7 @@ import (
 	"time"
 	_ "time/tzdata"
 
+	"github.com/gofiber/fiber/v3"
 	"github.com/joho/godotenv"
 
 	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/auth"
@@ -47,7 +48,7 @@ func main() {
 
 	go func() {
 		log.Printf("calendar API listening on %s", address)
-		if err := app.Listen(address); err != nil {
+		if err := app.Listen(address, fiber.ListenConfig{DisableStartupMessage: true}); err != nil {
 			log.Fatalf("listen: %v", err)
 		}
 	}()
