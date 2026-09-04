@@ -13,7 +13,7 @@ server (Go backend + Postgres). A React SPA renders it live for an operator sign
 | `frontend/`      | React dashboard (Tailwind 4) — Vite SPA.                                   |
 | `backend/`       | Go service (Fiber HTTP ingest + WebSocket fan-out + Postgres). Skeleton today. |
 | `prisma/`        | Postgres schema + migrations.                                              |
-| `.devcontainer/` | Slim Debian development image with Node 22 + Go 1.23.                     |
+| `.devcontainer/` | Slim Debian development image with Node 22 + Go 1.25.                     |
 | `docker-compose.yml` | Migration, API, and web containers on the shared `biotron` network.   |
 
 ## Develop & test
@@ -37,7 +37,7 @@ No Node/Go needed on your host — just Docker.
 
 ```bash
 # Backend  → http://localhost:8081/health
-docker run --rm -p 8081:8080 -v "$PWD/backend":/app -w /app golang:1.23 go run .
+docker run --rm -p 8081:8080 -v "$PWD/backend":/app -w /app golang:1.25 go run .
 
 # Frontend → http://localhost:5174
 docker run --rm -p 5174:5174 -v "$PWD/frontend":/app -w /app node:22 \
