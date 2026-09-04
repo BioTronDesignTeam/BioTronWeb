@@ -34,7 +34,6 @@ export default defineConfig({
         // `three` is declared first so the renderer keeps its own chunk instead
         // of being pulled into the wrappers that import it.
         codeSplitting: {
-          includeDependenciesRecursively: false,
           groups: [
             { name: 'three', test: /node_modules[\\/]three[\\/]/ },
             { name: 'r3f', test: /node_modules[\\/](@react-three|three-stdlib|postprocessing)[\\/]/ },
