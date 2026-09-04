@@ -15,7 +15,7 @@ export function Header({ auth, managing, onManage, onPublic, onLoggedOut }: Head
   const operator = auth.operator;
   const [logoutError, setLogoutError] = useState('');
   return (
-    <header className="sticky top-0 z-40 border-b border-ink/10 bg-white/90 backdrop-blur-xl dark:border-white/10 dark:bg-ink/90">
+    <header className="sticky top-0 z-40 border-b border-ink/10 bg-white/90 pt-[env(safe-area-inset-top,0px)] backdrop-blur-xl dark:border-white/10 dark:bg-ink/90">
       <div className="mx-auto flex min-h-16 max-w-[1500px] items-center gap-3 px-4 sm:px-6 lg:px-8">
         <a href={SITE_URL} className="flex min-w-0 items-center gap-3 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand" aria-label="Back to BioTron">
           <Brand className="hidden w-28 sm:inline-flex" />
