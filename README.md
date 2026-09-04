@@ -17,6 +17,15 @@ Calendar path: the expected read volume does not justify invalidation risk or
 operational complexity yet. HTTP feed responses still provide `ETag`,
 `Last-Modified`, and short cache-control directives.
 
+Reads that have a window — `GET /v1/events` and `GET /v1/events/upcoming` —
+load only the series that could produce an occurrence inside it, and only the
+overrides that could affect one. Feeds and the editor list are deliberately
+unwindowed: a subscription is reconciled against the whole document, so
+dropping an expired `VEVENT` would tell a client to delete a meeting that
+really happened, and the editor lists the entire calendar including past terms
+and drafts. Expansion itself is unchanged either way; the window only decides
+which rows are worth fetching.
+
 ## Calendar model
 
 Events belong to exactly one active scope: the whole team, one project, or one
@@ -154,3 +163,17 @@ npm --prefix frontend run build
 npm --prefix prisma run format
 npm --prefix prisma run validate
 ```
+
+Tests whose name starts with `Live` need a real database and skip without one.
+Point them at a throwaway PostgreSQL with the calendar schema migrated:
+
+```bash
+docker run --rm -v "$PWD/backend:/src" -w /src \
+  -e CALENDAR_TEST_DATABASE_URL='postgresql://user:pass@host:5432/db?schema=calendar' \
+  golang:1.23-bookworm go test ./... -run Live -v
+```
+
+They cover what cannot be observed from Go alone: that a windowed read loads
+strictly fewer rows and still expands to identical occurrences, that resetting
+an occurrence deletes its override row, and that `/v1/events/upcoming` never
+serves an occurrence that has already ended.
