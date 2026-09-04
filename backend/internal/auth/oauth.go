@@ -46,8 +46,14 @@ func (a *OAuthAuthorizer) Authorize(ctx context.Context, cookieHeader string) (D
 		return Decision{}, fmt.Errorf("check OAuth permission: %w", err)
 	}
 	defer response.Body.Close()
-	if response.StatusCode == http.StatusUnauthorized || response.StatusCode == http.StatusForbidden {
-		return Decision{}, nil
+	// 401 and 403 mean different things and must not be collapsed. A signed-in
+	// user who simply lacks logger/view is authenticated, and telling the portal
+	// otherwise sends them back to the sign-in button that just worked, forever.
+	if response.StatusCode == http.StatusUnauthorized {
+		return Decision{Authenticated: false, Allowed: false}, nil
+	}
+	if response.StatusCode == http.StatusForbidden {
+		return Decision{Authenticated: true, Allowed: false}, nil
 	}
 	if response.StatusCode != http.StatusOK {
 		return Decision{}, fmt.Errorf("OAuth permission check returned HTTP %d", response.StatusCode)
