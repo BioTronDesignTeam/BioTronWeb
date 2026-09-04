@@ -47,9 +47,9 @@ docker compose up --build
 The default local URLs are:
 
 - Calendar UI: `http://localhost:5176`
-- Calendar API: `http://localhost:18084`
-- OAuthManager: `http://localhost:18080`
-- BioTron site: `http://localhost:18083`
+- Calendar API: `http://localhost:8083`
+- OAuthManager: `http://localhost:8080`
+- BioTron site: `http://localhost:5177`
 
 All browser-facing and service URLs remain environment-driven for deployment.
 The repository uses one root `.env`; do not create component-level environment

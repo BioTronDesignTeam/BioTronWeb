@@ -1,8 +1,8 @@
 import type { AuthStatus, EventOverride, EventPayload, EventSeries, Occurrence, Scope } from './types';
 
-export const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:18084').replace(/\/$/, '');
-export const AUTH_URL = (import.meta.env.VITE_AUTH_URL || 'http://localhost:18080').replace(/\/$/, '');
-export const SITE_URL = (import.meta.env.VITE_SITE_URL || 'http://localhost:18083').replace(/\/$/, '');
+export const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8083').replace(/\/$/, '');
+export const AUTH_URL = (import.meta.env.VITE_AUTH_URL || 'http://localhost:8080').replace(/\/$/, '');
+export const SITE_URL = (import.meta.env.VITE_SITE_URL || 'http://localhost:5177').replace(/\/$/, '');
 
 async function request<T>(path: string, init: RequestInit = {}, authenticated = false): Promise<T> {
   const mutating = init.method && init.method !== 'GET';

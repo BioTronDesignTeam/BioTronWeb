@@ -6,13 +6,13 @@
   },
   "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
   "remoteUser": "node",
-  "forwardPorts": [5176, 18084],
+  "forwardPorts": [5176, 8083],
   "portsAttributes": {
     "5176": {
       "label": "Calendar UI",
       "onAutoForward": "openBrowserOnce"
     },
-    "18084": {
+    "8083": {
       "label": "Calendar API",
       "onAutoForward": "notify"
     }

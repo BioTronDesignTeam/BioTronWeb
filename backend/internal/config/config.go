@@ -27,7 +27,7 @@ func Load() Config {
 		DatabaseURL:      os.Getenv("DATABASE_URL"),
 		FrontendURL:      strings.TrimRight(getenv("FRONTEND_URL", "http://localhost:5176"), "/"),
 		SiteURL:          strings.TrimRight(os.Getenv("SITE_URL"), "/"),
-		PublicBaseURL:    strings.TrimRight(getenv("PUBLIC_BASE_URL", "http://localhost:18084"), "/"),
+		PublicBaseURL:    strings.TrimRight(getenv("PUBLIC_BASE_URL", "http://localhost:8083"), "/"),
 		OAuthManagerURL:  strings.TrimRight(getenv("OAUTH_MANAGER_URL", "http://oauth-manager:8080"), "/"),
 		CORSOrigins:      splitCSV(os.Getenv("CORS_ORIGINS")),
 		AdminCORSOrigins: splitCSV(os.Getenv("ADMIN_CORS_ORIGINS")),
