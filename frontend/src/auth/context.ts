@@ -9,8 +9,8 @@ if (import.meta.env.PROD && !apiUrl) {
   throw new Error('VITE_API_URL must be set for production builds')
 }
 
-export const AUTH_URL = authUrl ?? 'http://localhost:18080'
-export const API_URL = apiUrl ?? 'http://localhost:8080'
+export const AUTH_URL = authUrl ?? 'http://localhost:8080'
+export const API_URL = apiUrl ?? 'http://localhost:8081'
 export const AUTH_APP_ID = 'exo-gui'
 
 export interface Operator {

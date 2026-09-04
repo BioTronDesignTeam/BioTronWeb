@@ -5,10 +5,10 @@
     "context": ".."
   },
   "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
-  "forwardPorts": [5173, 8080],
+  "forwardPorts": [5174, 8081],
   "portsAttributes": {
-    "5173": { "label": "Frontend (Vite dev)", "onAutoForward": "openBrowserOnce" },
-    "8080": { "label": "Backend API", "onAutoForward": "notify" }
+    "5174": { "label": "Frontend (Vite dev)", "onAutoForward": "openBrowserOnce" },
+    "8081": { "label": "Backend API", "onAutoForward": "notify" }
   },
   "runArgs": [
     "--add-host=host.docker.internal:host-gateway"

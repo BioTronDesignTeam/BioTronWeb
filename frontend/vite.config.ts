@@ -10,6 +10,6 @@ export default defineConfig({
   server: {
     // bind 0.0.0.0 so the port is reachable from the host (dev container / docker)
     host: true,
-    port: 5173,
+    port: 5174,
   },
 })

@@ -16,7 +16,7 @@ type Config struct {
 func Load() Config {
 	return Config{
 		Port:           getenv("PORT", "8080"),
-		FrontendURL:    getenv("FRONTEND_URL", "http://localhost:5173"),
+		FrontendURL:    getenv("FRONTEND_URL", "http://localhost:5174"),
 		TrustedProxies: splitCSV(getenv("TRUSTED_PROXIES", "127.0.0.1,::1")),
 	}
 }

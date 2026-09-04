@@ -28,19 +28,19 @@ No Node/Go needed on your host — just Docker.
    Postgres instance. Host services are available as `host.docker.internal`.
 3. In the container terminal:
    ```bash
-   cd frontend && npm run dev     # → http://localhost:5173 (auto-forwards, opens browser)
-   cd backend  && go run .        # → curl http://localhost:8080/health  ->  {"status":"ok"}
+   cd frontend && npm run dev     # → http://localhost:5174 (auto-forwards, opens browser)
+   cd backend  && PORT=8081 go run .   # → curl http://localhost:8081/health  ->  {"status":"ok"}
    ```
-   Ports 5173 / 8080 forward to your host automatically (labeled in the Ports panel).
+   Ports 5174 / 8081 forward to your host automatically (labeled in the Ports panel).
 
 ### Option B — plain Docker (no IDE)
 
 ```bash
-# Backend  → http://localhost:8080/health
-docker run --rm -p 8080:8080 -v "$PWD/backend":/app -w /app golang:1.23 go run .
+# Backend  → http://localhost:8081/health
+docker run --rm -p 8081:8080 -v "$PWD/backend":/app -w /app golang:1.23 go run .
 
-# Frontend → http://localhost:5173
-docker run --rm -p 5173:5173 -v "$PWD/frontend":/app -w /app node:22 \
+# Frontend → http://localhost:5174
+docker run --rm -p 5174:5174 -v "$PWD/frontend":/app -w /app node:22 \
   sh -lc "npm install && npm run dev"
 ```
 
@@ -56,6 +56,7 @@ Start the one shared Postgres and Redis stack from `../Server`, copy
 docker compose up --build
 ```
 
-The web container binds to port 5174 by default so OAuthManager can retain 5173.
+Host ports are 5174 for the web container and 8081 for the API, leaving
+OAuthManager on 5173 and 8080 where its GitHub callback is registered.
 The backend, frontend, Prisma, and Compose all use the single root `.env`; do
 not create component-level environment files.

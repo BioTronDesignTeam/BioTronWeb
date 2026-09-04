@@ -25,7 +25,7 @@ services:
       LOGGER_INGEST_TOKEN: ${LOGGER_INGEST_TOKEN:-}
       LOG_LEVEL: ${LOG_LEVEL:-info}
     ports:
-      - "127.0.0.1:${API_PORT:-8080}:8080"
+      - "127.0.0.1:${API_PORT:-8081}:8080"
     networks:
       biotron:
         aliases:
@@ -40,8 +40,8 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        VITE_API_URL: ${VITE_API_URL:-http://localhost:8080}
-        VITE_AUTH_URL: ${VITE_AUTH_URL:-http://localhost:18080}
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8081}
+        VITE_AUTH_URL: ${VITE_AUTH_URL:-http://localhost:8080}
     ports:
       - "127.0.0.1:${WEB_PORT:-5174}:80"
     networks:
