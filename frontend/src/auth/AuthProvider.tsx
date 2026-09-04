@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { AUTH_APP_ID, AUTH_URL, AuthContext, type AuthState, type Operator } from './context'
 
 // Re-check the session this often while the tab is open, so a guest session that
@@ -94,7 +94,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  return (
-    <AuthContext.Provider value={{ state, login, loginGuest, logout, refresh }}>{children}</AuthContext.Provider>
+  // Memoized so the provider value keeps its identity between renders. Built
+  // inline, it was a fresh object every render and every consumer re-rendered
+  // even when the session had not changed. The handlers are already useCallback
+  // -stable, so only `state` actually moves.
+  const value = useMemo(
+    () => ({ state, login, loginGuest, logout, refresh }),
+    [state, login, loginGuest, logout, refresh],
   )
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
