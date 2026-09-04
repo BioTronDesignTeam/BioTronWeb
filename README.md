@@ -9,7 +9,7 @@ Discord bot and admin UI for BioTron (calendar announcements, lead nudges, and m
 | `frontend/` | React + TypeScript admin UI |
 | `backend/` | Go service using `discordgo`, plus the admin API |
 | `prisma/` | Sprinter-owned Postgres schema and migrations |
-| `.devcontainer/` | Node 22 + Go 1.23 development environment |
+| `.devcontainer/` | Node 22 + Go 1.27 development environment |
 | `docker-compose.yml` | Sprinter containers on the shared `biotron` network |
 
 Start the shared Postgres and Redis containers from `../Server`, copy

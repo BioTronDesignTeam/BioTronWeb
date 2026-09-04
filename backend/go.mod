@@ -1,6 +1,6 @@
 module github.com/BioTronDesignTeam/Sprinter/backend
 
-go 1.23
+go 1.27
 
 require (
 	github.com/bwmarrin/discordgo v0.29.0
