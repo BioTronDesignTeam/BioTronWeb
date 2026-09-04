@@ -44,7 +44,7 @@ default. `AUTH_DISABLED=true` is available for isolated local UI work only and
 must never be used in staging or production.
 
 The portal is available on `http://localhost:5175`; the API is bound to
-`http://127.0.0.1:18081`.
+`http://127.0.0.1:8082`.
 
 ## API
 
@@ -64,7 +64,7 @@ opaque `cursor` returned as `next_cursor`.
 Log ingestion example:
 
 ```bash
-curl -X POST http://127.0.0.1:18081/v1/logs \
+curl -X POST http://127.0.0.1:8082/v1/logs \
   -H "Authorization: Bearer $LOGGER_INGEST_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{

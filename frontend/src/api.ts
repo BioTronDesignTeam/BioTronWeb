@@ -1,5 +1,5 @@
 const API_BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/$/, '');
-const AUTH_BASE = (import.meta.env.VITE_IDP_URL || 'http://localhost:18080').replace(/\/$/, '');
+const AUTH_BASE = (import.meta.env.VITE_IDP_URL || 'http://localhost:8080').replace(/\/$/, '');
 
 export type HealthState = 'healthy' | 'unhealthy' | 'unknown';
 export type LogLevel = 'debug' | 'info' | 'warning' | 'error';

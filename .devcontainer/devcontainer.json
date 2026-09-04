@@ -5,13 +5,13 @@
     "context": ".."
   },
   "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
-  "forwardPorts": [5175, 18081],
+  "forwardPorts": [5175, 8082],
   "portsAttributes": {
     "5175": {
       "label": "Logger portal (Vite)",
       "onAutoForward": "openBrowserOnce"
     },
-    "18081": {
+    "8082": {
       "label": "Logger API",
       "onAutoForward": "notify"
     }
