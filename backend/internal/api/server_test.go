@@ -15,10 +15,11 @@ import (
 )
 
 type fakeStore struct {
-	inserted     model.NewLog
-	health       map[string]model.Health
-	history      map[string][]model.HealthPoint
-	historyCalls int
+	inserted         model.NewLog
+	health           map[string]model.Health
+	history          map[string][]model.HealthPoint
+	historyCalls     int
+	historyTolerance time.Duration
 }
 
 func (f *fakeStore) Ping(context.Context) error { return nil }
@@ -35,8 +36,9 @@ func (f *fakeStore) QueryLogs(context.Context, model.HistoryQuery) (model.LogPag
 func (f *fakeStore) LatestHealth(context.Context, []string) (map[string]model.Health, error) {
 	return f.health, nil
 }
-func (f *fakeStore) HealthHistory(context.Context, []string, time.Time, time.Time) (map[string][]model.HealthPoint, error) {
+func (f *fakeStore) HealthHistory(_ context.Context, _ []string, _, _ time.Time, gapTolerance time.Duration) (map[string][]model.HealthPoint, error) {
 	f.historyCalls++
+	f.historyTolerance = gapTolerance
 	return f.history, nil
 }
 

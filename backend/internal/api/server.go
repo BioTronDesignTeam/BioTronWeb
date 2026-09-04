@@ -25,7 +25,7 @@ type Store interface {
 	RecentLogs(context.Context, []string, []model.LogLevel, string, int) ([]model.Log, error)
 	QueryLogs(context.Context, model.HistoryQuery) (model.LogPage, error)
 	LatestHealth(context.Context, []string) (map[string]model.Health, error)
-	HealthHistory(context.Context, []string, time.Time, time.Time) (map[string][]model.HealthPoint, error)
+	HealthHistory(context.Context, []string, time.Time, time.Time, time.Duration) (map[string][]model.HealthPoint, error)
 }
 
 // Options carries the settings the public status layer needs. Health durations

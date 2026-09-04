@@ -103,7 +103,11 @@ func Compute(samples []model.HealthPoint, window Window, maxGap time.Duration) R
 //     window contributes only the part inside it.
 //  3. A segment longer than maxGap means nobody was watching — Logger itself
 //     was probably down — so it counts as unknown and is excluded from both the
-//     numerator and the denominator instead of silently inventing uptime.
+//     numerator and the denominator instead of silently inventing uptime. A
+//     sample marked Continuous is exempt: the store has already established that
+//     observation ran unbroken from it to the next sample, and collapsing a long
+//     run of identical heartbeats into its endpoints is exactly what makes an
+//     observed stretch look like a long silence.
 //
 // The gap test uses the full, unclipped distance between consecutive
 // observations rather than the clipped part. A twenty-minute observation gap
@@ -145,7 +149,7 @@ func Bucketed(samples []model.HealthPoint, windows []Window, maxGap time.Duratio
 		if sample.OK {
 			kind = kindUp
 		}
-		if segmentEnd.Sub(sample.CheckedAt) > maxGap {
+		if !sample.Continuous && segmentEnd.Sub(sample.CheckedAt) > maxGap {
 			kind = kindUnknown
 		}
 		spread.add(sample.CheckedAt, segmentEnd, kind)

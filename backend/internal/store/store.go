@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 
@@ -293,31 +294,67 @@ func (s *Store) LatestHealth(ctx context.Context, services []string) (map[string
 	return result, rows.Err()
 }
 
-// HealthHistory returns every observation in (from, to] plus, for each service,
-// the single most recent observation at or before from. That carry-in row is
-// the state the component was already in when the window opened, and without it
-// a window whose component never changed state would look like it had no data
-// at all.
+// HealthHistory returns the health observations needed to walk uptime across
+// [from, to], collapsed server-side.
 //
-// Rows come back ascending by service then time, which is the order the uptime
-// walk needs. Detail is deliberately not selected: the public status layer must
-// never see raw dial errors and internal hostnames.
-func (s *Store) HealthHistory(ctx context.Context, services []string, from, to time.Time) (map[string][]model.HealthPoint, error) {
+// Ninety days of five-minute heartbeats is roughly 26,000 rows per component.
+// Streaming all of them back sorted a quarter of a million rows to disk on every
+// cache miss, so the in-range branch keeps only the rows that carry information:
+// a state transition, the row that starts a silence, the row that ends one, and
+// the last row in the window. Everything between two kept rows was, by
+// construction, an unbroken run of one state.
+//
+// That collapse would be lossy on its own. The walker judges a silence by how
+// long a segment lasts, so a run of 26,000 identical heartbeats reduced to its
+// two endpoints would read as a ninety-day silence and score as unknown rather
+// than as fully up. The `continuous` column carries the missing evidence: it is
+// true when observation ran on from that row to the next kept row without a
+// break wider than the tolerance.
+//
+// gapTolerance MUST be the same value the caller later passes to the uptime
+// walk as its maximum gap. The SQL decides which rows may be dropped and sets
+// `continuous` using this tolerance, and the walk trusts that flag; if the two
+// drift apart, a stretch the walk would have called unknown arrives already
+// marked as observed and the silence disappears without trace. The API layer
+// passes its single maxGap field to both, which is what keeps them in step.
+//
+// The carry-in row is unchanged: for each service, the single most recent
+// observation at or before `from` is the state the component was already in when
+// the window opened. It is never marked continuous, because the distance to the
+// first in-window row is a real observation gap and the walk should judge it by
+// its length.
+//
+// Detail is deliberately not selected. It carries raw dial errors and internal
+// hostnames, and its only consumer here is a public endpoint.
+func (s *Store) HealthHistory(ctx context.Context, services []string, from, to time.Time, gapTolerance time.Duration) (map[string][]model.HealthPoint, error) {
 	rows, err := s.db.Query(ctx, `
+		WITH window_rows AS (
+			SELECT service, ok, checked_at,
+				lag(ok) OVER w AS previous_ok,
+				lag(checked_at) OVER w AS previous_at,
+				lead(checked_at) OVER w AS next_at
+			FROM health_checks
+			WHERE service = ANY($1) AND checked_at > $2 AND checked_at <= $3
+			WINDOW w AS (PARTITION BY service ORDER BY checked_at)
+		)
 		(
-			SELECT DISTINCT ON (service) service, ok, checked_at
+			SELECT DISTINCT ON (service) service, ok, checked_at, false AS continuous
 			FROM health_checks
 			WHERE service = ANY($1) AND checked_at <= $2
 			ORDER BY service, checked_at DESC
 		)
 		UNION ALL
 		(
-			SELECT service, ok, checked_at
-			FROM health_checks
-			WHERE service = ANY($1) AND checked_at > $2 AND checked_at <= $3
+			SELECT service, ok, checked_at,
+				next_at IS NOT NULL AND next_at - checked_at <= $4 AS continuous
+			FROM window_rows
+			WHERE previous_ok IS DISTINCT FROM ok
+				OR checked_at - previous_at > $4
+				OR next_at - checked_at > $4
+				OR next_at IS NULL
 		)
 		ORDER BY service, checked_at
-	`, services, from, to)
+	`, services, from, to, interval(gapTolerance))
 	if err != nil {
 		return nil, fmt.Errorf("query health history: %w", err)
 	}
@@ -327,7 +364,7 @@ func (s *Store) HealthHistory(ctx context.Context, services []string, from, to t
 	for rows.Next() {
 		var service string
 		var point model.HealthPoint
-		if err := rows.Scan(&service, &point.OK, &point.CheckedAt); err != nil {
+		if err := rows.Scan(&service, &point.OK, &point.CheckedAt, &point.Continuous); err != nil {
 			return nil, fmt.Errorf("scan health history: %w", err)
 		}
 		history[service] = append(history[service], point)
@@ -438,6 +475,13 @@ func nullableString(value string) any {
 		return nil
 	}
 	return value
+}
+
+// interval encodes a Go duration as a Postgres interval. Comparing intervals
+// directly is markedly cheaper than EXTRACT(EPOCH ...), which yields numeric and
+// then pays numeric comparison on every one of a quarter of a million rows.
+func interval(duration time.Duration) pgtype.Interval {
+	return pgtype.Interval{Microseconds: duration.Microseconds(), Valid: true}
 }
 
 func logKey(service string) string    { return "logger:logs:" + service }

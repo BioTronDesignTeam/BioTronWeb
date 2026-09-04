@@ -250,6 +250,12 @@ func TestStatusRoutesShareOneCachedHistoryFetch(t *testing.T) {
 	if store.historyCalls != 1 {
 		t.Fatalf("health history queried %d times, want one cached fetch", store.historyCalls)
 	}
+	// The store collapses runs and marks them continuous using this tolerance,
+	// and the uptime walk trusts those marks. If the two ever drift apart, a
+	// silence arrives already marked as observed and vanishes without trace.
+	if store.historyTolerance != 15*time.Minute {
+		t.Fatalf("history tolerance = %s, want the walk's own 3x heartbeat gap", store.historyTolerance)
+	}
 }
 
 func TestSessionIsPublicAndSeparatesSignedOutFromUnpermitted(t *testing.T) {

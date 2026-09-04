@@ -225,7 +225,11 @@ func (s *Server) buildHistory(ctx context.Context, days int) (historyResponse, e
 // slowly, so one fetch feeds the rolling uptimes and the daily bars alike.
 func (s *Server) samples(ctx context.Context, now time.Time, services []string) (map[string][]model.HealthPoint, error) {
 	return cached(ctx, s.statusCache, "samples", func(ctx context.Context) (map[string][]model.HealthPoint, error) {
-		return s.store.HealthHistory(ctx, services, now.AddDate(0, 0, -historyDays), now)
+		// s.maxGap goes to the store and to every uptime walk below. The store
+		// collapses runs and marks them continuous using this tolerance, and the
+		// walk trusts those marks, so the two must be the same value; passing
+		// the one field to both is what guarantees it.
+		return s.store.HealthHistory(ctx, services, now.AddDate(0, 0, -historyDays), now, s.maxGap)
 	})
 }
 
