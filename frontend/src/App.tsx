@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { calendarApi } from './api';
-import { calendarRange, startOfMonth } from './date';
+import { calendarRange, fullDateTimeLabel, startOfMonth } from './date';
 import type { AuthStatus, EventPayload, EventSeries, Occurrence, Scope } from './types';
 import { AdminPanel } from './components/AdminPanel';
+import { ConfirmDialog } from './components/ConfirmDialog';
 import { EventDetails } from './components/EventDetails';
 import { EventEditor } from './components/EventEditor';
 import { Header } from './components/Header';
@@ -30,7 +31,17 @@ export function App() {
   const [editingEvent, setEditingEvent] = useState<EventSeries | null>();
   const [creatingEvent, setCreatingEvent] = useState(false);
   const [editingOccurrence, setEditingOccurrence] = useState<{ occurrence: Occurrence; series: EventSeries }>();
+  const [cancellingOccurrence, setCancellingOccurrence] = useState<Occurrence>();
   const [eventActionError, setEventActionError] = useState('');
+
+  // The site links here with ?subscribe=1. Leaving it in the address bar meant
+  // closing the panel and reloading, or sharing the link, reopened it forever.
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has('subscribe')) return;
+    url.searchParams.delete('subscribe');
+    window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
+  }, []);
 
   const range = useMemo(() => calendarRange(month), [month]);
 
@@ -188,14 +199,22 @@ export function App() {
       <footer className="border-t border-ink/10 px-4 py-6 text-center text-xs text-ink/50 dark:border-white/10 dark:text-white/45">Times use America/Toronto · Calendar subscriptions update on each calendar app’s schedule</footer>
 
       {showSubscribe && <SubscribePanel scopes={scopes} onClose={() => setShowSubscribe(false)} />}
-      {selectedOccurrence && <EventDetails occurrence={selectedOccurrence} canWrite={auth.can_write} error={eventActionError} onClose={() => { setEventActionError(''); setSelectedOccurrence(undefined); }} onEditSeries={() => void openEditor(selectedOccurrence, 'series')} onEditOccurrence={() => void openEditor(selectedOccurrence, 'occurrence')} onCancelOccurrence={() => {
-        const occurrence = selectedOccurrence;
-        if (window.confirm('Cancel only this occurrence? Subscribers will receive the cancellation.')) {
-          void mutate(() => calendarApi.updateOccurrence(occurrence.series_id, { recurrence_id_local: occurrence.recurrence_id_local, state: 'CANCELLED', patch: {}, expected_sequence: occurrence.series_sequence }), true).then((success) => {
+      {selectedOccurrence && <EventDetails occurrence={selectedOccurrence} canWrite={auth.can_write} error={eventActionError} onClose={() => { setEventActionError(''); setSelectedOccurrence(undefined); }} onEditSeries={() => void openEditor(selectedOccurrence, 'series')} onEditOccurrence={() => void openEditor(selectedOccurrence, 'occurrence')} onCancelOccurrence={() => setCancellingOccurrence(selectedOccurrence)} />}
+      {cancellingOccurrence && (
+        <ConfirmDialog
+          title="Cancel this occurrence?"
+          message={`Only the ${fullDateTimeLabel(cancellingOccurrence)} meeting is cancelled. The rest of the weekly series is unaffected, and subscribers receive the cancellation so their calendars can remove it.`}
+          confirmLabel="Cancel this occurrence"
+          destructive
+          onCancel={() => setCancellingOccurrence(undefined)}
+          onConfirm={async () => {
+            const occurrence = cancellingOccurrence;
+            const success = await mutate(() => calendarApi.updateOccurrence(occurrence.series_id, { recurrence_id_local: occurrence.recurrence_id_local, state: 'CANCELLED', patch: {}, expected_sequence: occurrence.series_sequence }), true);
+            setCancellingOccurrence(undefined);
             if (success) setSelectedOccurrence(undefined);
-          });
-        }
-      }} />}
+          }}
+        />
+      )}
       {(creatingEvent || editingEvent) && <EventEditor event={editingEvent || undefined} scopes={editorScopes} onClose={() => { setCreatingEvent(false); setEditingEvent(undefined); }} onSave={saveEvent} />}
       {editingOccurrence && <OccurrenceEditor occurrence={editingOccurrence.occurrence} series={editingOccurrence.series} onClose={() => setEditingOccurrence(undefined)} onSave={async (patch) => {
         const { occurrence } = editingOccurrence;
