@@ -128,6 +128,18 @@ in-process cache of the 90-day sample set (`STATUS_CACHE_TTL`, 30 seconds), so
 an unauthenticated burst cannot become a burst of time-series queries. `days` is
 clamped to 1..90 and never echoed back.
 
+"Per address" only means anything because the API trusts the edge proxy for the
+client address. Logger runs with `EnableTrustedProxyCheck`, `TrustedProxies`
+from `TRUSTED_PROXIES` (`127.0.0.1,::1,172.16.0.0/12` in Compose) and
+`ProxyHeader: Cf-Connecting-Ip`, matching OAuthManager and Exo. The edge
+overwrites `Cf-Connecting-Ip` on every hop
+(`Server/nginx/snippets/proxy-headers.conf`), so a client cannot pick its own
+bucket. Widening `TRUSTED_PROXIES` beyond the edge network — or removing that
+`proxy_set_header` — would let anyone spoof both the rate-limit key and the
+client address in the access log. Without any of it, every request looks like it
+came from nginx's bridge address and all the limiters below collapse into one
+global bucket.
+
 Recent and historical routes accept `levels=debug,info`, `q=search text`, and
 `limit=1..200`. History additionally accepts RFC3339 `from`, `to`, and the
 opaque `cursor` returned as `next_cursor`.

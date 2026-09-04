@@ -37,6 +37,11 @@ type Options struct {
 	HealthHistoryInterval time.Duration
 	StatusCacheTTL        time.Duration
 	StatusRateLimit       int
+	// TrustedProxies are the peers whose Cf-Connecting-Ip header c.IP() may
+	// believe. Every rate-limit bucket and every access-log client address is
+	// keyed off that value, so an empty list means all of them collapse into
+	// one bucket holding the edge proxy's own bridge address.
+	TrustedProxies []string
 	// Now is injectable so tests can pin a window without sleeping.
 	Now func() time.Time
 }
@@ -93,6 +98,13 @@ func New(store Store, serviceCatalog *catalog.Catalog, authorizer auth.Authorize
 	}
 	app := fiber.New(fiber.Config{
 		BodyLimit: 256 * 1024,
+		// Logger sits behind the shared edge proxy, which rewrites
+		// Cf-Connecting-Ip to the real client address on every hop. Without
+		// this, c.IP() reports the proxy's container address for every request
+		// and the limiters below throttle the whole internet as one client.
+		EnableTrustedProxyCheck: true,
+		TrustedProxies:          options.TrustedProxies,
+		ProxyHeader:             "Cf-Connecting-Ip",
 		ErrorHandler: func(c *fiber.Ctx, err error) error {
 			code := fiber.StatusInternalServerError
 			message := "internal server error"

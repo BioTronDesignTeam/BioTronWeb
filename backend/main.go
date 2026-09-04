@@ -52,6 +52,7 @@ func main() {
 		HealthHistoryInterval: cfg.HealthHistoryInterval,
 		StatusCacheTTL:        cfg.StatusCacheTTL,
 		StatusRateLimit:       cfg.StatusRateLimit,
+		TrustedProxies:        cfg.TrustedProxies,
 	})
 	go func() {
 		log.Printf("Logger API listening on :%s", cfg.Port)

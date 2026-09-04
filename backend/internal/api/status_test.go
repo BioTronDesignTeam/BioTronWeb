@@ -321,3 +321,41 @@ func TestPublicStatusIsRateLimited(t *testing.T) {
 		t.Fatalf("status after exceeding the limit = %d, want 429", lastStatus)
 	}
 }
+
+// Behind the edge every request arrives from the same container address, so the
+// limiter is only per-client if c.IP() reads the address the edge stamped into
+// Cf-Connecting-Ip. Without the trusted-proxy configuration one visitor's burst
+// would 429 everybody else.
+func TestPublicStatusLimitIsPerClientBehindTheEdge(t *testing.T) {
+	serviceCatalog, err := catalog.Load(statusCatalog)
+	if err != nil {
+		t.Fatal(err)
+	}
+	app := New(&fakeStore{}, serviceCatalog, auth.AllowAll{}, Options{
+		IngestToken:     "secret",
+		StatusRateLimit: 1,
+		// app.Test dials from 0.0.0.0, standing in for the edge proxy.
+		TrustedProxies: []string{"0.0.0.0"},
+		Now:            func() time.Time { return statusNow },
+	})
+
+	get := func(clientIP string) int {
+		request := httptest.NewRequest(http.MethodGet, "/v1/status", nil)
+		request.Header.Set("Cf-Connecting-Ip", clientIP)
+		response, err := app.Test(request, -1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return response.StatusCode
+	}
+
+	if got := get("203.0.113.7"); got != http.StatusOK {
+		t.Fatalf("first request from 203.0.113.7 = %d, want 200", got)
+	}
+	if got := get("203.0.113.7"); got != http.StatusTooManyRequests {
+		t.Fatalf("second request from 203.0.113.7 = %d, want 429", got)
+	}
+	if got := get("198.51.100.4"); got != http.StatusOK {
+		t.Fatalf("first request from 198.51.100.4 = %d, want 200; the limiter is one global bucket", got)
+	}
+}

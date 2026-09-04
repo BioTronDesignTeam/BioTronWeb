@@ -16,6 +16,7 @@ type Config struct {
 	OAuthManagerURL       string
 	AuthDisabled          bool
 	CatalogJSON           string
+	TrustedProxies        []string
 	TailSize              int
 	HealthInterval        time.Duration
 	HealthHistoryInterval time.Duration
@@ -33,7 +34,12 @@ func Load() Config {
 		OAuthManagerURL:       strings.TrimRight(getenv("OAUTH_MANAGER_URL", "http://oauth-manager:8080"), "/"),
 		AuthDisabled:          getbool("AUTH_DISABLED", false),
 		CatalogJSON:           os.Getenv("LOGGER_CATALOG_JSON"),
-		TailSize:              getint("REDIS_TAIL_SIZE", 500),
+		// Peers whose Cf-Connecting-Ip header may be believed. Only the edge
+		// proxy sets that header (Server/nginx/snippets/proxy-headers.conf
+		// overwrites whatever the client sent), so widening this list past the
+		// edge network would let any client choose its own rate-limit bucket.
+		TrustedProxies: splitCSV(getenv("TRUSTED_PROXIES", "127.0.0.1,::1")),
+		TailSize:       getint("REDIS_TAIL_SIZE", 500),
 		HealthInterval:        getduration("HEALTH_INTERVAL", 15*time.Second),
 		HealthHistoryInterval: getduration("HEALTH_HISTORY_INTERVAL", 5*time.Minute),
 		HealthTimeout:         getduration("HEALTH_TIMEOUT", 3*time.Second),
@@ -62,6 +68,17 @@ func (c Config) Validate() error {
 		return errors.New("status cache TTL and rate limit must be positive")
 	}
 	return nil
+}
+
+func splitCSV(s string) []string {
+	parts := strings.Split(s, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 func getenv(key, fallback string) string {
