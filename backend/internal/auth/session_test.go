@@ -6,12 +6,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
 func TestSessionCookieUsesConfiguredDomain(t *testing.T) {
 	app := fiber.New()
-	app.Get("/", func(c *fiber.Ctx) error {
+	app.Get("/", func(c fiber.Ctx) error {
 		setSessionCookie(c, "test-token", true, "Lax", ".biotron.ca", time.Hour)
 		return c.SendStatus(fiber.StatusNoContent)
 	})

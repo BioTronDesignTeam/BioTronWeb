@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 
 	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/cache"
@@ -33,7 +33,7 @@ type Handler struct {
 	Cfg    Config
 }
 
-func (h *Handler) LoginRedirect(c *fiber.Ctx) error {
+func (h *Handler) LoginRedirect(c fiber.Ctx) error {
 	state, err := newToken()
 	if err != nil {
 		return fiber.ErrInternalServerError
@@ -48,10 +48,10 @@ func (h *Handler) LoginRedirect(c *fiber.Ctx) error {
 		Expires:  time.Now().Add(10 * time.Minute),
 	})
 	setReturnCookie(c, h.safeReturn(c.Query("redirect")), h.Cfg)
-	return c.Redirect(h.GitHub.AuthCodeURL(state), fiber.StatusFound)
+	return c.Redirect().Status(fiber.StatusFound).To(h.GitHub.AuthCodeURL(state))
 }
 
-func (h *Handler) Callback(c *fiber.Ctx) error {
+func (h *Handler) Callback(c fiber.Ctx) error {
 	state := c.Query("state")
 	code := c.Query("code")
 	cookieState := c.Cookies(stateCookie)
@@ -67,7 +67,7 @@ func (h *Handler) Callback(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).SendString("missing code")
 	}
 
-	ctx := c.UserContext()
+	ctx := c.Context()
 	tok, err := h.GitHub.Exchange(ctx, code)
 	if err != nil {
 		log.Printf("auth: oauth exchange: %v", err)
@@ -80,7 +80,7 @@ func (h *Handler) Callback(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadGateway).SendString("authentication failed, please try again")
 	}
 	if !member {
-		return c.Redirect(dest+"/?auth=denied", fiber.StatusFound)
+		return c.Redirect().Status(fiber.StatusFound).To(dest + "/?auth=denied")
 	}
 
 	user, err := h.GitHub.FetchUser(ctx, tok)
@@ -91,7 +91,7 @@ func (h *Handler) Callback(c *fiber.Ctx) error {
 
 	existing, _ := h.Store.GetOperator(ctx, user.ID)
 	if existing != nil && existing.IsBanned {
-		return c.Redirect(dest+"/?auth=banned", fiber.StatusFound)
+		return c.Redirect().Status(fiber.StatusFound).To(dest + "/?auth=banned")
 	}
 
 	forceSuper := h.Cfg.IsSuperuserID != nil && h.Cfg.IsSuperuserID(user.ID)
@@ -116,24 +116,24 @@ func (h *Handler) Callback(c *fiber.Ctx) error {
 	}
 
 	setSessionCookie(c, token, h.Cfg.CookieSecure, h.Cfg.CookieSameSite, h.Cfg.CookieDomain, h.Cfg.SessionTTL)
-	return c.Redirect(dest, fiber.StatusFound)
+	return c.Redirect().Status(fiber.StatusFound).To(dest)
 }
 
-func (h *Handler) Logout(c *fiber.Ctx) error {
+func (h *Handler) Logout(c fiber.Ctx) error {
 	if token := c.Cookies(SessionCookie); token != "" {
 		hash := hashToken(token)
-		if err := h.Store.DeleteSession(c.UserContext(), hash); err != nil {
+		if err := h.Store.DeleteSession(c.Context(), hash); err != nil {
 			log.Printf("auth: delete session on logout: %v", err)
 		}
 		if h.Cache != nil {
-			_ = h.Cache.InvalidateSession(c.UserContext(), hash)
+			_ = h.Cache.InvalidateSession(c.Context(), hash)
 		}
 	}
 	clearSessionCookie(c, h.Cfg.CookieSecure, h.Cfg.CookieSameSite, h.Cfg.CookieDomain)
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
-func (h *Handler) Me(c *fiber.Ctx) error {
+func (h *Handler) Me(c fiber.Ctx) error {
 	op := OperatorFrom(c)
 	if op == nil {
 		return fiber.ErrUnauthorized
@@ -154,8 +154,8 @@ func (h *Handler) Me(c *fiber.Ctx) error {
 	})
 }
 
-func (h *Handler) ListApps(c *fiber.Ctx) error {
-	apps, err := h.Store.ListApps(c.UserContext())
+func (h *Handler) ListApps(c fiber.Ctx) error {
+	apps, err := h.Store.ListApps(c.Context())
 	if err != nil {
 		log.Printf("apps: list: %v", err)
 		return fiber.ErrInternalServerError
@@ -166,8 +166,8 @@ func (h *Handler) ListApps(c *fiber.Ctx) error {
 	return c.JSON(apps)
 }
 
-func (h *Handler) ListPermissions(c *fiber.Ctx) error {
-	perms, err := h.Store.ListPermissions(c.UserContext())
+func (h *Handler) ListPermissions(c fiber.Ctx) error {
+	perms, err := h.Store.ListPermissions(c.Context())
 	if err != nil {
 		log.Printf("permissions: list: %v", err)
 		return fiber.ErrInternalServerError
@@ -178,30 +178,30 @@ func (h *Handler) ListPermissions(c *fiber.Ctx) error {
 	return c.JSON(perms)
 }
 
-func (h *Handler) CreateApp(c *fiber.Ctx) error {
+func (h *Handler) CreateApp(c fiber.Ctx) error {
 	var body struct {
 		ID          string `json:"id"`
 		Name        string `json:"name"`
 		Description string `json:"description"`
 	}
-	if err := c.BodyParser(&body); err != nil || body.ID == "" || body.Name == "" {
+	if err := c.Bind().Body(&body); err != nil || body.ID == "" || body.Name == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "id and name required"})
 	}
-	if err := h.Store.CreateApp(c.UserContext(), body.ID, body.Name, body.Description); err != nil {
+	if err := h.Store.CreateApp(c.Context(), body.ID, body.Name, body.Description); err != nil {
 		log.Printf("apps: create: %v", err)
 		return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "could not create app"})
 	}
 	return c.Status(fiber.StatusCreated).JSON(body)
 }
 
-func (h *Handler) MyGrants(c *fiber.Ctx) error {
+func (h *Handler) MyGrants(c fiber.Ctx) error {
 	op := OperatorFrom(c)
 	var grants []store.Grant
 	var err error
 	if h.Cache != nil {
-		grants, err = h.Cache.ListGrantsForOperator(c.UserContext(), op.GitHubID)
+		grants, err = h.Cache.ListGrantsForOperator(c.Context(), op.GitHubID)
 	} else {
-		grants, err = h.Store.ListGrantsForOperator(c.UserContext(), op.GitHubID)
+		grants, err = h.Store.ListGrantsForOperator(c.Context(), op.GitHubID)
 	}
 	if err != nil {
 		log.Printf("grants: list: %v", err)
@@ -216,9 +216,9 @@ func (h *Handler) MyGrants(c *fiber.Ctx) error {
 	})
 }
 
-func (h *Handler) MyRequests(c *fiber.Ctx) error {
+func (h *Handler) MyRequests(c fiber.Ctx) error {
 	op := OperatorFrom(c)
-	reqs, err := h.Store.ListRequestsForOperator(c.UserContext(), op.GitHubID)
+	reqs, err := h.Store.ListRequestsForOperator(c.Context(), op.GitHubID)
 	if err != nil {
 		log.Printf("requests: mine: %v", err)
 		return fiber.ErrInternalServerError
@@ -229,13 +229,13 @@ func (h *Handler) MyRequests(c *fiber.Ctx) error {
 	return c.JSON(reqs)
 }
 
-func (h *Handler) CreateRequest(c *fiber.Ctx) error {
+func (h *Handler) CreateRequest(c fiber.Ctx) error {
 	op := OperatorFrom(c)
 	var body struct {
 		AppID         string `json:"app_id"`
 		PermissionKey string `json:"permission_key"`
 	}
-	if err := c.BodyParser(&body); err != nil || body.AppID == "" || body.PermissionKey == "" {
+	if err := c.Bind().Body(&body); err != nil || body.AppID == "" || body.PermissionKey == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "app_id and permission_key required"})
 	}
 	if op.IsGuest() {
@@ -245,7 +245,7 @@ func (h *Handler) CreateRequest(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "staff already have full access"})
 	}
 	id := uuid.NewString()
-	if err := h.Store.CreateAccessRequest(c.UserContext(), id, op.GitHubID, body.AppID, body.PermissionKey); err != nil {
+	if err := h.Store.CreateAccessRequest(c.Context(), id, op.GitHubID, body.AppID, body.PermissionKey); err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "permission not found"})
 		}
@@ -255,15 +255,15 @@ func (h *Handler) CreateRequest(c *fiber.Ctx) error {
 		log.Printf("requests: create: %v", err)
 		return fiber.ErrInternalServerError
 	}
-	req, err := h.Store.GetAccessRequest(c.UserContext(), id)
+	req, err := h.Store.GetAccessRequest(c.Context(), id)
 	if err != nil {
 		return c.Status(fiber.StatusCreated).JSON(fiber.Map{"id": id, "status": "pending"})
 	}
 	return c.Status(fiber.StatusCreated).JSON(req)
 }
 
-func (h *Handler) PendingRequests(c *fiber.Ctx) error {
-	reqs, err := h.Store.ListPendingRequests(c.UserContext())
+func (h *Handler) PendingRequests(c fiber.Ctx) error {
+	reqs, err := h.Store.ListPendingRequests(c.Context())
 	if err != nil {
 		log.Printf("requests: pending: %v", err)
 		return fiber.ErrInternalServerError
@@ -274,21 +274,21 @@ func (h *Handler) PendingRequests(c *fiber.Ctx) error {
 	return c.JSON(reqs)
 }
 
-func (h *Handler) ApproveRequest(c *fiber.Ctx) error {
+func (h *Handler) ApproveRequest(c fiber.Ctx) error {
 	return h.reviewRequest(c, true)
 }
 
-func (h *Handler) DenyRequest(c *fiber.Ctx) error {
+func (h *Handler) DenyRequest(c fiber.Ctx) error {
 	return h.reviewRequest(c, false)
 }
 
-func (h *Handler) reviewRequest(c *fiber.Ctx, approve bool) error {
+func (h *Handler) reviewRequest(c fiber.Ctx, approve bool) error {
 	op := OperatorFrom(c)
 	id := c.Params("id")
 	if id == "" {
 		return fiber.ErrBadRequest
 	}
-	req, err := h.Store.GetAccessRequest(c.UserContext(), id)
+	req, err := h.Store.GetAccessRequest(c.Context(), id)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			return fiber.ErrNotFound
@@ -298,9 +298,9 @@ func (h *Handler) reviewRequest(c *fiber.Ctx, approve bool) error {
 
 	var out *store.AccessRequest
 	if approve {
-		out, err = h.Store.ApproveRequest(c.UserContext(), id, op.GitHubID)
+		out, err = h.Store.ApproveRequest(c.Context(), id, op.GitHubID)
 	} else {
-		out, err = h.Store.DenyRequest(c.UserContext(), id, op.GitHubID)
+		out, err = h.Store.DenyRequest(c.Context(), id, op.GitHubID)
 	}
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
@@ -313,21 +313,21 @@ func (h *Handler) reviewRequest(c *fiber.Ctx, approve bool) error {
 		return fiber.ErrInternalServerError
 	}
 	if approve && h.Cache != nil {
-		_ = h.Cache.InvalidateGrants(c.UserContext(), req.RequesterID)
+		_ = h.Cache.InvalidateGrants(c.Context(), req.RequesterID)
 	}
 	return c.JSON(out)
 }
 
-func (h *Handler) CreateGrant(c *fiber.Ctx) error {
+func (h *Handler) CreateGrant(c fiber.Ctx) error {
 	var body struct {
 		OperatorID    *int64 `json:"operator_id"`
 		AppID         string `json:"app_id"`
 		PermissionKey string `json:"permission_key"`
 	}
-	if err := c.BodyParser(&body); err != nil || body.OperatorID == nil || *body.OperatorID < 0 || body.AppID == "" || body.PermissionKey == "" {
+	if err := c.Bind().Body(&body); err != nil || body.OperatorID == nil || *body.OperatorID < 0 || body.AppID == "" || body.PermissionKey == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "operator_id, app_id, permission_key required"})
 	}
-	if err := h.Store.CreateGrant(c.UserContext(), *body.OperatorID, body.AppID, body.PermissionKey); err != nil {
+	if err := h.Store.CreateGrant(c.Context(), *body.OperatorID, body.AppID, body.PermissionKey); err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "permission not found"})
 		}
@@ -335,33 +335,33 @@ func (h *Handler) CreateGrant(c *fiber.Ctx) error {
 		return fiber.ErrInternalServerError
 	}
 	if h.Cache != nil {
-		_ = h.Cache.InvalidateGrants(c.UserContext(), *body.OperatorID)
+		_ = h.Cache.InvalidateGrants(c.Context(), *body.OperatorID)
 	}
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
-func (h *Handler) DeleteGrant(c *fiber.Ctx) error {
+func (h *Handler) DeleteGrant(c fiber.Ctx) error {
 	var body struct {
 		OperatorID    *int64 `json:"operator_id"`
 		AppID         string `json:"app_id"`
 		PermissionKey string `json:"permission_key"`
 	}
-	if err := c.BodyParser(&body); err != nil || body.OperatorID == nil || *body.OperatorID < 0 || body.AppID == "" || body.PermissionKey == "" {
+	if err := c.Bind().Body(&body); err != nil || body.OperatorID == nil || *body.OperatorID < 0 || body.AppID == "" || body.PermissionKey == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "operator_id, app_id, permission_key required"})
 	}
-	if err := h.Store.DeleteGrant(c.UserContext(), *body.OperatorID, body.AppID, body.PermissionKey); err != nil {
+	if err := h.Store.DeleteGrant(c.Context(), *body.OperatorID, body.AppID, body.PermissionKey); err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			return fiber.ErrNotFound
 		}
 		return fiber.ErrInternalServerError
 	}
 	if h.Cache != nil {
-		_ = h.Cache.InvalidateGrants(c.UserContext(), *body.OperatorID)
+		_ = h.Cache.InvalidateGrants(c.Context(), *body.OperatorID)
 	}
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
-func (h *Handler) Check(c *fiber.Ctx) error {
+func (h *Handler) Check(c fiber.Ctx) error {
 	op := OperatorFrom(c)
 	appID := c.Query("app")
 	key := c.Query("permission")
@@ -371,15 +371,15 @@ func (h *Handler) Check(c *fiber.Ctx) error {
 	if appID == "" || key == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "app and permission query params required"})
 	}
-	ok, err := h.Store.Allowed(c.UserContext(), op, appID, key)
+	ok, err := h.Store.Allowed(c.Context(), op, appID, key)
 	if err != nil {
 		return fiber.ErrInternalServerError
 	}
 	return c.JSON(fiber.Map{"allowed": ok})
 }
 
-func (h *Handler) ListOrgMembers(c *fiber.Ctx) error {
-	members, err := h.Store.ListOrgMembers(c.UserContext())
+func (h *Handler) ListOrgMembers(c fiber.Ctx) error {
+	members, err := h.Store.ListOrgMembers(c.Context())
 	if err != nil {
 		log.Printf("org: list: %v", err)
 		return fiber.ErrInternalServerError
@@ -390,12 +390,12 @@ func (h *Handler) ListOrgMembers(c *fiber.Ctx) error {
 	return c.JSON(members)
 }
 
-func (h *Handler) MemberGrants(c *fiber.Ctx) error {
+func (h *Handler) MemberGrants(c fiber.Ctx) error {
 	id, err := strconv.ParseInt(c.Params("id"), 10, 64)
 	if err != nil {
 		return fiber.ErrBadRequest
 	}
-	grants, err := h.Store.ListGrantsForOperator(c.UserContext(), id)
+	grants, err := h.Store.ListGrantsForOperator(c.Context(), id)
 	if err != nil {
 		return fiber.ErrInternalServerError
 	}
@@ -405,15 +405,15 @@ func (h *Handler) MemberGrants(c *fiber.Ctx) error {
 	return c.JSON(grants)
 }
 
-func (h *Handler) BanMember(c *fiber.Ctx) error {
+func (h *Handler) BanMember(c fiber.Ctx) error {
 	return h.setBanned(c, true)
 }
 
-func (h *Handler) UnbanMember(c *fiber.Ctx) error {
+func (h *Handler) UnbanMember(c fiber.Ctx) error {
 	return h.setBanned(c, false)
 }
 
-func (h *Handler) setBanned(c *fiber.Ctx, banned bool) error {
+func (h *Handler) setBanned(c fiber.Ctx, banned bool) error {
 	actor := OperatorFrom(c)
 	id, err := strconv.ParseInt(c.Params("id"), 10, 64)
 	if err != nil {
@@ -425,7 +425,7 @@ func (h *Handler) setBanned(c *fiber.Ctx, banned bool) error {
 	if id == actor.GitHubID {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "cannot ban yourself"})
 	}
-	target, err := h.Store.GetOperator(c.UserContext(), id)
+	target, err := h.Store.GetOperator(c.Context(), id)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			return fiber.ErrNotFound
@@ -435,16 +435,16 @@ func (h *Handler) setBanned(c *fiber.Ctx, banned bool) error {
 	if target.IsSuperuser && !actor.IsSuperuser {
 		return fiber.ErrForbidden
 	}
-	if err := h.Store.SetBanned(c.UserContext(), id, banned); err != nil {
+	if err := h.Store.SetBanned(c.Context(), id, banned); err != nil {
 		return fiber.ErrInternalServerError
 	}
 	if banned {
-		_, _ = h.Store.DeleteSessionsForOperator(c.UserContext(), id)
+		_, _ = h.Store.DeleteSessionsForOperator(c.Context(), id)
 	}
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
-func (h *Handler) SetManager(c *fiber.Ctx) error {
+func (h *Handler) SetManager(c fiber.Ctx) error {
 	actor := OperatorFrom(c)
 	id, err := strconv.ParseInt(c.Params("id"), 10, 64)
 	if err != nil {
@@ -453,7 +453,7 @@ func (h *Handler) SetManager(c *fiber.Ctx) error {
 	var body struct {
 		Manager bool `json:"manager"`
 	}
-	if err := c.BodyParser(&body); err != nil {
+	if err := c.Bind().Body(&body); err != nil {
 		return fiber.ErrBadRequest
 	}
 	if id == store.GuestGitHubID {
@@ -462,17 +462,17 @@ func (h *Handler) SetManager(c *fiber.Ctx) error {
 	if id == actor.GitHubID {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "cannot change your own manager flag"})
 	}
-	if err := h.Store.SetManager(c.UserContext(), id, body.Manager); err != nil {
+	if err := h.Store.SetManager(c.Context(), id, body.Manager); err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			return fiber.ErrNotFound
 		}
 		return fiber.ErrInternalServerError
 	}
-	_, _ = h.Store.DeleteSessionsForOperator(c.UserContext(), id)
+	_, _ = h.Store.DeleteSessionsForOperator(c.Context(), id)
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
-func clearStateCookie(c *fiber.Ctx, cfg Config) {
+func clearStateCookie(c fiber.Ctx, cfg Config) {
 	c.Cookie(&fiber.Cookie{
 		Name:     stateCookie,
 		Value:    "",

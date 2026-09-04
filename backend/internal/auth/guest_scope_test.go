@@ -4,7 +4,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 
 	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/store"
 )
@@ -12,7 +12,7 @@ import (
 func TestMeRequiresMatchingProductForGuest(t *testing.T) {
 	h := &Handler{}
 	app := fiber.New()
-	app.Get("/me", func(c *fiber.Ctx) error {
+	app.Get("/me", func(c fiber.Ctx) error {
 		c.Locals(OperatorLocal, &store.SessionOperator{
 			GitHubID:   store.GuestGitHubID,
 			Login:      store.GuestLogin,

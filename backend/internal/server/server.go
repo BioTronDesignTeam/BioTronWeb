@@ -2,14 +2,13 @@ package server
 
 import (
 	"errors"
-	"strings"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/cors"
-	"github.com/gofiber/fiber/v2/middleware/limiter"
-	"github.com/gofiber/fiber/v2/middleware/logger"
-	"github.com/gofiber/fiber/v2/middleware/recover"
+	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/cors"
+	"github.com/gofiber/fiber/v3/middleware/limiter"
+	"github.com/gofiber/fiber/v3/middleware/logger"
+	"github.com/gofiber/fiber/v3/middleware/recover"
 
 	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/auth"
 	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/eventlog"
@@ -17,25 +16,38 @@ import (
 
 func New(h *auth.Handler, allowedOrigins []string, trustedProxies []string, events *eventlog.Client) *fiber.App {
 	app := fiber.New(fiber.Config{
-		DisableStartupMessage:   true,
-		ReadTimeout:             15 * time.Second,
-		IdleTimeout:             60 * time.Second,
-		EnableTrustedProxyCheck: true,
-		TrustedProxies:          trustedProxies,
-		ProxyHeader:             "Cf-Connecting-Ip",
+		ReadTimeout: 15 * time.Second,
+		IdleTimeout: 60 * time.Second,
+		// Fiber v3 renamed EnableTrustedProxyCheck/TrustedProxies to
+		// TrustProxy/TrustProxyConfig.Proxies. The meaning is unchanged: only
+		// a request arriving from one of these addresses may set the client IP
+		// through ProxyHeader, so the per-IP limiter keys on the real caller
+		// instead of collapsing into one bucket for the edge.
+		TrustProxy:       true,
+		TrustProxyConfig: fiber.TrustProxyConfig{Proxies: trustedProxies},
+		ProxyHeader:      "Cf-Connecting-Ip",
 	})
 
 	app.Use(logRequests(events))
 	app.Use(recover.New(recover.Config{EnableStackTrace: true}))
 	app.Use(logger.New())
+	// v3 takes slices where v2 took comma-joined strings; the allow-list is
+	// still exact-match, still credentialed, and the middleware still sets
+	// Vary: Origin on every non-wildcard response.
 	app.Use(cors.New(cors.Config{
-		AllowOrigins:     strings.Join(allowedOrigins, ","),
+		AllowOrigins:     allowedOrigins,
 		AllowCredentials: true,
-		AllowMethods:     "GET,POST,DELETE,PATCH,OPTIONS",
-		AllowHeaders:     "Content-Type,X-Requested-With",
+		AllowMethods: []string{
+			fiber.MethodGet,
+			fiber.MethodPost,
+			fiber.MethodDelete,
+			fiber.MethodPatch,
+			fiber.MethodOptions,
+		},
+		AllowHeaders: []string{fiber.HeaderContentType, "X-Requested-With"},
 	}))
 
-	app.Get("/health", func(c *fiber.Ctx) error {
+	app.Get("/health", func(c fiber.Ctx) error {
 		return c.JSON(fiber.Map{"status": "ok"})
 	})
 
@@ -74,7 +86,7 @@ func New(h *auth.Handler, allowedOrigins []string, trustedProxies []string, even
 }
 
 func logRequests(events *eventlog.Client) fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		started := time.Now()
 		err := c.Next()
 		if c.Path() == "/health" {

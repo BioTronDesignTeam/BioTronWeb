@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
 const SessionCookie = "oauth_session"
@@ -37,7 +37,7 @@ func sameSite(s string) string {
 	}
 }
 
-func setSessionCookie(c *fiber.Ctx, token string, secure bool, sameSiteStr, domain string, ttl time.Duration) {
+func setSessionCookie(c fiber.Ctx, token string, secure bool, sameSiteStr, domain string, ttl time.Duration) {
 	c.Cookie(&fiber.Cookie{
 		Name:     SessionCookie,
 		Value:    token,
@@ -50,7 +50,7 @@ func setSessionCookie(c *fiber.Ctx, token string, secure bool, sameSiteStr, doma
 	})
 }
 
-func clearSessionCookie(c *fiber.Ctx, secure bool, sameSiteStr, domain string) {
+func clearSessionCookie(c fiber.Ctx, secure bool, sameSiteStr, domain string) {
 	c.Cookie(&fiber.Cookie{
 		Name:     SessionCookie,
 		Value:    "",

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
 const returnCookie = "oauth_return"
@@ -28,7 +28,7 @@ func (h *Handler) safeReturn(raw string) string {
 	return fallback
 }
 
-func setReturnCookie(c *fiber.Ctx, dest string, cfg Config) {
+func setReturnCookie(c fiber.Ctx, dest string, cfg Config) {
 	c.Cookie(&fiber.Cookie{
 		Name:     returnCookie,
 		Value:    dest,
@@ -40,7 +40,7 @@ func setReturnCookie(c *fiber.Ctx, dest string, cfg Config) {
 	})
 }
 
-func clearReturnCookie(c *fiber.Ctx, cfg Config) {
+func clearReturnCookie(c fiber.Ctx, cfg Config) {
 	c.Cookie(&fiber.Cookie{
 		Name:     returnCookie,
 		Value:    "",

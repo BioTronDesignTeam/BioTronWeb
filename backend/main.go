@@ -8,6 +8,7 @@ import (
 	"time"
 	_ "time/tzdata"
 
+	"github.com/gofiber/fiber/v3"
 	"github.com/joho/godotenv"
 
 	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/auth"
@@ -84,7 +85,9 @@ func main() {
 
 	go func() {
 		log.Printf("oauth-manager listening on %s", addr)
-		if err := app.Listen(addr); err != nil {
+		// v3 moved DisableStartupMessage out of fiber.Config and into the
+		// per-listener config; the banner stays suppressed.
+		if err := app.Listen(addr, fiber.ListenConfig{DisableStartupMessage: true}); err != nil {
 			log.Fatalf("listen: %v", err)
 		}
 	}()

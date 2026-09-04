@@ -5,7 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 
 	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/store"
 )
@@ -71,7 +71,7 @@ func TestCheckAnswersOKWithVerdictForValidSessions(t *testing.T) {
 			// RequireSession is covered above; here the operator it would have
 			// loaded is injected directly so the verdict needs no database.
 			app := fiber.New()
-			app.Get("/v1/check", func(c *fiber.Ctx) error {
+			app.Get("/v1/check", func(c fiber.Ctx) error {
 				c.Locals(OperatorLocal, tc.operator)
 				return h.Check(c)
 			})
