@@ -94,7 +94,7 @@ export default function WorkshopRoom({ reduced = false }: RoomProps) {
             [-0.35, -0.3],
             [0.5, -0.25],
           ].map(([x, y], i) => (
-            <mesh key={i} position={[x, y, 0.07]} rotation={[0, 0, (i - 1.5) * 0.06]}>
+            <mesh key={`${x},${y}`} position={[x, y, 0.07]} rotation={[0, 0, (i - 1.5) * 0.06]}>
               <boxGeometry args={[0.6, 0.42, 0.01]} />
               <meshStandardMaterial color="#ffffff" emissive={accent} emissiveIntensity={0.05} />
             </mesh>
@@ -134,8 +134,8 @@ function Bench({ x, z }: { x: number; z: number }) {
         [1.05, -0.55],
         [-1.05, 0.55],
         [1.05, 0.55],
-      ].map(([lx, lz], i) => (
-        <mesh key={i} position={[lx, 0.28, lz]}>
+      ].map(([lx, lz]) => (
+        <mesh key={`${lx},${lz}`} position={[lx, 0.28, lz]}>
           <boxGeometry args={[0.1, 0.66, 0.1]} />
           <meshStandardMaterial color="#0e1620" metalness={0.5} roughness={0.5} />
         </mesh>

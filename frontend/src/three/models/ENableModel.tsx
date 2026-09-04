@@ -1,7 +1,65 @@
-import { useRef } from 'react';
+import { useRef, type MutableRefObject } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Group } from 'three';
 import type { ModelProps } from './types';
+
+/** Printed-plastic body material. A plain helper, so it is not a component. */
+const printedMaterial = (color: string, emissive = 0.05) => (
+  <meshStandardMaterial
+    color="#d9d2cb"
+    metalness={0.05}
+    roughness={0.7}
+    emissive={color}
+    emissiveIntensity={emissive}
+  />
+);
+
+/** Glowing accent material used for the knuckle and wrist joints. */
+const jointMaterial = (color: string) => (
+  <meshStandardMaterial color={color} emissive={color} emissiveIntensity={2} toneMapped={false} />
+);
+
+interface FingerProps {
+  x: number;
+  len?: number;
+  color: string;
+  /** Shared list the parent's frame loop curls; the finger registers itself. */
+  fingers: MutableRefObject<Group[]>;
+  refIndex: number;
+}
+
+/**
+ * One finger: proximal capsule, glowing knuckle, and a canted distal segment.
+ * Lives at module scope so React keeps the same instance across parent renders.
+ */
+function Finger({ x, len = 0.5, color, fingers, refIndex }: FingerProps) {
+  return (
+    <group
+      position={[x, 0.35, 0]}
+      ref={(el) => {
+        if (el) fingers.current[refIndex] = el;
+      }}
+    >
+      {/* proximal */}
+      <mesh position={[0, len / 2, 0]} castShadow>
+        <capsuleGeometry args={[0.05, len, 6, 12]} />
+        {printedMaterial(color)}
+      </mesh>
+      {/* knuckle joint */}
+      <mesh position={[0, 0, 0]}>
+        <sphereGeometry args={[0.06, 12, 12]} />
+        {jointMaterial(color)}
+      </mesh>
+      {/* distal */}
+      <group position={[0, len, 0]} rotation={[0.3, 0, 0]}>
+        <mesh position={[0, 0.18, 0]} castShadow>
+          <capsuleGeometry args={[0.045, 0.32, 6, 12]} />
+          {printedMaterial(color)}
+        </mesh>
+      </group>
+    </group>
+  );
+}
 
 /**
  * Stylized 3D-printed prosthetic hand: a palm block with four fingers and a
@@ -22,72 +80,38 @@ export default function ENableModel({ color, animate = true }: ModelProps) {
     if (root.current && animate) root.current.rotation.y = Math.sin(t * 0.4) * 0.2;
   });
 
-  const printed = (emissive = 0.05) => (
-    <meshStandardMaterial color="#d9d2cb" metalness={0.05} roughness={0.7} emissive={color} emissiveIntensity={emissive} />
-  );
-  const joint = (
-    <meshStandardMaterial color={color} emissive={color} emissiveIntensity={2} toneMapped={false} />
-  );
-
-  const Finger = ({ x, refIndex, len = 0.5 }: { x: number; refIndex: number; len?: number }) => (
-    <group
-      position={[x, 0.35, 0]}
-      ref={(el) => {
-        if (el) fingers.current[refIndex] = el;
-      }}
-    >
-      {/* proximal */}
-      <mesh position={[0, len / 2, 0]} castShadow>
-        <capsuleGeometry args={[0.05, len, 6, 12]} />
-        {printed()}
-      </mesh>
-      {/* knuckle joint */}
-      <mesh position={[0, 0, 0]}>
-        <sphereGeometry args={[0.06, 12, 12]} />
-        {joint}
-      </mesh>
-      {/* distal */}
-      <group position={[0, len, 0]} rotation={[0.3, 0, 0]}>
-        <mesh position={[0, 0.18, 0]} castShadow>
-          <capsuleGeometry args={[0.045, 0.32, 6, 12]} />
-          {printed()}
-        </mesh>
-      </group>
-    </group>
-  );
-
   return (
     <group ref={root} rotation={[0.2, 0, 0]} dispose={null}>
       {/* Palm */}
       <mesh position={[0, 0, 0]} castShadow>
         <boxGeometry args={[0.7, 0.45, 0.22]} />
-        {printed(0.08)}
+        {printedMaterial(color, 0.08)}
       </mesh>
       {/* Wrist cuff */}
       <mesh position={[0, -0.42, 0]} castShadow>
         <cylinderGeometry args={[0.26, 0.3, 0.4, 20]} />
-        {printed()}
+        {printedMaterial(color)}
       </mesh>
       <mesh position={[0, -0.24, 0.02]} rotation={[Math.PI / 2, 0, 0]}>
         <torusGeometry args={[0.2, 0.03, 12, 24]} />
-        {joint}
+        {jointMaterial(color)}
       </mesh>
 
       {/* Fingers */}
-      <Finger x={-0.24} refIndex={0} len={0.42} />
-      <Finger x={-0.08} refIndex={1} len={0.52} />
-      <Finger x={0.08} refIndex={2} len={0.5} />
-      <Finger x={0.24} refIndex={3} len={0.4} />
+      <Finger x={-0.24} refIndex={0} len={0.42} color={color} fingers={fingers} />
+      <Finger x={-0.08} refIndex={1} len={0.52} color={color} fingers={fingers} />
+      <Finger x={0.08} refIndex={2} len={0.5} color={color} fingers={fingers} />
+      <Finger x={0.24} refIndex={3} len={0.4} color={color} fingers={fingers} />
 
       {/* Thumb */}
       <group ref={thumb} position={[-0.34, -0.05, 0.05]} rotation={[0, 0, -0.5]}>
         <mesh position={[-0.18, 0, 0]} rotation={[0, 0, Math.PI / 2]} castShadow>
           <capsuleGeometry args={[0.055, 0.34, 6, 12]} />
-          {printed()}
+          {printedMaterial(color)}
         </mesh>
         <mesh position={[0, 0, 0]}>
           <sphereGeometry args={[0.06, 12, 12]} />
-          {joint}
+          {jointMaterial(color)}
         </mesh>
       </group>
     </group>
