@@ -41,6 +41,121 @@ export type AuthScreenProps = {
   className?: string;
 };
 
+/**
+ * Notices carry no id of their own, so derive a stable one from what the notice
+ * actually says. Two notices that read the same are disambiguated by an
+ * occurrence suffix, which keeps keys unique without depending on array order.
+ */
+function noticeKeys(notices: readonly AuthNotice[]): string[] {
+  const seen = new Map<string, number>();
+  return notices.map((notice) => {
+    const text = typeof notice.content === 'string' || typeof notice.content === 'number'
+      ? String(notice.content)
+      : 'node';
+    const base = `${notice.tone ?? 'info'}:${text}`;
+    const occurrence = seen.get(base) ?? 0;
+    seen.set(base, occurrence + 1);
+    return occurrence === 0 ? base : `${base}~${occurrence}`;
+  });
+}
+
+function AuthNotices({ notices }: { notices: readonly AuthNotice[] }) {
+  const keys = noticeKeys(notices);
+  return (
+    <>
+      {notices.map((notice, position) => (
+        <div
+          className={`biotron-auth-notice biotron-auth-notice--${notice.tone ?? 'info'}`}
+          role={notice.tone === 'error' ? 'alert' : 'status'}
+          key={keys[position]}
+        >
+          {notice.content}
+        </div>
+      ))}
+    </>
+  );
+}
+
+function AuthActionControl({ action }: { action: AuthAction }) {
+  const contents = (
+    <>
+      {action.icon === 'github' ? <GitHubMark /> : action.icon}
+      {action.label}
+    </>
+  );
+
+  if (action.href) {
+    return <a className="biotron-auth-action" href={action.href}>{contents}</a>;
+  }
+  return (
+    <button className="biotron-auth-action" type="button" onClick={action.onClick}>{contents}</button>
+  );
+}
+
+function guestLabels(guestAccess: GuestAccess) {
+  return {
+    label: guestAccess.label ?? 'Daily guest key',
+    placeholder: guestAccess.placeholder ?? 'XXXX-XXXX-XXXX',
+    submitLabel: guestAccess.submitLabel ?? 'Continue as guest',
+    submittingLabel: guestAccess.submittingLabel ?? 'Checking…',
+    errorMessage: guestAccess.errorMessage ?? 'Invalid or expired key.',
+  };
+}
+
+function useGuestSubmission(guestAccess: GuestAccess) {
+  const [guestKey, setGuestKey] = useState('');
+  const [failed, setFailed] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  const change = (value: string) => {
+    setGuestKey(value);
+    setFailed(false);
+  };
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!guestKey.trim()) return;
+    setSubmitting(true);
+    setFailed(false);
+    try {
+      const accepted = await guestAccess.onSubmit(guestKey.trim());
+      if (accepted === false) setFailed(true);
+    } catch {
+      setFailed(true);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return { guestKey, failed, submitting, change, submit };
+}
+
+function GuestAccessForm({ guestAccess }: { guestAccess: GuestAccess }) {
+  const labels = guestLabels(guestAccess);
+  const { guestKey, failed, submitting, change, submit } = useGuestSubmission(guestAccess);
+
+  return (
+    <form className="biotron-guest-form" onSubmit={submit}>
+      <label htmlFor="biotron-guest-key">{labels.label}</label>
+      <input
+        id="biotron-guest-key"
+        value={guestKey}
+        onChange={(event) => change(event.target.value)}
+        placeholder={labels.placeholder}
+        autoComplete="off"
+      />
+      {failed && (
+        <p className="biotron-guest-form__error" role="alert">
+          {labels.errorMessage}
+        </p>
+      )}
+      <button type="submit" disabled={submitting || !guestKey.trim()}>
+        {submitting ? labels.submittingLabel : labels.submitLabel}
+      </button>
+    </form>
+  );
+}
+
 export function AuthScreen({
   productName,
   description,
@@ -52,32 +167,6 @@ export function AuthScreen({
   showThemeToggle = true,
   className = '',
 }: AuthScreenProps) {
-  const [guestKey, setGuestKey] = useState('');
-  const [guestError, setGuestError] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-
-  async function submitGuest(event: FormEvent) {
-    event.preventDefault();
-    if (!guestAccess || !guestKey.trim()) return;
-    setSubmitting(true);
-    setGuestError(false);
-    try {
-      const accepted = await guestAccess.onSubmit(guestKey.trim());
-      if (accepted === false) setGuestError(true);
-    } catch {
-      setGuestError(true);
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  const actionContents = (
-    <>
-      {action?.icon === 'github' ? <GitHubMark /> : action?.icon}
-      {action?.label}
-    </>
-  );
-
   return (
     <main className={`biotron-auth-screen ${className}`.trim()}>
       {showThemeToggle && <ThemeToggle className="biotron-auth-screen__theme" />}
@@ -85,47 +174,13 @@ export function AuthScreen({
         <Brand className="biotron-auth-card__brand" />
         <h1>{productName}</h1>
         {description && <div className="biotron-auth-card__description">{description}</div>}
-        {notices.map((notice, index) => (
-          <div
-            className={`biotron-auth-notice biotron-auth-notice--${notice.tone ?? 'info'}`}
-            role={notice.tone === 'error' ? 'alert' : 'status'}
-            key={index}
-          >
-            {notice.content}
-          </div>
-        ))}
-        {action && (action.href ? (
-          <a className="biotron-auth-action" href={action.href}>{actionContents}</a>
-        ) : (
-          <button className="biotron-auth-action" type="button" onClick={action.onClick}>{actionContents}</button>
-        ))}
+        <AuthNotices notices={notices} />
+        {action && <AuthActionControl action={action} />}
         {loading && <div className="biotron-auth-loading" aria-label="Loading" />}
         {guestAccess && (
           <>
             <div className="biotron-auth-divider"><span />or<span /></div>
-            <form className="biotron-guest-form" onSubmit={submitGuest}>
-              <label htmlFor="biotron-guest-key">{guestAccess.label ?? 'Daily guest key'}</label>
-              <input
-                id="biotron-guest-key"
-                value={guestKey}
-                onChange={(event) => {
-                  setGuestKey(event.target.value);
-                  setGuestError(false);
-                }}
-                placeholder={guestAccess.placeholder ?? 'XXXX-XXXX-XXXX'}
-                autoComplete="off"
-              />
-              {guestError && (
-                <p className="biotron-guest-form__error" role="alert">
-                  {guestAccess.errorMessage ?? 'Invalid or expired key.'}
-                </p>
-              )}
-              <button type="submit" disabled={submitting || !guestKey.trim()}>
-                {submitting
-                  ? guestAccess.submittingLabel ?? 'Checking…'
-                  : guestAccess.submitLabel ?? 'Continue as guest'}
-              </button>
-            </form>
+            <GuestAccessForm guestAccess={guestAccess} />
           </>
         )}
         {footer && <div className="biotron-auth-card__footer">{footer}</div>}
