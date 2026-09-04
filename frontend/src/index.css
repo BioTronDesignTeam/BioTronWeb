@@ -310,8 +310,12 @@ h1, h2, h3, p { margin-top: 0; }
   .log-row__meta time { width: 100%; margin-left: 0; }
 }
 
-/* Touch pointers get the full 44px target on every control, including the
-   shared BioTronStyle chrome, which is sized for a mouse by default. */
+/* Touch pointers get the full 44px target on every control Logger owns.
+   The shared theme toggle and account trigger are deliberately absent:
+   BioTronStyle now extends their hit areas with an invisible overlay, so
+   forcing a min-height here would visibly stretch them and leave Logger the
+   only frontend where that chrome renders a different size. .biotron-button
+   and the logout item stay, because the library does not cover those. */
 @media (pointer: coarse) {
   .button,
   .inspect-link,
@@ -321,8 +325,6 @@ h1, h2, h3, p { margin-top: 0; }
   .search-field input,
   .date-fields input,
   .biotron-button,
-  .biotron-theme-toggle,
-  .biotron-user-menu__trigger,
   .biotron-user-menu__logout {
     min-height: 44px;
   }
