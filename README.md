@@ -35,7 +35,7 @@ docker compose up --build
 ```
 
 - UI: http://localhost:5173  
-- API: http://localhost:18080/health  
+- API: http://localhost:8080/health  
 
 For live development, reopen the repository in its devcontainer and run the
 Vite and Go processes directly. The root Compose file builds deployment-shaped
@@ -54,8 +54,23 @@ from starting. Request metadata never includes query strings, cookies, or
 credentials.
 
 Register a GitHub OAuth App under BioTronDesignTeam with callback
-`http://localhost:18080/auth/github/callback`. Put your GitHub numeric user id in
+`http://localhost:8080/auth/github/callback`. Put your GitHub numeric user id in
 `SUPERUSER_GITHUB_IDS` so the first login can approve requests.
 
-Default host ports: API **18080** and UI **5173**. Shared Postgres and Redis are
-owned by `Server`.
+Default host ports: API **8080** and UI **5173**. The GitHub OAuth callback is
+registered against `8080`, so this API port is fixed while the other BioTron
+services take the ports beside it.
+
+| Service | Frontend | API |
+| --- | --- | --- |
+| OAuthManager | `5173` | `8080` |
+| Exo (`exo-gui`) | `5174` | `8081` |
+| Logger | `5175` | `8082` |
+| BiotronCalendar | `5176` | `8083` |
+| Biotron site | `5177` | n/a |
+| Sprinter | `5178` | `8084` |
+
+`CORS_ORIGINS` must list every product frontend in both its `localhost` and
+`127.0.0.1` form, because browsers treat those as different origins.
+
+Shared Postgres and Redis are owned by `Server`.

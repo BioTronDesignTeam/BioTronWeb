@@ -6,13 +6,13 @@
   },
   "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
   "remoteUser": "node",
-  "forwardPorts": [5173, 18080],
+  "forwardPorts": [5173, 8080],
   "portsAttributes": {
     "5173": {
       "label": "OAuthManager UI",
       "onAutoForward": "openBrowserOnce"
     },
-    "18080": {
+    "8080": {
       "label": "OAuthManager API",
       "onAutoForward": "notify"
     }
