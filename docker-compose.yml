@@ -20,7 +20,7 @@ services:
       OAUTH_MANAGER_URL: ${OAUTH_MANAGER_URL:-http://oauth-manager:8080}
       PORT: "8080"
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5174}
-      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-127.0.0.1,::1}
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-127.0.0.1,::1,172.16.0.0/12}
       LOGGER_URL: ${LOGGER_URL:-http://logger-api:8080}
       LOGGER_INGEST_TOKEN: ${LOGGER_INGEST_TOKEN:-}
       LOG_LEVEL: ${LOG_LEVEL:-info}
