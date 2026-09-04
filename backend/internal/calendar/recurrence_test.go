@@ -41,6 +41,95 @@ func TestExpandWeeklySeriesAcrossDaylightSaving(t *testing.T) {
 	}
 }
 
+// 2026 transitions in America/Toronto: spring forward Sunday 8 March (02:00 EST
+// jumps to 03:00 EDT) and fall back Sunday 1 November (02:00 EDT returns to
+// 01:00 EST). The fall-back case is covered above; this covers spring forward.
+func TestExpandWeeklySeriesAcrossSpringForward(t *testing.T) {
+	location, err := time.LoadLocation("America/Toronto")
+	if err != nil {
+		t.Fatal(err)
+	}
+	until, _ := ParseLocalDate("2026-03-22")
+	start, _ := ParseLocalDateTime("2026-03-01T18:00:00")
+	end, _ := ParseLocalDateTime("2026-03-01T19:00:00")
+	series := model.EventSeries{
+		ID: "series", UID: "series@biotron.ca", ScopeID: "scope", State: model.EventPublished,
+		Title: "Weekly meeting", StartsAtLocal: start, EndsAtLocal: end,
+		Timezone: "America/Toronto", RecurrenceUntil: &until,
+	}
+
+	occurrences, err := Expand([]model.EventSeries{series},
+		time.Date(2026, 2, 1, 0, 0, 0, 0, location),
+		time.Date(2026, 4, 1, 0, 0, 0, 0, location), location)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(occurrences) != 4 {
+		t.Fatalf("expected 4 occurrences, got %d", len(occurrences))
+	}
+	for _, occurrence := range occurrences {
+		if occurrence.StartsAt.Hour() != 18 || occurrence.EndsAt.Hour() != 19 {
+			t.Fatalf("wall-clock hour changed at %s", occurrence.StartsAt)
+		}
+	}
+	// 1 March is EST, 8 March onwards is EDT.
+	if occurrences[0].StartsAt.Format("-0700") != "-0500" || occurrences[1].StartsAt.Format("-0700") != "-0400" {
+		t.Fatalf("expected the UTC offset to change over spring forward: %s then %s",
+			occurrences[0].StartsAt, occurrences[1].StartsAt)
+	}
+}
+
+// A nonexistent wall clock is resolved with the offset in force before the gap,
+// per RFC 5545 section 3.3.5, so the meeting lands on the first instant after
+// the skipped hour rather than an hour earlier than every subscriber sees it.
+func TestInLocationMovesNonexistentWallClockForward(t *testing.T) {
+	location, _ := time.LoadLocation("America/Toronto")
+	skipped, _ := ParseLocalDateTime("2026-03-08T02:30:00")
+
+	resolved := InLocation(skipped, location)
+	if got := resolved.Format("2006-01-02T15:04:05 -0700 MST"); got != "2026-03-08T03:30:00 -0400 EDT" {
+		t.Fatalf("nonexistent 02:30 resolved to %s, want 03:30 EDT", got)
+	}
+	before, _ := ParseLocalDateTime("2026-03-08T01:30:00")
+	if !resolved.After(InLocation(before, location)) {
+		t.Fatal("a skipped local time must not resolve earlier than the hour before the gap")
+	}
+}
+
+// An ambiguous wall clock resolves to the first of its two instants, again per
+// RFC 5545 section 3.3.5, matching what a subscriber's client does with the
+// same TZID value.
+func TestInLocationResolvesAmbiguousWallClockToTheFirstInstant(t *testing.T) {
+	location, _ := time.LoadLocation("America/Toronto")
+	repeated, _ := ParseLocalDateTime("2026-11-01T01:30:00")
+
+	resolved := InLocation(repeated, location)
+	if got := resolved.Format("2006-01-02T15:04:05 -0700 MST"); got != "2026-11-01T01:30:00 -0400 EDT" {
+		t.Fatalf("ambiguous 01:30 resolved to %s, want the earlier EDT instant", got)
+	}
+	if resolved.Add(time.Hour).Format("-0700") != "-0500" {
+		t.Fatal("expected the repeated hour to be followed by EST")
+	}
+}
+
+// Every wall clock that does exist must be preserved exactly, including the
+// hours either side of both transitions.
+func TestInLocationPreservesExistingWallClocks(t *testing.T) {
+	location, _ := time.LoadLocation("America/Toronto")
+	for _, wall := range []string{
+		"2026-03-08T01:30:00", "2026-03-08T03:30:00", "2026-03-08T18:00:00",
+		"2026-11-01T00:30:00", "2026-11-01T02:30:00", "2026-07-04T12:00:00",
+	} {
+		value, err := ParseLocalDateTime(wall)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := FormatLocal(InLocation(value, location)); got != wall {
+			t.Fatalf("InLocation(%s) = %s, want the same wall clock", wall, got)
+		}
+	}
+}
+
 func TestExpandAppliesMovedOccurrenceByOriginalStart(t *testing.T) {
 	location, _ := time.LoadLocation("America/Toronto")
 	until, _ := ParseLocalDate("2026-09-30")

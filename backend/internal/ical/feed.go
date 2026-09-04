@@ -48,7 +48,7 @@ func Build(name, sourceURL string, series []model.EventSeries, location *time.Lo
 			lastModified = event.UpdatedAt
 		}
 		for _, override := range calendarlogic.OccurrenceChanges(event.Overrides) {
-			exception, err := overrideEventLines(event, override, location)
+			exception, err := overrideEventLines(event, override)
 			if err != nil {
 				return Feed{}, err
 			}
@@ -83,8 +83,8 @@ func masterEventLines(event model.EventSeries, location *time.Location) ([]strin
 		"LAST-MODIFIED:" + utcDateTime(updated),
 		fmt.Sprintf("SEQUENCE:%d", event.Sequence),
 	}
-	lines = append(lines, dateProperty("DTSTART", event.StartsAtLocal, event.AllDay, location))
-	lines = append(lines, dateProperty("DTEND", event.EndsAtLocal, event.AllDay, location))
+	lines = append(lines, dateProperty("DTSTART", event.StartsAtLocal, event.AllDay))
+	lines = append(lines, dateProperty("DTEND", event.EndsAtLocal, event.AllDay))
 	if event.RecurrenceUntil != nil {
 		starts, err := calendarlogic.GeneratedStarts(event)
 		if err != nil {
@@ -106,7 +106,7 @@ func masterEventLines(event model.EventSeries, location *time.Location) ([]strin
 	return append(lines, "END:VEVENT"), nil
 }
 
-func overrideEventLines(event model.EventSeries, override model.EventOverride, location *time.Location) ([]string, error) {
+func overrideEventLines(event model.EventSeries, override model.EventOverride) ([]string, error) {
 	start := override.RecurrenceIDLocal
 	end := start.Add(event.EndsAtLocal.Sub(event.StartsAtLocal))
 	title, description, eventLocation, eventURL := event.Title, event.Description, event.Location, event.URL
@@ -146,12 +146,12 @@ func overrideEventLines(event model.EventSeries, override model.EventOverride, l
 	lines := []string{
 		"BEGIN:VEVENT",
 		"UID:" + safeValue(event.UID),
-		"RECURRENCE-ID" + datePropertySuffix(override.RecurrenceIDLocal, event.AllDay, location),
+		"RECURRENCE-ID" + datePropertySuffix(override.RecurrenceIDLocal, event.AllDay),
 		"DTSTAMP:" + utcDateTime(updated),
 		"LAST-MODIFIED:" + utcDateTime(updated),
 		fmt.Sprintf("SEQUENCE:%d", event.Sequence+override.Sequence),
-		dateProperty("DTSTART", start, event.AllDay, location),
-		dateProperty("DTEND", end, event.AllDay, location),
+		dateProperty("DTSTART", start, event.AllDay),
+		dateProperty("DTEND", end, event.AllDay),
 	}
 	lines = appendDetails(lines, title, description, eventLocation, eventURL)
 	// A cancelled series cancels every one of its instances, including the ones
@@ -180,15 +180,19 @@ func appendDetails(lines []string, title, description, location, eventURL string
 	return lines
 }
 
-func dateProperty(name string, value time.Time, allDay bool, location *time.Location) string {
-	return name + datePropertySuffix(value, allDay, location)
+func dateProperty(name string, value time.Time, allDay bool) string {
+	return name + datePropertySuffix(value, allDay)
 }
 
-func datePropertySuffix(value time.Time, allDay bool, location *time.Location) string {
+// datePropertySuffix emits the stored wall clock verbatim. A TZID value is a
+// local time by definition, and RECURRENCE-ID must repeat the nominal value the
+// RRULE produces, so projecting through the location first would rewrite the
+// one wall clock per year that does not exist and break instance matching.
+func datePropertySuffix(value time.Time, allDay bool) string {
 	if allDay {
 		return ";VALUE=DATE:" + value.Format("20060102")
 	}
-	return ";TZID=America/Toronto:" + calendarlogic.InLocation(value, location).Format("20060102T150405")
+	return ";TZID=America/Toronto:" + value.Format("20060102T150405")
 }
 
 func utcDateTime(value time.Time) string {

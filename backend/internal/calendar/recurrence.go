@@ -59,8 +59,40 @@ func FormatLocal(value time.Time) string {
 	return value.Format(LocalDateTimeLayout)
 }
 
+// InLocation projects a stored Toronto wall-clock value onto the instant it
+// names. Series are stored and stepped as wall clock, so this is the only place
+// daylight saving is resolved, and the policy is RFC 5545 section 3.3.5 —
+// the same rule every subscriber's calendar client applies to the TZID values
+// in our feeds, so the app and the feed always agree:
+//
+//   - Ambiguous wall clock (the hour repeated at fall-back, e.g. 01:30 on
+//     2026-11-01) resolves to the FIRST of the two instants, the offset still
+//     in force before the transition. Go's time.Date already does this.
+//   - Nonexistent wall clock (the hour skipped at spring-forward, e.g. 02:30 on
+//     2026-03-08) is interpreted with the offset in force BEFORE the gap, which
+//     lands on the first instant after it, 03:30 EDT. Go's time.Date instead
+//     normalises backwards to 01:30 EST, an hour EARLIER than the meeting a
+//     subscriber's client would show, so that case is corrected here.
+//
+// A meeting is only ever moved when its local time genuinely does not exist;
+// every other wall clock is preserved exactly, which is what keeps a weekly
+// series at the same local hour across a DST change.
 func InLocation(value time.Time, location *time.Location) time.Time {
-	return time.Date(value.Year(), value.Month(), value.Day(), value.Hour(), value.Minute(), value.Second(), value.Nanosecond(), location)
+	projected := time.Date(value.Year(), value.Month(), value.Day(), value.Hour(), value.Minute(), value.Second(), value.Nanosecond(), location)
+	if sameWallClock(projected, value) {
+		return projected
+	}
+	// Go landed before the gap, so its zone is the pre-gap offset. Re-apply the
+	// requested wall clock with that offset to move forward across the gap.
+	_, offsetBeforeGap := projected.Zone()
+	frame := time.Date(value.Year(), value.Month(), value.Day(), value.Hour(), value.Minute(), value.Second(), value.Nanosecond(), time.UTC)
+	return frame.Add(-time.Duration(offsetBeforeGap) * time.Second).In(location)
+}
+
+func sameWallClock(projected, wall time.Time) bool {
+	return projected.Year() == wall.Year() && projected.Month() == wall.Month() &&
+		projected.Day() == wall.Day() && projected.Hour() == wall.Hour() &&
+		projected.Minute() == wall.Minute() && projected.Second() == wall.Second()
 }
 
 func ValidatePatch(raw json.RawMessage) (json.RawMessage, error) {
