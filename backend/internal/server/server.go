@@ -23,10 +23,13 @@ type Handler struct {
 	auth     *auth.Client
 	config   config.Config
 	location *time.Location
+	// now is injectable so the reads whose answer depends on the clock can be
+	// pinned against a fixture instead of whatever today happens to be.
+	now func() time.Time
 }
 
 func New(cfg config.Config, calendarStore *store.Store, authClient *auth.Client, events *eventlog.Client, location *time.Location) *fiber.App {
-	handler := &Handler{store: calendarStore, auth: authClient, config: cfg, location: location}
+	handler := &Handler{store: calendarStore, auth: authClient, config: cfg, location: location, now: time.Now}
 	app := fiber.New(fiber.Config{
 		DisableStartupMessage:   true,
 		BodyLimit:               256 * 1024,

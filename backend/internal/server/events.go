@@ -68,23 +68,15 @@ const (
 func (h *Handler) listUpcoming(c *fiber.Ctx) error {
 	limit := clampQuery(c.Query("limit"), upcomingDefaultLimit, 1, upcomingMaxLimit)
 	days := clampQuery(c.Query("days"), upcomingDefaultDays, 1, upcomingMaxDays)
-	// From now, not from the start of today: a meeting that finished this
-	// morning is not upcoming.
-	now := time.Now().In(h.location)
+	now := h.now().In(h.location)
 	until := now.AddDate(0, 0, days)
 	series, err := h.store.ListSeries(c.UserContext(), "", false, h.window(now, until))
 	if err != nil {
 		return err
 	}
-	occurrences, err := calendarlogic.Expand(series, now, until, h.location)
+	occurrences, err := upcomingOccurrences(series, now, until, limit, h.location)
 	if err != nil {
 		return err
-	}
-	if len(occurrences) > limit {
-		occurrences = occurrences[:limit]
-	}
-	if occurrences == nil {
-		occurrences = []model.Occurrence{}
 	}
 	body, err := json.Marshal(occurrences)
 	if err != nil {
@@ -94,6 +86,34 @@ func (h *Handler) listUpcoming(c *fiber.Ctx) error {
 	// The window slides with the clock, so an unchanged Last-Modified must never
 	// be allowed to serve a stale 304; the content-hash ETag still can.
 	return sendCacheable(c, body, latestChange(series), false)
+}
+
+// upcomingOccurrences is the rule this endpoint exists to own, kept out of the
+// handler so it can be pinned against a fixture clock.
+//
+// An occurrence is upcoming while it is still to come OR still running, and
+// stops being upcoming the moment it ends. The lower bound therefore applies to
+// the occurrence's END, not its start, which is what keeps a long or all-day
+// event that began days ago and finished yesterday out of the list while
+// keeping tonight's in-progress build in it. And the bound is the instant of
+// the request, not the start of today, which is the difference between "what is
+// on next" and "what is on today".
+//
+// Both halves come from Expand's EndsAt.After(from) && StartsAt.Before(to), and
+// it runs after expansion, so a weekly series contributes only the instances
+// that fall in the window rather than being kept or dropped as a whole.
+func upcomingOccurrences(series []model.EventSeries, now, until time.Time, limit int, location *time.Location) ([]model.Occurrence, error) {
+	occurrences, err := calendarlogic.Expand(series, now, until, location)
+	if err != nil {
+		return nil, err
+	}
+	if len(occurrences) > limit {
+		occurrences = occurrences[:limit]
+	}
+	if occurrences == nil {
+		occurrences = []model.Occurrence{}
+	}
+	return occurrences, nil
 }
 
 // latestChange is the most recent edit across the series and overrides that

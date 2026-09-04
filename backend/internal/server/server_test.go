@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"reflect"
 	"sort"
 	"testing"
 	"time"
@@ -64,32 +65,106 @@ func TestUpcomingUsesTheSharedOccurrenceShape(t *testing.T) {
 	}
 }
 
-// The upcoming window starts at now, not at the start of today, so a meeting
-// that has already finished today must not be returned, and results arrive
-// ordered by start and truncated to the limit.
-func TestUpcomingWindowStartsAtNowAndTruncates(t *testing.T) {
+// The three cases the contract turns on, against a fixture clock so the test
+// cannot rot: an occurrence that has ENDED is excluded however recently or
+// however long it ran, one IN PROGRESS is included, and one entirely in the
+// FUTURE is included.
+//
+// Asserting only ordering and count would pass while stale events were being
+// served, which is exactly how a stale event reached a consumer once.
+func TestUpcomingExcludesEndedIncludesInProgressAndFuture(t *testing.T) {
 	location, _ := time.LoadLocation("America/Toronto")
-	now := time.Date(2026, 9, 7, 12, 0, 0, 0, location)
+	now := time.Date(2026, 9, 3, 22, 15, 0, 0, location)
+
 	series := []model.EventSeries{
-		newSeries(t, "finished", "Morning standup", "2026-09-07T09:00:00", "2026-09-07T09:30:00"),
-		newSeries(t, "running", "All-afternoon build", "2026-09-07T11:00:00", "2026-09-07T17:00:00"),
-		newSeries(t, "later", "Controls sync", "2026-09-08T18:00:00", "2026-09-08T19:00:00"),
-		newSeries(t, "beyond", "Term review", "2026-11-01T18:00:00", "2026-11-01T19:00:00"),
+		// ENDED — must never appear.
+		newSeries(t, "ended-hours-ago", "Morning standup", "2026-09-03T09:00:00", "2026-09-03T09:30:00"),
+		newSeries(t, "ended-a-minute-ago", "Just finished", "2026-09-03T21:00:00", "2026-09-03T22:14:00"),
+		newSeries(t, "ended-exactly-now", "Ended on the boundary", "2026-09-03T21:00:00", "2026-09-03T22:15:00"),
+		// A long run that began days ago and finished days ago. This is the one
+		// that slips through if the lower bound is applied to the start.
+		newSeries(t, "long-and-over", "Four-day build", "2026-08-28T09:00:00", "2026-09-01T17:00:00"),
+		// A whole day that is already behind us.
+		newSeries(t, "all-day-past", "Reading day", "2026-09-02T00:00:00", "2026-09-03T00:00:00"),
+		// IN PROGRESS — started before now, ends after now.
+		newSeries(t, "in-progress", "Overnight build", "2026-09-03T21:00:00", "2026-09-04T02:00:00"),
+		newSeries(t, "long-and-running", "Competition week", "2026-08-31T09:00:00", "2026-09-06T17:00:00"),
+		// FUTURE.
+		newSeries(t, "starts-exactly-now", "Starting on the boundary", "2026-09-03T22:15:00", "2026-09-03T23:15:00"),
+		newSeries(t, "tomorrow", "Controls sync", "2026-09-04T18:00:00", "2026-09-04T19:00:00"),
+		// Beyond the window.
+		newSeries(t, "beyond-window", "Next term kickoff", "2027-01-11T18:00:00", "2027-01-11T19:00:00"),
 	}
 
-	occurrences, err := calendarlogic.Expand(series, now, now.AddDate(0, 0, upcomingDefaultDays), location)
+	got, err := upcomingOccurrences(series, now, now.AddDate(0, 0, upcomingDefaultDays), upcomingMaxLimit, location)
 	if err != nil {
 		t.Fatal(err)
 	}
 	var titles []string
-	for _, occurrence := range occurrences {
+	for _, occurrence := range got {
 		titles = append(titles, occurrence.Title)
+		if !occurrence.EndsAt.After(now) {
+			t.Fatalf("%q ended at %s, before the %s request, and must not be upcoming",
+				occurrence.Title, occurrence.EndsAt, now)
+		}
 	}
-	if len(titles) != 2 || titles[0] != "All-afternoon build" || titles[1] != "Controls sync" {
-		t.Fatalf("unexpected upcoming occurrences: %v", titles)
+	want := []string{"Competition week", "Overnight build", "Starting on the boundary", "Controls sync"}
+	if !reflect.DeepEqual(titles, want) {
+		t.Fatalf("upcoming returned %v, want %v", titles, want)
 	}
-	if limited := occurrences[:1]; limited[0].Title != "All-afternoon build" {
-		t.Fatalf("truncation kept the wrong occurrence: %v", limited)
+
+	// Truncation keeps the earliest, and the limit is honoured after expansion.
+	limited, err := upcomingOccurrences(series, now, now.AddDate(0, 0, upcomingDefaultDays), 2, location)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(limited) != 2 || limited[0].Title != "Competition week" || limited[1].Title != "Overnight build" {
+		t.Fatalf("truncation kept the wrong occurrences: %+v", limited)
+	}
+}
+
+// A weekly series must contribute only the instances inside the window, so the
+// filter has to run after expansion rather than keeping or dropping the series
+// as a whole.
+func TestUpcomingFiltersInstancesNotWholeSeries(t *testing.T) {
+	location, _ := time.LoadLocation("America/Toronto")
+	now := time.Date(2026, 9, 3, 22, 15, 0, 0, location)
+	weekly := newSeries(t, "weekly", "Controls sync", "2026-08-14T18:00:00", "2026-08-14T19:00:00")
+	until, err := calendarlogic.ParseLocalDate("2026-09-25")
+	if err != nil {
+		t.Fatal(err)
+	}
+	weekly.RecurrenceUntil = &until
+
+	got, err := upcomingOccurrences([]model.EventSeries{weekly}, now, now.AddDate(0, 0, upcomingDefaultDays), upcomingMaxLimit, location)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var days []string
+	for _, occurrence := range got {
+		days = append(days, occurrence.StartsAt.Format("2006-01-02"))
+	}
+	// 14, 21 and 28 August are behind us; 4, 11, 18 and 25 September are not.
+	if !reflect.DeepEqual(days, []string{"2026-09-04", "2026-09-11", "2026-09-18", "2026-09-25"}) {
+		t.Fatalf("expected only the instances after the request instant, got %v", days)
+	}
+}
+
+// An empty result must marshal as [] rather than null, because a consumer
+// iterating the response should not have to special-case a missing array.
+func TestUpcomingReturnsAnEmptyArrayNotNull(t *testing.T) {
+	location, _ := time.LoadLocation("America/Toronto")
+	now := time.Date(2026, 9, 3, 22, 15, 0, 0, location)
+	got, err := upcomingOccurrences(nil, now, now.AddDate(0, 0, 1), 5, location)
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := json.Marshal(got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(encoded) != "[]" {
+		t.Fatalf("empty upcoming marshalled as %s", encoded)
 	}
 }
 
