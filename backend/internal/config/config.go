@@ -8,9 +8,10 @@ import (
 // Config is the backend's runtime configuration, sourced from environment
 // variables. See ../.env.example for the full list.
 type Config struct {
-	Port           string
-	FrontendURL    string
-	TrustedProxies []string
+	Port            string
+	FrontendURL     string
+	TrustedProxies  []string
+	OAuthManagerURL string
 }
 
 func Load() Config {
@@ -18,6 +19,9 @@ func Load() Config {
 		Port:           getenv("PORT", "8080"),
 		FrontendURL:    getenv("FRONTEND_URL", "http://localhost:5174"),
 		TrustedProxies: splitCSV(getenv("TRUSTED_PROXIES", "127.0.0.1,::1")),
+		// The authorization service every gated route consults. Docker Compose
+		// already passed this in; until now nothing read it.
+		OAuthManagerURL: getenv("OAUTH_MANAGER_URL", "http://oauth-manager:8080"),
 	}
 }
 

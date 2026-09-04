@@ -10,6 +10,7 @@ import (
 
 	"github.com/joho/godotenv"
 
+	"github.com/BioTronDesignTeam/exo-gui/backend/internal/auth"
 	"github.com/BioTronDesignTeam/exo-gui/backend/internal/config"
 	"github.com/BioTronDesignTeam/exo-gui/backend/internal/eventlog"
 	"github.com/BioTronDesignTeam/exo-gui/backend/internal/server"
@@ -29,7 +30,13 @@ func main() {
 	if !events.Enabled() {
 		log.Println("warning: LOGGER_INGEST_TOKEN unset — structured logging is disabled")
 	}
-	app := server.New(cfg.FrontendURL, cfg.TrustedProxies, events)
+	authz := auth.NewClient(cfg.OAuthManagerURL)
+	if !authz.Configured() {
+		// Not fatal: /health and the frontend still work. Gated routes fail
+		// closed with 503 rather than opening up.
+		log.Println("warning: OAUTH_MANAGER_URL unset — every permission-gated route will refuse")
+	}
+	app := server.New(cfg.FrontendURL, cfg.TrustedProxies, events, authz)
 	addr := ":" + cfg.Port
 	events.LogAsync(eventlog.Info, "Exo API started", map[string]any{"port": cfg.Port})
 

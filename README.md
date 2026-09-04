@@ -60,3 +60,53 @@ Host ports are 5174 for the web container and 8081 for the API, leaving
 OAuthManager on 5173 and 8080 where its GitHub callback is registered.
 The backend, frontend, Prisma, and Compose all use the single root `.env`; do
 not create component-level environment files.
+
+## Authorization
+
+OAuthManager owns identity and per-product permissions. Exo's app id is
+`exo-gui` and it declares three permissions:
+
+| Permission   | What it opens              | Daily guest key |
+|--------------|----------------------------|-----------------|
+| `live`       | live telemetry             | yes             |
+| `historical` | recorded sessions          | yes             |
+| `commands`   | commands sent to the rig   | **no**          |
+
+`backend/internal/auth` is the single enforcement point. It asks
+`GET {OAUTH_MANAGER_URL}/v1/check?app=exo-gui&permission=<key>`, forwarding the
+caller's session cookie, and maps the answer to a status:
+
+| Situation                                        | Exo responds |
+|--------------------------------------------------|--------------|
+| no cookie, or OAuthManager answers 401            | `401` |
+| `allowed: false`, or OAuthManager answers 403     | `403` |
+| OAuthManager unreachable, unexpected status, or `OAUTH_MANAGER_URL` unset | `503` |
+| `allowed: true`                                   | handler runs |
+
+401 and 403 are deliberately distinct: a signed-in operator who lacks a
+permission must not be sent back to the sign-in button that already worked.
+Every failure mode is a denial — there is no configuration in which the gate
+opens.
+
+### Wiring a new route
+
+Mount routes on a group that is already gated, never by adding the check inside
+a handler; that way a second route on the same group cannot forget it.
+
+```go
+live := app.Group("/v1/live", authz.Require(auth.PermissionLive))
+live.Get("/stream", h.Stream)
+
+hist := app.Group("/v1/historical", authz.Require(auth.PermissionHistorical))
+hist.Get("/sessions", h.Sessions)
+
+// Commands mutate hardware, so they also want the X-Requested-With CSRF guard
+// the other products apply to every mutation.
+cmd := app.Group("/v1/commands", requireXHR, authz.Require(auth.PermissionCommands))
+cmd.Post("/stop", h.Stop)
+```
+
+`auth.DecisionFrom(c)` returns the decision the gate already made, so a handler
+never needs a second round trip. The permission keys live in
+`backend/internal/auth` as `auth.PermissionLive`, `auth.PermissionHistorical`
+and `auth.PermissionCommands` — use the constants, not string literals.
