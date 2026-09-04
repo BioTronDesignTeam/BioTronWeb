@@ -35,5 +35,8 @@ model HealthCheck {
 
   @@index([service, checkedAt(sort: Desc)])
   @@index([checkedAt(sort: Desc)])
+  // Ascending and covering `ok`, so the status page's ninety-day history walk
+  // runs as an Index Only Scan instead of a sequential scan plus a disk sort.
+  @@index([service, checkedAt, ok], map: "health_checks_service_checked_at_ok_idx")
   @@map("health_checks")
 }
