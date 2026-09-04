@@ -22,7 +22,10 @@ COPY src ./src
 
 RUN npm run build
 
-FROM nginx:1.27-alpine
+# Pinned to an exact patch release, not a floating `1.31-alpine`. A minor tag
+# is mutable, so two builds of the same commit could ship different nginx
+# binaries. Bump this line deliberately when a newer patch is wanted.
+FROM nginx:1.31.5-alpine
 
 RUN apk add --no-cache wget
 
