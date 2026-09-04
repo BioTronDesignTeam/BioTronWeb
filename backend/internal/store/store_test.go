@@ -37,7 +37,9 @@ func TestGuestAccessIsScopedToProductTelemetry(t *testing.T) {
 		permission string
 	}{
 		{appID: "calendar", permission: "live"},
+		{appID: "calendar", permission: "write"},
 		{appID: "exo-gui", permission: "commands"},
+		{appID: "logger", permission: "view"},
 	} {
 		allowed, err := st.Allowed(context.Background(), guest, tc.appID, tc.permission)
 		if err != nil {

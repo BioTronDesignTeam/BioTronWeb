@@ -74,3 +74,42 @@ services take the ports beside it.
 `127.0.0.1` form, because browsers treat those as different origins.
 
 Shared Postgres and Redis are owned by `Server`.
+
+## Registered app catalog
+
+Apps and their permissions are rows, not schema. Migrations seed the catalog, so
+`docker compose run --rm migrate` (or the `migrate` service, which runs
+`prisma migrate deploy`) is what makes a fresh database usable. Skipping
+migrations — for example by running `prisma db push` — leaves the tables empty
+and every non-staff permission check answers `allowed: false`.
+
+| App id | Permission keys | Seeded by |
+|---|---|---|
+| `exo-gui` | `live`, `historical`, `commands` | `20260830030000_product_permissions` |
+| `logger` | `view` | `20260830030000_product_permissions` |
+| `calendar` | `write` | `20260729240000_managers_permission_catalog` |
+
+Only `exo-gui` has `daily_key_enabled`. A guest session created from Exo's daily
+key is allowed `exo-gui/live` and `exo-gui/historical` and nothing else — never
+`exo-gui/commands`, `logger/view`, or `calendar/write`.
+
+## Permission check contract
+
+Products ask `GET /v1/check?app=<id>&permission=<key>` with the caller's
+`oauth_session` cookie forwarded. The status code, not the body, is what
+separates the two failure modes:
+
+| Situation | Response |
+|---|---|
+| No cookie, unknown, expired, or banned operator's session | `401` |
+| `app` or `permission` missing | `400` |
+| Valid session | `200 {"allowed": true}` or `200 {"allowed": false}` |
+
+The route never answers `403`, because `RequireSession` is the only middleware
+in front of it and a permission refusal is a `200` with `allowed: false`.
+Callers should still map a `403` to "authenticated but not permitted" rather
+than "signed out", so this service can grow a stricter middleware later without
+pushing anyone into a sign-in loop.
+
+Banning an operator deletes their sessions immediately and sessions are never
+cached in Redis, so a ban takes effect on the very next check.
