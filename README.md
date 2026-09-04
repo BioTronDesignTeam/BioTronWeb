@@ -23,6 +23,12 @@ production-shaped container running.
 The container is available at `http://127.0.0.1:5177` by default. The BioTron
 workspace publishes every frontend in one contiguous block: OAuthManager `5173`,
 Exo `5174`, Logger `5175`, Calendar `5176`, this site `5177`, and Sprinter
-`5178`; override `WEB_PORT` in `.env` if the workspace map changes. The
+`5178`; override `WEB_PORT` in `.env` if the workspace map changes.
+
+This repository is the one case where the dev server and the container do not
+share a port. The production-shaped container is meant to stay up permanently on
+`5177`, so `npm run dev` serves `http://localhost:5180` instead; Vite runs with
+`strictPort`, so sharing `5177` would just make whichever started second fail to
+bind. The
 container also joins the shared `biotron` network as `site-web`, which is the
 stable alias used by the Server Nginx edge.
