@@ -158,6 +158,19 @@ curl -X POST http://127.0.0.1:8082/v1/logs \
   }'
 ```
 
+Ingestion is rate limited too (`INGEST_RATE_LIMIT`, 600 requests per minute per
+sender address by default). One static token, shared by every sender and
+reachable from the edge, is all that stands between an attacker and the
+platform's only audit trail, so the route needs a ceiling as well as a
+credential: a leaked token would otherwise buy unbounded forged entries, or
+256 KiB a request until the shared Postgres fills and takes authentication down
+with Logger. Ten events a second, spendable as a burst inside the one-minute
+window, is an order of magnitude above what any catalogued service emits — one
+event per completed request plus lifecycle events — so it costs legitimate
+traffic nothing. Raise it if a service ever needs more; do not remove it. The
+throttle runs before the token comparison, so a wrong-token flood is charged to
+the same bucket instead of being free.
+
 Service ids must match a component in
 `backend/internal/catalog/default.json`. Set `LOGGER_CATALOG_JSON` to a complete
 replacement catalog when an environment needs different applications or health

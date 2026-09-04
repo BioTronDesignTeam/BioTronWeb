@@ -52,6 +52,7 @@ func main() {
 		HealthHistoryInterval: cfg.HealthHistoryInterval,
 		StatusCacheTTL:        cfg.StatusCacheTTL,
 		StatusRateLimit:       cfg.StatusRateLimit,
+		IngestRateLimit:       cfg.IngestRateLimit,
 		TrustedProxies:        cfg.TrustedProxies,
 	})
 	go func() {

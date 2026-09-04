@@ -37,6 +37,7 @@ type Options struct {
 	HealthHistoryInterval time.Duration
 	StatusCacheTTL        time.Duration
 	StatusRateLimit       int
+	IngestRateLimit       int
 	// TrustedProxies are the peers whose Cf-Connecting-Ip header c.IP() may
 	// believe. Every rate-limit bucket and every access-log client address is
 	// keyed off that value, so an empty list means all of them collapse into
@@ -58,6 +59,9 @@ func (o Options) withDefaults() Options {
 	}
 	if o.StatusRateLimit <= 0 {
 		o.StatusRateLimit = 60
+	}
+	if o.IngestRateLimit <= 0 {
+		o.IngestRateLimit = 600
 	}
 	if o.Now == nil {
 		o.Now = time.Now
@@ -122,7 +126,24 @@ func New(store Store, serviceCatalog *catalog.Catalog, authorizer auth.Authorize
 
 	app.Get("/health", server.health)
 	v1 := app.Group("/v1")
-	v1.Post("/logs", server.requireIngestToken, server.ingestLog)
+
+	// Ingestion is reachable from the internet and gated by one static token
+	// shared by every sender, so a leak anywhere buys an unbounded write into
+	// the platform's only audit trail — forged entries to bury a real
+	// intrusion, or 256 KiB a request until the shared Postgres fills and takes
+	// authentication down with Logger.
+	//
+	// The throttle sits ahead of the token check so a flood costs an attacker a
+	// bucket whether or not they hold the token. It is per client address,
+	// which is only true because the app trusts the edge for that address; see
+	// EnableTrustedProxyCheck above.
+	v1.Post("/logs",
+		limiter.New(limiter.Config{
+			Max:          options.IngestRateLimit,
+			Expiration:   time.Minute,
+			KeyGenerator: func(c *fiber.Ctx) string { return c.IP() },
+		}),
+		server.requireIngestToken, server.ingestLog)
 
 	// The public layer answers with no session at all. It runs time-series
 	// queries for anyone who asks, so it is rate limited per client address.

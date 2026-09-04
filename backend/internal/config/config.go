@@ -23,6 +23,7 @@ type Config struct {
 	HealthTimeout         time.Duration
 	StatusCacheTTL        time.Duration
 	StatusRateLimit       int
+	IngestRateLimit       int
 }
 
 func Load() Config {
@@ -45,6 +46,12 @@ func Load() Config {
 		HealthTimeout:         getduration("HEALTH_TIMEOUT", 3*time.Second),
 		StatusCacheTTL:        getduration("STATUS_CACHE_TTL", 30*time.Second),
 		StatusRateLimit:       getint("STATUS_RATE_LIMIT", 60),
+		// Ten events a second per sender, in a one-minute window, so a service
+		// may spend the whole allowance in a burst. Catalogued senders emit one
+		// event per completed request plus lifecycle events, which leaves an
+		// order of magnitude of headroom over this platform's real traffic
+		// while still bounding what a leaked ingest token can write.
+		IngestRateLimit: getint("INGEST_RATE_LIMIT", 600),
 	}
 }
 
@@ -66,6 +73,9 @@ func (c Config) Validate() error {
 	}
 	if c.StatusCacheTTL <= 0 || c.StatusRateLimit < 1 {
 		return errors.New("status cache TTL and rate limit must be positive")
+	}
+	if c.IngestRateLimit < 1 {
+		return errors.New("INGEST_RATE_LIMIT must be at least 1")
 	}
 	return nil
 }

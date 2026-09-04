@@ -42,6 +42,51 @@ func (f *fakeStore) HealthHistory(_ context.Context, _ []string, _, _ time.Time,
 	return f.history, nil
 }
 
+// The ingest token is static, shared by every sender and internet-reachable, so
+// the route needs a ceiling of its own: without one a single leaked token can
+// forge unbounded audit entries or fill the shared Postgres. The limit is per
+// sender address, so one noisy service cannot silence the others.
+func TestIngestIsRateLimitedPerSender(t *testing.T) {
+	serviceCatalog, err := catalog.Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	app := New(&fakeStore{}, serviceCatalog, auth.AllowAll{}, Options{
+		IngestToken:     "secret",
+		IngestRateLimit: 2,
+		// app.Test dials from 0.0.0.0, standing in for the edge proxy.
+		TrustedProxies: []string{"0.0.0.0"},
+	})
+	body := []byte(`{"service":"exo-api","level":"info","message":"telemetry batch stored"}`)
+
+	post := func(senderIP, token string) int {
+		request := httptest.NewRequest(http.MethodPost, "/v1/logs", bytes.NewReader(body))
+		request.Header.Set("Content-Type", "application/json")
+		request.Header.Set("Authorization", "Bearer "+token)
+		request.Header.Set("Cf-Connecting-Ip", senderIP)
+		response, err := app.Test(request, -1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return response.StatusCode
+	}
+
+	if got := post("203.0.113.7", "secret"); got != http.StatusCreated {
+		t.Fatalf("first ingest = %d, want 201", got)
+	}
+	// The throttle sits ahead of the token check, so wrong-token floods are
+	// charged to the same bucket rather than being free.
+	if got := post("203.0.113.7", "wrong"); got != http.StatusUnauthorized {
+		t.Fatalf("second ingest with a bad token = %d, want 401", got)
+	}
+	if got := post("203.0.113.7", "secret"); got != http.StatusTooManyRequests {
+		t.Fatalf("third ingest = %d, want 429", got)
+	}
+	if got := post("198.51.100.4", "secret"); got != http.StatusCreated {
+		t.Fatalf("ingest from a second sender = %d, want 201; the limit is one global bucket", got)
+	}
+}
+
 func TestIngestRequiresTokenAndAcceptsStructuredLog(t *testing.T) {
 	dataStore := &fakeStore{}
 	serviceCatalog, err := catalog.Load("")
