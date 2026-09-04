@@ -29,7 +29,7 @@ export function App() {
   const [selectedOccurrence, setSelectedOccurrence] = useState<Occurrence>();
   const [editingEvent, setEditingEvent] = useState<EventSeries | null>();
   const [creatingEvent, setCreatingEvent] = useState(false);
-  const [editingOccurrence, setEditingOccurrence] = useState<Occurrence>();
+  const [editingOccurrence, setEditingOccurrence] = useState<{ occurrence: Occurrence; series: EventSeries }>();
   const [eventActionError, setEventActionError] = useState('');
 
   const range = useMemo(() => calendarRange(month), [month]);
@@ -124,17 +124,28 @@ export function App() {
     await refreshAfterMutation();
   }
 
-  async function editSeriesFromOccurrence() {
-    if (!selectedOccurrence) return;
-    let event = adminEvents.find((candidate) => candidate.id === selectedOccurrence.series_id);
-    if (!event) {
-      const events = await calendarApi.adminEvents();
-      setAdminEvents(events);
-      event = events.find((candidate) => candidate.id === selectedOccurrence.series_id);
-    }
-    if (event) {
-      setEditingEvent(event);
+  // Both editor actions on an occurrence need its series: one to edit it, the
+  // other to know what the occurrence would look like without its override.
+  // Every failure here used to be swallowed, so the button simply did nothing.
+  async function seriesFor(occurrence: Occurrence): Promise<EventSeries> {
+    const known = adminEvents.find((candidate) => candidate.id === occurrence.series_id);
+    if (known) return known;
+    const events = await calendarApi.adminEvents();
+    setAdminEvents(events);
+    const found = events.find((candidate) => candidate.id === occurrence.series_id);
+    if (!found) throw new Error('This event series is no longer available. Reload the calendar and try again.');
+    return found;
+  }
+
+  async function openEditor(occurrence: Occurrence, target: 'series' | 'occurrence') {
+    setEventActionError('');
+    try {
+      const series = await seriesFor(occurrence);
+      if (target === 'series') setEditingEvent(series);
+      else setEditingOccurrence({ occurrence, series });
       setSelectedOccurrence(undefined);
+    } catch (caught) {
+      setEventActionError(caught instanceof Error ? caught.message : 'Could not open the event for editing.');
     }
   }
 
@@ -177,7 +188,7 @@ export function App() {
       <footer className="border-t border-ink/10 px-4 py-6 text-center text-xs text-ink/50 dark:border-white/10 dark:text-white/45">Times use America/Toronto · Calendar subscriptions update on each calendar app’s schedule</footer>
 
       {showSubscribe && <SubscribePanel scopes={scopes} onClose={() => setShowSubscribe(false)} />}
-      {selectedOccurrence && <EventDetails occurrence={selectedOccurrence} canWrite={auth.can_write} error={eventActionError} onClose={() => { setEventActionError(''); setSelectedOccurrence(undefined); }} onEditSeries={() => void editSeriesFromOccurrence()} onEditOccurrence={() => { setEditingOccurrence(selectedOccurrence); setSelectedOccurrence(undefined); }} onCancelOccurrence={() => {
+      {selectedOccurrence && <EventDetails occurrence={selectedOccurrence} canWrite={auth.can_write} error={eventActionError} onClose={() => { setEventActionError(''); setSelectedOccurrence(undefined); }} onEditSeries={() => void openEditor(selectedOccurrence, 'series')} onEditOccurrence={() => void openEditor(selectedOccurrence, 'occurrence')} onCancelOccurrence={() => {
         const occurrence = selectedOccurrence;
         if (window.confirm('Cancel only this occurrence? Subscribers will receive the cancellation.')) {
           void mutate(() => calendarApi.updateOccurrence(occurrence.series_id, { recurrence_id_local: occurrence.recurrence_id_local, state: 'CANCELLED', patch: {}, expected_sequence: occurrence.series_sequence }), true).then((success) => {
@@ -186,15 +197,17 @@ export function App() {
         }
       }} />}
       {(creatingEvent || editingEvent) && <EventEditor event={editingEvent || undefined} scopes={editorScopes} onClose={() => { setCreatingEvent(false); setEditingEvent(undefined); }} onSave={saveEvent} />}
-      {editingOccurrence && <OccurrenceEditor occurrence={editingOccurrence} onClose={() => setEditingOccurrence(undefined)} onSave={async (patch) => {
-        await calendarApi.updateOccurrence(editingOccurrence.series_id, { recurrence_id_local: editingOccurrence.recurrence_id_local, state: 'MODIFIED', patch, expected_sequence: editingOccurrence.series_sequence });
+      {editingOccurrence && <OccurrenceEditor occurrence={editingOccurrence.occurrence} series={editingOccurrence.series} onClose={() => setEditingOccurrence(undefined)} onSave={async (patch) => {
+        const { occurrence } = editingOccurrence;
+        await calendarApi.updateOccurrence(occurrence.series_id, { recurrence_id_local: occurrence.recurrence_id_local, state: 'MODIFIED', patch, expected_sequence: occurrence.series_sequence });
         setEditingOccurrence(undefined);
         await refreshAfterMutation();
-      }} onReset={editingOccurrence.modified ? async () => {
-        await calendarApi.resetOccurrence(editingOccurrence.series_id, editingOccurrence.recurrence_id_local, editingOccurrence.series_sequence);
+      }} onReset={async () => {
+        const { occurrence } = editingOccurrence;
+        await calendarApi.resetOccurrence(occurrence.series_id, occurrence.recurrence_id_local, occurrence.series_sequence);
         setEditingOccurrence(undefined);
         await refreshAfterMutation();
-      } : undefined} />}
+      }} />}
     </div>
   );
 }
