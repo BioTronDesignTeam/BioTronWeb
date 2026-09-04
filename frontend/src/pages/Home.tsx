@@ -10,7 +10,7 @@ import {
   useIsMobile,
   useIsLandscapePhone,
 } from '../lib/hooks';
-import { scrollToElement } from '../lib/SmoothScroll';
+import { scrollToElement } from '../lib/scroll';
 import type { Stop } from '../lib/store';
 import PageMeta from '../components/PageMeta';
 

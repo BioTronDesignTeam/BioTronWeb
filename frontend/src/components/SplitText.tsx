@@ -41,6 +41,10 @@ export default function SplitText({
         ease: 'power4.out',
         stagger: by === 'char' ? 0.025 : 0.06,
         delay,
+        // Promote only while the reveal is running. A permanent will-change
+        // holds a compositor layer for every word for the life of the page.
+        onStart: () => parts.forEach((part) => (part.style.willChange = 'transform')),
+        onComplete: () => parts.forEach((part) => (part.style.willChange = '')),
         ...(trigger
           ? {
               scrollTrigger: { trigger: ref.current, start: 'top 85%' },
@@ -63,7 +67,7 @@ export default function SplitText({
           aria-hidden="true"
           style={{ display: 'inline-block', overflow: 'hidden', verticalAlign: 'top' }}
         >
-          <span data-split style={{ display: 'inline-block', willChange: 'transform' }}>
+          <span data-split style={{ display: 'inline-block' }}>
             {tok}
             {by === 'word' && i < tokens.length - 1 ? ' ' : ''}
           </span>

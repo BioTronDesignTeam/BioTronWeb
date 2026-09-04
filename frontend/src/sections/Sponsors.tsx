@@ -1,8 +1,10 @@
 import Reveal from '../components/Reveal';
 import { SPONSORS } from '../data/sponsors';
 
+/** The marquee runs two copies of the list so the loop has no seam. */
+const MARQUEE_ROW = [...SPONSORS, ...SPONSORS];
+
 export default function Sponsors() {
-  const row = [...SPONSORS, ...SPONSORS];
   return (
     <section className="sponsors" aria-label="Partners and sponsors">
       <div className="container">
@@ -12,7 +14,7 @@ export default function Sponsors() {
       </div>
       <div className="sponsors__marquee" aria-hidden="true">
         <div className="sponsors__track">
-          {row.map((s, i) => (
+          {MARQUEE_ROW.map((s, i) => (
             <span key={i} className="sponsors__item">
               {s}
             </span>

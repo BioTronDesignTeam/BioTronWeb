@@ -71,7 +71,7 @@ export default function ProjectDetail() {
             <span className="eyebrow mono-label">Overview</span>
           </Reveal>
           {project.description.map((para, i) => (
-            <Reveal key={i} delay={i * 0.05}>
+            <Reveal key={para} delay={i * 0.05}>
               <p className="detail__para">{para}</p>
             </Reveal>
           ))}

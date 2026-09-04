@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Mail, Instagram, ArrowUp } from 'lucide-react';
 import { CONTACT, PROJECTS } from '../data/projects';
-import { scrollToY } from '../lib/SmoothScroll';
+import { scrollToY } from '../lib/scroll';
 
 export default function Footer() {
   return (

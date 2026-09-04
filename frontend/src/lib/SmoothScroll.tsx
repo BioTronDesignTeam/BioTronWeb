@@ -3,31 +3,12 @@ import { useLocation } from 'react-router-dom';
 import Lenis from 'lenis';
 import { gsap, ScrollTrigger } from './gsap';
 import { useReducedMotion } from './hooks';
-
-let lenisInstance: Lenis | null = null;
-
-/** Programmatic scroll used by nav links and click-to-jump hotspots. */
-export function scrollToY(y: number, opts?: { duration?: number; immediate?: boolean }) {
-  if (lenisInstance) {
-    lenisInstance.scrollTo(y, { duration: opts?.duration ?? 1.2, immediate: opts?.immediate });
-  } else {
-    window.scrollTo({ top: y, behavior: opts?.immediate ? 'auto' : 'smooth' });
-  }
-}
-
-export function scrollToElement(target: string | HTMLElement, offset = 0) {
-  if (lenisInstance) {
-    lenisInstance.scrollTo(target, { offset, duration: 1.2 });
-  } else {
-    const el = typeof target === 'string' ? document.querySelector(target) : target;
-    if (el) window.scrollTo({ top: (el as HTMLElement).offsetTop + offset, behavior: 'smooth' });
-  }
-}
+import { scrollToElement, scrollToY, setLenis } from './scroll';
 
 /**
  * Wires Lenis smooth scrolling to GSAP's ticker + ScrollTrigger (the canonical
  * integration). Disabled entirely under prefers-reduced-motion so the page uses
- * plain native scrolling.
+ * plain native scrolling. The programmatic helpers live in ./scroll.
  */
 export default function SmoothScroll({ children }: { children: React.ReactNode }) {
   const reduced = useReducedMotion();
@@ -41,7 +22,7 @@ export default function SmoothScroll({ children }: { children: React.ReactNode }
       easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
       smoothWheel: true,
     });
-    lenisInstance = lenis;
+    setLenis(lenis);
 
     lenis.on('scroll', ScrollTrigger.update);
 
@@ -52,7 +33,7 @@ export default function SmoothScroll({ children }: { children: React.ReactNode }
     return () => {
       gsap.ticker.remove(tick);
       lenis.destroy();
-      lenisInstance = null;
+      setLenis(null);
     };
   }, [reduced]);
 
