@@ -39,7 +39,7 @@ export default function OrgTab({
 }) {
   return (
     <section className={panel}>
-      <div className="grid min-h-[28rem] grid-cols-1 lg:grid-cols-[minmax(0,16rem)_1fr]">
+      <div className="grid grid-cols-1 lg:min-h-[28rem] lg:grid-cols-[minmax(0,16rem)_1fr]">
         <OrgMemberList
           members={members}
           selectedMemberId={selection.memberId}

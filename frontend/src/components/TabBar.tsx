@@ -15,7 +15,7 @@ function TabButton({
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex items-center justify-center rounded-lg px-4 py-2.5 text-sm font-medium transition ${
+      className={`inline-flex min-h-11 items-center justify-center rounded-lg px-3 py-2.5 text-sm font-medium transition sm:min-h-0 sm:px-4 ${
         active
           ? 'bg-white text-slate-900 shadow dark:bg-slate-100'
           : 'text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-slate-100'
@@ -26,6 +26,10 @@ function TabButton({
   );
 }
 
+/**
+ * Four tabs will not fit across a 375px viewport, so they wrap into a 2x2 grid
+ * on a phone and only line up in a single row from the `sm` breakpoint.
+ */
 export default function TabBar({
   tab,
   onSelect,
@@ -40,9 +44,8 @@ export default function TabBar({
   return (
     <div
       className={`mb-6 rounded-xl bg-slate-200/80 p-1 ring-1 ring-slate-300 dark:bg-slate-800/80 dark:ring-white/10 ${
-        isStaff ? 'grid gap-1' : 'inline-flex'
+        isStaff ? 'grid grid-cols-2 gap-1 sm:grid-cols-4' : 'inline-flex'
       }`}
-      style={isStaff ? { gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' } : undefined}
     >
       <TabButton active={tab === 'access'} onClick={() => onSelect('access')}>
         My access

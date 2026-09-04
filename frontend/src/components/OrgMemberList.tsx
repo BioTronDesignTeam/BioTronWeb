@@ -26,13 +26,15 @@ export default function OrgMemberList({
       {members.length === 0 ? (
         <p className="px-4 py-6 text-sm text-slate-500 dark:text-slate-400">No members found.</p>
       ) : (
-        <ul className="max-h-[32rem] overflow-y-auto">
+        // A nested scroll region is miserable on touch, so on a phone the list
+        // grows with the page and only becomes its own scroller on desktop.
+        <ul className="lg:max-h-[32rem] lg:overflow-y-auto">
           {members.map((member) => (
             <li key={member.github_id}>
               <button
                 type="button"
                 onClick={() => onSelect(member.github_id)}
-                className={`flex w-full items-center gap-3 px-4 py-3 text-left transition ${
+                className={`flex w-full min-h-11 items-center gap-3 px-4 py-3 text-left transition ${
                   selectedMemberId === member.github_id
                     ? 'bg-slate-100 dark:bg-slate-800'
                     : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'

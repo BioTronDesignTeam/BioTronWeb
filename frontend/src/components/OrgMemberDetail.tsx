@@ -76,7 +76,7 @@ function GrantList({
             key={`${grant.app_id}:${grant.permission_key}`}
             className="flex flex-wrap items-center justify-between gap-3 py-3"
           >
-            <div className="min-w-0 text-sm text-slate-700 dark:text-slate-300">
+            <div className="min-w-0 text-sm break-words text-slate-700 dark:text-slate-300">
               <span className="font-medium text-slate-900 dark:text-slate-100">{label.app}</span>
               {' / '}
               {label.permission}
@@ -199,10 +199,10 @@ export default function OrgMemberDetail({
       <div className="border-b border-slate-200 px-4 py-4 sm:px-6 dark:border-white/10">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0">
-            <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">
+            <h3 className="text-base font-semibold break-words text-slate-900 dark:text-slate-100">
               {member.name || member.login}
             </h3>
-            <p className={`mt-0.5 ${mutedText}`}>@{member.login}</p>
+            <p className={`mt-0.5 break-words ${mutedText}`}>@{member.login}</p>
             {member.last_login_at && (
               <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
                 Last login {new Date(member.last_login_at).toLocaleString()}

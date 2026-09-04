@@ -32,7 +32,7 @@ export default function ApprovalsTab({
             className="flex flex-col gap-4 px-4 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6"
           >
             <div className="min-w-0">
-              <div className="text-base font-medium text-slate-900 dark:text-slate-100">
+              <div className="text-base font-medium break-words text-slate-900 dark:text-slate-100">
                 @{request.requester_login} → {request.app_name} / {request.permission_label}
               </div>
               <div className={`mt-1 ${mutedText}`}>{new Date(request.created_at).toLocaleString()}</div>

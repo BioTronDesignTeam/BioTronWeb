@@ -29,7 +29,7 @@ function PermissionControl({
   if (state === 'pending') return <Badge variant="pending">{permission.label} pending</Badge>;
   if (state === 'locked') {
     return (
-      <span className="inline-flex items-center rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-400 dark:border-white/10 dark:text-slate-500">
+      <span className="inline-flex min-h-11 items-center rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-400 sm:min-h-0 dark:border-white/10 dark:text-slate-500">
         {permission.label}
       </span>
     );
@@ -110,8 +110,10 @@ export default function AccessTab({
           return (
             <li key={app.id} className="px-4 py-5 sm:px-6">
               <div className="min-w-0">
-                <div className="text-base font-medium text-slate-900 dark:text-slate-100">{app.name}</div>
-                <div className={`mt-1 ${mutedText}`}>{app.description || app.id}</div>
+                <div className="text-base font-medium break-words text-slate-900 dark:text-slate-100">
+                  {app.name}
+                </div>
+                <div className={`mt-1 break-words ${mutedText}`}>{app.description || app.id}</div>
               </div>
               {perms.length === 0 ? (
                 <p className="mt-3 text-sm text-slate-400 dark:text-slate-500">No permissions defined.</p>

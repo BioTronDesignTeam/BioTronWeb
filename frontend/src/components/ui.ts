@@ -1,6 +1,8 @@
-// Shared control styling, so a button's look is described once instead of
-// being retyped as a fifteen-class string at every call site.
-const button = 'inline-flex items-center justify-center rounded-lg text-sm font-medium transition';
+// Shared control styling. `min-h-11` is the 44px touch target every button and
+// select needs on a phone; `sm:min-h-0` drops back to the intrinsic desktop
+// height so wider layouts are untouched.
+const control = 'min-h-11 sm:min-h-0';
+const button = `inline-flex ${control} items-center justify-center rounded-lg text-sm font-medium transition`;
 
 const outline =
   'border border-slate-300 text-slate-700 hover:bg-slate-100 dark:border-white/10 dark:text-slate-200 dark:hover:bg-slate-800';
@@ -16,7 +18,7 @@ export const compactSecondaryButton = `${button} ${outline} px-3 py-2`;
 export const dangerButton = `${button} ${danger} px-3 py-2`;
 export const compactDangerButton = `${button} ${danger} px-3 py-1.5`;
 
-export const selectControl = `w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 disabled:opacity-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-100`;
+export const selectControl = `w-full ${control} rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 disabled:opacity-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-100`;
 
 export const panel =
   'overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-900';

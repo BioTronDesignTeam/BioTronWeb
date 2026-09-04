@@ -11,8 +11,8 @@ function roleSuffix(me: Me): string {
 
 export default function AppHeader({ me, onLogout }: { me: Me; onLogout: () => void }) {
   return (
-    <header className="sticky top-0 z-30 border-b border-[#aedbfc] bg-white/90 backdrop-blur dark:border-[#aedbfc]/20 dark:bg-[#160b6c]/90">
-      <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-x-4 gap-y-3 px-4 py-4 sm:px-6 lg:px-8">
+    <header className="sticky top-0 z-30 border-b border-[#aedbfc] bg-white/90 pt-safe backdrop-blur dark:border-[#aedbfc]/20 dark:bg-[#160b6c]/90">
+      <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-x-4 gap-y-3 px-page py-4">
         <div className="flex min-w-0 items-center gap-3">
           <Brand compact />
           <div className="min-w-0">

@@ -126,10 +126,10 @@ export default function App() {
   if (!me) return <SignInScreen notice={notice} />;
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen pb-safe">
       <AppHeader me={me} onLogout={() => void onLogout()} />
 
-      <main className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
+      <main className="mx-auto w-full max-w-6xl px-page py-6 sm:py-8 lg:py-10">
         <TabBar tab={tab} onSelect={setTab} isStaff={me.is_staff} pendingCount={directory.pending.length} />
 
         {error && (

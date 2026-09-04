@@ -50,7 +50,9 @@ export default function KeysTab({
                   </h3>
                   <p className={`mt-1 ${mutedText}`}>Valid for {key.day} in America/Toronto</p>
                   <p
-                    className="mt-3 font-mono text-lg tracking-[0.16em] text-slate-900 dark:text-slate-100"
+                    // The key is 14 characters of wide monospace; it only fits a
+                    // 375px column once the tracking and size come down.
+                    className="mt-3 font-mono text-base tracking-[0.12em] break-all text-slate-900 sm:text-lg sm:tracking-[0.16em] dark:text-slate-100"
                     aria-label={
                       revealed ? `${key.app_name} daily key ${key.key}` : `${key.app_name} daily key hidden`
                     }

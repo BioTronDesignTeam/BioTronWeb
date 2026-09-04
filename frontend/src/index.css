@@ -27,6 +27,38 @@
   }
 }
 
+/* Safe-area helpers, deliberately unlayered so they win over Tailwind's own
+   padding utilities. `index.html` opts into `viewport-fit=cover`, so on a
+   notched phone these keep the sticky header, the page gutters, and the last
+   row of controls clear of the cutout and the home indicator. Every `env()`
+   resolves to 0 elsewhere, which is why the desktop gutters are unchanged. */
+.px-page {
+  padding-left: max(1rem, env(safe-area-inset-left));
+  padding-right: max(1rem, env(safe-area-inset-right));
+}
+
+@media (min-width: 640px) {
+  .px-page {
+    padding-left: max(1.5rem, env(safe-area-inset-left));
+    padding-right: max(1.5rem, env(safe-area-inset-right));
+  }
+}
+
+@media (min-width: 1024px) {
+  .px-page {
+    padding-left: max(2rem, env(safe-area-inset-left));
+    padding-right: max(2rem, env(safe-area-inset-right));
+  }
+}
+
+.pt-safe {
+  padding-top: env(safe-area-inset-top);
+}
+
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
