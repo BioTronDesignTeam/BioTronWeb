@@ -65,10 +65,30 @@ func (c Config) Validate() error {
 	if strings.EqualFold(c.CookieSameSite, "none") && !c.CookieSecure {
 		return errors.New("COOKIE_SAMESITE=None requires COOKIE_SECURE=true")
 	}
+	// COOKIE_SECURE defaults to false so that plain-http localhost development
+	// works out of the box, but a false value must never survive into a
+	// deployment. Rather than trust the operator to remember one more variable,
+	// derive the requirement from configuration that is already deployment
+	// shaped: an https callback URL, or a cookie domain. Both are empty or
+	// http:// on localhost, so local development is unaffected, and neither can
+	// be present in production without Secure also being set.
+	if isHTTPSURL(c.CallbackURL) && !c.CookieSecure {
+		return errors.New("COOKIE_SECURE=true is required when OAUTH_CALLBACK_URL is https")
+	}
 	if strings.ContainsAny(c.CookieDomain, "/: \t\r\n") {
 		return errors.New("COOKIE_DOMAIN must be a bare domain such as .biotron.ca")
 	}
+	// A domain cookie is offered to every host under the registrable domain, so
+	// shipping it without Secure exposes it to any plaintext request to any
+	// sibling subdomain.
+	if c.CookieDomain != "" && !c.CookieSecure {
+		return errors.New("COOKIE_SECURE=true is required when COOKIE_DOMAIN is set")
+	}
 	return nil
+}
+
+func isHTTPSURL(raw string) bool {
+	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(raw)), "https://")
 }
 
 func parseIntSet(s string) map[int64]bool {
