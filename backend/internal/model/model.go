@@ -46,6 +46,15 @@ type Health struct {
 	CheckedAt time.Time `json:"checked_at"`
 }
 
+// HealthPoint is one recorded health observation stripped of the operator-only
+// detail string. The public status layer must never see Health.Detail, which
+// carries raw dial errors and internal hostnames, so history queries return
+// this narrower shape instead.
+type HealthPoint struct {
+	OK        bool
+	CheckedAt time.Time
+}
+
 type HistoryQuery struct {
 	Services []string
 	Levels   []LogLevel
