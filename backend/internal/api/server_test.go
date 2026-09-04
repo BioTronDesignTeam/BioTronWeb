@@ -9,10 +9,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gofiber/fiber/v3"
+
 	"github.com/BioTronDesignTeam/Logger/backend/internal/auth"
 	"github.com/BioTronDesignTeam/Logger/backend/internal/catalog"
 	"github.com/BioTronDesignTeam/Logger/backend/internal/model"
 )
+
+// noTestTimeout is v3's spelling of v2's app.Test(request, -1): let the handler
+// run to completion instead of failing it after Fiber's one-second default.
+var noTestTimeout = fiber.TestConfig{Timeout: 0}
 
 type fakeStore struct {
 	inserted         model.NewLog
@@ -64,7 +70,7 @@ func TestIngestIsRateLimitedPerSender(t *testing.T) {
 		request.Header.Set("Content-Type", "application/json")
 		request.Header.Set("Authorization", "Bearer "+token)
 		request.Header.Set("Cf-Connecting-Ip", senderIP)
-		response, err := app.Test(request, -1)
+		response, err := app.Test(request, noTestTimeout)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -98,7 +104,7 @@ func TestIngestRequiresTokenAndAcceptsStructuredLog(t *testing.T) {
 
 	request := httptest.NewRequest(http.MethodPost, "/v1/logs", bytes.NewReader(body))
 	request.Header.Set("Content-Type", "application/json")
-	response, err := app.Test(request, -1)
+	response, err := app.Test(request, noTestTimeout)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -109,7 +115,7 @@ func TestIngestRequiresTokenAndAcceptsStructuredLog(t *testing.T) {
 	request = httptest.NewRequest(http.MethodPost, "/v1/logs", bytes.NewReader(body))
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("Authorization", "Bearer secret")
-	response, err = app.Test(request, -1)
+	response, err = app.Test(request, noTestTimeout)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,7 +138,7 @@ func TestApplicationsAggregateComponentHealth(t *testing.T) {
 	}
 	app := New(dataStore, serviceCatalog, auth.AllowAll{}, Options{IngestToken: "secret"})
 
-	response, err := app.Test(httptest.NewRequest(http.MethodGet, "/v1/apps", nil), -1)
+	response, err := app.Test(httptest.NewRequest(http.MethodGet, "/v1/apps", nil), noTestTimeout)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -156,7 +162,7 @@ func TestHistoryRejectsUnknownLevel(t *testing.T) {
 		t.Fatal(err)
 	}
 	app := New(&fakeStore{}, serviceCatalog, auth.AllowAll{}, Options{IngestToken: "secret"})
-	response, err := app.Test(httptest.NewRequest(http.MethodGet, "/v1/apps/exo/logs/history?levels=critical", nil), -1)
+	response, err := app.Test(httptest.NewRequest(http.MethodGet, "/v1/apps/exo/logs/history?levels=critical", nil), noTestTimeout)
 	if err != nil {
 		t.Fatal(err)
 	}

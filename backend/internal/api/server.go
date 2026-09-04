@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/limiter"
-	"github.com/gofiber/fiber/v2/middleware/recover"
+	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/limiter"
+	"github.com/gofiber/fiber/v3/middleware/recover"
 
 	"github.com/BioTronDesignTeam/Logger/backend/internal/auth"
 	"github.com/BioTronDesignTeam/Logger/backend/internal/catalog"
@@ -106,10 +106,13 @@ func New(store Store, serviceCatalog *catalog.Catalog, authorizer auth.Authorize
 		// Cf-Connecting-Ip to the real client address on every hop. Without
 		// this, c.IP() reports the proxy's container address for every request
 		// and the limiters below throttle the whole internet as one client.
-		EnableTrustedProxyCheck: true,
-		TrustedProxies:          options.TrustedProxies,
-		ProxyHeader:             "Cf-Connecting-Ip",
-		ErrorHandler: func(c *fiber.Ctx, err error) error {
+		// Fiber v3 spells the v2 pair EnableTrustedProxyCheck/TrustedProxies as
+		// TrustProxy plus TrustProxyConfig.Proxies. The meaning is unchanged:
+		// the header is only believed when the peer is on this list.
+		TrustProxy:       true,
+		TrustProxyConfig: fiber.TrustProxyConfig{Proxies: options.TrustedProxies},
+		ProxyHeader:      "Cf-Connecting-Ip",
+		ErrorHandler: func(c fiber.Ctx, err error) error {
 			code := fiber.StatusInternalServerError
 			message := "internal server error"
 			var fiberError *fiber.Error
@@ -136,12 +139,12 @@ func New(store Store, serviceCatalog *catalog.Catalog, authorizer auth.Authorize
 	// The throttle sits ahead of the token check so a flood costs an attacker a
 	// bucket whether or not they hold the token. It is per client address,
 	// which is only true because the app trusts the edge for that address; see
-	// EnableTrustedProxyCheck above.
+	// TrustProxy above.
 	v1.Post("/logs",
 		limiter.New(limiter.Config{
 			Max:          options.IngestRateLimit,
 			Expiration:   time.Minute,
-			KeyGenerator: func(c *fiber.Ctx) string { return c.IP() },
+			KeyGenerator: func(c fiber.Ctx) string { return c.IP() },
 		}),
 		server.requireIngestToken, server.ingestLog)
 
@@ -165,14 +168,14 @@ func New(store Store, serviceCatalog *catalog.Catalog, authorizer auth.Authorize
 // world-readable by design and change no faster than the health poll.
 func cacheFor(ttl time.Duration) fiber.Handler {
 	value := "public, max-age=" + strconv.Itoa(int(ttl.Seconds()))
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		c.Set(fiber.HeaderCacheControl, value)
 		return c.Next()
 	}
 }
 
-func (s *Server) health(c *fiber.Ctx) error {
-	ctx, cancel := context.WithTimeout(c.UserContext(), 2*time.Second)
+func (s *Server) health(c fiber.Ctx) error {
+	ctx, cancel := context.WithTimeout(c.Context(), 2*time.Second)
 	defer cancel()
 	if err := s.store.Ping(ctx); err != nil {
 		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
@@ -183,7 +186,7 @@ func (s *Server) health(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"service": "logger-api", "status": "ok"})
 }
 
-func (s *Server) requireIngestToken(c *fiber.Ctx) error {
+func (s *Server) requireIngestToken(c fiber.Ctx) error {
 	provided := strings.TrimPrefix(c.Get(fiber.HeaderAuthorization), "Bearer ")
 	if provided == "" || subtle.ConstantTimeCompare([]byte(provided), []byte(s.ingestToken)) != 1 {
 		return fiber.ErrUnauthorized
@@ -191,8 +194,8 @@ func (s *Server) requireIngestToken(c *fiber.Ctx) error {
 	return c.Next()
 }
 
-func (s *Server) requireRead(c *fiber.Ctx) error {
-	decision, err := s.authorizer.Authorize(c.UserContext(), c.Get(fiber.HeaderCookie))
+func (s *Server) requireRead(c fiber.Ctx) error {
+	decision, err := s.authorizer.Authorize(c.Context(), c.Get(fiber.HeaderCookie))
 	if err != nil {
 		return fiber.NewError(fiber.StatusServiceUnavailable, "authorization service unavailable")
 	}
@@ -208,9 +211,9 @@ func (s *Server) requireRead(c *fiber.Ctx) error {
 // session always answers HTTP 200. The portal needs to tell "signed out" from
 // "signed in without logger/view", and a 401 or 403 collapses those two into
 // one, which is what sent permission-less users round the sign-in loop.
-func (s *Server) session(c *fiber.Ctx) error {
+func (s *Server) session(c fiber.Ctx) error {
 	c.Set(fiber.HeaderCacheControl, "no-store")
-	decision, err := s.authorizer.Authorize(c.UserContext(), c.Get(fiber.HeaderCookie))
+	decision, err := s.authorizer.Authorize(c.Context(), c.Get(fiber.HeaderCookie))
 	if err != nil {
 		// The permission service is unreachable. Reporting a signed-out visitor
 		// is the safe answer: it grants nothing and offers a sign-in button that
@@ -221,9 +224,10 @@ func (s *Server) session(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"authenticated": decision.Authenticated, "allowed": decision.Allowed})
 }
 
-func (s *Server) ingestLog(c *fiber.Ctx) error {
+func (s *Server) ingestLog(c fiber.Ctx) error {
 	var input model.NewLog
-	if err := c.BodyParser(&input); err != nil {
+	// v3's replacement for v2's c.BodyParser.
+	if err := c.Bind().Body(&input); err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid JSON body")
 	}
 	input.Service = strings.TrimSpace(input.Service)
@@ -241,7 +245,7 @@ func (s *Server) ingestLog(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusBadRequest, "payload must be valid JSON no larger than 128 KiB")
 	}
 
-	entry, err := s.store.InsertLog(c.UserContext(), input)
+	entry, err := s.store.InsertLog(c.Context(), input)
 	if err != nil {
 		return err
 	}
@@ -264,13 +268,13 @@ type componentStatus struct {
 	CheckedAt *time.Time `json:"checked_at,omitempty"`
 }
 
-func (s *Server) apps(c *fiber.Ctx) error {
+func (s *Server) apps(c fiber.Ctx) error {
 	applications := s.catalog.Applications()
 	services := make([]string, 0)
 	for _, app := range applications {
 		services = append(services, catalog.ServiceIDs(app)...)
 	}
-	health, err := s.store.LatestHealth(c.UserContext(), services)
+	health, err := s.store.LatestHealth(c.Context(), services)
 	if err != nil {
 		return err
 	}
@@ -302,7 +306,7 @@ func (s *Server) apps(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"applications": statuses, "generated_at": time.Now()})
 }
 
-func (s *Server) recentLogs(c *fiber.Ctx) error {
+func (s *Server) recentLogs(c fiber.Ctx) error {
 	app, ok := s.catalog.Application(c.Params("app"))
 	if !ok {
 		return fiber.ErrNotFound
@@ -312,14 +316,14 @@ func (s *Server) recentLogs(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusBadRequest, err.Error())
 	}
 	limit := parseLimit(c.Query("limit"))
-	logs, err := s.store.RecentLogs(c.UserContext(), catalog.ServiceIDs(app), levels, strings.TrimSpace(c.Query("q")), limit)
+	logs, err := s.store.RecentLogs(c.Context(), catalog.ServiceIDs(app), levels, strings.TrimSpace(c.Query("q")), limit)
 	if err != nil {
 		return err
 	}
 	return c.JSON(fiber.Map{"logs": logs})
 }
 
-func (s *Server) historyLogs(c *fiber.Ctx) error {
+func (s *Server) historyLogs(c fiber.Ctx) error {
 	app, ok := s.catalog.Application(c.Params("app"))
 	if !ok {
 		return fiber.ErrNotFound
@@ -336,7 +340,7 @@ func (s *Server) historyLogs(c *fiber.Ctx) error {
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "to must be an RFC3339 timestamp")
 	}
-	page, err := s.store.QueryLogs(c.UserContext(), model.HistoryQuery{
+	page, err := s.store.QueryLogs(c.Context(), model.HistoryQuery{
 		Services: catalog.ServiceIDs(app),
 		Levels:   levels,
 		From:     from,

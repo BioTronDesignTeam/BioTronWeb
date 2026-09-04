@@ -11,7 +11,7 @@ import (
 	// America/Toronto rules used for daily buckets travel inside the binary.
 	_ "time/tzdata"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 
 	"github.com/BioTronDesignTeam/Logger/backend/internal/catalog"
 	"github.com/BioTronDesignTeam/Logger/backend/internal/model"
@@ -83,8 +83,8 @@ type historyResponse struct {
 
 // status serves the public status page. It contains no health detail string, no
 // health URL, and no log data of any kind: everything here is world-readable.
-func (s *Server) status(c *fiber.Ctx) error {
-	payload, err := cached(c.UserContext(), s.statusCache, "status", func(ctx context.Context) (statusResponse, error) {
+func (s *Server) status(c fiber.Ctx) error {
+	payload, err := cached(c.Context(), s.statusCache, "status", func(ctx context.Context) (statusResponse, error) {
 		return s.buildStatus(ctx)
 	})
 	if err != nil {
@@ -95,9 +95,9 @@ func (s *Server) status(c *fiber.Ctx) error {
 
 // statusHistory serves the fixed-width daily bar. days is clamped rather than
 // echoed back, so a hostile value never reaches the response.
-func (s *Server) statusHistory(c *fiber.Ctx) error {
+func (s *Server) statusHistory(c fiber.Ctx) error {
 	days := clampDays(c.Query("days"))
-	payload, err := cached(c.UserContext(), s.statusCache, "history:"+strconv.Itoa(days), func(ctx context.Context) (historyResponse, error) {
+	payload, err := cached(c.Context(), s.statusCache, "history:"+strconv.Itoa(days), func(ctx context.Context) (historyResponse, error) {
 		return s.buildHistory(ctx, days)
 	})
 	if err != nil {

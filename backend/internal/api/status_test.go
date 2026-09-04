@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 
 	"github.com/BioTronDesignTeam/Logger/backend/internal/auth"
 	"github.com/BioTronDesignTeam/Logger/backend/internal/catalog"
@@ -61,7 +61,7 @@ func heartbeats(from, to time.Time, ok bool) []model.HealthPoint {
 
 func getJSON(t *testing.T, app *fiber.App, path string, into any) *http.Response {
 	t.Helper()
-	response, err := app.Test(httptest.NewRequest(http.MethodGet, path, nil), -1)
+	response, err := app.Test(httptest.NewRequest(http.MethodGet, path, nil), noTestTimeout)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -288,7 +288,7 @@ func TestSessionIsPublicAndSeparatesSignedOutFromUnpermitted(t *testing.T) {
 func TestLogRoutesStayBehindLoggerView(t *testing.T) {
 	app := statusApp(t, &fakeStore{}, deniedAuthorizer{decision: auth.Decision{Authenticated: true}})
 	for _, path := range []string{"/v1/apps", "/v1/apps/calendar/logs/recent", "/v1/apps/calendar/logs/history"} {
-		response, err := app.Test(httptest.NewRequest(http.MethodGet, path, nil), -1)
+		response, err := app.Test(httptest.NewRequest(http.MethodGet, path, nil), noTestTimeout)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -311,7 +311,7 @@ func TestPublicStatusIsRateLimited(t *testing.T) {
 
 	var lastStatus int
 	for i := 0; i < 5; i++ {
-		response, err := app.Test(httptest.NewRequest(http.MethodGet, "/v1/status", nil), -1)
+		response, err := app.Test(httptest.NewRequest(http.MethodGet, "/v1/status", nil), noTestTimeout)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -342,7 +342,7 @@ func TestPublicStatusLimitIsPerClientBehindTheEdge(t *testing.T) {
 	get := func(clientIP string) int {
 		request := httptest.NewRequest(http.MethodGet, "/v1/status", nil)
 		request.Header.Set("Cf-Connecting-Ip", clientIP)
-		response, err := app.Test(request, -1)
+		response, err := app.Test(request, noTestTimeout)
 		if err != nil {
 			t.Fatal(err)
 		}

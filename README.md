@@ -145,10 +145,10 @@ an unauthenticated burst cannot become a burst of time-series queries. `days` is
 clamped to 1..90 and never echoed back.
 
 "Per address" only means anything because the API trusts the edge proxy for the
-client address. Logger runs with `EnableTrustedProxyCheck`, `TrustedProxies`
-from `TRUSTED_PROXIES` (`127.0.0.1,::1,172.16.0.0/12` in Compose) and
-`ProxyHeader: Cf-Connecting-Ip`, matching OAuthManager and Exo. The edge
-overwrites `Cf-Connecting-Ip` on every hop
+client address. Logger runs with Fiber's `TrustProxy`, a `TrustProxyConfig`
+whose `Proxies` come from `TRUSTED_PROXIES` (`127.0.0.1,::1,172.16.0.0/12` in
+Compose) and `ProxyHeader: Cf-Connecting-Ip`, matching OAuthManager and Exo.
+The edge overwrites `Cf-Connecting-Ip` on every hop
 (`Server/nginx/snippets/proxy-headers.conf`), so a client cannot pick its own
 bucket. Widening `TRUSTED_PROXIES` beyond the edge network — or removing that
 `proxy_set_header` — would let anyone spoof both the rate-limit key and the
