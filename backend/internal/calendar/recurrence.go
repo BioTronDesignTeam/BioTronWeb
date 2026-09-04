@@ -89,6 +89,14 @@ func InLocation(value time.Time, location *time.Location) time.Time {
 	return frame.Add(-time.Duration(offsetBeforeGap) * time.Second).In(location)
 }
 
+// WallClock is the inverse of InLocation: the location-local wall clock of an
+// instant, expressed in the UTC frame the schema stores its TIMESTAMP columns
+// in. Query bounds have to be compared in that frame, not as instants.
+func WallClock(value time.Time, location *time.Location) time.Time {
+	local := value.In(location)
+	return time.Date(local.Year(), local.Month(), local.Day(), local.Hour(), local.Minute(), local.Second(), 0, time.UTC)
+}
+
 func sameWallClock(projected, wall time.Time) bool {
 	return projected.Year() == wall.Year() && projected.Month() == wall.Month() &&
 		projected.Day() == wall.Day() && projected.Hour() == wall.Hour() &&

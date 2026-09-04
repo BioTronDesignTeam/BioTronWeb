@@ -179,18 +179,45 @@ func (s *Store) ScopeIsActive(ctx context.Context, id string) (bool, error) {
 	return active, err
 }
 
-func (s *Store) ListSeries(ctx context.Context, scopeID string, includeDrafts bool) ([]model.EventSeries, error) {
-	return s.listSeries(ctx, scopeID, includeDrafts, includeDrafts)
+// Window is a wall-clock range, in the UTC frame the schema stores, used to
+// load only the rows a read can possibly need. A nil Window loads everything.
+type Window struct {
+	From time.Time
+	To   time.Time
+}
+
+// widened pads the window by a day on each side. The stored wall clock maps to
+// an instant through a daylight-saving resolution that can move a value forward
+// by an hour, and an all-day boundary sits at midnight, so the SQL bound is kept
+// deliberately loose. Expand still applies the exact rule; this only decides
+// which rows are worth fetching.
+func (w *Window) widened() (from, to any) {
+	if w == nil {
+		return nil, nil
+	}
+	return w.From.AddDate(0, 0, -1), w.To.AddDate(0, 0, 1)
+}
+
+// ListSeries loads every series in scope. A non-nil window restricts the load to
+// series that could produce an occurrence inside it, which is what the public
+// JSON reads want; the editor passes nil because it lists the whole calendar.
+func (s *Store) ListSeries(ctx context.Context, scopeID string, includeDrafts bool, window *Window) ([]model.EventSeries, error) {
+	return s.listSeries(ctx, scopeID, includeDrafts, includeDrafts, window)
 }
 
 // ListFeedSeries retains published history for stable subscription URLs even
 // when a scope is archived. Public JSON views use ListSeries and hide archived
 // scope trees; feeds continue to reconcile existing subscriber calendars.
+//
+// Feeds are deliberately never windowed. A subscription is reconciled against
+// the whole document, so dropping a past or expired VEVENT would tell a client
+// to delete a meeting that actually happened.
 func (s *Store) ListFeedSeries(ctx context.Context, scopeID string) ([]model.EventSeries, error) {
-	return s.listSeries(ctx, scopeID, false, true)
+	return s.listSeries(ctx, scopeID, false, true, nil)
 }
 
-func (s *Store) listSeries(ctx context.Context, scopeID string, includeDrafts, includeHiddenScopes bool) ([]model.EventSeries, error) {
+func (s *Store) listSeries(ctx context.Context, scopeID string, includeDrafts, includeHiddenScopes bool, window *Window) ([]model.EventSeries, error) {
+	windowFrom, windowTo := window.widened()
 	rows, err := s.pool.Query(ctx, `
 		WITH RECURSIVE scope_tree AS (
 			SELECT id, parent_id, status = 'ACTIVE' AS effectively_active
@@ -211,8 +238,18 @@ func (s *Store) listSeries(ctx context.Context, scopeID string, includeDrafts, i
 		WHERE ($1 = '' OR e.scope_id = $1::uuid)
 		  AND ($2 OR e.state IN ('PUBLISHED', 'CANCELLED'))
 		  AND ($3 OR visibility.effectively_active)
+		  -- The first occurrence has to start before the window ends, and the
+		  -- last one has to end after it begins. For a weekly series the last
+		  -- occurrence is bounded by the inclusive recurrence end, so that date
+		  -- plus the occurrence duration is what has to be compared, not the
+		  -- first occurrence's end.
+		  AND ($4::timestamp IS NULL OR e.starts_at_local < $5::timestamp)
+		  AND ($4::timestamp IS NULL OR COALESCE(
+		          (e.recurrence_until + 1)::timestamp + (e.ends_at_local - e.starts_at_local),
+		          e.ends_at_local
+		      ) > $4::timestamp)
 		ORDER BY e.starts_at_local, lower(e.title)
-	`, scopeID, includeDrafts, includeHiddenScopes)
+	`, scopeID, includeDrafts, includeHiddenScopes, windowFrom, windowTo)
 	if err != nil {
 		return nil, err
 	}
@@ -228,7 +265,7 @@ func (s *Store) listSeries(ctx context.Context, scopeID string, includeDrafts, i
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	if err := s.attachOverrides(ctx, series); err != nil {
+	if err := s.attachOverrides(ctx, series, window); err != nil {
 		return nil, err
 	}
 	return series, nil
@@ -248,7 +285,9 @@ func (s *Store) GetSeries(ctx context.Context, id string) (model.EventSeries, er
 		return model.EventSeries{}, err
 	}
 	series := []model.EventSeries{event}
-	if err := s.attachOverrides(ctx, series); err != nil {
+	// The editor and the update guard both need every override on the series,
+	// so this path is never windowed.
+	if err := s.attachOverrides(ctx, series, nil); err != nil {
 		return model.EventSeries{}, err
 	}
 	return series[0], nil
@@ -409,19 +448,41 @@ func bumpPublishedSeries(ctx context.Context, tx pgx.Tx, seriesID string, expect
 	return nil
 }
 
-func (s *Store) attachOverrides(ctx context.Context, series []model.EventSeries) error {
+func (s *Store) attachOverrides(ctx context.Context, series []model.EventSeries, window *Window) error {
 	if len(series) == 0 {
 		return nil
 	}
 	byID := make(map[string]*model.EventSeries, len(series))
+	ids := make([]string, 0, len(series))
 	for i := range series {
 		byID[series[i].ID] = &series[i]
+		ids = append(ids, series[i].ID)
 	}
+	windowFrom, windowTo := window.widened()
+	// Reading the whole override table to answer one request was survivable
+	// while this only ran for the editor. It now runs on every load of the
+	// public site, so it is scoped to the series actually loaded and, when the
+	// caller has a window, to the overrides that can affect it.
+	//
+	// An override only reaches outside its own recurrence slot when it moves the
+	// occurrence in time, so a patch carrying either boundary is always loaded:
+	// that is how a meeting dragged across months still shows up. Everything
+	// else stays where its recurrence id puts it.
 	rows, err := s.pool.Query(ctx, `
-		SELECT id::text, series_id::text, recurrence_id_local, state::text,
-		       patch, sequence, created_at, updated_at
-		FROM event_overrides ORDER BY recurrence_id_local
-	`)
+		SELECT o.id::text, o.series_id::text, o.recurrence_id_local, o.state::text,
+		       o.patch, o.sequence, o.created_at, o.updated_at
+		FROM event_overrides o
+		JOIN event_series e ON e.id = o.series_id
+		WHERE o.series_id = ANY($1::uuid[])
+		  AND (
+		        $2::timestamp IS NULL
+		        OR o.patch -> 'starts_at_local' IS NOT NULL
+		        OR o.patch -> 'ends_at_local' IS NOT NULL
+		        OR (o.recurrence_id_local < $3::timestamp
+		            AND o.recurrence_id_local + (e.ends_at_local - e.starts_at_local) > $2::timestamp)
+		      )
+		ORDER BY o.recurrence_id_local
+	`, ids, windowFrom, windowTo)
 	if err != nil {
 		return err
 	}

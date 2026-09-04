@@ -38,7 +38,7 @@ func (h *Handler) listOccurrences(c *fiber.Ctx) error {
 	if scopeID != "" && uuid.Validate(scopeID) != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "scope_id must be a UUID"})
 	}
-	series, err := h.store.ListSeries(c.UserContext(), scopeID, false)
+	series, err := h.store.ListSeries(c.UserContext(), scopeID, false, h.window(from, to))
 	if err != nil {
 		return err
 	}
@@ -71,11 +71,12 @@ func (h *Handler) listUpcoming(c *fiber.Ctx) error {
 	// From now, not from the start of today: a meeting that finished this
 	// morning is not upcoming.
 	now := time.Now().In(h.location)
-	series, err := h.store.ListSeries(c.UserContext(), "", false)
+	until := now.AddDate(0, 0, days)
+	series, err := h.store.ListSeries(c.UserContext(), "", false, h.window(now, until))
 	if err != nil {
 		return err
 	}
-	occurrences, err := calendarlogic.Expand(series, now, now.AddDate(0, 0, days), h.location)
+	occurrences, err := calendarlogic.Expand(series, now, until, h.location)
 	if err != nil {
 		return err
 	}
@@ -131,8 +132,19 @@ func clampQuery(raw string, fallback, minimum, maximum int) int {
 	return value
 }
 
+// window converts an instant range into the wall-clock range the schema stores,
+// so a read only loads the series and overrides it can possibly render.
+func (h *Handler) window(from, to time.Time) *store.Window {
+	return &store.Window{
+		From: calendarlogic.WallClock(from, h.location),
+		To:   calendarlogic.WallClock(to, h.location),
+	}
+}
+
+// The editor lists the whole calendar, past and future, drafts included, so
+// this read is deliberately not windowed.
 func (h *Handler) listAdminEvents(c *fiber.Ctx) error {
-	series, err := h.store.ListSeries(c.UserContext(), strings.TrimSpace(c.Query("scope_id")), true)
+	series, err := h.store.ListSeries(c.UserContext(), strings.TrimSpace(c.Query("scope_id")), true, nil)
 	if err != nil {
 		return err
 	}
