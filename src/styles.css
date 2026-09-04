@@ -64,7 +64,6 @@
   border: 1px solid var(--biotron-border);
   border-radius: 999px;
   padding: 0;
-  overflow: hidden;
   background: var(--biotron-surface-muted);
   color: var(--biotron-text-muted);
   cursor: pointer;
@@ -99,11 +98,11 @@
 
 .biotron-user-menu { position: relative; display: inline-flex; }
 .biotron-user-menu__trigger {
+  position: relative;
   display: grid;
   width: 2.5rem;
   height: 2.5rem;
   place-items: center;
-  overflow: hidden;
   border: 1px solid var(--biotron-border);
   border-radius: 999px;
   padding: 0;
@@ -114,7 +113,7 @@
   transition: transform 160ms ease, border-color 220ms ease, background-color 220ms ease;
 }
 .biotron-user-menu__trigger:hover { transform: translateY(-1px); border-color: var(--biotron-accent); }
-.biotron-user-menu__trigger img { width: 100%; height: 100%; object-fit: cover; }
+.biotron-user-menu__trigger img { width: 100%; height: 100%; border-radius: 999px; object-fit: cover; }
 .biotron-user-menu__trigger svg { width: 1.15rem; height: 1.15rem; }
 .dark .biotron-user-menu__trigger { color: var(--biotron-soft); }
 .biotron-user-menu__popover {
@@ -254,6 +253,32 @@
 .biotron-preview__toolbar .biotron-user-menu__popover { right: auto; left: 0; }
 .biotron-preview__actions { display: flex; flex-wrap: wrap; gap: 0.75rem; }
 .biotron-eyebrow { color: var(--biotron-accent); font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; }
+
+/* Touch and small-viewport hit areas.
+
+   The theme toggle (82x40) and the user-menu trigger (40x40) are drawn at the
+   sizes the desktop headers were approved with, both under the 44px minimum
+   touch target. Rather than resize the controls, an invisible centred overlay
+   extends each button's own hit area to at least 44x44 wherever the pointer is
+   coarse or the viewport is phone-sized. Desktop rendering is untouched.
+
+   The overlay grows a control by at most 2px per side, so two of these sitting
+   side by side in a header still clear each other: consumers separate them by
+   at least 0.5rem, leaving 4px of gap between the enlarged targets. */
+@media (pointer: coarse), (max-width: 34rem) {
+  .biotron-theme-toggle::after,
+  .biotron-user-menu__trigger::after {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 100%;
+    min-width: 44px;
+    height: 100%;
+    min-height: 44px;
+    transform: translate(-50%, -50%);
+    content: "";
+  }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .biotron-theme-toggle__thumb,
