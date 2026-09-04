@@ -1,8 +1,11 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Vector3 } from 'three';
 import { useScene } from '../lib/store';
 import { sampleCamera, stopAtProgress } from './CameraPath';
+
+/** Scratch vector reused every frame for the parallax-offset camera target. */
+const _desiredPos = new Vector3();
 
 /**
  * Bridges scroll progress (from the store) to the camera: samples the camera
@@ -11,27 +14,27 @@ import { sampleCamera, stopAtProgress } from './CameraPath';
  */
 export default function Rig({ reduced = false }: { reduced?: boolean }) {
   const camera = useThree((s) => s.camera);
-  const targetPos = useRef(new Vector3(7.5, 6.5, 9.5));
-  const targetLook = useRef(new Vector3(0, 0.8, -1.5));
-  const currentLook = useRef(new Vector3(0, 0.8, -1.5));
+  // Lazy initializers: these vectors are mutated in place every frame, so they
+  // must be built once and never rebuilt during a render.
+  const [targetPos] = useState(() => new Vector3(7.5, 6.5, 9.5));
+  const [targetLook] = useState(() => new Vector3(0, 0.8, -1.5));
+  const [currentLook] = useState(() => new Vector3(0, 0.8, -1.5));
   const lastStop = useRef<string | null>('about');
 
   useFrame((_, delta) => {
     const { progress, pointer, setActiveStop } = useScene.getState();
 
-    sampleCamera(progress, targetPos.current, targetLook.current);
+    sampleCamera(progress, targetPos, targetLook);
 
     // Subtle parallax from pointer (skipped under reduced motion).
     const px = reduced ? 0 : pointer.x * 0.5;
     const py = reduced ? 0 : pointer.y * 0.3;
 
     const lerp = reduced ? 1 : Math.min(1, delta * 3.5);
-    camera.position.lerp(
-      targetPos.current.clone().add(new Vector3(px, py, 0)),
-      lerp,
-    );
-    currentLook.current.lerp(targetLook.current, lerp);
-    camera.lookAt(currentLook.current);
+    _desiredPos.set(targetPos.x + px, targetPos.y + py, targetPos.z);
+    camera.position.lerp(_desiredPos, lerp);
+    currentLook.lerp(targetLook, lerp);
+    camera.lookAt(currentLook);
 
     const stop = stopAtProgress(progress);
     if (stop !== lastStop.current) {
