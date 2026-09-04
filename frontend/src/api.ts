@@ -32,10 +32,10 @@ async function request<T>(path: string, init: RequestInit = {}, authenticated = 
 export const calendarApi = {
   authStatus: () => request<AuthStatus>('/v1/auth/status', {}, true),
   scopes: () => request<Scope[]>('/v1/scopes'),
-  occurrences: (from: string, to: string, scopeId?: string) => {
+  occurrences: (from: string, to: string, scopeId?: string, signal?: AbortSignal) => {
     const query = new URLSearchParams({ from, to });
     if (scopeId) query.set('scope_id', scopeId);
-    return request<Occurrence[]>(`/v1/events?${query}`);
+    return request<Occurrence[]>(`/v1/events?${query}`, { signal });
   },
   adminScopes: () => request<Scope[]>('/v1/admin/scopes', {}, true),
   adminEvents: () => request<EventSeries[]>('/v1/admin/events', {}, true),

@@ -41,7 +41,7 @@ function addLocalDays(value: string, days: number) {
   return date.toISOString().slice(0, 10);
 }
 
-const inputClass = 'mt-1 min-h-11 w-full rounded-xl border border-[#16033c]/15 bg-transparent px-3 py-2 text-sm outline-none focus:border-[#3050b0] dark:border-white/20';
+const inputClass = 'mt-1 min-h-11 w-full rounded-xl border border-ink/15 bg-transparent px-3 py-2 text-sm outline-none focus:border-brand dark:border-white/20';
 
 export function EventEditor({ event, scopes, onClose, onSave }: EventEditorProps) {
   const initialStart = event ? localInput(event.starts_at_local) : nextHour();
@@ -114,17 +114,17 @@ export function EventEditor({ event, scopes, onClose, onSave }: EventEditorProps
           <label><span className="text-sm font-semibold">Location</span><input maxLength={300} value={location} onChange={(e) => setLocation(e.target.value)} className={inputClass} placeholder="E5 2004 or online" /></label>
           <label><span className="text-sm font-semibold">Starts</span><input required type={allDay ? 'date' : 'datetime-local'} value={allDay ? startsAt.slice(0, 10) : startsAt} onChange={(e) => setStartsAt(allDay ? `${e.target.value}T00:00` : e.target.value)} className={inputClass} /></label>
           <label><span className="text-sm font-semibold">{allDay ? 'Ends (inclusive)' : 'Ends'}</span><input required type={allDay ? 'date' : 'datetime-local'} min={allDay ? startsAt.slice(0, 10) : undefined} value={allDay ? addLocalDays(endsAt.slice(0, 10), -1) : endsAt} onChange={(e) => setEndsAt(allDay ? `${addLocalDays(e.target.value, 1)}T00:00` : e.target.value)} className={inputClass} /></label>
-          <label className="flex min-h-11 items-center gap-3 rounded-xl border border-[#16033c]/10 px-3 dark:border-white/15"><input type="checkbox" checked={allDay} onChange={(e) => toggleAllDay(e.target.checked)} className="size-4 accent-[#3050b0]" /><span className="text-sm font-semibold">All-day event</span></label>
-          <label className="flex min-h-11 items-center gap-3 rounded-xl border border-[#16033c]/10 px-3 dark:border-white/15"><input type="checkbox" checked={weekly} onChange={(e) => setWeekly(e.target.checked)} className="size-4 accent-[#3050b0]" /><span className="text-sm font-semibold">Repeat weekly</span></label>
-          {weekly && <label className="sm:col-span-2"><span className="text-sm font-semibold">Repeat through</span><input required type="date" min={startsAt.slice(0, 10)} value={recurrenceUntil} onChange={(e) => setRecurrenceUntil(e.target.value)} className={inputClass} /><span className="mt-1 block text-xs text-[#16033c]/50 dark:text-white/50">The end date is inclusive. Schedule a new series when the next term’s meeting time is known.</span></label>}
+          <label className="flex min-h-11 items-center gap-3 rounded-xl border border-ink/10 px-3 dark:border-white/15"><input type="checkbox" checked={allDay} onChange={(e) => toggleAllDay(e.target.checked)} className="size-4 accent-brand" /><span className="text-sm font-semibold">All-day event</span></label>
+          <label className="flex min-h-11 items-center gap-3 rounded-xl border border-ink/10 px-3 dark:border-white/15"><input type="checkbox" checked={weekly} onChange={(e) => setWeekly(e.target.checked)} className="size-4 accent-brand" /><span className="text-sm font-semibold">Repeat weekly</span></label>
+          {weekly && <label className="sm:col-span-2"><span className="text-sm font-semibold">Repeat through</span><input required type="date" min={startsAt.slice(0, 10)} value={recurrenceUntil} onChange={(e) => setRecurrenceUntil(e.target.value)} className={inputClass} /><span className="mt-1 block text-xs text-ink/50 dark:text-white/50">The end date is inclusive. Schedule a new series when the next term’s meeting time is known.</span></label>}
           <label className="sm:col-span-2"><span className="text-sm font-semibold">Event link</span><input type="url" value={url} onChange={(e) => setURL(e.target.value)} className={inputClass} placeholder="https://" /></label>
           <label className="sm:col-span-2"><span className="text-sm font-semibold">Description</span><textarea rows={4} maxLength={5000} value={description} onChange={(e) => setDescription(e.target.value)} className={`${inputClass} resize-y`} /></label>
         </div>
         {error && <p className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800 dark:bg-red-950/30 dark:text-red-200">{error}</p>}
         <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <button type="button" onClick={onClose} className="min-h-11 rounded-full px-5 text-sm font-semibold hover:bg-[#aedbfc]/25 dark:hover:bg-white/10">Cancel</button>
-          <button type="submit" value="draft" disabled={saving} className="min-h-11 rounded-full border border-[#160b6c] px-5 text-sm font-semibold text-[#160b6c] disabled:opacity-50 dark:border-[#aedbfc] dark:text-[#aedbfc]">{event ? 'Save changes' : 'Save draft'}</button>
-          {!event && <button type="submit" value="publish" disabled={saving} className="min-h-11 rounded-full bg-[#160b6c] px-5 text-sm font-semibold text-white hover:bg-[#3050b0] disabled:opacity-50">Create and publish</button>}
+          <button type="button" onClick={onClose} className="min-h-11 rounded-full px-5 text-sm font-semibold hover:bg-soft/25 dark:hover:bg-white/10">Cancel</button>
+          <button type="submit" value="draft" disabled={saving} className="min-h-11 rounded-full border border-deep px-5 text-sm font-semibold text-deep disabled:opacity-50 dark:border-soft dark:text-soft">{event ? 'Save changes' : 'Save draft'}</button>
+          {!event && <button type="submit" value="publish" disabled={saving} className="min-h-11 rounded-full bg-deep px-5 text-sm font-semibold text-white hover:bg-brand disabled:opacity-50">Create and publish</button>}
         </div>
       </form>
     </Modal>

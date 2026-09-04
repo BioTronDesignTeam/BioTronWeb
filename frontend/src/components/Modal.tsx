@@ -51,18 +51,18 @@ export function Modal({ title, children, onClose, wide = false }: ModalProps) {
   }, []);
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#16033c]/65 p-0 backdrop-blur-sm sm:items-center sm:p-6" role="presentation" onMouseDown={onClose}>
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/65 p-0 backdrop-blur-sm sm:items-center sm:p-6" role="presentation" onMouseDown={onClose}>
       <section
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"
-        className={`max-h-[92dvh] w-full overflow-y-auto rounded-t-3xl border border-[#aedbfc]/40 bg-white p-5 text-[#16033c] sm:rounded-3xl sm:p-7 dark:border-white/15 dark:bg-[#16033c] dark:text-white ${wide ? 'sm:max-w-4xl' : 'sm:max-w-xl'}`}
+        className={`max-h-[92dvh] w-full overflow-y-auto rounded-t-3xl border border-soft/40 bg-white p-5 text-ink sm:rounded-3xl sm:p-7 dark:border-white/15 dark:bg-ink dark:text-white ${wide ? 'sm:max-w-4xl' : 'sm:max-w-xl'}`}
         onMouseDown={(event) => event.stopPropagation()}
       >
         <header className="mb-5 flex items-center justify-between gap-4">
           <h2 id="modal-title" className="text-xl font-semibold tracking-tight">{title}</h2>
-          <button ref={closeRef} type="button" onClick={onClose} className="grid size-11 shrink-0 place-items-center rounded-full border border-[#16033c]/15 text-xl hover:bg-[#aedbfc]/30 dark:border-white/20 dark:hover:bg-white/10" aria-label="Close">
+          <button ref={closeRef} type="button" onClick={onClose} className="grid size-11 shrink-0 place-items-center rounded-full border border-ink/15 text-xl hover:bg-soft/30 dark:border-white/20 dark:hover:bg-white/10" aria-label="Close">
             ×
           </button>
         </header>

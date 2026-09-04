@@ -23,7 +23,7 @@ function addLocalDays(value: string, days: number) {
   return new Date(Date.UTC(year, month - 1, day + days, 12)).toISOString().slice(0, 10);
 }
 
-const inputClass = 'mt-1 min-h-11 w-full rounded-xl border border-[#16033c]/15 bg-transparent px-3 py-2 text-sm outline-none focus:border-[#3050b0] dark:border-white/20';
+const inputClass = 'mt-1 min-h-11 w-full rounded-xl border border-ink/15 bg-transparent px-3 py-2 text-sm outline-none focus:border-brand dark:border-white/20';
 
 export function OccurrenceEditor({ occurrence, onClose, onSave, onReset }: OccurrenceEditorProps) {
   const [title, setTitle] = useState(occurrence.title);
@@ -68,7 +68,7 @@ export function OccurrenceEditor({ occurrence, onClose, onSave, onReset }: Occur
 
   return (
     <Modal title="Edit this occurrence" onClose={onClose} wide>
-      <p className="mb-5 text-sm leading-6 text-[#16033c]/65 dark:text-white/65">This changes only the selected meeting. The rest of the weekly series keeps its normal schedule.</p>
+      <p className="mb-5 text-sm leading-6 text-ink/65 dark:text-white/65">This changes only the selected meeting. The rest of the weekly series keeps its normal schedule.</p>
       <form onSubmit={(formEvent) => void submit(formEvent)}>
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="sm:col-span-2"><span className="text-sm font-semibold">Title</span><input required value={title} onChange={(e) => setTitle(e.target.value)} className={inputClass} /></label>
@@ -82,8 +82,8 @@ export function OccurrenceEditor({ occurrence, onClose, onSave, onReset }: Occur
         <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-between">
           <div>{onReset && <button type="button" disabled={saving} onClick={() => void reset()} className="min-h-11 rounded-full px-4 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50 dark:text-red-300 dark:hover:bg-red-950/30">Reset to series</button>}</div>
           <div className="flex flex-col-reverse gap-2 sm:flex-row">
-            <button type="button" onClick={onClose} className="min-h-11 rounded-full px-5 text-sm font-semibold hover:bg-[#aedbfc]/25 dark:hover:bg-white/10">Cancel</button>
-            <button type="submit" disabled={saving} className="min-h-11 rounded-full bg-[#160b6c] px-5 text-sm font-semibold text-white hover:bg-[#3050b0] disabled:opacity-50">Save occurrence</button>
+            <button type="button" onClick={onClose} className="min-h-11 rounded-full px-5 text-sm font-semibold hover:bg-soft/25 dark:hover:bg-white/10">Cancel</button>
+            <button type="submit" disabled={saving} className="min-h-11 rounded-full bg-deep px-5 text-sm font-semibold text-white hover:bg-brand disabled:opacity-50">Save occurrence</button>
           </div>
         </div>
       </form>

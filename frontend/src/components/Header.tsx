@@ -15,19 +15,19 @@ export function Header({ auth, managing, onManage, onPublic, onLoggedOut }: Head
   const operator = auth.operator;
   const [logoutError, setLogoutError] = useState('');
   return (
-    <header className="sticky top-0 z-40 border-b border-[#16033c]/10 bg-white/90 backdrop-blur-xl dark:border-white/10 dark:bg-[#16033c]/90">
+    <header className="sticky top-0 z-40 border-b border-ink/10 bg-white/90 backdrop-blur-xl dark:border-white/10 dark:bg-ink/90">
       <div className="mx-auto flex min-h-16 max-w-[1500px] items-center gap-3 px-4 sm:px-6 lg:px-8">
-        <a href={SITE_URL} className="flex min-w-0 items-center gap-3 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#3050b0]" aria-label="Back to BioTron">
+        <a href={SITE_URL} className="flex min-w-0 items-center gap-3 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand" aria-label="Back to BioTron">
           <Brand className="hidden w-28 sm:inline-flex" />
           <Brand compact className="sm:hidden" />
-          <span className="hidden h-6 w-px bg-[#16033c]/15 sm:block dark:bg-white/20" aria-hidden="true" />
+          <span className="hidden h-6 w-px bg-ink/15 sm:block dark:bg-white/20" aria-hidden="true" />
           <span className="hidden truncate text-sm font-semibold tracking-wide sm:block">Calendar</span>
         </a>
         <div className="ml-auto flex items-center gap-2">
           {auth.can_write && (
             <button
               type="button"
-              className="min-h-11 rounded-full px-4 text-sm font-semibold text-[#3050b0] hover:bg-[#aedbfc]/30 dark:text-[#aedbfc] dark:hover:bg-white/10"
+              className="min-h-11 rounded-full px-4 text-sm font-semibold text-brand hover:bg-soft/30 dark:text-soft dark:hover:bg-white/10"
               onClick={managing ? onPublic : onManage}
             >
               {managing ? <><span className="sm:hidden">View</span><span className="hidden sm:inline">View calendar</span></> : 'Manage'}

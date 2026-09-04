@@ -127,7 +127,7 @@ export function App() {
   const editorScopes = managing ? adminScopes : scopes;
 
   return (
-    <div className="min-h-dvh bg-[#f8f9ff] text-[#16033c] dark:bg-[#16033c] dark:text-white">
+    <div className="min-h-dvh bg-white text-ink dark:bg-ink dark:text-white">
       <Header auth={auth} managing={managing} onManage={() => setManaging(true)} onPublic={() => setManaging(false)} onLoggedOut={() => { setAuth({ can_write: false }); setManaging(false); }} />
       {managing && auth.can_write ? (
         <AdminPanel
@@ -145,7 +145,7 @@ export function App() {
       ) : (
         <PublicCalendar month={month} scopes={scopes} occurrences={occurrences} selectedScope={selectedScope} loading={loading} error={error} onMonthChange={setMonth} onScopeChange={setSelectedScope} onSubscribe={() => setShowSubscribe(true)} onSelectEvent={(occurrence) => { setEventActionError(''); setSelectedOccurrence(occurrence); }} />
       )}
-      <footer className="border-t border-[#16033c]/10 px-4 py-6 text-center text-xs text-[#16033c]/50 dark:border-white/10 dark:text-white/45">Times use America/Toronto · Calendar subscriptions update on each calendar app’s schedule</footer>
+      <footer className="border-t border-ink/10 px-4 py-6 text-center text-xs text-ink/50 dark:border-white/10 dark:text-white/45">Times use America/Toronto · Calendar subscriptions update on each calendar app’s schedule</footer>
 
       {showSubscribe && <SubscribePanel scopes={scopes} onClose={() => setShowSubscribe(false)} />}
       {selectedOccurrence && <EventDetails occurrence={selectedOccurrence} canWrite={auth.can_write} error={eventActionError} onClose={() => { setEventActionError(''); setSelectedOccurrence(undefined); }} onEditSeries={() => void editSeriesFromOccurrence()} onEditOccurrence={() => { setEditingOccurrence(selectedOccurrence); setSelectedOccurrence(undefined); }} onCancelOccurrence={() => {
