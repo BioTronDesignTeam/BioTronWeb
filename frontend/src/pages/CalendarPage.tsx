@@ -1,7 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ArrowRight, ArrowUpRight, CalendarDays, Clock3, MapPin } from 'lucide-react';
 import PageMeta from '../components/PageMeta';
 
+/**
+ * The fields this view reads from the calendar's occurrence JSON. The calendar
+ * API owns the shape and the selection rules; this page only renders what it
+ * sends back, so keep the list to what the markup below actually uses.
+ */
 interface CalendarOccurrence {
   series_id: string;
   recurrence_id_local: string;
@@ -17,34 +22,62 @@ const CALENDAR_API_URL = (import.meta.env.VITE_CALENDAR_API_URL || 'http://local
 const CALENDAR_URL = (import.meta.env.VITE_CALENDAR_URL || 'http://localhost:5176').replace(/\/$/, '');
 const TORONTO_TIMEZONE = 'America/Toronto';
 
-function dateKey(date: Date) {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: TORONTO_TIMEZONE,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(date);
-  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-  return `${values.year}-${values.month}-${values.day}`;
-}
+/** How many upcoming occurrences to show, and how far ahead to look. */
+const UPCOMING_LIMIT = 5;
+const UPCOMING_DAYS = 42;
+
+const DATE_FORMAT = new Intl.DateTimeFormat('en-CA', {
+  timeZone: TORONTO_TIMEZONE,
+  weekday: 'short',
+  month: 'short',
+  day: 'numeric',
+});
+
+const TIME_FORMAT = new Intl.DateTimeFormat('en-CA', {
+  timeZone: TORONTO_TIMEZONE,
+  hour: 'numeric',
+  minute: '2-digit',
+});
 
 function eventDate(occurrence: CalendarOccurrence) {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: TORONTO_TIMEZONE,
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-  }).format(new Date(occurrence.starts_at));
+  return DATE_FORMAT.format(new Date(occurrence.starts_at));
 }
 
 function eventTime(occurrence: CalendarOccurrence) {
   if (occurrence.all_day) return 'All day';
-  const format = new Intl.DateTimeFormat('en-CA', {
-    timeZone: TORONTO_TIMEZONE,
-    hour: 'numeric',
-    minute: '2-digit',
-  });
-  return `${format.format(new Date(occurrence.starts_at))} to ${format.format(new Date(occurrence.ends_at))}`;
+  const from = TIME_FORMAT.format(new Date(occurrence.starts_at));
+  const to = TIME_FORMAT.format(new Date(occurrence.ends_at));
+  return `${from} to ${to}`;
+}
+
+function isTimestamp(value: unknown): value is string {
+  return typeof value === 'string' && Number.isFinite(Date.parse(value));
+}
+
+function isOccurrence(value: unknown): value is CalendarOccurrence {
+  if (typeof value !== 'object' || value === null) return false;
+  const candidate = value as Record<string, unknown>;
+  return (
+    typeof candidate.series_id === 'string' &&
+    typeof candidate.recurrence_id_local === 'string' &&
+    typeof candidate.scope_name === 'string' &&
+    typeof candidate.title === 'string' &&
+    typeof candidate.location === 'string' &&
+    typeof candidate.all_day === 'boolean' &&
+    isTimestamp(candidate.starts_at) &&
+    isTimestamp(candidate.ends_at)
+  );
+}
+
+/**
+ * Validates the response at runtime. A renamed or dropped field throws here,
+ * so the page falls back to its unavailable state instead of rendering
+ * `undefined` and `Invalid Date`.
+ */
+function parseOccurrences(payload: unknown): CalendarOccurrence[] {
+  if (!Array.isArray(payload)) throw new Error('calendar response is not a list');
+  if (!payload.every(isOccurrence)) throw new Error('calendar response has an unexpected shape');
+  return payload;
 }
 
 export default function CalendarPage() {
@@ -52,35 +85,41 @@ export default function CalendarPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
-  const range = useMemo(() => {
-    const from = new Date();
-    const to = new Date(from);
-    to.setDate(to.getDate() + 42);
-    return { from: dateKey(from), to: dateKey(to) };
-  }, []);
-
   useEffect(() => {
+    // The calendar API owns the window, the ordering, and the cut-off. This
+    // page asks for the next few events and renders exactly what it returns.
     const controller = new AbortController();
+    let cancelled = false;
+
     async function load() {
       try {
-        const query = new URLSearchParams(range);
-        const response = await fetch(`${CALENDAR_API_URL}/v1/events?${query}`, {
+        const query = new URLSearchParams({
+          limit: String(UPCOMING_LIMIT),
+          days: String(UPCOMING_DAYS),
+        });
+        const response = await fetch(`${CALENDAR_API_URL}/v1/events/upcoming?${query}`, {
           credentials: 'omit',
           signal: controller.signal,
         });
         if (!response.ok) throw new Error('calendar unavailable');
-        const nextEvents = (await response.json()) as CalendarOccurrence[];
-        const now = Date.now();
-        setEvents(nextEvents.filter((event) => new Date(event.ends_at).getTime() > now).slice(0, 5));
-      } catch (caught) {
-        if (!(caught instanceof DOMException && caught.name === 'AbortError')) setError(true);
+        const occurrences = parseOccurrences(await response.json());
+        if (cancelled) return;
+        setEvents(occurrences);
+      } catch {
+        if (cancelled) return;
+        setError(true);
       } finally {
-        if (!controller.signal.aborted) setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
+
     void load();
-    return () => controller.abort();
-  }, [range]);
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, []);
 
   return (
     <main id="main" className="calendarpage">
