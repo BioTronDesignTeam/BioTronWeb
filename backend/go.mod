@@ -1,6 +1,6 @@
 module github.com/BioTronDesignTeam/exo-gui/backend
 
-go 1.23
+go 1.27
 
 require (
 	github.com/gofiber/fiber/v2 v2.52.13
