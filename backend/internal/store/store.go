@@ -293,6 +293,51 @@ func (s *Store) LatestHealth(ctx context.Context, services []string) (map[string
 	return result, rows.Err()
 }
 
+// HealthHistory returns every observation in (from, to] plus, for each service,
+// the single most recent observation at or before from. That carry-in row is
+// the state the component was already in when the window opened, and without it
+// a window whose component never changed state would look like it had no data
+// at all.
+//
+// Rows come back ascending by service then time, which is the order the uptime
+// walk needs. Detail is deliberately not selected: the public status layer must
+// never see raw dial errors and internal hostnames.
+func (s *Store) HealthHistory(ctx context.Context, services []string, from, to time.Time) (map[string][]model.HealthPoint, error) {
+	rows, err := s.db.Query(ctx, `
+		(
+			SELECT DISTINCT ON (service) service, ok, checked_at
+			FROM health_checks
+			WHERE service = ANY($1) AND checked_at <= $2
+			ORDER BY service, checked_at DESC
+		)
+		UNION ALL
+		(
+			SELECT service, ok, checked_at
+			FROM health_checks
+			WHERE service = ANY($1) AND checked_at > $2 AND checked_at <= $3
+		)
+		ORDER BY service, checked_at
+	`, services, from, to)
+	if err != nil {
+		return nil, fmt.Errorf("query health history: %w", err)
+	}
+	defer rows.Close()
+
+	history := make(map[string][]model.HealthPoint, len(services))
+	for rows.Next() {
+		var service string
+		var point model.HealthPoint
+		if err := rows.Scan(&service, &point.OK, &point.CheckedAt); err != nil {
+			return nil, fmt.Errorf("scan health history: %w", err)
+		}
+		history[service] = append(history[service], point)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate health history: %w", err)
+	}
+	return history, nil
+}
+
 func (s *Store) cacheLog(ctx context.Context, entry model.Log) error {
 	raw, err := json.Marshal(entry)
 	if err != nil {
