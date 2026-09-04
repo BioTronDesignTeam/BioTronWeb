@@ -6,9 +6,9 @@
   },
   "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
   "remoteUser": "node",
-  "forwardPorts": [5177],
+  "forwardPorts": [5179],
   "portsAttributes": {
-    "5177": {
+    "5179": {
       "label": "Component preview",
       "onAutoForward": "openBrowserOnce"
     }
