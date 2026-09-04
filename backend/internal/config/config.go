@@ -26,7 +26,7 @@ func Load() Config {
 		Port:             getenv("PORT", "8080"),
 		DatabaseURL:      os.Getenv("DATABASE_URL"),
 		FrontendURL:      strings.TrimRight(getenv("FRONTEND_URL", "http://localhost:5176"), "/"),
-		SiteURL:          strings.TrimRight(os.Getenv("SITE_URL"), "/"),
+		SiteURL:          strings.TrimRight(getenv("SITE_URL", "http://localhost:5177"), "/"),
 		PublicBaseURL:    strings.TrimRight(getenv("PUBLIC_BASE_URL", "http://localhost:8083"), "/"),
 		OAuthManagerURL:  strings.TrimRight(getenv("OAUTH_MANAGER_URL", "http://oauth-manager:8080"), "/"),
 		CORSOrigins:      splitCSV(os.Getenv("CORS_ORIGINS")),
@@ -35,6 +35,22 @@ func Load() Config {
 		MaxRangeDays:     getint("MAX_RANGE_DAYS", 370),
 		DefaultTimezone:  getenv("DEFAULT_TIMEZONE", "America/Toronto"),
 	}
+}
+
+// Warnings reports configuration that will not fail startup but will silently
+// break a browser at runtime. A missing public-read origin is the worst of
+// these: the API looks healthy, the Calendar app works, and only the public
+// site breaks, with a CORS rejection in the browser and nothing at all in the
+// server log to diagnose it from.
+func (c Config) Warnings() []string {
+	var warnings []string
+	if c.SiteURL == "" {
+		warnings = append(warnings, "SITE_URL is unset and has no default: the BioTron site origin is not allowed to read the public calendar, so its calendar section will fail CORS in the browser with no server-side error")
+	}
+	if len(c.PublicAllowedOrigins()) == 0 {
+		warnings = append(warnings, "no public read origin is configured: every browser request to the public calendar routes will fail CORS")
+	}
+	return warnings
 }
 
 func (c Config) PublicAllowedOrigins() []string {

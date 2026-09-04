@@ -23,6 +23,9 @@ func main() {
 	if err := cfg.Validate(); err != nil {
 		log.Fatalf("config: %v", err)
 	}
+	for _, warning := range cfg.Warnings() {
+		log.Printf("warning: %s", warning)
+	}
 	location, err := time.LoadLocation(cfg.DefaultTimezone)
 	if err != nil {
 		log.Fatalf("load timezone: %v", err)
