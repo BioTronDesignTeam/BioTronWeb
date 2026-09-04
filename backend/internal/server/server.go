@@ -2,6 +2,7 @@ package server
 
 import (
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v3"
@@ -110,9 +111,15 @@ func logRequests(events *eventlog.Client) fiber.Handler {
 		} else if status >= 400 {
 			level = eventlog.Warning
 		}
+		// Clone before handing these to LogAsync. Fiber returns method and path
+		// as strings pointing into the pooled request buffer, and LogAsync
+		// marshals the map on another goroutine — by which time this request
+		// can be finished and its buffer refilled by a different one. Without
+		// the copy a log line can report another request's path, which is both
+		// wrong and a way for a path we never meant to log to surface.
 		events.LogAsync(level, "HTTP request completed", map[string]any{
-			"method":      c.Method(),
-			"path":        c.Path(),
+			"method":      strings.Clone(c.Method()),
+			"path":        strings.Clone(c.Path()),
 			"status":      status,
 			"duration_ms": time.Since(started).Milliseconds(),
 		})
