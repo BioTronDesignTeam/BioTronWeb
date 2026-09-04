@@ -83,11 +83,15 @@ export function PublicCalendar(props: PublicCalendarProps) {
 
       <section className="overflow-hidden rounded-3xl border border-ink/10 bg-white dark:border-white/10 dark:bg-white/[0.04]">
         <div className="flex flex-col gap-4 border-b border-ink/10 p-4 sm:p-5 dark:border-white/10 lg:flex-row lg:items-center">
-          <div className="flex items-center justify-between gap-2 sm:justify-start">
-            <button type="button" className="grid size-11 place-items-center rounded-full border border-ink/15 hover:bg-soft/25 dark:border-white/15 dark:hover:bg-white/10" onClick={() => props.onMonthChange(addMonths(props.month, -1))} aria-label="Previous month">←</button>
-            <button type="button" className="min-h-11 rounded-full px-3 text-sm font-semibold hover:bg-soft/25 dark:hover:bg-white/10" onClick={() => props.onMonthChange(startOfMonth())}>Today</button>
-            <button type="button" className="grid size-11 place-items-center rounded-full border border-ink/15 hover:bg-soft/25 dark:border-white/15 dark:hover:bg-white/10" onClick={() => props.onMonthChange(addMonths(props.month, 1))} aria-label="Next month">→</button>
-            <h2 className="ml-2 truncate text-lg font-semibold sm:text-xl">{monthLabel(props.month)}</h2>
+          {/* The month name goes above the controls on a phone. Beside four
+              44px targets at 375px it had to truncate to "September 2...". */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-2">
+            <h2 className="text-xl font-semibold sm:order-last sm:ml-2">{monthLabel(props.month)}</h2>
+            <div className="flex items-center justify-between gap-2 sm:justify-start">
+              <button type="button" className="grid size-11 place-items-center rounded-full border border-ink/15 hover:bg-soft/25 dark:border-white/15 dark:hover:bg-white/10" onClick={() => props.onMonthChange(addMonths(props.month, -1))} aria-label="Previous month">←</button>
+              <button type="button" className="min-h-11 rounded-full px-3 text-sm font-semibold hover:bg-soft/25 dark:hover:bg-white/10" onClick={() => props.onMonthChange(startOfMonth())}>Today</button>
+              <button type="button" className="grid size-11 place-items-center rounded-full border border-ink/15 hover:bg-soft/25 dark:border-white/15 dark:hover:bg-white/10" onClick={() => props.onMonthChange(addMonths(props.month, 1))} aria-label="Next month">→</button>
+            </div>
           </div>
           <label className="lg:ml-auto">
             <span className="sr-only">Filter calendar</span>
