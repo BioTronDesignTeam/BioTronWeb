@@ -2,6 +2,7 @@ package server
 
 import (
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v3"
@@ -92,9 +93,14 @@ func logRequests(events *eventlog.Client) fiber.Handler {
 		} else if status >= 400 {
 			level = eventlog.Warning
 		}
+		// Clone both: fasthttp hands these back as views into a pooled request
+		// buffer, and LogAsync marshals the payload on another goroutine. By
+		// then the buffer can already be refilled from an unrelated request, so
+		// an uncloned path can name a route this request never touched — and
+		// AGENTS.md is deliberate about what is allowed into these events.
 		events.LogAsync(level, "HTTP request completed", map[string]any{
-			"method":      c.Method(),
-			"path":        c.Path(),
+			"method":      strings.Clone(c.Method()),
+			"path":        strings.Clone(c.Path()),
 			"status":      status,
 			"duration_ms": time.Since(started).Milliseconds(),
 		})
