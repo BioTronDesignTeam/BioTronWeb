@@ -52,6 +52,85 @@ func (h *Handler) listOccurrences(c *fiber.Ctx) error {
 	return c.JSON(occurrences)
 }
 
+const (
+	upcomingDefaultLimit = 5
+	upcomingMaxLimit     = 20
+	upcomingDefaultDays  = 42
+	upcomingMaxDays      = 90
+)
+
+// listUpcoming answers "what is on next" for every lightweight consumer — the
+// BioTron site's calendar section, the Sprinter bot, anything after them — so
+// that "which events are upcoming" is decided once, here, instead of being
+// reimplemented per client. It returns the same occurrence objects as
+// GET /v1/events, already filtered to occurrences still running or still to
+// come, ordered by start, and truncated to limit.
+func (h *Handler) listUpcoming(c *fiber.Ctx) error {
+	limit := clampQuery(c.Query("limit"), upcomingDefaultLimit, 1, upcomingMaxLimit)
+	days := clampQuery(c.Query("days"), upcomingDefaultDays, 1, upcomingMaxDays)
+	// From now, not from the start of today: a meeting that finished this
+	// morning is not upcoming.
+	now := time.Now().In(h.location)
+	series, err := h.store.ListSeries(c.UserContext(), "", false)
+	if err != nil {
+		return err
+	}
+	occurrences, err := calendarlogic.Expand(series, now, now.AddDate(0, 0, days), h.location)
+	if err != nil {
+		return err
+	}
+	if len(occurrences) > limit {
+		occurrences = occurrences[:limit]
+	}
+	if occurrences == nil {
+		occurrences = []model.Occurrence{}
+	}
+	body, err := json.Marshal(occurrences)
+	if err != nil {
+		return err
+	}
+	c.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
+	// The window slides with the clock, so an unchanged Last-Modified must never
+	// be allowed to serve a stale 304; the content-hash ETag still can.
+	return sendCacheable(c, body, latestChange(series), false)
+}
+
+// latestChange is the most recent edit across the series and overrides that
+// could appear in a response, used as its Last-Modified.
+func latestChange(series []model.EventSeries) time.Time {
+	latest := time.Time{}
+	for _, event := range series {
+		if event.UpdatedAt.After(latest) {
+			latest = event.UpdatedAt
+		}
+		for _, override := range event.Overrides {
+			if override.UpdatedAt.After(latest) {
+				latest = override.UpdatedAt
+			}
+		}
+	}
+	if latest.IsZero() {
+		latest = time.Now()
+	}
+	return latest
+}
+
+// clampQuery clamps rather than rejects, so a consumer asking for more than the
+// API will give gets the maximum instead of an error it has to handle.
+func clampQuery(raw string, fallback, minimum, maximum int) int {
+	value, err := strconv.Atoi(strings.TrimSpace(raw))
+	if err != nil {
+		return fallback
+	}
+	if value < minimum {
+		return minimum
+	}
+	if value > maximum {
+		return maximum
+	}
+	return value
+}
+
 func (h *Handler) listAdminEvents(c *fiber.Ctx) error {
 	series, err := h.store.ListSeries(c.UserContext(), strings.TrimSpace(c.Query("scope_id")), true)
 	if err != nil {

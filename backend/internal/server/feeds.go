@@ -48,27 +48,56 @@ func (h *Handler) sendFeed(c *fiber.Ctx, name, filename, source string, metadata
 	if err != nil {
 		return err
 	}
-	hash := sha256.Sum256(feed.Content)
-	etag := fmt.Sprintf(`"%x"`, hash)
-	lastModified := feed.LastModified.UTC().Truncate(time.Second)
+	lastModified := feed.LastModified
 	if metadataModified.After(lastModified) {
-		lastModified = metadataModified.UTC().Truncate(time.Second)
+		lastModified = metadataModified
 	}
+	c.Set(fiber.HeaderContentType, "text/calendar; charset=utf-8")
+	c.Set(fiber.HeaderContentDisposition, fmt.Sprintf(`inline; filename="%s"`, safeFilename(filename)))
+	return sendCacheable(c, feed.Content, lastModified, true)
+}
+
+// sendCacheable gives every public read the same validators: a strong
+// content-hash ETag, a Last-Modified derived from the data, and a short shared
+// cache window. honourModifiedSince is false for resources whose content also
+// changes with the clock, where an unchanged Last-Modified would hand a client
+// a stale 304 long after the body should have changed.
+func sendCacheable(c *fiber.Ctx, body []byte, lastModified time.Time, honourModifiedSince bool) error {
+	etag := fmt.Sprintf(`"%x"`, sha256.Sum256(body))
+	lastModified = lastModified.UTC().Truncate(time.Second)
 	c.Set(fiber.HeaderETag, etag)
 	c.Set(fiber.HeaderLastModified, lastModified.Format(http.TimeFormat))
 	c.Set(fiber.HeaderCacheControl, "public, max-age=60, stale-while-revalidate=300")
-	c.Set(fiber.HeaderContentType, "text/calendar; charset=utf-8")
-	c.Set(fiber.HeaderContentDisposition, fmt.Sprintf(`inline; filename="%s"`, safeFilename(filename)))
 	if ifNoneMatch := c.Get(fiber.HeaderIfNoneMatch); ifNoneMatch != "" {
-		if ifNoneMatch == etag {
-			return c.SendStatus(fiber.StatusNotModified)
+		if etagMatches(ifNoneMatch, etag) {
+			return notModified(c)
 		}
-	} else if modifiedSince := c.Get(fiber.HeaderIfModifiedSince); modifiedSince != "" {
+	} else if modifiedSince := c.Get(fiber.HeaderIfModifiedSince); honourModifiedSince && modifiedSince != "" {
 		if parsed, err := http.ParseTime(modifiedSince); err == nil && !lastModified.After(parsed) {
-			return c.SendStatus(fiber.StatusNotModified)
+			return notModified(c)
 		}
 	}
-	return c.Send(feed.Content)
+	return c.Send(body)
+}
+
+// A 304 must not carry a body, and Fiber's SendStatus writes the status text as
+// one when the body is empty.
+func notModified(c *fiber.Ctx) error {
+	return c.Status(fiber.StatusNotModified).Send(nil)
+}
+
+// etagMatches implements RFC 9110 weak comparison for If-None-Match: the header
+// is a comma-separated list, "*" matches anything, and a client may return a
+// validator we sent as strong with a W/ prefix. Comparing the raw header string
+// for equality made every conditional request from such a client a full 200.
+func etagMatches(header, etag string) bool {
+	for _, candidate := range strings.Split(header, ",") {
+		candidate = strings.TrimSpace(candidate)
+		if candidate == "*" || strings.TrimPrefix(candidate, "W/") == strings.TrimPrefix(etag, "W/") {
+			return true
+		}
+	}
+	return false
 }
 
 func safeFilename(value string) string {

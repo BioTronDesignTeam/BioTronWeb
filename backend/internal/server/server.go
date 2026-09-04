@@ -57,11 +57,13 @@ func New(cfg config.Config, calendarStore *store.Store, authClient *auth.Client,
 	app.Get("/v1/auth/status", adminCORS, handler.authStatus)
 	app.Get("/v1/scopes", publicCORS, handler.listScopes)
 	app.Get("/v1/events", publicCORS, handler.listOccurrences)
+	app.Get("/v1/events/upcoming", publicCORS, handler.listUpcoming)
 	app.Get("/v1/feeds/all.ics", publicCORS, handler.allFeed)
 	app.Get("/v1/feeds/scopes/:id.ics", publicCORS, handler.scopeFeed)
 	app.Options("/v1/auth/status", adminCORS)
 	app.Options("/v1/scopes", publicCORS)
 	app.Options("/v1/events", publicCORS)
+	app.Options("/v1/events/upcoming", publicCORS)
 	app.Options("/v1/feeds/*", publicCORS)
 	app.Options("/v1/admin/*", adminCORS)
 
