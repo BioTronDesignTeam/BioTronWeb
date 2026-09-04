@@ -127,6 +127,28 @@ func PatchIsEmpty(raw json.RawMessage) bool {
 	return json.Unmarshal(raw, &values) == nil && len(values) == 0
 }
 
+// IsNoOpOverride reports whether an override row carries no occurrence change.
+// Resetting an occurrence deletes its row, but releases before that fix wrote
+// an empty MODIFIED patch as a tombstone instead, and those rows survive in
+// existing databases. They must behave exactly like a plain generated
+// occurrence: no feed exception, and no block on series-level edits.
+func IsNoOpOverride(override model.EventOverride) bool {
+	return override.State == model.OverrideModified && PatchIsEmpty(override.Patch)
+}
+
+// OccurrenceChanges drops no-op override rows, leaving only the overrides that
+// genuinely change or cancel an occurrence.
+func OccurrenceChanges(overrides []model.EventOverride) []model.EventOverride {
+	changes := make([]model.EventOverride, 0, len(overrides))
+	for _, override := range overrides {
+		if IsNoOpOverride(override) {
+			continue
+		}
+		changes = append(changes, override)
+	}
+	return changes
+}
+
 func DecodePatch(raw json.RawMessage) (occurrencePatch, error) {
 	var values map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &values); err != nil {
@@ -222,7 +244,7 @@ func Expand(series []model.EventSeries, from, to time.Time, location *time.Locat
 			return nil, fmt.Errorf("expand %s: %w", event.ID, err)
 		}
 		overrides := make(map[string]model.EventOverride, len(event.Overrides))
-		for _, override := range event.Overrides {
+		for _, override := range OccurrenceChanges(event.Overrides) {
 			overrides[FormatLocal(override.RecurrenceIDLocal)] = override
 		}
 		duration := event.EndsAtLocal.Sub(event.StartsAtLocal)

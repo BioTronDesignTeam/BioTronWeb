@@ -114,7 +114,7 @@ func (h *Handler) updateEvent(c *fiber.Ctx) error {
 			return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "the selected scope is archived"})
 		}
 	}
-	if len(current.Overrides) > 0 {
+	if occurrenceChanges := calendarlogic.OccurrenceChanges(current.Overrides); len(occurrenceChanges) > 0 {
 		structuralChange := !updated.StartsAtLocal.Equal(current.StartsAtLocal) ||
 			updated.AllDay != current.AllDay || updated.Timezone != current.Timezone
 		if structuralChange {
@@ -128,7 +128,7 @@ func (h *Handler) updateEvent(c *fiber.Ctx) error {
 			})
 		}
 		if updated.RecurrenceUntil != nil {
-			for _, override := range current.Overrides {
+			for _, override := range occurrenceChanges {
 				if localDateAfter(override.RecurrenceIDLocal, *updated.RecurrenceUntil) {
 					return c.Status(fiber.StatusConflict).JSON(fiber.Map{
 						"error": "the new series end date would discard an occurrence change",

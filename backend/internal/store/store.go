@@ -377,9 +377,13 @@ func (s *Store) ResetOverride(ctx context.Context, seriesID string, recurrenceID
 	if err := bumpPublishedSeries(ctx, tx, seriesID, expectedSeriesSequence); err != nil {
 		return err
 	}
+	// Reset returns the occurrence to the series schedule, so the override row
+	// is removed rather than tombstoned. A retained empty-patch row would keep
+	// tripping the "remove occurrence changes first" guard on series edits with
+	// nothing left in the UI to remove. The series sequence bump above is what
+	// tells subscribers to re-read the feed.
 	tag, err := tx.Exec(ctx, `
-		UPDATE event_overrides
-		SET state = 'MODIFIED', patch = '{}', sequence = sequence + 1, updated_at = now()
+		DELETE FROM event_overrides
 		WHERE series_id = $1 AND recurrence_id_local = $2
 	`, seriesID, recurrenceID)
 	if err != nil {

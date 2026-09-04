@@ -86,29 +86,41 @@ func TestValidatePatchRejectsUnsafeURL(t *testing.T) {
 	}
 }
 
-func TestExpandTreatsResetTombstoneAsNormalOccurrence(t *testing.T) {
+// Resetting an occurrence deletes its override row, so the occurrence must come
+// back as a plain generated one with no override metadata at all. Releases
+// before that fix kept an empty MODIFIED patch as a tombstone; those rows still
+// exist in deployed databases and must be treated as if they were not there,
+// because their mere presence used to block every series-level start, timezone,
+// all-day, and recurrence-end change with nothing in the UI left to remove.
+func TestExpandIgnoresResetOccurrenceOverrides(t *testing.T) {
 	location, _ := time.LoadLocation("America/Toronto")
 	until, _ := ParseLocalDate("2026-09-14")
 	start, _ := ParseLocalDateTime("2026-09-07T18:00:00")
 	end, _ := ParseLocalDateTime("2026-09-07T19:00:00")
 	recurrenceID, _ := ParseLocalDateTime("2026-09-14T18:00:00")
-	series := model.EventSeries{
+	base := model.EventSeries{
 		ID: "series", UID: "series@biotron.ca", ScopeID: "scope", State: model.EventPublished,
 		Title: "Meeting", StartsAtLocal: start, EndsAtLocal: end,
 		Timezone: "America/Toronto", RecurrenceUntil: &until, Sequence: 3,
-		Overrides: []model.EventOverride{{
-			ID: "reset", RecurrenceIDLocal: recurrenceID, State: model.OverrideModified,
-			Patch: json.RawMessage(`{}`), Sequence: 2,
-		}},
 	}
+	tombstoned := base
+	tombstoned.Overrides = []model.EventOverride{{
+		ID: "reset", RecurrenceIDLocal: recurrenceID, State: model.OverrideModified,
+		Patch: json.RawMessage(`{}`), Sequence: 2,
+	}}
 
-	occurrences, err := Expand([]model.EventSeries{series},
-		time.Date(2026, 9, 14, 0, 0, 0, 0, location),
-		time.Date(2026, 9, 15, 0, 0, 0, 0, location), location)
-	if err != nil {
-		t.Fatal(err)
+	for name, series := range map[string]model.EventSeries{"reset": base, "legacy tombstone": tombstoned} {
+		occurrences, err := Expand([]model.EventSeries{series},
+			time.Date(2026, 9, 14, 0, 0, 0, 0, location),
+			time.Date(2026, 9, 15, 0, 0, 0, 0, location), location)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if len(occurrences) != 1 || occurrences[0].Modified || occurrences[0].OverrideSequence != 0 {
+			t.Fatalf("%s: expected an unchanged series occurrence, got %+v", name, occurrences)
+		}
 	}
-	if len(occurrences) != 1 || occurrences[0].Modified || occurrences[0].OverrideSequence != 2 {
-		t.Fatalf("unexpected reset occurrence: %+v", occurrences)
+	if len(OccurrenceChanges(tombstoned.Overrides)) != 0 {
+		t.Fatal("a reset tombstone must not count as an occurrence change")
 	}
 }

@@ -47,7 +47,7 @@ func Build(name, sourceURL string, series []model.EventSeries, location *time.Lo
 		if event.UpdatedAt.After(lastModified) {
 			lastModified = event.UpdatedAt
 		}
-		for _, override := range event.Overrides {
+		for _, override := range calendarlogic.OccurrenceChanges(event.Overrides) {
 			exception, err := overrideEventLines(event, override, location)
 			if err != nil {
 				return Feed{}, err
