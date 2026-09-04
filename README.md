@@ -20,8 +20,9 @@ Copy `.env.example` to `.env`. Then use `cd frontend && npm ci && npm run dev`
 for local development, or `docker compose up -d --build` to keep the
 production-shaped container running.
 
-The container is available at `http://127.0.0.1:18083` by default. That port is
-reserved for the public site after the local OAuth, Exo, and Logger ports ending
-at `18082`; override `WEB_PORT` in `.env` if the workspace map changes. The
+The container is available at `http://127.0.0.1:5177` by default. The BioTron
+workspace publishes every frontend in one contiguous block: OAuthManager `5173`,
+Exo `5174`, Logger `5175`, Calendar `5176`, this site `5177`, and Sprinter
+`5178`; override `WEB_PORT` in `.env` if the workspace map changes. The
 container also joins the shared `biotron` network as `site-web`, which is the
 stable alias used by the Server Nginx edge.

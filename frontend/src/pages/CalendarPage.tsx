@@ -13,7 +13,7 @@ interface CalendarOccurrence {
   all_day: boolean;
 }
 
-const CALENDAR_API_URL = (import.meta.env.VITE_CALENDAR_API_URL || 'http://localhost:18084').replace(/\/$/, '');
+const CALENDAR_API_URL = (import.meta.env.VITE_CALENDAR_API_URL || 'http://localhost:8083').replace(/\/$/, '');
 const CALENDAR_URL = (import.meta.env.VITE_CALENDAR_URL || 'http://localhost:5176').replace(/\/$/, '');
 const TORONTO_TIMEZONE = 'America/Toronto';
 

@@ -6,9 +6,9 @@
   },
   "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
   "remoteUser": "node",
-  "forwardPorts": [5173, 4173],
+  "forwardPorts": [5177, 4173],
   "portsAttributes": {
-    "5173": {
+    "5177": {
       "label": "Vite dev",
       "onAutoForward": "notify"
     },
