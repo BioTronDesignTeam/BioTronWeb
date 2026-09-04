@@ -10,9 +10,9 @@
     "format": "prisma format"
   },
   "dependencies": {
-    "@prisma/client": "^6.1.0"
+    "@prisma/client": "^6.19.3"
   },
   "devDependencies": {
-    "prisma": "^6.1.0"
+    "prisma": "^6.19.3"
   }
 }
