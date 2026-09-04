@@ -80,8 +80,12 @@ func sendCacheable(c fiber.Ctx, body []byte, lastModified time.Time, honourModif
 	return c.Send(body)
 }
 
-// A 304 must not carry a body, and Fiber's SendStatus writes the status text as
-// one when the body is empty.
+// A 304 must not carry a body. Fiber v2's SendStatus wrote the status text as
+// one whenever the body was empty, which is why this sends explicitly instead.
+// Fiber v3 resets the body for statuses that disallow one and fasthttp drops it
+// again on the way out, so the framework now enforces this too — the explicit
+// send stays because it says what the response is meant to be rather than
+// relying on two layers below it to agree.
 func notModified(c fiber.Ctx) error {
 	return c.Status(fiber.StatusNotModified).Send(nil)
 }
