@@ -85,6 +85,38 @@ func TestBuildAllowsOccurrenceMovedOutsideOriginalWindow(t *testing.T) {
 	}
 }
 
+func TestBuildCancelsModifiedOccurrencesOfACancelledSeries(t *testing.T) {
+	location, _ := time.LoadLocation("America/Toronto")
+	start, _ := calendarlogic.ParseLocalDateTime("2026-09-07T18:00:00")
+	end, _ := calendarlogic.ParseLocalDateTime("2026-09-07T19:00:00")
+	until, _ := calendarlogic.ParseLocalDate("2026-12-01")
+	recurrenceID, _ := calendarlogic.ParseLocalDateTime("2026-10-12T18:00:00")
+	event := model.EventSeries{
+		ID: "event", UID: "event@biotron.ca", ScopeID: "scope", State: model.EventCancelled,
+		Title: "Controls meeting", StartsAtLocal: start, EndsAtLocal: end,
+		Timezone: "America/Toronto", RecurrenceUntil: &until,
+		Overrides: []model.EventOverride{{
+			ID: "moved", RecurrenceIDLocal: recurrenceID, State: model.OverrideModified,
+			Patch: json.RawMessage(`{"starts_at_local":"2026-10-13T18:00:00","ends_at_local":"2026-10-13T19:00:00"}`),
+		}},
+	}
+
+	feed, err := Build("Exo Controls", "", []model.EventSeries{event}, location)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(feed.Content)
+	if strings.Contains(text, "STATUS:CONFIRMED") {
+		t.Fatalf("a cancelled series must not ship a confirmed instance:\n%s", text)
+	}
+	if strings.Count(text, "STATUS:CANCELLED") != 2 {
+		t.Fatalf("expected the master and the moved instance to be cancelled:\n%s", text)
+	}
+	if !strings.Contains(text, "RECURRENCE-ID;TZID=America/Toronto:20261012T180000") {
+		t.Fatalf("the cancelled exception lost its recurrence id:\n%s", text)
+	}
+}
+
 func utf8Valid(value string) bool {
 	return strings.ToValidUTF8(value, "invalid") == value
 }

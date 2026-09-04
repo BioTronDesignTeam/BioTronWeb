@@ -154,7 +154,11 @@ func overrideEventLines(event model.EventSeries, override model.EventOverride, l
 		dateProperty("DTEND", end, event.AllDay, location),
 	}
 	lines = appendDetails(lines, title, description, eventLocation, eventURL)
-	if override.State == model.OverrideCancelled {
+	// A cancelled series cancels every one of its instances, including the ones
+	// an editor had previously changed. Deriving the status from the override
+	// alone left edited occurrences of a cancelled series sitting on every
+	// subscriber's calendar permanently.
+	if event.State == model.EventCancelled || override.State == model.OverrideCancelled {
 		lines = append(lines, "STATUS:CANCELLED")
 	} else {
 		lines = append(lines, "STATUS:CONFIRMED")
