@@ -46,6 +46,33 @@ Daily buckets are `America/Toronto` calendar days, matching the rest of the
 platform. The maths lives in `backend/internal/uptime` and is unit-tested
 without a database.
 
+Ninety days of five-minute heartbeats is about 26,000 rows per component, so the
+history query collapses runs server-side and returns only the rows that carry
+information: state transitions, the row that starts a silence, the row that ends
+one, and the last row in the window. On a 90-day window across eleven components
+that is 37 rows instead of 285,047.
+
+The collapse would be lossy on its own, because the walk judges a silence by how
+long a segment lasts and a collapsed run of identical heartbeats looks exactly
+like a long silence. Each returned row therefore carries a `continuous` flag
+saying observation ran on to the next row without a break. The gap tolerance used
+to collapse in SQL and the maximum gap used by the walk **must be the same
+value**; the API layer passes its single `maxGap` field to both. If they drift,
+a stretch the walk would have called unknown arrives already marked as observed
+and the silence disappears without trace.
+
+### Infrastructure note for `Server/`
+
+The `(service, checked_at, ok)` index only earns its keep when the planner
+chooses an Index Only Scan over it. Measured on PostgreSQL 16 with 285,000 rows,
+it does so at the default `random_page_cost` of 4.0 — the index-only plan costed
+25,192 against the sequential-scan-plus-sort plan's 54,978 — but that margin
+narrows on configurations that assume spinning disks. The shared Postgres in
+`Server/` runs on SSD, so `random_page_cost` should be lowered accordingly
+(1.1 is the usual SSD value) and `effective_cache_size` set to reflect real
+memory. Without the index the same query falls back to a sequential scan plus an
+external merge sort that spills roughly 9.5 MB to disk on every cache miss.
+
 ## Layout
 
 | Path | What |
