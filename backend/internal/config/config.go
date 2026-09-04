@@ -15,6 +15,7 @@ type Config struct {
 	IngestToken           string
 	OAuthManagerURL       string
 	AuthDisabled          bool
+	Environment           string
 	CatalogJSON           string
 	TrustedProxies        []string
 	TailSize              int
@@ -34,6 +35,7 @@ func Load() Config {
 		IngestToken:           os.Getenv("LOGGER_INGEST_TOKEN"),
 		OAuthManagerURL:       strings.TrimRight(getenv("OAUTH_MANAGER_URL", "http://oauth-manager:8080"), "/"),
 		AuthDisabled:          getbool("AUTH_DISABLED", false),
+		Environment:           strings.TrimSpace(os.Getenv("BIOTRON_ENV")),
 		CatalogJSON:           os.Getenv("LOGGER_CATALOG_JSON"),
 		// Peers whose Cf-Connecting-Ip header may be believed. Only the edge
 		// proxy sets that header (Server/nginx/snippets/proxy-headers.conf
@@ -64,6 +66,19 @@ func (c Config) Validate() error {
 	}
 	if c.IngestToken == "" {
 		return errors.New("LOGGER_INGEST_TOKEN is required")
+	}
+	// AUTH_DISABLED swaps every read authorization check for auth.AllowAll,
+	// which makes every log line -- including OAuthManager's request stream and
+	// the internal hostnames in health detail -- readable by anyone who can
+	// reach the API. The edge publishes Logger to the internet, so a stray
+	// variable is a full disclosure of the platform's audit trail, and the only
+	// signal today is one startup line nobody reads.
+	//
+	// It stays available for isolated local UI work, but it now costs a second,
+	// deliberate declaration that this is not a deployment. Refusing to start is
+	// the right failure: an unauthenticated Logger is worse than a down one.
+	if c.AuthDisabled && !strings.EqualFold(c.Environment, "development") {
+		return errors.New("AUTH_DISABLED=true makes every log line world-readable and is only permitted alongside BIOTRON_ENV=development")
 	}
 	if !c.AuthDisabled && c.OAuthManagerURL == "" {
 		return errors.New("OAUTH_MANAGER_URL is required when authentication is enabled")

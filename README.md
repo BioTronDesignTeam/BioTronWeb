@@ -97,8 +97,24 @@ The backend, frontend, Prisma, and Compose all use the single root `.env`; do
 not create component-level environment files.
 
 Set a long random `LOGGER_INGEST_TOKEN` in `.env`. OAuthManager is required by
-default. `AUTH_DISABLED=true` is available for isolated local UI work only and
-must never be used in staging or production.
+default.
+
+`AUTH_DISABLED=true` is still available for isolated local UI work, but it now
+takes two deliberate steps. The backend refuses to start unless
+`BIOTRON_ENV=development` accompanies it, and neither variable appears in
+`docker-compose.yml` or `.env.example`, so a stray value in an operator's shell
+reaches nothing. Opt in explicitly with the development override:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+```
+
+The guard exists because the flag replaces every read authorization check with
+`AllowAll`, and the edge publishes Logger to the internet: with it set, anyone
+who can reach the API reads every log line from every service, including
+OAuthManager's request stream and the internal hostnames in health detail. A
+Logger that refuses to start is better than an unauthenticated one, so the
+failure is a startup error rather than a warning nobody reads.
 
 The status page is available on `http://localhost:5175` and renders fully
 without signing in; the API is bound to `http://127.0.0.1:8082`.

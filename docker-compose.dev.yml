@@ -1,0 +1,20 @@
+# Isolated local UI work only. Never use this file in staging or production.
+#
+# AUTH_DISABLED replaces Logger's OAuthManager authorization with AllowAll, so
+# every log line and every health detail string becomes readable without a
+# session. Because the edge publishes Logger to the internet, that variable
+# reaching a deployed container would disclose the platform's whole audit
+# trail -- which is why it lives here rather than in docker-compose.yml, where
+# a stray value in the operator's shell would have been picked up silently.
+#
+# Both variables are required together: the backend refuses to start with
+# AUTH_DISABLED=true unless BIOTRON_ENV=development is also set, so neither one
+# on its own can turn authorization off.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+services:
+  api:
+    environment:
+      BIOTRON_ENV: development
+      AUTH_DISABLED: "true"
