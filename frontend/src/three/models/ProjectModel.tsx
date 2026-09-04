@@ -1,3 +1,4 @@
+import type { ComponentType } from 'react';
 import type { ModelId } from '../../data/projects';
 import type { ModelProps } from './types';
 import ExoModel from './ExoModel';
@@ -17,7 +18,7 @@ import ENableModel from './ENableModel';
  *      room anchors, hotspots, camera path and popups all stay the same.
  * ────────────────────────────────────────────────────────────────────────────
  */
-const REGISTRY: Record<ModelId, (props: ModelProps) => JSX.Element> = {
+const REGISTRY: Record<ModelId, ComponentType<ModelProps>> = {
   exo: ExoModel,
   emg: EmgFabricModel,
   enable: ENableModel,

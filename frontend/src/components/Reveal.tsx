@@ -1,10 +1,17 @@
-import { useRef, type ElementType, type ReactNode } from 'react';
+import { useRef, type ReactNode } from 'react';
 import { gsap, useGSAP } from '../lib/gsap';
 import { useReducedMotion } from '../lib/hooks';
 
+/**
+ * Tags this wrapper may render as. A bare `ElementType` covers void elements
+ * such as `<br>`, whose props declare `children?: never`; React 19's types
+ * intersect the whole union and leave nothing a child can satisfy.
+ */
+type ContainerTag = 'div' | 'section' | 'article' | 'aside' | 'li' | 'p' | 'span' | 'h1' | 'h2' | 'h3';
+
 interface RevealProps {
   children: ReactNode;
-  as?: ElementType;
+  as?: ContainerTag;
   className?: string;
   /** Stagger delay for children (seconds). */
   delay?: number;

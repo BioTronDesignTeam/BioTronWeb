@@ -18,7 +18,9 @@ import './styles/ui.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+    {/* v7 turns the former v7_startTransition and v7_relativeSplatPath opt-ins
+        into plain behaviour, so the future flags are gone. */}
+    <BrowserRouter>
       <App />
     </BrowserRouter>
   </React.StrictMode>,

@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Mail, Instagram, ArrowUp } from 'lucide-react';
+import { Mail, AtSign, ArrowUp } from 'lucide-react';
 import { CONTACT, PROJECTS } from '../data/projects';
 import { scrollToY } from '../lib/scroll';
 
@@ -46,7 +46,7 @@ export default function Footer() {
             <Mail size={16} /> {CONTACT.email}
           </a>
           <a href={CONTACT.instagram} target="_blank" rel="noreferrer" className="footer__contact">
-            <Instagram size={16} /> @uwaterloo_biotron
+            <AtSign size={16} /> @uwaterloo_biotron
           </a>
         </div>
       </div>

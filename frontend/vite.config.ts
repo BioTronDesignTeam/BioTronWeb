@@ -27,12 +27,19 @@ export default defineConfig({
   },
   build: {
     target: 'es2020',
-    rollupOptions: {
+    rolldownOptions: {
       output: {
-        manualChunks: {
-          three: ['three'],
-          r3f: ['@react-three/fiber', '@react-three/drei', '@react-three/postprocessing'],
-          gsap: ['gsap', '@gsap/react'],
+        // Vite 8 bundles with Rolldown, which dropped the object form of
+        // `manualChunks`. The same three chunks come back as ordered groups.
+        // `three` is declared first so the renderer keeps its own chunk instead
+        // of being pulled into the wrappers that import it.
+        codeSplitting: {
+          includeDependenciesRecursively: false,
+          groups: [
+            { name: 'three', test: /node_modules[\\/]three[\\/]/ },
+            { name: 'r3f', test: /node_modules[\\/](@react-three|three-stdlib|postprocessing)[\\/]/ },
+            { name: 'gsap', test: /node_modules[\\/](gsap|@gsap)[\\/]/ },
+          ],
         },
       },
     },

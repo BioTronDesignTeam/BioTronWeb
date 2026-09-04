@@ -1,10 +1,17 @@
-import { useRef, type ElementType } from 'react';
+import { useRef } from 'react';
 import { gsap, useGSAP } from '../lib/gsap';
 import { useReducedMotion } from '../lib/hooks';
 
+/**
+ * Tags this component may render as. A bare `ElementType` covers void elements
+ * such as `<br>`, whose props declare `children?: never`; React 19's types
+ * intersect the whole union and leave nothing a child can satisfy.
+ */
+type TextTag = 'span' | 'p' | 'div' | 'h1' | 'h2' | 'h3' | 'h4';
+
 interface SplitTextProps {
   text: string;
-  as?: ElementType;
+  as?: TextTag;
   className?: string;
   /** Animate per 'word' or per 'char'. */
   by?: 'word' | 'char';
