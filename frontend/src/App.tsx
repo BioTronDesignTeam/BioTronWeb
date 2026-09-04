@@ -1,57 +1,189 @@
-import { FormEvent, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { AuthScreen, Brand, ThemeToggle, UserMenu } from '@biotron/style';
 import {
-  APIError,
+  FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from 'react';
+import { Brand, Button, ThemeToggle, UserMenu } from '@biotron/style';
+import {
   type ApplicationStatus,
+  type ComponentHistory,
   type HealthState,
+  type HistoryBucket,
   type Identity,
   type LogEntry,
   type LogLevel,
+  type Session,
+  type StatusApplication,
+  type StatusResponse,
+  type StatusState,
   accessManagerURL,
   checkSession,
   getIdentity,
   getApplications,
   getHistoricalLogs,
   getRecentLogs,
+  getStatus,
+  getStatusHistory,
   loginURL,
   logout,
 } from './api';
 
 const levels: LogLevel[] = ['debug', 'info', 'warning', 'error'];
+const HISTORY_DAYS = 90;
 
-type AccessState = 'checking' | 'allowed' | 'login' | 'forbidden' | 'error';
+// Building an Intl formatter is expensive, so the shared instances live here
+// rather than being rebuilt inside a function that runs on every render.
+const relativeFormatter = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
+const dateFormatter = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+
 type LogMode = 'recent' | 'history';
 
-function relativeTime(timestamp?: string) {
+/**
+ * Status is never conveyed by colour alone: every state carries a glyph and a
+ * word as well, so the page still reads correctly in monochrome or to anyone
+ * who cannot separate the hues.
+ */
+const statusMeta: Record<StatusState, { label: string; glyph: string; headline: string }> = {
+  operational: { label: 'Operational', glyph: '✓', headline: 'All systems operational' },
+  degraded: { label: 'Degraded', glyph: '!', headline: 'Some systems are degraded' },
+  down: { label: 'Down', glyph: '✕', headline: 'Major outage' },
+  unknown: { label: 'No data', glyph: '?', headline: 'Status is not being observed' },
+};
+
+const healthMeta: Record<HealthState, { label: string; glyph: string }> = {
+  healthy: { label: 'Operational', glyph: '✓' },
+  unhealthy: { label: 'Unavailable', glyph: '✕' },
+  unknown: { label: 'Awaiting check', glyph: '?' },
+};
+
+function relativeTime(timestamp?: string | null) {
   if (!timestamp) return 'Not checked yet';
   const seconds = Math.round((new Date(timestamp).getTime() - Date.now()) / 1000);
-  const formatter = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
-  if (Math.abs(seconds) < 60) return formatter.format(seconds, 'second');
+  if (Math.abs(seconds) < 60) return relativeFormatter.format(seconds, 'second');
   const minutes = Math.round(seconds / 60);
-  if (Math.abs(minutes) < 60) return formatter.format(minutes, 'minute');
+  if (Math.abs(minutes) < 60) return relativeFormatter.format(minutes, 'minute');
   const hours = Math.round(minutes / 60);
-  if (Math.abs(hours) < 24) return formatter.format(hours, 'hour');
-  return formatter.format(Math.round(hours / 24), 'day');
+  if (Math.abs(hours) < 24) return relativeFormatter.format(hours, 'hour');
+  return relativeFormatter.format(Math.round(hours / 24), 'day');
 }
 
-function stateLabel(state: HealthState) {
-  if (state === 'healthy') return 'Operational';
-  if (state === 'unhealthy') return 'Unavailable';
-  return 'Awaiting check';
+/** A null uptime means the window was never observed, which is not 100%. */
+function uptimeLabel(value: number | null | undefined) {
+  return value === null || value === undefined ? 'No data' : `${value.toFixed(2)}%`;
 }
 
-function StatusDot({ state }: { state: HealthState }) {
-  return <span className={`status-dot status-dot--${state}`} aria-hidden="true" />;
+function StatusBadge({ state, compact }: { state: StatusState; compact?: boolean }) {
+  const meta = statusMeta[state];
+  return (
+    <span className={`status-badge status-badge--${state}`}>
+      <span className="status-badge__glyph" aria-hidden="true">{meta.glyph}</span>
+      {!compact && <span className="status-badge__label">{meta.label}</span>}
+      {compact && <span className="visually-hidden">{meta.label}</span>}
+    </span>
+  );
+}
+
+function HealthBadge({ state }: { state: HealthState }) {
+  const meta = healthMeta[state];
+  return (
+    <span className={`status-badge status-badge--${state}`}>
+      <span className="status-badge__glyph" aria-hidden="true">{meta.glyph}</span>
+      <span className="status-badge__label">{meta.label}</span>
+    </span>
+  );
+}
+
+/**
+ * How many days of the bar fit without pushing the page sideways. A phone gets
+ * thirty; the bar also scrolls inside its own container, so even an
+ * unanticipated width can never make the page body scroll horizontally.
+ */
+const dayBreakpoints = [
+  { query: '(max-width: 559px)', days: 30 },
+  { query: '(max-width: 899px)', days: 60 },
+];
+
+function subscribeToWidth(onChange: () => void) {
+  const lists = dayBreakpoints.map((breakpoint) => window.matchMedia(breakpoint.query));
+  lists.forEach((list) => list.addEventListener('change', onChange));
+  // resize is a belt-and-braces fallback for embedded viewports that resize
+  // without firing media-query change events. The snapshot is a number, so a
+  // resize that does not cross a breakpoint re-renders nothing.
+  window.addEventListener('resize', onChange);
+  return () => {
+    lists.forEach((list) => list.removeEventListener('change', onChange));
+    window.removeEventListener('resize', onChange);
+  };
+}
+
+function currentVisibleDays() {
+  const matched = dayBreakpoints.find((breakpoint) => window.matchMedia(breakpoint.query).matches);
+  return matched ? matched.days : HISTORY_DAYS;
+}
+
+const useVisibleDays = () =>
+  useSyncExternalStore(subscribeToWidth, currentVisibleDays, () => HISTORY_DAYS);
+
+function bucketTitle(bucket: HistoryBucket) {
+  const date = dateFormatter.format(new Date(`${bucket.date}T12:00:00`));
+  return `${date} — ${statusMeta[bucket.state].label}, ${uptimeLabel(bucket.uptime)}`;
+}
+
+function UptimeBar({ buckets, days }: { buckets: HistoryBucket[]; days: number }) {
+  const shown = buckets.slice(-days);
+  const summary = `${days}-day history: ${shown.filter((bucket) => bucket.state === 'operational').length} fully operational days, ` +
+    `${shown.filter((bucket) => bucket.state === 'unknown').length} without data`;
+
+  return (
+    <div className="uptime-bar">
+      <div className="uptime-bar__scroll">
+        <div className="uptime-bar__track" role="img" aria-label={summary}>
+          {shown.map((bucket) => (
+            <span
+              className={`uptime-day uptime-day--${bucket.state}`}
+              key={bucket.date}
+              title={bucketTitle(bucket)}
+            />
+          ))}
+        </div>
+      </div>
+      <div className="uptime-bar__legend">
+        <span>{days} days ago</span>
+        <span aria-hidden="true" className="uptime-bar__rule" />
+        <span>Today</span>
+      </div>
+    </div>
+  );
+}
+
+function UptimeFigures({
+  values,
+}: {
+  values: { uptime_24h: number | null; uptime_7d: number | null; uptime_90d: number | null };
+}) {
+  return (
+    <dl className="uptime-figures">
+      <div><dt>24 hours</dt><dd>{uptimeLabel(values.uptime_24h)}</dd></div>
+      <div><dt>7 days</dt><dd>{uptimeLabel(values.uptime_7d)}</dd></div>
+      <div><dt>90 days</dt><dd>{uptimeLabel(values.uptime_90d)}</dd></div>
+    </dl>
+  );
 }
 
 function Shell({
   children,
+  session,
   user,
   onLogout,
 }: {
   children: ReactNode;
+  session: Session;
   user?: Identity;
-  onLogout?: () => void | Promise<void>;
+  onLogout: () => void | Promise<void>;
 }) {
   return (
     <div className="shell">
@@ -60,13 +192,12 @@ function Shell({
           <Brand compact />
           <span>
             <strong>Logger</strong>
-            <small>BioTron operations</small>
+            <small>Platform status</small>
           </span>
         </a>
         <div className="topbar-actions">
-          <div className="environment"><span /> Platform monitor</div>
           <ThemeToggle />
-          {onLogout && (
+          {session.authenticated ? (
             <UserMenu
               user={user ? {
                 name: user.name,
@@ -76,6 +207,10 @@ function Shell({
               } : undefined}
               onLogout={onLogout}
             />
+          ) : (
+            <Button tone="primary" onClick={() => { window.location.href = loginURL(); }}>
+              Sign in
+            </Button>
           )}
         </div>
       </header>
@@ -84,102 +219,164 @@ function Shell({
   );
 }
 
-function AccessGate({ state }: { state: AccessState }) {
-  const content = ({
-    checking: { productName: 'Logger' },
-    login: { productName: 'Logger' },
-    forbidden: {
-      productName: 'Logger access required',
-      description: 'You are signed in, but do not have the Logger View permission.',
-    },
-    error: {
-      productName: 'Logger is unavailable',
-      description: 'The portal could not verify your session. Try again shortly.',
-    },
-    allowed: { productName: 'Logger' },
-  } satisfies Record<AccessState, { productName: string; description?: string }>)[state];
-
+/**
+ * Shown to a real session that lacks logger/view. It deliberately offers no
+ * sign-in button: they are already signed in, and sending them back to the IdP
+ * is the loop this page exists to end.
+ */
+function AccessNotice() {
   return (
-    <AuthScreen
-      productName={content.productName}
-      description={content.description}
-      action={
-        state === 'login'
-          ? { label: 'Sign in with GitHub', href: loginURL(), icon: 'github' }
-          : state === 'forbidden'
-            ? { label: 'Request Logger access', href: accessManagerURL() }
-            : state === 'error'
-              ? { label: 'Retry', onClick: () => window.location.reload() }
-              : undefined
-      }
-      loading={state === 'checking'}
-    />
+    <section className="access-notice">
+      <h2>You do not have Logger access</h2>
+      <p>
+        You are signed in, but your account does not hold the <code>logger</code> ·{' '}
+        <code>view</code> permission, so the log explorer stays hidden. Everything on this status
+        page is public and needs no permission at all.
+      </p>
+      <a className="button button--secondary" href={accessManagerURL()}>
+        Request access in OAuth Manager
+      </a>
+    </section>
   );
 }
 
-function Dashboard({
-  applications,
-  refreshedAt,
+function ApplicationRow({
+  application,
+  history,
+  days,
+  explorable,
+}: {
+  application: StatusApplication;
+  history: Map<string, ComponentHistory>;
+  days: number;
+  explorable: boolean;
+}) {
+  return (
+    <article className="application-row">
+      <div className="application-row__head">
+        <div>
+          <h3>{application.name}</h3>
+          <p>{application.description}</p>
+        </div>
+        <StatusBadge state={application.state} />
+      </div>
+
+      <div className="component-rows">
+        {application.components.map((component) => {
+          const buckets = history.get(component.id)?.buckets ?? [];
+          return (
+            <div className="component-row" key={component.id}>
+              <div className="component-row__name">
+                <StatusBadge state={component.state} compact />
+                <strong>{component.name}</strong>
+                <small>Checked {relativeTime(component.checked_at)}</small>
+              </div>
+              {buckets.length > 0 && <UptimeBar buckets={buckets} days={days} />}
+              <UptimeFigures values={component} />
+            </div>
+          );
+        })}
+      </div>
+
+      {explorable && (
+        <a className="inspect-link" href={`/applications/${application.id}`}>
+          Open logs <span aria-hidden="true">→</span>
+        </a>
+      )}
+    </article>
+  );
+}
+
+function StatusPage({
+  session,
   user,
   onLogout,
 }: {
-  applications: ApplicationStatus[];
-  refreshedAt?: string;
+  session: Session;
   user?: Identity;
   onLogout: () => void | Promise<void>;
 }) {
-  const healthy = applications.filter((app) => app.state === 'healthy').length;
-  const headline = applications.some((app) => app.state === 'unhealthy')
-    ? 'Some systems need attention'
-    : applications.some((app) => app.state === 'unknown')
-      ? 'Health checks are warming up'
-      : 'All systems operational';
+  const [status, setStatus] = useState<StatusResponse>();
+  const [history, setHistory] = useState<ComponentHistory[]>([]);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
+  const days = useVisibleDays();
+
+  const refresh = useCallback(async () => {
+    try {
+      // Both requests are unauthenticated, so this runs identically for a
+      // signed-out visitor and never depends on a session being resolved first.
+      const [current, past] = await Promise.all([getStatus(), getStatusHistory(HISTORY_DAYS)]);
+      setStatus(current);
+      setHistory(past.components);
+      setError('');
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Status is unavailable');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), 30000);
+    return () => window.clearInterval(timer);
+  }, [refresh]);
+
+  const historyByComponent = useMemo(() => {
+    const index = new Map<string, ComponentHistory>();
+    history.forEach((component) => index.set(component.id, component));
+    return index;
+  }, [history]);
+
+  const overall = status?.overall;
+  const meta = statusMeta[overall?.state ?? 'unknown'];
 
   return (
-    <Shell user={user} onLogout={onLogout}>
+    <Shell session={session} user={user} onLogout={onLogout}>
       <main className="page">
-        <section className="hero">
+        {session.authenticated && !session.allowed && <AccessNotice />}
+
+        <section className={`banner banner--${overall?.state ?? 'unknown'}`}>
+          <span className="banner__glyph" aria-hidden="true">{meta.glyph}</span>
           <div>
-            <p className="eyebrow">Live platform status</p>
-            <h1>{headline}</h1>
-            <p className="hero-copy">Health is checked from inside the BioTron service network.</p>
-          </div>
-          <div className="summary">
-            <strong>{healthy}/{applications.length}</strong>
-            <span>applications operational</span>
-            <small>Updated {relativeTime(refreshedAt)}</small>
+            <h1>{loading && !overall ? 'Checking platform status…' : meta.headline}</h1>
+            <p>
+              {overall
+                ? `Updated ${relativeTime(overall.updated_at)} · checked from inside the BioTron service network`
+                : 'Health is checked from inside the BioTron service network.'}
+            </p>
           </div>
         </section>
+
+        {error && <div className="inline-error">{error}</div>}
+
+        {overall && (
+          <section className="headline-uptime" aria-label="Platform uptime">
+            <UptimeFigures values={overall} />
+          </section>
+        )}
 
         <section className="section-heading">
           <div>
             <h2>Applications</h2>
-            <p>Select an application to inspect components and logs.</p>
+            <p>
+              {session.allowed
+                ? 'Select an application to inspect its logs.'
+                : 'Component availability over the last 90 days.'}
+            </p>
           </div>
         </section>
 
-        <div className="application-grid">
-          {applications.map((app) => (
-            <a className="application-card" href={`/applications/${app.id}`} key={app.id}>
-              <div className="application-card__top">
-                <div>
-                  <h3>{app.name}</h3>
-                  <p>{app.description}</p>
-                </div>
-                <span className={`state-pill state-pill--${app.state}`}>
-                  <StatusDot state={app.state} />{stateLabel(app.state)}
-                </span>
-              </div>
-              <div className="component-list">
-                {app.components.map((component) => (
-                  <div className="component-row" key={component.id}>
-                    <span><StatusDot state={component.state} />{component.name}</span>
-                    <small>{relativeTime(component.checked_at)}</small>
-                  </div>
-                ))}
-              </div>
-              <span className="inspect-link">Inspect application <span aria-hidden="true">→</span></span>
-            </a>
+        <div className="application-list">
+          {status?.applications.map((application) => (
+            <ApplicationRow
+              application={application}
+              days={days}
+              explorable={session.allowed}
+              history={historyByComponent}
+              key={application.id}
+            />
           ))}
         </div>
       </main>
@@ -231,17 +428,10 @@ function LogRow({ entry }: { entry: LogEntry }) {
   );
 }
 
-function ApplicationDetail({
-  application,
-  user,
-  onLogout,
-}: {
-  application: ApplicationStatus;
-  user?: Identity;
-  onLogout: () => void | Promise<void>;
-}) {
+function ApplicationDetail({ application }: { application: ApplicationStatus }) {
   const [mode, setMode] = useState<LogMode>('recent');
-  const [selectedLevels, setSelectedLevels] = useState<Set<LogLevel>>(new Set(levels));
+  // Lazy initialiser: the Set is built once, not thrown away on every render.
+  const [selectedLevels, setSelectedLevels] = useState<Set<LogLevel>>(() => new Set(levels));
   const [search, setSearch] = useState('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
@@ -288,123 +478,161 @@ function ApplicationDetail({
   }
 
   return (
-    <Shell user={user} onLogout={onLogout}>
-      <main className="page detail-page">
-        <a className="back-link" href="/">← All applications</a>
-        <section className="detail-header">
+    <main className="page detail-page">
+      <a className="back-link" href="/">← Platform status</a>
+      <section className="detail-header">
+        <div>
+          <div className="detail-title">
+            <h1>{application.name}</h1>
+            <HealthBadge state={application.state} />
+          </div>
+          <p>{application.description}</p>
+        </div>
+      </section>
+
+      <section className="component-strip" aria-label="Component health">
+        {application.components.map((component) => (
+          <div className="component-tile" key={component.id}>
+            <div><HealthBadge state={component.state} /><strong>{component.name}</strong></div>
+            <span>{component.detail || healthMeta[component.state].label}</span>
+            <small>{relativeTime(component.checked_at)}</small>
+          </div>
+        ))}
+      </section>
+
+      <section className="logs-panel">
+        <div className="logs-panel__heading">
           <div>
-            <div className="detail-title">
-              <h1>{application.name}</h1>
-              <span className={`state-pill state-pill--${application.state}`}>
-                <StatusDot state={application.state} />{stateLabel(application.state)}
-              </span>
-            </div>
-            <p>{application.description}</p>
+            <p className="eyebrow">Application events</p>
+            <h2>Logs</h2>
           </div>
-        </section>
-
-        <section className="component-strip" aria-label="Component health">
-          {application.components.map((component) => (
-            <div className="component-tile" key={component.id}>
-              <div><StatusDot state={component.state} /><strong>{component.name}</strong></div>
-              <span>{component.detail || stateLabel(component.state)}</span>
-              <small>{relativeTime(component.checked_at)}</small>
-            </div>
-          ))}
-        </section>
-
-        <section className="logs-panel">
-          <div className="logs-panel__heading">
-            <div>
-              <p className="eyebrow">Application events</p>
-              <h2>Logs</h2>
-            </div>
-            <div className="mode-switch" role="group" aria-label="Log source">
-              <button className={mode === 'recent' ? 'active' : ''} onClick={() => setMode('recent')}>Recent</button>
-              <button className={mode === 'history' ? 'active' : ''} onClick={() => setMode('history')}>History</button>
-            </div>
+          <div className="mode-switch" role="group" aria-label="Log source">
+            <button className={mode === 'recent' ? 'active' : ''} onClick={() => setMode('recent')}>Recent</button>
+            <button className={mode === 'history' ? 'active' : ''} onClick={() => setMode('history')}>History</button>
           </div>
+        </div>
 
-          <form className="filters" onSubmit={applyFilters}>
-            <LevelFilter selected={selectedLevels} onChange={setSelectedLevels} />
-            <label className="search-field">
-              <span>Search messages and payloads</span>
-              <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search logs…" />
-            </label>
-            {mode === 'history' && (
-              <div className="date-fields">
-                <label><span>From</span><input type="datetime-local" value={from} onChange={(event) => setFrom(event.target.value)} /></label>
-                <label><span>To</span><input type="datetime-local" value={to} onChange={(event) => setTo(event.target.value)} /></label>
-              </div>
-            )}
-            <button className="button button--secondary" type="submit">Apply filters</button>
-          </form>
-
-          <div className="log-stream" aria-live="polite">
-            {error && <div className="inline-error">{error}</div>}
-            {!loading && !error && logs.length === 0 && (
-              <div className="empty-state"><strong>No matching logs</strong><span>Try another level, time range, or search.</span></div>
-            )}
-            {logs.map((entry) => <LogRow entry={entry} key={entry.id} />)}
-            {loading && <div className="stream-loading">Loading logs…</div>}
-          </div>
-          {mode === 'history' && nextCursor && !loading && (
-            <button className="button button--secondary load-more" onClick={() => void load(true, nextCursor)}>Load older logs</button>
+        <form className="filters" onSubmit={applyFilters}>
+          <LevelFilter selected={selectedLevels} onChange={setSelectedLevels} />
+          <label className="search-field">
+            <span>Search messages and payloads</span>
+            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search logs…" />
+          </label>
+          {mode === 'history' && (
+            <div className="date-fields">
+              <label><span>From</span><input type="datetime-local" value={from} onChange={(event) => setFrom(event.target.value)} /></label>
+              <label><span>To</span><input type="datetime-local" value={to} onChange={(event) => setTo(event.target.value)} /></label>
+            </div>
           )}
-        </section>
-      </main>
+          <button className="button button--secondary" type="submit">Apply filters</button>
+        </form>
+
+        <div className="log-stream" aria-live="polite">
+          {error && <div className="inline-error">{error}</div>}
+          {!loading && !error && logs.length === 0 && (
+            <div className="empty-state"><strong>No matching logs</strong><span>Try another level, time range, or search.</span></div>
+          )}
+          {logs.map((entry) => <LogRow entry={entry} key={entry.id} />)}
+          {loading && <div className="stream-loading">Loading logs…</div>}
+        </div>
+        {mode === 'history' && nextCursor && !loading && (
+          <button className="button button--secondary load-more" onClick={() => void load(true, nextCursor)}>Load older logs</button>
+        )}
+      </section>
+    </main>
+  );
+}
+
+function ExplorerRoute({
+  applicationID,
+  session,
+  sessionReady,
+  user,
+  onLogout,
+}: {
+  applicationID: string;
+  session: Session;
+  sessionReady: boolean;
+  user?: Identity;
+  onLogout: () => void | Promise<void>;
+}) {
+  const [application, setApplication] = useState<ApplicationStatus>();
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!session.allowed) return;
+    void getApplications()
+      .then((response) => {
+        const match = response.applications.find((candidate) => candidate.id === applicationID);
+        if (match) setApplication(match);
+        else setError('That application is not in the service catalog.');
+      })
+      .catch((reason: unknown) => setError(reason instanceof Error ? reason.message : 'Unable to load the application'));
+  }, [applicationID, session.allowed]);
+
+  return (
+    <Shell session={session} user={user} onLogout={onLogout}>
+      {!sessionReady && <main className="page"><div className="stream-loading">Checking your access…</div></main>}
+      {sessionReady && !session.allowed && (
+        <main className="page">
+          <a className="back-link" href="/">← Platform status</a>
+          <AccessNotice />
+        </main>
+      )}
+      {sessionReady && session.allowed && !application && (
+        <main className="page">
+          <a className="back-link" href="/">← Platform status</a>
+          {error ? <div className="inline-error">{error}</div> : <div className="stream-loading">Loading application…</div>}
+        </main>
+      )}
+      {sessionReady && session.allowed && application && <ApplicationDetail application={application} />}
     </Shell>
   );
 }
 
+const signedOut: Session = { authenticated: false, allowed: false };
+
 export function App() {
-  const [access, setAccess] = useState<AccessState>('checking');
-  const [applications, setApplications] = useState<ApplicationStatus[]>([]);
-  const [refreshedAt, setRefreshedAt] = useState<string>();
+  const [session, setSession] = useState<Session>(signedOut);
+  const [sessionReady, setSessionReady] = useState(false);
   const [user, setUser] = useState<Identity>();
 
-  const refresh = useCallback(async () => {
-    try {
-      const response = await getApplications();
-      setApplications(response.applications);
-      setRefreshedAt(response.generated_at);
-      setAccess('allowed');
-      void getIdentity().then(setUser).catch(() => setUser(undefined));
-    } catch (reason) {
-      if (reason instanceof APIError && reason.status === 401) setAccess('login');
-      else if (reason instanceof APIError && reason.status === 403) setAccess('forbidden');
-      else setAccess('error');
-    }
+  useEffect(() => {
+    // /v1/session always answers 200, so a failure here means the network or
+    // the API is down, not that the visitor is unwelcome. Either way the public
+    // status page below still renders.
+    void checkSession()
+      .then(setSession)
+      .catch(() => setSession(signedOut))
+      .finally(() => setSessionReady(true));
   }, []);
 
   useEffect(() => {
-    void checkSession().then(refresh).catch((reason: unknown) => {
-      if (reason instanceof APIError && reason.status === 401) setAccess('login');
-      else if (reason instanceof APIError && reason.status === 403) setAccess('forbidden');
-      else setAccess('error');
-    });
-  }, [refresh]);
-
-  useEffect(() => {
-    if (access !== 'allowed') return;
-    const timer = window.setInterval(() => void refresh(), 15000);
-    return () => window.clearInterval(timer);
-  }, [access, refresh]);
+    if (!session.authenticated) {
+      setUser(undefined);
+      return;
+    }
+    void getIdentity().then(setUser).catch(() => setUser(undefined));
+  }, [session.authenticated]);
 
   const onLogout = useCallback(async () => {
     await logout();
     setUser(undefined);
-    setAccess('login');
+    setSession(signedOut);
   }, []);
-
-  if (access !== 'allowed') return <AccessGate state={access} />;
 
   const detailMatch = window.location.pathname.match(/^\/applications\/([^/]+)\/?$/);
   if (detailMatch) {
-    const application = applications.find((candidate) => candidate.id === decodeURIComponent(detailMatch[1]));
-    if (application) return <ApplicationDetail application={application} user={user} onLogout={onLogout} />;
-    return <AccessGate state="error" />;
+    return (
+      <ExplorerRoute
+        applicationID={decodeURIComponent(detailMatch[1])}
+        onLogout={onLogout}
+        session={session}
+        sessionReady={sessionReady}
+        user={user}
+      />
+    );
   }
 
-  return <Dashboard applications={applications} refreshedAt={refreshedAt} user={user} onLogout={onLogout} />;
+  return <StatusPage session={session} user={user} onLogout={onLogout} />;
 }
