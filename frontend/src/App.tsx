@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { calendarApi } from './api';
 import { calendarRange, startOfMonth } from './date';
 import type { AuthStatus, EventPayload, EventSeries, Occurrence, Scope } from './types';
@@ -46,15 +46,32 @@ export function App() {
     setScopes(await calendarApi.scopes());
   }, []);
 
+  // Month and scope changes overlap on a slow connection, and whichever
+  // response landed last used to win: three taps on "Next month" could paint
+  // February's events onto April's grid. Every load cancels the one before it
+  // and only the newest request is allowed to touch state.
+  const occurrenceRequest = useRef(0);
+  const occurrenceAbort = useRef<AbortController>(undefined);
+
   const loadOccurrences = useCallback(async () => {
+    occurrenceAbort.current?.abort();
+    const controller = new AbortController();
+    occurrenceAbort.current = controller;
+    const request = ++occurrenceRequest.current;
+    const current = () => request === occurrenceRequest.current;
     setLoading(true);
     setError('');
     try {
-      setOccurrences(await calendarApi.occurrences(range.from, range.to, selectedScope || undefined));
+      const next = await calendarApi.occurrences(range.from, range.to, selectedScope || undefined, controller.signal);
+      if (current()) setOccurrences(next);
     } catch (caught) {
+      if (!current() || controller.signal.aborted) return;
+      // Leaving the previous month's or previous scope's events on screen under
+      // an error banner reads as if they belong to the selection that failed.
+      setOccurrences([]);
       setError(caught instanceof Error ? caught.message : 'Could not load the calendar.');
     } finally {
-      setLoading(false);
+      if (current()) setLoading(false);
     }
   }, [range.from, range.to, selectedScope]);
 
@@ -77,11 +94,23 @@ export function App() {
     void Promise.all([loadAuth(), loadScopes()]).catch(() => setError('Could not load the calendar.'));
   }, [loadAuth, loadScopes]);
 
-  useEffect(() => { void loadOccurrences(); }, [loadOccurrences]);
+  useEffect(() => {
+    void loadOccurrences();
+    return () => occurrenceAbort.current?.abort();
+  }, [loadOccurrences]);
   useEffect(() => { if (managing) void loadAdmin(); }, [managing, loadAdmin]);
 
+  // A write can land and the reload behind it still fail. The editor is closed
+  // by then, so its own error slot is gone; say so on the page instead of
+  // leaving a stale list that looks like the save was ignored.
   async function refreshAfterMutation() {
-    await Promise.all([loadScopes(), loadOccurrences(), loadAdmin()]);
+    try {
+      await Promise.all([loadScopes(), loadOccurrences(), loadAdmin()]);
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : 'Could not reload the calendar.';
+      setError(`The change was saved, but the calendar could not be reloaded: ${message}`);
+      setAdminError(message);
+    }
   }
 
   async function saveEvent(payload: EventPayload, publish: boolean) {
