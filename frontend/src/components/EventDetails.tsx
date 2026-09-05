@@ -16,7 +16,7 @@ export function EventDetails({ occurrence, canWrite, error, onClose, onEditSerie
   return (
     <Modal title={occurrence.title} onClose={onClose}>
       <div className="flex flex-wrap gap-2">
-        <span className="rounded-full bg-brand/10 px-3 py-1 text-xs font-semibold text-brand dark:bg-soft/15 dark:text-soft">{occurrence.scope_name}</span>
+        <span className="rounded-full bg-brand/10 px-3 py-1 text-xs font-semibold text-brand dark:bg-soft/15 dark:text-soft">{occurrence.scope_path}</span>
         {occurrence.recurring && <span className="rounded-full bg-deep/10 px-3 py-1 text-xs font-semibold text-deep dark:bg-white/10 dark:text-white">Weekly series</span>}
         {occurrence.modified && <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800 dark:bg-amber-400/15 dark:text-amber-200">Changed occurrence</span>}
       </div>

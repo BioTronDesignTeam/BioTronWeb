@@ -38,7 +38,7 @@ function EventButton({ occurrence, onClick, compact = false }: { occurrence: Occ
     <button type="button" onClick={onClick} className={`w-full border-l-[3px] text-left hover:brightness-95 dark:hover:brightness-110 ${tone} ${compact ? 'rounded-md px-2 py-1.5' : 'min-h-11 rounded-xl px-3 py-3'}`}>
       <span className={`block truncate font-semibold ${compact ? 'text-xs' : 'text-sm'}`}>{occurrence.title}</span>
       <span className={`mt-0.5 block truncate text-ink/65 dark:text-white/65 ${compact ? 'text-[11px]' : 'text-xs'}`}>
-        {timeLabel(occurrence.starts_at, occurrence.all_day)}{compact ? '' : ` · ${occurrence.scope_name}`}
+        {timeLabel(occurrence.starts_at, occurrence.all_day)}{compact ? '' : ` · ${occurrence.scope_path}`}
       </span>
     </button>
   );
@@ -97,7 +97,7 @@ export function PublicCalendar(props: PublicCalendarProps) {
             <span className="sr-only">Filter calendar</span>
             <select value={props.selectedScope} onChange={(event) => props.onScopeChange(event.target.value)} className="min-h-11 w-full rounded-full border border-ink/15 bg-transparent px-4 text-sm font-medium outline-none focus:border-brand sm:w-auto dark:border-white/20">
               <option value="">All BioTron events</option>
-              {props.scopes.map((scope) => <option key={scope.id} value={scope.id}>{scope.kind === 'TEAM' ? 'Teamwide' : scope.name}</option>)}
+              {props.scopes.map((scope) => <option key={scope.id} value={scope.id}>{scope.kind === 'TEAM' ? 'Teamwide' : scope.path}</option>)}
             </select>
           </label>
         </div>

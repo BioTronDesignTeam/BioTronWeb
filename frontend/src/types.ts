@@ -7,6 +7,10 @@ export interface Scope {
   kind: ScopeKind;
   name: string;
   slug: string;
+  /** The scope qualified by its ancestors, such as "Exo · Software". Use it
+   *  anywhere scopes appear in a flat list; the tree shows `name`. */
+  path: string;
+  slug_path: string;
   status: ScopeStatus;
   parent_id?: string;
   archived_at?: string;
@@ -19,6 +23,7 @@ export interface Occurrence {
   uid: string;
   scope_id: string;
   scope_name: string;
+  scope_path: string;
   scope_kind: ScopeKind;
   title: string;
   description: string;
@@ -48,6 +53,7 @@ export interface EventSeries {
   uid: string;
   scope_id: string;
   scope_name: string;
+  scope_path: string;
   scope_kind: ScopeKind;
   state: EventState;
   title: string;

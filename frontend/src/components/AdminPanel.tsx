@@ -130,13 +130,13 @@ export function AdminPanel(props: AdminPanelProps) {
                   subteams={subteamsByParent.get(project.id) || []}
                   onRename={setRenaming}
                   onArchive={(scope) => confirmThen({
-                    title: `Archive ${scope.name}?`,
+                    title: `Archive ${scope.path}?`,
                     message: 'Its events and its subscription URL keep working exactly as they are. It just stops appearing in the public calendar, and it can be restored later.',
                     confirmLabel: 'Archive',
                   }, () => props.onArchiveScope(scope))}
                   onRestore={props.onRestoreScope}
                   onDelete={(scope) => confirmThen({
-                    title: `Permanently delete ${scope.name}?`,
+                    title: `Permanently delete ${scope.path}?`,
                     message: 'It has no events and no subteams, so nothing is lost, but this cannot be undone.',
                     confirmLabel: 'Delete permanently',
                     destructive: true,
@@ -211,7 +211,7 @@ function EventList({ events, onEdit, onPublish, onCancel, onDelete }: {
                 <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${stateStyle(event.state)}`}>{event.state.toLowerCase()}</span>
               </div>
               <p className="mt-1 text-sm text-ink/60 dark:text-white/60">
-                {event.scope_name} · {localDate(event.starts_at_local)} at {timeOfDayLabel(event.starts_at_local)}
+                {event.scope_path} · {localDate(event.starts_at_local)} at {timeOfDayLabel(event.starts_at_local)}
                 {event.recurrence_until ? ` · weekly through ${localDate(event.recurrence_until)}` : ''}
               </p>
             </div>

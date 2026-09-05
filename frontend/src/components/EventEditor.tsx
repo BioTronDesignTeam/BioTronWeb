@@ -169,7 +169,7 @@ export function EventEditor({ event, scopes, onClose, onSave }: EventEditorProps
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="sm:col-span-2"><span className="text-sm font-semibold">Title</span><input required maxLength={160} value={title} onChange={(e) => setTitle(e.target.value)} className={inputClass} /></label>
           <label><span className="text-sm font-semibold">Calendar</span><select required value={scopeId} disabled={Boolean(event && event.state !== 'DRAFT')} onChange={(e) => setScopeId(e.target.value)} className={inputClass}>
-            {selectableScopes.map((scope) => <option key={scope.id} value={scope.id} disabled={scope.status === 'ARCHIVED'}>{scope.kind === 'TEAM' ? 'Teamwide' : `${scope.name}${scope.status === 'ARCHIVED' ? ' (archived)' : ''}`}</option>)}
+            {selectableScopes.map((scope) => <option key={scope.id} value={scope.id} disabled={scope.status === 'ARCHIVED'}>{scope.kind === 'TEAM' ? 'Teamwide' : `${scope.path}${scope.status === 'ARCHIVED' ? ' (archived)' : ''}`}</option>)}
           </select></label>
           <label><span className="text-sm font-semibold">Location</span><input maxLength={300} value={location} onChange={(e) => setLocation(e.target.value)} className={inputClass} placeholder="E5 2004 or online" /></label>
           <ScheduleFields
