@@ -140,7 +140,7 @@ export function OccurrenceEditor({ occurrence, series, onClose, onSave, onReset 
           <div>{occurrence.modified && <button type="button" disabled={saving} onClick={() => void reset()} className="min-h-11 rounded-full px-4 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50 dark:text-red-300 dark:hover:bg-red-950/30">Reset to series</button>}</div>
           <div className="flex flex-col-reverse gap-2 sm:flex-row">
             <button type="button" onClick={onClose} className="min-h-11 rounded-full px-5 text-sm font-semibold hover:bg-soft/25 dark:hover:bg-white/10">Cancel</button>
-            <button type="submit" disabled={saving} className="min-h-11 rounded-full bg-deep px-5 text-sm font-semibold text-white hover:bg-brand disabled:opacity-50">Save occurrence</button>
+            <button type="submit" disabled={saving} className="min-h-11 rounded-full bg-deep px-5 text-sm font-semibold text-white hover:bg-brand dark:bg-brand dark:hover:brightness-110 disabled:opacity-50">Save occurrence</button>
           </div>
         </div>
       </form>

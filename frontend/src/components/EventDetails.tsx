@@ -29,7 +29,7 @@ export function EventDetails({ occurrence, canWrite, error, onClose, onEditSerie
         <div className="mt-7 border-t border-ink/10 pt-5 dark:border-white/10">
           <p className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-ink/45 dark:text-white/45">Calendar editor</p>
           <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={onEditSeries} className="min-h-11 rounded-full bg-deep px-4 text-sm font-semibold text-white hover:bg-brand">Edit series</button>
+            <button type="button" onClick={onEditSeries} className="min-h-11 rounded-full bg-deep px-4 text-sm font-semibold text-white hover:bg-brand dark:bg-brand dark:hover:brightness-110">Edit series</button>
             {occurrence.recurring && <button type="button" onClick={onEditOccurrence} className="min-h-11 rounded-full border border-ink/15 px-4 text-sm font-semibold hover:bg-soft/25 dark:border-white/20 dark:hover:bg-white/10">Edit this occurrence</button>}
             {occurrence.recurring && <button type="button" onClick={onCancelOccurrence} className="min-h-11 rounded-full px-4 text-sm font-semibold text-red-700 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950/30">Cancel this occurrence</button>}
           </div>

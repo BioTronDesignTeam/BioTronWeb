@@ -54,7 +54,7 @@ export function SubscribePanel({ scopes, onClose }: SubscribePanelProps) {
             <button type="button" onClick={() => void copy(key, url)} className="min-h-11 rounded-full border border-ink/15 px-4 text-sm font-semibold hover:bg-soft/25 dark:border-white/20 dark:hover:bg-white/10">
               {outcome?.copied ? 'Copied' : 'Copy URL'}
             </button>
-            <a href={webcalURL(id)} className="inline-flex min-h-11 items-center rounded-full bg-deep px-4 text-sm font-semibold text-white hover:bg-brand">Subscribe</a>
+            <a href={webcalURL(id)} className="inline-flex min-h-11 items-center rounded-full bg-deep px-4 text-sm font-semibold text-white hover:bg-brand dark:bg-brand dark:hover:brightness-110">Subscribe</a>
           </div>
         </div>
         {/* Always visible, always selectable. webcal: has no handler on Android

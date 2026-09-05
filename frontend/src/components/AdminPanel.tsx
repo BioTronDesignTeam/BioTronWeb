@@ -91,7 +91,7 @@ export function AdminPanel(props: AdminPanelProps) {
     <main className="mx-auto w-full max-w-[1200px] px-4 pb-16 pt-8 sm:px-6 lg:px-8">
       <div className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div><p className="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-brand dark:text-link">Calendar editor</p><h1 className="text-3xl font-semibold tracking-[-0.04em] sm:text-4xl">Keep the schedule useful.</h1></div>
-        {tab === 'events' && <button type="button" onClick={props.onCreateEvent} className="min-h-12 rounded-full bg-deep px-6 text-sm font-semibold text-white hover:bg-brand">Create event</button>}
+        {tab === 'events' && <button type="button" onClick={props.onCreateEvent} className="min-h-12 rounded-full bg-deep px-6 text-sm font-semibold text-white hover:bg-brand dark:bg-brand dark:hover:brightness-110">Create event</button>}
       </div>
       <div className="mb-6 flex gap-1 rounded-full bg-ink/5 p-1 dark:bg-surface-2 sm:w-fit">
         <button type="button" onClick={() => setTab('events')} className={tabClass('events')}>Events</button>
@@ -217,7 +217,7 @@ function EventList({ events, onEdit, onPublish, onCancel, onDelete }: {
             </div>
             <div className="flex flex-wrap gap-2">
               <button type="button" onClick={() => onEdit(event)} className="min-h-11 rounded-full border border-ink/15 px-4 text-sm font-semibold hover:bg-soft/25 dark:border-white/20 dark:hover:bg-white/10">Edit</button>
-              {event.state !== 'PUBLISHED' && <button type="button" onClick={() => void onPublish(event)} className="min-h-11 rounded-full bg-deep px-4 text-sm font-semibold text-white hover:bg-brand">{event.state === 'CANCELLED' ? 'Republish' : 'Publish'}</button>}
+              {event.state !== 'PUBLISHED' && <button type="button" onClick={() => void onPublish(event)} className="min-h-11 rounded-full bg-deep px-4 text-sm font-semibold text-white hover:bg-brand dark:bg-brand dark:hover:brightness-110">{event.state === 'CANCELLED' ? 'Republish' : 'Publish'}</button>}
               {event.state === 'PUBLISHED' && <button type="button" onClick={() => onCancel(event)} className={destructiveEventClass}>Cancel series</button>}
               {event.state === 'DRAFT' && <button type="button" onClick={() => onDelete(event)} className={destructiveEventClass}>Delete</button>}
             </div>
@@ -284,7 +284,7 @@ function AddScopeForm({ teamId, activeProjects, onCreate }: {
           <p className="text-sm text-ink/60 dark:text-white/60">A subteam has to sit under an active project. Add or restore a project first.</p>
         )}
         {error && <p className="text-sm text-red-700 dark:text-red-300">{error}</p>}
-        <button type="submit" disabled={saving || !parentId} className="min-h-11 w-full rounded-full bg-deep px-4 text-sm font-semibold text-white hover:bg-brand disabled:opacity-50">
+        <button type="submit" disabled={saving || !parentId} className="min-h-11 w-full rounded-full bg-deep px-4 text-sm font-semibold text-white hover:bg-brand dark:bg-brand dark:hover:brightness-110 disabled:opacity-50">
           Add {kind === 'PROJECT' ? 'project' : 'subteam'}
         </button>
       </form>

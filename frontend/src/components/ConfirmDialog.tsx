@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { Modal } from './Modal';
 
 const cancelClass = 'min-h-11 rounded-full px-5 text-sm font-semibold hover:bg-soft/25 dark:hover:bg-white/10';
-const primaryClass = 'min-h-11 rounded-full bg-deep px-5 text-sm font-semibold text-white hover:bg-brand disabled:opacity-50';
+const primaryClass = 'min-h-11 rounded-full bg-deep px-5 text-sm font-semibold text-white hover:bg-brand dark:bg-brand dark:hover:brightness-110 disabled:opacity-50';
 const destructiveClass = 'min-h-11 rounded-full bg-red-700 px-5 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-50';
 
 interface ConfirmDialogProps {

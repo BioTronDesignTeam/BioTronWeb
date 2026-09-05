@@ -184,7 +184,7 @@ export function EventEditor({ event, scopes, onClose, onSave }: EventEditorProps
         <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <button type="button" onClick={onClose} className="min-h-11 rounded-full px-5 text-sm font-semibold hover:bg-soft/25 dark:hover:bg-white/10">Cancel</button>
           <button type="submit" value="draft" disabled={saving} className="min-h-11 rounded-full border border-deep px-5 text-sm font-semibold text-deep disabled:opacity-50 dark:border-link dark:text-link">{event ? 'Save changes' : 'Save draft'}</button>
-          {!event && <button type="submit" value="publish" disabled={saving} className="min-h-11 rounded-full bg-deep px-5 text-sm font-semibold text-white hover:bg-brand disabled:opacity-50">Create and publish</button>}
+          {!event && <button type="submit" value="publish" disabled={saving} className="min-h-11 rounded-full bg-deep px-5 text-sm font-semibold text-white hover:bg-brand dark:bg-brand dark:hover:brightness-110 disabled:opacity-50">Create and publish</button>}
         </div>
       </form>
     </Modal>
