@@ -1,13 +1,10 @@
 # Exo
 
-Telemetry for an exoskeleton. The goal: an STM32 (C++) reads sensors and
-motors, a dedicated ESP32 WiFi coprocessor ships batched telemetry to a
-headless Debian server (Go backend and Postgres), and a React SPA renders it
-live for an operator signed in through Auth.
-
-What exists today: the sign-in flow, the operator UI shell, the server-side
-permission gate, and a health route. Telemetry ingest, storage, and WebSocket
-fan-out are not built. The machine list in the UI is a placeholder.
+Exo is the operator UI and the telemetry API for the exoskeleton. Today the
+API serves `/health` and the permission gate. The live, historical, and
+command routes are a plan, not code. The machine list in the UI is a
+placeholder. The hardware side, an STM32 that reads the sensors and an ESP32
+that posts telemetry, is not in this repository.
 
 This app was the `exo-gui` repository. `exo-gui` is still its app id in Auth,
 its Go module path, and its Compose project name `biotron-exo-gui`. It reports
@@ -17,232 +14,141 @@ to Logger as `exo-api`. The code is MIT licensed; see `LICENSE`.
 
 | Path | What |
 |------|------|
-| `frontend/` | Vite and React dashboard, Tailwind 4. Its container serves the built files with Nginx. |
-| `backend/` | Go Fiber service. `/health` and the authorization gate; nothing else yet. |
-| `prisma/` | Postgres schema and migrations. No models yet. |
-| `scripts/` | `mock_telemetry.sh`, a stand-in for the ESP32 that posts batched telemetry. See Scripts below. |
-| `docker-compose.yml` | `exo-migrate`, `exo-api`, and `exo-web` on the shared `biotron` network. |
-| `.env.example` | Every variable Compose, the backend, the frontend, and Prisma read. Copy it to `.env`. |
+| `backend/` | Go Fiber API. `/health` and the permission gate. No database code yet. |
+| `frontend/` | Vite and React UI, served by Nginx. |
+| `prisma/` | Schema and migrations. No models yet. |
+| `scripts/` | `mock_telemetry.sh`, a stand-in for the ESP32. See Scripts. |
+| `docker-compose.yml` | `exo-migrate`, `exo-api`, `exo-web` on the `biotron` network. |
+| `.env.example` | Every variable the app reads. Copy it to `.env`. |
 
-## Quick start
+## Run
 
-The shared Postgres and Redis live in `infra/`. Start them once, from the
-monorepo root:
+Exo needs the shared Postgres and Redis from `infra/` and a running Auth.
+Start them first, from the monorepo root (see `apps/auth/README.md`), then Exo:
 
 ```bash
-cp infra/.env.example infra/.env
-# Replace the Postgres password, then:
 docker compose -f infra/docker-compose.yml --env-file infra/.env up -d
-```
-
-That creates the external `biotron` network every app joins. Exo also needs
-Auth running: the browser signs in against Auth on port 8080, and the API
-reaches Auth at `OAUTH_MANAGER_URL` on the `biotron` network. Then:
-
-```bash
-cp apps/exo/.env.example apps/exo/.env
-# Use the same Postgres password.
+docker compose up -d --build auth-migrate auth-api auth-web
+cp apps/exo/.env.example apps/exo/.env    # use the same Postgres password
 docker compose up -d --build exo-migrate exo-api exo-web
 ```
 
-The same `docker compose up -d --build` works alone from `apps/exo/`. The
-root compose file includes this app's file and reads `apps/exo/.env` for it.
-`exo-api` waits for `exo-migrate` to finish; `exo-web` waits for `exo-api`.
-
-- UI: http://localhost:5174
-- API: http://localhost:8081/health, answers `{"status":"ok"}`
-
-Host ports are 5174 for the web container and 8081 for the API. Auth keeps
-5173 and 8080, where its GitHub callback is registered.
+The UI is at http://localhost:5174 and the API at http://localhost:8081. The
+browser signs in against Auth on port 8080. The API reaches Auth at
+`OAUTH_MANAGER_URL` over the `biotron` network.
 
 ## Develop
 
-Open the monorepo in its devcontainer. It has Node 24 and Go 1.27, and it
-starts a Postgres 18 and a Redis 8 beside the workspace, named `postgres` and
-`redis`, with user `biotron`, password `change-me`, and database `biotron`.
-`.env.example` already points at them, with `?schema=exo`. The post-create
-step runs `npm ci` and `go work sync`, copies `.env` from the example where
-none exists, and applies this app's migrations. After that:
+Open the monorepo in its devcontainer. It supplies Node 24, Go 1.27, and a
+Postgres and Redis that `.env.example` already points at. The post-create
+step installs the workspaces and applies this app's migrations. Then:
 
 ```bash
-npm run dev -w apps/exo/frontend               # http://localhost:5174
-cd apps/exo/backend && PORT=8081 go run .      # http://localhost:8081/health, reads ../.env
+npm run dev -w apps/exo/frontend             # http://localhost:5174
+cd apps/exo/backend && PORT=8081 go run .    # http://localhost:8081, reads ../.env
+npm run lint                                 # Oxlint, from the root
 ```
 
 The backend defaults to port 8080, which Auth uses, so pass `PORT=8081`.
-Vite binds all interfaces (`server.host: true`) on port 5174, so the port is
-reachable through the container's forwarded port.
 
-The root `package.json` owns the workspaces and the toolchain. From the root:
+## Environment
 
-```bash
-npm ci                                 # every frontend and packages/style
-npm run build -w apps/exo/frontend     # tsc -b, then vite build
-npm run lint                           # Oxlint, type-aware, .oxlintrc.json
-go work sync                           # after changing any go.mod
-```
+One file, `apps/exo/.env`, feeds Compose, the backend, the frontend, and
+Prisma. Do not add environment files below it. The Go code reads seven
+variables: `PORT`, `FRONTEND_URL`, `TRUSTED_PROXIES`, and `OAUTH_MANAGER_URL`
+in `backend/internal/config`; `LOGGER_URL`, `LOGGER_INGEST_TOKEN`, and
+`LOG_LEVEL` in `backend/internal/eventlog`.
 
-`frontend/package.json` lists only `@biotron/style`, `react`, and
-`react-dom`. Vite, TypeScript, Tailwind, and the type packages come from the
-root. There is one root `package-lock.json`; `prisma/` keeps its own because
-it is not a workspace.
+- `FRONTEND_URL` is the one CORS origin.
+- `TRUSTED_PROXIES` must include the edge Nginx network. Fiber reads
+  `Cf-Connecting-Ip` only from a trusted proxy.
+- `OAUTH_MANAGER_URL` unset or unreachable: every gated route answers `503`.
+- `LOGGER_INGEST_TOKEN` must match Logger's. Leave it empty to send nothing.
+- `DATABASE_URL` reaches `exo-migrate` and `exo-api`. Only Prisma reads it.
 
-### Environment
-
-This app has one environment file, `apps/exo/.env`. Compose, the backend
-(through `godotenv`), the frontend (Vite `envDir: '..'`), and Prisma all read
-it. Do not create component-level environment files.
-
-Backend variables: `PORT`, `FRONTEND_URL` (the one CORS origin),
-`TRUSTED_PROXIES`, and `OAUTH_MANAGER_URL` (default
-`http://oauth-manager:8080`). If `OAUTH_MANAGER_URL` is unset or unreachable,
-every gated route answers 503 rather than opening. `TRUSTED_PROXIES` must
-include the edge Nginx's network, because Fiber reads `Cf-Connecting-Ip`
-only from a trusted proxy. Compose also passes `DATABASE_URL` to `exo-api`,
-but the backend does not read it yet.
-
-Frontend variables: `VITE_API_URL` (default `http://localhost:8081`) and
-`VITE_AUTH_URL` (default `http://localhost:8080`). Both are compiled into the
-bundle, and a production build fails if either is unset. Compose passes them
-as build arguments to `exo-web`.
-
-Logger: the API sends lifecycle events (`Exo API started`, `Exo API
-stopping`) and completed requests (method, path, status, duration) to Logger
-as `exo-api`. `/health` is never logged. `LOGGER_URL` defaults to
-`http://logger-api:8080`. Set `LOGGER_INGEST_TOKEN` to the same shared secret
-Logger uses; leaving it empty disables delivery without stopping Exo.
-`LOG_LEVEL` sets the minimum level sent. `backend/internal/eventlog` is a
-copy of `go/logclient` and should import the shared module instead.
+`VITE_API_URL` and `VITE_AUTH_URL` are compiled into the frontend bundle;
+Compose passes them to `exo-web` as build arguments. A production build fails
+if either is unset. Nothing in the UI calls the API yet.
 
 ## Authorization
 
-Auth owns identity and per-product permissions. Exo's app id is `exo-gui`,
-and it declares three permissions:
+Auth owns identity and permissions. Exo's app id is `exo-gui`. It declares
+three permissions: `live`, `historical`, and `commands`. A daily guest key
+opens `live` and `historical` on Exo and never `commands`. Auth enforces that
+inside `/v1/check`; Exo enforces it by asking.
 
-| Permission   | What it opens              | Daily guest key |
-|--------------|----------------------------|-----------------|
-| `live`       | live telemetry             | yes             |
-| `historical` | recorded sessions          | yes             |
-| `commands`   | commands sent to the rig   | **no**          |
+`backend/internal/auth` is the one gate. `Require(permission)` is middleware
+for a route group. It forwards the caller's cookie to
+`GET {OAUTH_MANAGER_URL}/v1/check?app=exo-gui&permission=<key>` and maps the
+answer to a status:
 
-`backend/internal/auth` is the single enforcement point. It asks
-`GET {OAUTH_MANAGER_URL}/v1/check?app=exo-gui&permission=<key>`, forwarding
-the caller's session cookie, and maps the answer to a status:
-
-| Situation                                        | Exo responds |
-|--------------------------------------------------|--------------|
-| no cookie, or Auth answers 401                    | `401` |
-| `allowed: false`, or Auth answers 403             | `403` |
+| Situation | Exo answers |
+|---|---|
+| No cookie, or Auth answers `401` | `401` |
+| Auth answers `{"allowed": false}` or `403` | `403` |
 | Auth unreachable, unexpected status, or `OAUTH_MANAGER_URL` unset | `503` |
-| `allowed: true`                                   | handler runs |
+| `{"allowed": true}` | the handler runs |
 
-401 and 403 are deliberately distinct: a signed-in operator who lacks a
-permission must not be sent back to the sign-in button that already worked.
-Every failure mode is a denial. There is no configuration in which the gate
-opens.
+A request with no cookie never reaches Auth. `401` and `403` stay distinct,
+so a signed-in operator is never sent back to a sign-in button that already
+worked. A handler reads the decision with `auth.DecisionFrom(c)`.
 
-### Wiring a new route
-
-No data or command route exists yet. When the first one lands, mount it on a
-group that is already gated, never by adding the check inside a handler; that
-way a second route on the same group cannot forget it. `server.go` carries
-this example:
-
-```go
-live := app.Group("/v1/live", authz.Require(auth.PermissionLive))
-live.Get("/stream", h.Stream)
-
-hist := app.Group("/v1/historical", authz.Require(auth.PermissionHistorical))
-hist.Get("/sessions", h.Sessions)
-
-// Commands mutate hardware, so they also want the X-Requested-With CSRF guard
-// the other products apply to every mutation.
-cmd := app.Group("/v1/commands", requireXHR, authz.Require(auth.PermissionCommands))
-cmd.Post("/stop", h.Stop)
-```
-
-`requireXHR` is not written yet; Auth's `RequireXHR` is the model.
-`auth.DecisionFrom(c)` returns the decision the gate already made, so a
-handler never needs a second round trip. The permission keys live in
-`backend/internal/auth` as `auth.PermissionLive`, `auth.PermissionHistorical`,
-and `auth.PermissionCommands`. Use the constants, not string literals.
+No route uses the gate yet. `server.go` shows the intended wiring in a
+comment: mount each route on a gated group, never check inside a handler, so
+a second route on the group cannot forget it. Use the constants in
+`backend/internal/auth`, not string literals.
 
 ## Backend
 
-Go Fiber v3. This process does not issue sessions; Auth does. CORS allows
-only `FRONTEND_URL`, with `GET`, `POST`, and `OPTIONS`.
+Go Fiber v3. Exo issues no sessions; Auth does. CORS allows `FRONTEND_URL`
+only, with `GET`, `POST`, and `OPTIONS`. One route exists: `GET /health`
+answers `{"status":"ok"}` to anyone. Logger's monitor polls it.
 
-| Method | Path | Purpose |
-|--------|------|---------|
-| GET | `/health` | Liveness, `{"status":"ok"}`. Public: the container healthcheck and Logger's monitor poll it. |
-
-Guest sign-in uses the product id `exo-gui`; Auth binds the daily key and the
-resulting guest session to that product. Daily-key guests receive `live` and
-`historical` but never `commands`. Auth enforces that inside `/v1/check`, and
-the gate above is what makes Exo ask.
+Exo reports to Logger as `exo-api`: start and stop, and each completed
+request as method, path, status, and duration. `/health` is never sent.
+`backend/internal/eventlog` is a copy of `go/logclient`; it should import
+the shared module instead.
 
 ## Frontend
-
-Vite and React, Tailwind 4 (imported in `src/index.css`, with the shared dark
-palette as `@theme` tokens), and the shared components from `@biotron/style`:
-`Brand`, `ThemeToggle`, `UserMenu`, and `AuthScreen`. The Vite config adds
-`biotronFavicon()` from `@biotron/style/vite`.
-
-The top bar leads with the 112px wordmark, then the machine selector (one
-placeholder machine, `TestDummyExo`), a Live / Historical toggle in the
-centre, and the theme toggle and user menu on the right. The main area shows
-the chosen mode and machine and nothing else yet.
 
 Sign-in is the shared `AuthScreen` with a GitHub button and a guest key
 field. GitHub sign-in redirects to `{VITE_AUTH_URL}/auth/github/login` with
 this origin as `redirect`. The guest field posts `app_id` and `key` to
-`/auth/guest`. The session is checked with `/auth/me?app=exo-gui` on load,
-on focus, and every ten minutes, so a guest session that expires at Eastern
-midnight is noticed without a reload. A network error never signs anyone
-out; only a 401 or 403 does. Logout sends `X-Requested-With`, which Auth
-requires.
+`/auth/guest`. A return with `?auth=denied` shows the non-member notice.
 
-Scripts: `dev`, `build` (`tsc -b && vite build`), and `preview`.
+`AuthProvider` checks the session with `/auth/me?app=exo-gui` on load, when
+the tab regains focus or becomes visible, and every ten minutes, so a guest
+session that ends at Eastern midnight is noticed without a reload. Only a
+`401` or `403` signs an operator out; a network error never drops a signed-in
+session. Logout sends `X-Requested-With`, which Auth requires.
+
+The top bar leads with the wordmark from `@biotron/style`, then the machine
+selector, the Live / Historical toggle in the centre, and the theme toggle
+and user menu on the right. The machine list is one placeholder,
+`TestDummyExo`, hard-coded in `App.tsx`. The main area names the chosen mode
+and machine and nothing else.
 
 ## Database
 
-Prisma 6.19.3, pinned exactly. `prisma/package.json` also overrides the
-transitive dependency `deepmerge-ts` to 8.0.0; `@prisma/config` asks for
-7.1.5. The `prisma-client-js` generator is a placeholder; no code uses it.
-The backend has no database code at all yet, and the query layer for the
-telemetry tables is still to be chosen.
+Prisma 6.19.3, pinned exactly. `prisma/package.json` overrides `deepmerge-ts`
+to `8.0.0`; `@prisma/config` asks for `7.1.5`. `schema.prisma` declares no
+models. Three migrations exist: two created operator, session, and guest-key
+tables, and `20260829200000_drop_local_auth` dropped them because Auth owns
+that. After all three, the `exo` schema holds no tables. The telemetry tables
+land with ingest, and the Go query layer is still to be chosen.
 
-`schema.prisma` declares no models. Three migrations exist: two created local
-operator, session, and guest-key tables, and `20260829200000_drop_local_auth`
-dropped them because Auth owns that. Applying all three leaves the `exo`
-schema with no tables of its own. The telemetry schema lands with ingest.
-
-Working with migrations in the devcontainer:
-
-```bash
-docker compose run --rm exo-migrate             # apply, as the container does
-set -a && . apps/exo/.env && set +a             # Prisma reads DATABASE_URL from the environment
-npm run --prefix apps/exo/prisma migrate        # prisma migrate dev: create and apply
-npm run --prefix apps/exo/prisma studio
-```
-
-The Prisma image installs from its own lockfile and runs `npm run deploy` as
-the image's `node` user.
+To create a migration in the devcontainer, source `apps/exo/.env` and run
+`npm run --prefix apps/exo/prisma migrate`. The `exo-migrate` service applies
+the migrations as the image's `node` user.
 
 ## Scripts
 
-`scripts/mock_telemetry.sh` stands in for the ESP32 WiFi coprocessor. It
-needs only `bash`, `awk`, and `curl`. Each POST is one batch from one machine
-in the agreed wire shape: a `machine_id` and a list of samples, each with a
-microsecond `sampled_at`, a per-run `seq` counter, battery voltage and
-current, left and right temperature, position, velocity, torque, and error,
-and MCU and link status. Values are jittered around plausible baselines.
-
-```bash
-./scripts/mock_telemetry.sh
-INGEST_URL=http://localhost:8081/api/telemetry RATE_HZ=5 ./scripts/mock_telemetry.sh
-MACHINE_ID=exo-002 RATE_HZ=2 BATCH=20 COUNT=50 ./scripts/mock_telemetry.sh
-```
+`scripts/mock_telemetry.sh` stands in for the ESP32. It needs `bash`, `awk`,
+`curl`, and GNU `date`; macOS `date` cannot print microseconds. Each POST is
+one batch from one machine: a `machine_id` and samples 10 ms apart, each with
+a microsecond `sampled_at`, a per-run `seq`, battery voltage and current,
+temperature, position, velocity, torque, and error for `left` and `right`,
+and `mcu_status` and `link_status`.
 
 | Variable | Default | Meaning |
 |---|---|---|
@@ -252,15 +158,7 @@ MACHINE_ID=exo-002 RATE_HZ=2 BATCH=20 COUNT=50 ./scripts/mock_telemetry.sh
 | `BATCH` | `10` | samples per batch |
 | `COUNT` | `0` | stop after this many batches; `0` runs until Ctrl-C |
 
-Two things to know. The API does not serve `/api/telemetry` yet; the ingest
-route is still a comment in `backend/internal/server/server.go`, so today the
-script only shows the wire shape and reports whatever status the server
-returns. And its default port, 8080, is Auth's host port in this repository;
-the Exo API is published on 8081, so pass `INGEST_URL` explicitly.
-
-## CI
-
-`.github/workflows/ci.yml` runs when `apps/exo/**` changes: the frontend job
-builds `packages/style` and this app and runs Oxlint on `frontend/src`; the
-backend job runs golangci-lint, `go vet`, and `go test`. The workflow has not
-run yet.
+Two notes. The API does not serve `/api/telemetry`; the script shows the
+wire shape and prints whatever status the server returns. And the default
+port, 8080, is Auth's host port here; the Exo API is on 8081, so run it as
+`INGEST_URL=http://localhost:8081/api/telemetry ./scripts/mock_telemetry.sh`.
