@@ -1,6 +1,7 @@
-# Builds every image once for linux/amd64 and linux/arm64, tags each by
-# digest, and records the digests in infra/manifests/staging.yml. Production
-# deploys copy the approved digests from staging; nothing is rebuilt.
+# Builds every image once for linux/amd64 and linux/arm64 and pushes it to
+# GitHub's registry tagged with the git tag. Recording each image's digest per
+# environment, so that production runs exactly what staging proved, is not
+# built yet; see infra/README.md.
 name: release
 
 on:

@@ -1,3 +1,0 @@
-# Image digests promoted to production. Only ever copied from staging.yml
-# after a staging candidate is approved; never rebuilt.
-images: {}

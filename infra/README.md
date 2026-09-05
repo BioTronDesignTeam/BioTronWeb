@@ -281,3 +281,10 @@ former Redis Stack modules and changes defaults around them, none of which this
 workspace enables. The instance remains unauthenticated on the `biotron`
 network, which is a separate open item (MEDIUM-3 in the security audit) and is
 neither improved nor worsened by this bump.
+
+## Releases
+
+The plan is to build each image once in CI, pin it by digest, prove it in
+staging, and promote the same digest to production without rebuilding. The
+release workflow builds and pushes the images; recording digests per
+environment and deploying from that record is not built yet.
