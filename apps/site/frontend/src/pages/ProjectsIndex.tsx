@@ -1,0 +1,112 @@
+import { useEffect } from 'react';
+import { Link, useLocation } from 'react-router-dom';
+import { ArrowUpRight } from 'lucide-react';
+import { PAST_PROJECTS, PROJECTS } from '../data/projects';
+import Reveal from '../components/Reveal';
+import SplitText from '../components/SplitText';
+import ModelFallback from '../components/ModelFallback';
+import PageMeta from '../components/PageMeta';
+
+export default function ProjectsIndex() {
+  const { hash } = useLocation();
+
+  useEffect(() => {
+    if (hash !== '#past') return;
+
+    let layoutFrame = 0;
+    const renderFrame = window.requestAnimationFrame(() => {
+      layoutFrame = window.requestAnimationFrame(() => {
+        const archive = document.getElementById('past');
+        if (archive) {
+          const top = archive.getBoundingClientRect().top + window.scrollY - 96;
+          window.scrollTo({ top, behavior: 'auto' });
+        }
+      });
+    });
+
+    return () => {
+      window.cancelAnimationFrame(renderFrame);
+      window.cancelAnimationFrame(layoutFrame);
+    };
+  }, [hash]);
+
+  return (
+    <main id="main" className="pindex">
+      <PageMeta
+        title="Projects | Biotron"
+        description="See Biotron’s current projects and the work that shaped them."
+      />
+      <section className="container pindex__head" id="current">
+        <span className="eyebrow mono-label">Active projects</span>
+        <SplitText
+          as="h1"
+          className="pindex__title"
+          text="Three problems we’re solving now."
+          by="word"
+        />
+        <p className="pindex__lead">
+          Each project brings several disciplines together throughout the year. Explore the work
+          and its 3D model.
+        </p>
+      </section>
+
+      <section className="container pindex__list">
+        {PROJECTS.map((p, i) => (
+          <Reveal key={p.slug} delay={i * 0.05}>
+            <Link
+              to={`/projects/${p.slug}`}
+              className="pindex__row glass"
+              style={{ ['--card-accent' as string]: p.accentHex }}
+            >
+              <div className="pindex__visual">
+                <ModelFallback project={p} />
+              </div>
+              <div className="pindex__info">
+                <span className="mono-label">{p.status}</span>
+                <h2 className="pindex__name">{p.name}</h2>
+                <p className="pindex__tag">
+                  {p.tagline}
+                </p>
+                <p className="pindex__blurb">{p.blurb}</p>
+              </div>
+              <span className="pindex__cta">
+                View project <ArrowUpRight size={18} />
+              </span>
+            </Link>
+          </Reveal>
+        ))}
+      </section>
+
+      <section className="pindex__archive" id="past">
+        <div className="container past__head">
+          <span className="eyebrow mono-label">Past projects</span>
+          <SplitText as="h2" className="past__title" text="Work that shaped our team." by="word" />
+          <p className="past__lead">
+            These prototypes and devices laid the groundwork for today’s projects.
+          </p>
+        </div>
+
+        <div className="container past__grid">
+          {PAST_PROJECTS.map((p, i) => (
+            <Reveal key={p.name} delay={i * 0.05}>
+              <article className="past__card glass">
+                <div className="past__cardtop">
+                  <h3 className="past__name">{p.name}</h3>
+                  {p.partner && <span className="past__partner">with {p.partner}</span>}
+                </div>
+                <p className="past__blurb">{p.blurb}</p>
+                <div className="past__tags">
+                  {p.tags.map((tag) => (
+                    <span key={tag} className="past__tag">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              </article>
+            </Reveal>
+          ))}
+        </div>
+      </section>
+    </main>
+  );
+}

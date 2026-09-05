@@ -1,0 +1,5 @@
+# Repository-wide secrets and OS noise.
+.env
+.env.*
+!/.env.example
+.DS_Store
