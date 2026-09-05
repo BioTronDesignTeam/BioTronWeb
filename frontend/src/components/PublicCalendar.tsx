@@ -82,8 +82,10 @@ export function PublicCalendar(props: PublicCalendarProps) {
             <h2 className="min-w-[10.5rem] text-center text-xl font-semibold">{monthLabel(props.month)}</h2>
             <button type="button" className="grid size-11 shrink-0 place-items-center rounded-full border border-ink/15 hover:bg-soft/25 dark:border-white/15 dark:hover:bg-white/10" onClick={() => props.onMonthChange(addMonths(props.month, 1))} aria-label="Next month">→</button>
           </div>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-2 lg:ml-auto">
-            <button type="button" onClick={props.onSubscribe} className="min-h-11 whitespace-nowrap rounded-full bg-deep px-5 text-sm font-semibold text-white hover:bg-brand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand">
+          {/* Subscribe and the filter share one row at every width. On a phone
+              the button takes the leftover width beside the filter icon. */}
+          <div className="flex items-center gap-2 lg:ml-auto">
+            <button type="button" onClick={props.onSubscribe} className="min-h-11 flex-1 whitespace-nowrap rounded-full bg-deep px-5 text-sm font-semibold text-white hover:bg-brand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:flex-none">
               Subscribe to a calendar
             </button>
             <ScopeFilter scopes={props.scopes} selected={props.selectedScopes} onChange={props.onScopeChange} />

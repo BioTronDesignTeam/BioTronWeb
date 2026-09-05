@@ -75,7 +75,7 @@ export function ScopeFilter({ scopes, selected, onChange }: ScopeFilterProps) {
   }
 
   return (
-    <div ref={container} className="relative self-start sm:self-auto">
+    <div ref={container} className="relative shrink-0">
       <button
         type="button"
         onClick={() => setOpen(!open)}
