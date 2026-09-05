@@ -43,8 +43,8 @@ services:
 
   web:
     build:
-      context: ./frontend
-      dockerfile: Dockerfile
+      context: ../..
+      dockerfile: apps/logger/frontend/Dockerfile
       args:
         VITE_API_URL: ${VITE_API_URL:-/api}
         VITE_IDP_URL: ${VITE_IDP_URL:-http://localhost:8080}

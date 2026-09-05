@@ -43,8 +43,8 @@ services:
 
   web:
     build:
-      context: ./frontend
-      dockerfile: Dockerfile
+      context: ../..
+      dockerfile: apps/calendar/frontend/Dockerfile
       args:
         VITE_API_URL: ${VITE_API_URL:-http://localhost:8083}
         VITE_AUTH_URL: ${VITE_AUTH_URL:-http://localhost:8080}

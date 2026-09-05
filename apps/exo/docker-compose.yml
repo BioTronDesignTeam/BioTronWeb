@@ -37,8 +37,8 @@ services:
 
   web:
     build:
-      context: ./frontend
-      dockerfile: Dockerfile
+      context: ../..
+      dockerfile: apps/exo/frontend/Dockerfile
       args:
         VITE_API_URL: ${VITE_API_URL:-http://localhost:8081}
         VITE_AUTH_URL: ${VITE_AUTH_URL:-http://localhost:8080}

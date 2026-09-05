@@ -3,8 +3,8 @@ name: biotron-site
 services:
   web:
     build:
-      context: ./frontend
-      dockerfile: Dockerfile
+      context: ../..
+      dockerfile: apps/site/frontend/Dockerfile
       args:
         VITE_CALENDAR_API_URL: ${VITE_CALENDAR_API_URL:-http://localhost:8083}
         VITE_CALENDAR_URL: ${VITE_CALENDAR_URL:-http://localhost:5176}

@@ -34,8 +34,8 @@ services:
 
   web:
     build:
-      context: ./frontend
-      dockerfile: Dockerfile
+      context: ../..
+      dockerfile: apps/sprinter/frontend/Dockerfile
       args:
         VITE_API_URL: ${VITE_API_URL:-http://localhost:8084}
     ports:
