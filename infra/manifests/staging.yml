@@ -1,0 +1,3 @@
+# Image digests promoted to staging. release.yml writes this file; a deploy
+# pins exactly these digests. Empty until the first release runs.
+images: {}

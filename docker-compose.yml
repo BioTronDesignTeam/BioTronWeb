@@ -1,0 +1,30 @@
+# The whole platform from one place. `docker compose up -d` here starts the
+# edge, Postgres, Redis, and every product; each included file still works on
+# its own from its folder, exactly as the separate repositories did.
+#
+# Every app file needs its own .env beside it (copy .env.example). infra owns
+# the `biotron` and `biotron-edge` networks, so it is listed first.
+name: biotron
+
+include:
+  - path: infra/docker-compose.yml
+    project_directory: infra
+    env_file: infra/.env
+  - path: apps/site/docker-compose.yml
+    project_directory: apps/site
+    env_file: apps/site/.env
+  - path: apps/calendar/docker-compose.yml
+    project_directory: apps/calendar
+    env_file: apps/calendar/.env
+  - path: apps/logger/docker-compose.yml
+    project_directory: apps/logger
+    env_file: apps/logger/.env
+  - path: apps/auth/docker-compose.yml
+    project_directory: apps/auth
+    env_file: apps/auth/.env
+  - path: apps/exo/docker-compose.yml
+    project_directory: apps/exo
+    env_file: apps/exo/.env
+  - path: apps/sprinter/docker-compose.yml
+    project_directory: apps/sprinter
+    env_file: apps/sprinter/.env

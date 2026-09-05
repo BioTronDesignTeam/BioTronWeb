@@ -1,0 +1,51 @@
+---
+description: BioTron UW platform map — what each project is, how they connect, current vs intended
+alwaysApply: true
+---
+
+# BioTron server platform
+
+University of Waterloo design team (BioTron). This workspace is the **server + webtools** home: sibling repos that run as **collaborating containers** on a free Oracle VM (Debian). Services talk over HTTP APIs. Do not treat folders as unrelated apps.
+
+## Stack
+
+- **VM:** shared Oracle box, ~12 GB RAM / 2 ARM oCPUs. One Postgres instance + one Redis. No per-app database containers.
+- **Frontends:** React + TypeScript containers (Vite).
+- **Backends:** Go containers (Fiber). Sprinter is Go + `discordgo` unless we explicitly switch.
+- **Development containers:** Debian Bookworm slim. Frontend-only repos use Node 22; full-stack repos use Node 22 plus Go 1.23. Devcontainers do not start per-repo databases.
+- **Compose:** `Server/docker-compose.yml` owns the shared `biotron` network, private `biotron-edge` network, Nginx, cloudflared, Postgres, and Redis. Product Compose files join `biotron` and build only their migrations/application containers.
+- **Schemas:** Prisma owns every Postgres schema/migration. Runtime queries are Go/`pgx`. No SQLAlchemy, no Prisma client in Go.
+- **Redis:** OAuthManager sessions/grants, plus Logger’s **hot cache** (recent logs of every level + latest health per container). Redis is a read cache, not the log warehouse. Cap the tail (last N per service).
+- **Logger:** `LogDebug` / `LogInfo` / `LogWarning` / `LogError` stay in code. Client reads `LOG_LEVEL` (env per container) and only sends that level and above. Same write for all sent events: Postgres row + Redis tail. Portal filters by level. Prod uses `LOG_LEVEL=info`; set `debug` when tracing. Dashboard/health reads Redis first; history reads Postgres.
+
+## Projects
+
+| Folder | Status | Job |
+|---|---|---|
+| `Biotron-Site` | Mid-refactor | Public team website (Vite/React/Three). Large remaining work. |
+| `BiotronCalendar` | Scaffolded | Public subscribe-able calendars (Google/Apple). Vite UI, Go/Fiber health API, migration-only Prisma workspace, and shared-infrastructure Compose exist; feed/event behavior is not implemented. |
+| `exo-gui` | In progress | Exoskeleton operator UI: live telemetry, Postgres history, Historical view, later commands (e.g. E-STOP). Operator auth is OAuthManager. Device ingest stays API-key based. Dev scripts stay here. |
+| `OAuthManager` | In progress | Global auth hub: GitHub login, org membership, per-tool `read`/`write`/`admin` grants, approve/deny UI, Postgres + Redis. Rotating daily guest keys belong here; the legacy `exo-gui` copy has been removed on `la/auth`. |
+| `Sprinter` | Scaffolded | Discord bot + small admin UI. Go/`discordgo`, health API, Vite UI, migration-only Prisma workspace, and shared-infrastructure Compose exist; announcement/nudge behavior is not implemented. |
+| `Logger` | In progress | Internal status page and structured log portal. Go/Fiber provides bearer-token ingestion, Redis recent tails/latest health, Postgres history, health polling, OAuthManager read checks, and filtered recent/historical queries. The React portal and reusable source-filtering Go client are implemented. OAuthManager still needs the `logger/read` catalog rows and a shared-domain session cookie before production SSO works. |
+| `BioTronStyle` | Scaffolded | Root-level React/TypeScript npm component package with a local Vite preview. Other frontends consume tagged or commit-pinned GitHub versions. It is not a deployed service or copy-pasted per repo. |
+| `Server` | In progress | Shared staging/production ops: containerized Nginx + cloudflared edge, Postgres/Redis, Docker networks, and cold-boot guidance. Image publishing, backups, and full release orchestration remain. |
+
+## How they relate
+
+- **OAuthManager** is the IdP/permission plane for internal tools (`exo-gui`, Sprinter admin, Logger UI, etc.). Site/calendar can stay public.
+- **BiotronCalendar** is the event source of truth; **Sprinter** reads it to announce or nudge leads.
+- **Logger** observes every service. **Server** owns process lifecycle, not product logic.
+- **BioTronStyle** is the visual/system language across frontends.
+- New tools register as OAuthManager apps (rows), not one-off auth stacks.
+
+## Collaboration defaults
+
+- Stay inside the folder the user named. Do not invent the missing repos unless asked.
+- **Branches and remotes:** `Biotron-Site` stays on `la/general-improvements`. `exo-gui` stays on `la/auth`. All other repos work on `main`. Every repo has a GitHub `origin` remote under the `BioTronDesignTeam` organization. Do not create extra branches unless asked.
+- **Commits:** commit a step when it has a reason (a finished action a reviewer can read). If A needs B, commit B then A. Do not commit leftover markdown or filemode noise. See `commit-as-we-go.mdc`.
+- **Gitignores:** as local as possible. Ignore `path/to/thing/` from `path/to/thing/.gitignore`, not a mega-file at the repo root. See `local-gitignores.mdc`.
+- **Environment files:** each repository that has runtime configuration has exactly one untracked `.env` and one committed `.env.example`, both at that repository's root. Group variables with commented sections for public frontend configuration, backend, authentication/secrets, Postgres, Redis, and host ports as applicable. `VITE_*` values are public configuration, never secrets. Do not add component-level environment files under `frontend/`, `backend/`, or `prisma/`. BioTronStyle currently needs no environment file because it is a build-time library with a devcontainer-only preview.
+- `exo-gui` local GitHub OAuth and daily guest keys have been removed on `la/auth`; continue OAuthManager integration and do not reintroduce a local auth stack.
+- Older `exo-gui` notes mention Netlify + a Phenom box; **intended prod is the Oracle VM + Server**. Do not re-litigate hosting unless asked.
+- Eastern time (`America/Toronto`) for day boundaries and daily key rotation.

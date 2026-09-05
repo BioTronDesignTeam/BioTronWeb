@@ -1,0 +1,11 @@
+# Frontend images build from the repository root so they can see
+# packages/style. Keep the context to sources and manifests.
+.git
+**/node_modules
+**/dist
+**/.env
+**/.env.*
+!**/.env.example
+**/.devcontainer
+docs
+infra/manifests
