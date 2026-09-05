@@ -72,11 +72,17 @@
   --status-operational: #1fa382;
   --status-degraded: #f59e0b;
   --status-down: #ef4444;
-  --status-unknown: #4a4a66;
+  /* The unknown greys were slate-navy, which was a lighter neighbour of the old
+     purple page but reads as stray brand colour on graphite, and the hatch they
+     draw all but vanished into the card. Both are now neutral greys from the
+     site's family: the fill lifted so "no data" stays a texture you can see,
+     the ink kept above the fill so it still reads as a state, not as body
+     text. Every other status hue is unchanged. */
+  --status-unknown: #5d6b74;
   --status-operational-ink: #5be0b8;
   --status-degraded-ink: #f6c25a;
   --status-down-ink: #ff8f9e;
-  --status-unknown-ink: #a3adcc;
+  --status-unknown-ink: #b3c1c9;
 }
 
 * { box-sizing: border-box; }
