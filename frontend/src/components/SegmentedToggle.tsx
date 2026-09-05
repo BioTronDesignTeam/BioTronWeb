@@ -46,12 +46,12 @@ export default function SegmentedToggle<T extends string>({
       // still tells a screen-reader user which mode is currently selected.
       aria-label={`${ariaLabel}: ${optionName(options[activeIndex])}`}
       onClick={() => onChange(nextValue)}
-      className="group relative inline-flex cursor-pointer items-center rounded-full bg-slate-200/80 p-1 ring-1 ring-slate-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:bg-slate-800/80 dark:ring-white/10 dark:focus-visible:ring-slate-500"
+      className="group relative inline-flex cursor-pointer items-center rounded-full bg-slate-200/80 p-1 ring-1 ring-slate-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:bg-surface-2/80 dark:ring-white/10 dark:focus-visible:ring-link"
     >
       {/* sliding highlight — same width as a segment, translated by the active index */}
       <span
         aria-hidden
-        className="absolute top-1 bottom-1 left-1 rounded-full bg-white shadow transition-transform duration-300 ease-out dark:bg-slate-100"
+        className="absolute top-1 bottom-1 left-1 rounded-full bg-white shadow transition-transform duration-300 ease-out dark:bg-highlight"
         style={{ width: `${segmentRem}rem`, transform: `translateX(${activeIndex * segmentRem}rem)` }}
       />
       {options.map((o) => {
@@ -63,8 +63,8 @@ export default function SegmentedToggle<T extends string>({
             style={{ width: `${segmentRem}rem` }}
             className={`relative z-10 flex items-center justify-center rounded-full py-1.5 text-sm font-medium ${
               active
-                ? 'text-slate-900'
-                : 'text-slate-600 group-hover:text-slate-800 dark:text-slate-300 dark:group-hover:text-slate-100'
+                ? 'text-slate-900 dark:text-white'
+                : 'text-slate-600 group-hover:text-slate-800 dark:text-muted dark:group-hover:text-white'
             }`}
           >
             {o.icon ?? o.label}
