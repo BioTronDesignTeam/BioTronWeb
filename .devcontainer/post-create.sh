@@ -27,4 +27,12 @@ for app in auth calendar logger exo sprinter; do
   )
 done
 
+echo "== database: read-only sprinter_reader role on the sidecar"
+(
+  export PGHOST=postgres PGUSER=biotron PGPASSWORD=change-me
+  export POSTGRES_USER=biotron POSTGRES_DB=biotron
+  export SPRINTER_READER_PASSWORD=change-me-reader
+  bash infra/postgres/init/10-sprinter-reader.sh
+)
+
 echo "== ready"

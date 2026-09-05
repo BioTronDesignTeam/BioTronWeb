@@ -18,6 +18,7 @@ RUN apt-get update \
         git \
         openssh-client \
         openssl \
+        postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
 # The compose file masks every node_modules with a named volume. A volume

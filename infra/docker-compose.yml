@@ -57,6 +57,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-biotron}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: ${POSTGRES_DB:-biotron}
+      SPRINTER_READER_PASSWORD: ${SPRINTER_READER_PASSWORD:?set SPRINTER_READER_PASSWORD in .env}
     volumes:
       # Postgres 18 images store data in a major-version-specific directory
       # (PGDATA=/var/lib/postgresql/18/docker) and expect a single mount one
@@ -65,6 +66,9 @@ services:
       # /var/lib/postgresql/data path instead makes the entrypoint refuse to
       # start. See the Postgres 16 to 18 section in README.md.
       - postgres-data:/var/lib/postgresql
+      # Creates sprinter_reader on a fresh cluster only. See the "Read-only
+      # role for Sprinter" section in README.md.
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
     ports:
       - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     healthcheck:

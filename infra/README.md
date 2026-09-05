@@ -282,6 +282,31 @@ workspace enables. The instance remains unauthenticated on the `biotron`
 network, which is a separate open item (MEDIUM-3 in the security audit) and is
 neither improved nor worsened by this bump.
 
+## Read-only role for Sprinter
+
+Sprinter's model tools read the `logger` and `oauth` schemas, which Logger and
+Auth own. The read-only guarantee lives in Postgres, not in Sprinter's Go
+code, through a dedicated role: `sprinter_reader`.
+
+A fresh cluster gets the role from
+`postgres/init/10-sprinter-reader.sh`, mounted into the container's
+`/docker-entrypoint-initdb.d/` and run once, automatically, the first time the
+volume is empty. An existing cluster needs the same script run by hand:
+
+```bash
+docker compose -f infra/docker-compose.yml --env-file infra/.env exec -T -e SPRINTER_READER_PASSWORD postgres bash < infra/postgres/init/10-sprinter-reader.sh
+```
+
+Rerun this command after Auth's first migration on a fresh cluster. At init
+time the `oauth` schema has no tables yet, so the script's oauth grants have
+nothing to grant; rerunning it once Auth has created its tables picks them up.
+
+`logger` gets its grants through `ALTER DEFAULT PRIVILEGES`, so every table
+Logger adds later is readable automatically. `oauth` gets explicit grants on
+named tables only (`operators`, `apps`, `permissions`, `grants`) and never on
+`sessions` or `guest_keys` — `guest_keys` holds the daily Exo guest key in
+plaintext, so it must never be readable outside Auth.
+
 ## Releases
 
 The plan is to build each image once in CI, pin it by digest, prove it in
