@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowUpRight, CalendarDays, Clock3, MapPin } from 'lucide-react';
+import { ArrowUpRight, CalendarDays } from 'lucide-react';
 import PageMeta from '../components/PageMeta';
 
 /**
@@ -12,6 +12,7 @@ interface CalendarOccurrence {
   recurrence_id_local: string;
   scope_name: string;
   title: string;
+  description: string;
   location: string;
   starts_at: string;
   ends_at: string;
@@ -43,11 +44,22 @@ function eventDate(occurrence: CalendarOccurrence) {
   return DATE_FORMAT.format(new Date(occurrence.starts_at));
 }
 
+/**
+ * Drops the repeated meridiem from a range inside one half of the day, so
+ * "6:00 PM to 8:30 PM" reads "6:00 to 8:30 PM". The row puts the date and the
+ * time on one line, and the shorter form keeps that line off the title.
+ */
 function eventTime(occurrence: CalendarOccurrence) {
   if (occurrence.all_day) return 'All day';
   const from = TIME_FORMAT.format(new Date(occurrence.starts_at));
   const to = TIME_FORMAT.format(new Date(occurrence.ends_at));
+  const meridiem = from.slice(-2);
+  if (meridiem === to.slice(-2)) return `${from.slice(0, -3)} to ${to}`;
   return `${from} to ${to}`;
+}
+
+function eventWhen(occurrence: CalendarOccurrence) {
+  return `${eventDate(occurrence)} \u00b7 ${eventTime(occurrence)}`;
 }
 
 function isTimestamp(value: unknown): value is string {
@@ -62,6 +74,7 @@ function isOccurrence(value: unknown): value is CalendarOccurrence {
     typeof candidate.recurrence_id_local === 'string' &&
     typeof candidate.scope_name === 'string' &&
     typeof candidate.title === 'string' &&
+    typeof candidate.description === 'string' &&
     typeof candidate.location === 'string' &&
     typeof candidate.all_day === 'boolean' &&
     isTimestamp(candidate.starts_at) &&
@@ -164,15 +177,15 @@ export default function CalendarPage() {
             <ol className="calendarpage__events">
               {events.map((event) => (
                 <li key={`${event.series_id}-${event.recurrence_id_local}`} className="calendarpage__event">
-                  <time dateTime={event.starts_at} className="calendarpage__date">{eventDate(event)}</time>
-                  <div className="calendarpage__event-main">
-                    <h3>{event.title}</h3>
+                  <h3 className="calendarpage__title">
+                    {event.title}
                     <span className="calendarpage__scope">{event.scope_name}</span>
-                    <div className="calendarpage__meta">
-                      <span><Clock3 size={15} aria-hidden="true" />{eventTime(event)}</span>
-                      {event.location && <span><MapPin size={15} aria-hidden="true" />{event.location}</span>}
-                    </div>
-                  </div>
+                  </h3>
+                  <time dateTime={event.starts_at} className="calendarpage__when">
+                    {eventWhen(event)}
+                  </time>
+                  <p className="calendarpage__desc">{event.description}</p>
+                  <span className="calendarpage__where">{event.location}</span>
                 </li>
               ))}
             </ol>
