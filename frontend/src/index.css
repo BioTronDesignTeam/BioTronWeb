@@ -40,21 +40,28 @@
   text-rendering: optimizeLegibility;
 }
 
+/* Dark mode is the public site's palette, not a purple tint of the light one:
+   a graphite page, cards one step lighter, white text, and purple or blue only
+   where something is highlighted. The values come from the site's tokens.css
+   (--bg, --surface, --surface-2, --bg-deep, --text, --text-muted,
+   --text-faint), so the tools and biotron.ca read as one family. */
 :root.dark {
-  --logger-page: #16033c;
-  --logger-surface: color-mix(in srgb, #160b6c 42%, #16033c);
-  --logger-surface-muted: color-mix(in srgb, #3050b0 22%, #16033c);
-  --logger-surface-deep: color-mix(in srgb, #16033c 82%, #000000);
-  --logger-border: color-mix(in srgb, #aedbfc 20%, transparent);
-  --logger-border-soft: color-mix(in srgb, #aedbfc 11%, transparent);
-  --logger-border-strong: color-mix(in srgb, #aedbfc 40%, transparent);
+  --logger-page: #070b0e;
+  --logger-surface: #0e151b;
+  --logger-surface-muted: #131c24;
+  --logger-surface-deep: #04070a;
+  --logger-border: rgba(255, 255, 255, .08);
+  --logger-border-soft: rgba(255, 255, 255, .05);
+  --logger-border-strong: rgba(255, 255, 255, .14);
   --logger-text: #ffffff;
-  --logger-text-soft: #aedbfc;
-  --logger-muted: color-mix(in srgb, #aedbfc 72%, #16033c);
-  --logger-muted-soft: color-mix(in srgb, #aedbfc 52%, #16033c);
-  --logger-accent: #aedbfc;
-  --logger-accent-soft: #3050b0;
-  --logger-on-accent: #16033c;
+  --logger-text-soft: #9fb0ba;
+  --logger-muted: #9fb0ba;
+  --logger-muted-soft: #6b7d87;
+  /* Accent text and focus rings use the lifted blue; the site's #3050b0 is too
+     dark to read as small type on graphite. The purple stays a fill. */
+  --logger-accent: #7f9cf5;
+  --logger-accent-soft: #160b6c;
+  --logger-on-accent: #ffffff;
   --logger-shadow: none;
   --logger-healthy: #4fd6a0;
   --logger-danger: #ff9999;
