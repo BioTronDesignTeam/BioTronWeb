@@ -4,6 +4,23 @@
    (set on <html> by the inline script in index.html), not the OS preference. */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* The BioTron dark palette, taken from the public site's tokens.css. Naming it
+   here gives every component a utility (`dark:bg-surface`, `dark:text-muted`)
+   instead of an arbitrary hex, so the whole app moves together when a value
+   changes. These are dark-mode values only: use them exclusively behind
+   `dark:`, never as a light-mode colour. */
+@theme {
+  --color-page: #070b0e;
+  --color-surface: #0e151b;
+  --color-surface-2: #131c24;
+  --color-surface-deep: #04070a;
+  --color-muted: #9fb0ba;
+  --color-faint: #6b7d87;
+  --color-link: #7f9cf5;
+  --color-highlight: #160b6c;
+  --color-brand: #3050b0;
+}
+
 @layer base {
   body {
     background: #ffffff;
@@ -11,7 +28,7 @@
   }
 
   .dark body {
-    background: #16033c;
+    background: #070b0e;
     color: #ffffff;
   }
 
