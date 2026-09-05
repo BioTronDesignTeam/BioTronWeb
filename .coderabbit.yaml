@@ -1,0 +1,38 @@
+# CodeRabbit reviews every pull request once its GitHub App is installed on
+# the repository (free for public repositories). This file only tunes what it
+# looks at and how it talks.
+language: en-CA
+
+reviews:
+  profile: chill
+  request_changes_workflow: false
+  high_level_summary: true
+  review_status: true
+  poem: false
+  auto_review:
+    enabled: true
+    drafts: false
+  path_filters:
+    - "!**/package-lock.json"
+    - "!**/go.sum"
+    - "!**/dist/**"
+    - "!apps/*/prisma/migrations/**"
+  path_instructions:
+    - path: "apps/*/backend/**"
+      instructions: >-
+        Go services on Fiber v3 with pgx. Flag unchecked errors, SQL assembled
+        from strings, and any log line that could carry a cookie, token, query
+        string, or credential.
+    - path: "apps/*/frontend/**"
+      instructions: >-
+        React 19 with Tailwind v4 and the shared @biotron/style package. A
+        change to dark mode must leave light mode unchanged. A state must
+        never be conveyed by colour alone; every colour has a glyph or a word.
+    - path: "infra/**"
+      instructions: >-
+        Edge configuration. Anything that widens TRUSTED_PROXIES, removes a
+        proxy_set_header, or touches HSTS or the Content-Security-Policy
+        deserves a careful look.
+
+chat:
+  auto_reply: true

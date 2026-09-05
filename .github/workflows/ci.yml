@@ -1,0 +1,185 @@
+# One workflow for every pull request and every push to main.
+#
+# The first job works out which parts of the repository the change touches.
+# The build, test, and lint jobs then fan out, in parallel, only over those
+# parts: a pull request that never touches Auth does not build Auth. Two
+# shared pieces widen the fan-out on purpose: a change to packages/style or
+# the root tooling rebuilds every frontend, and a change to go/ or go.work
+# re-tests every backend. The secret and vulnerability scans run on every
+# change regardless of what it touched.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    name: what changed
+    runs-on: ubuntu-latest
+    outputs:
+      frontends: ${{ steps.plan.outputs.frontends }}
+      backends: ${{ steps.plan.outputs.backends }}
+      logclient: ${{ steps.plan.outputs.logclient }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            style:
+              - 'packages/style/**'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'tsconfig.base.json'
+              - 'eslint.config.js'
+            gowork:
+              - 'go.work'
+              - 'go.work.sum'
+              - 'go/**'
+            site:
+              - 'apps/site/**'
+            calendar:
+              - 'apps/calendar/**'
+            logger:
+              - 'apps/logger/**'
+            auth:
+              - 'apps/auth/**'
+            exo:
+              - 'apps/exo/**'
+            sprinter:
+              - 'apps/sprinter/**'
+      - name: plan the fan-out
+        id: plan
+        env:
+          CHANGED: ${{ steps.filter.outputs.changes }}
+        run: |
+          all='["site","calendar","logger","auth","exo","sprinter"]'
+          with_backend='["calendar","logger","auth","exo","sprinter"]'
+          changed_apps=$(jq -c --argjson all "$all" '[.[] | select(. as $x | $all | index($x) != null)]' <<<"$CHANGED")
+          if jq -e 'index("style") != null' <<<"$CHANGED" >/dev/null; then
+            frontends="$all"
+          else
+            frontends="$changed_apps"
+          fi
+          if jq -e 'index("gowork") != null' <<<"$CHANGED" >/dev/null; then
+            backends="$with_backend"
+            logclient=true
+          else
+            backends=$(jq -c --argjson go "$with_backend" '[.[] | select(. as $x | $go | index($x) != null)]' <<<"$changed_apps")
+            logclient=false
+          fi
+          {
+            echo "frontends=$frontends"
+            echo "backends=$backends"
+            echo "logclient=$logclient"
+          } >> "$GITHUB_OUTPUT"
+          echo "frontends: $frontends"
+          echo "backends:  $backends"
+          echo "logclient: $logclient"
+
+  frontend:
+    name: frontend ${{ matrix.app }}
+    needs: changes
+    if: needs.changes.outputs.frontends != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: ${{ fromJSON(needs.changes.outputs.frontends) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      # Only this app, the shared library, and the root lint tooling. Scripts
+      # stay off, as in the Dockerfiles: the library is built explicitly.
+      - run: npm ci --ignore-scripts --include-workspace-root --workspace packages/style --workspace apps/${{ matrix.app }}/frontend
+      - run: npm run build -w packages/style
+      - run: npm run build -w apps/${{ matrix.app }}/frontend
+      - run: npx eslint apps/${{ matrix.app }}/frontend/src
+
+  backend:
+    name: backend ${{ matrix.app }}
+    needs: changes
+    if: needs.changes.outputs.backends != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: ${{ fromJSON(needs.changes.outputs.backends) }}
+    defaults:
+      run:
+        working-directory: apps/${{ matrix.app }}/backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/${{ matrix.app }}/backend/go.mod
+          cache-dependency-path: apps/${{ matrix.app }}/backend/go.sum
+      - uses: golangci/golangci-lint-action@v8
+        with:
+          version: latest
+          working-directory: apps/${{ matrix.app }}/backend
+      - run: go vet ./...
+      - run: go test ./...
+
+  logclient:
+    name: go/logclient
+    needs: changes
+    if: needs.changes.outputs.logclient == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: go/logclient
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go/logclient/go.mod
+          cache-dependency-path: go/logclient/go.sum
+      - uses: golangci/golangci-lint-action@v8
+        with:
+          version: latest
+          working-directory: go/logclient
+      - run: go vet ./...
+      - run: go test ./...
+
+  secrets:
+    name: secrets (TruffleHog)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # Scans the commits the change adds and fails on any verified live
+      # credential. --results=verified,unknown also reports credentials
+      # TruffleHog could not check against their provider.
+      - uses: trufflesecurity/trufflehog@main
+        with:
+          extra_args: --results=verified,unknown
+
+  vulnerabilities:
+    name: vulnerabilities (Trivy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Lockfiles, go.sum files, Dockerfiles, and compose files. Fails on a
+      # fixable HIGH or CRITICAL finding; unfixable ones are reported only.
+      - uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,misconfig
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: '1'

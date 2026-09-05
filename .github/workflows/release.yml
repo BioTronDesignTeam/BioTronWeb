@@ -1,34 +1,46 @@
-# Builds every image once for linux/amd64 and linux/arm64 and pushes it to
-# GitHub's registry tagged with the git tag. Recording each image's digest per
-# environment, so that production runs exactly what staging proved, is not
-# built yet; see infra/README.md.
+# Pushing a tag such as v1.2.0 builds every image once for linux/amd64 and
+# linux/arm64, scans it, and pushes it to GitHub's registry tagged with the
+# git tag. Each image builds from the folder its Dockerfile expects: the
+# frontends from the repository root, so they can see packages/style; the
+# backends, migration runners, and the edge from their own folders.
+#
+# Recording each image's digest per environment, so that production runs
+# exactly what staging proved, is not built yet; see infra/README.md.
 name: release
 
 on:
   push:
     tags: ['v*']
 
+permissions:
+  contents: read
+  packages: write
+
 jobs:
   images:
+    name: ${{ matrix.image.name }}
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      packages: write
     strategy:
+      fail-fast: false
       matrix:
         image:
-          - { name: site-web,      dockerfile: apps/site/frontend/Dockerfile }
-          - { name: calendar-web,  dockerfile: apps/calendar/frontend/Dockerfile }
-          - { name: calendar-api,  dockerfile: apps/calendar/backend/Dockerfile }
-          - { name: logger-web,    dockerfile: apps/logger/frontend/Dockerfile }
-          - { name: logger-api,    dockerfile: apps/logger/backend/Dockerfile }
-          - { name: auth-web,      dockerfile: apps/auth/frontend/Dockerfile }
-          - { name: auth-api,      dockerfile: apps/auth/backend/Dockerfile }
-          - { name: exo-web,       dockerfile: apps/exo/frontend/Dockerfile }
-          - { name: exo-api,       dockerfile: apps/exo/backend/Dockerfile }
-          - { name: sprinter-web,  dockerfile: apps/sprinter/frontend/Dockerfile }
-          - { name: sprinter-bot,  dockerfile: apps/sprinter/backend/Dockerfile }
-          - { name: edge-nginx,    dockerfile: infra/nginx/Dockerfile }
+          - { name: site-web,         context: .,                    dockerfile: apps/site/frontend/Dockerfile }
+          - { name: calendar-web,     context: .,                    dockerfile: apps/calendar/frontend/Dockerfile }
+          - { name: calendar-api,     context: apps/calendar/backend, dockerfile: apps/calendar/backend/Dockerfile }
+          - { name: calendar-migrate, context: apps/calendar/prisma,  dockerfile: apps/calendar/prisma/Dockerfile }
+          - { name: logger-web,       context: .,                    dockerfile: apps/logger/frontend/Dockerfile }
+          - { name: logger-api,       context: apps/logger/backend,   dockerfile: apps/logger/backend/Dockerfile }
+          - { name: logger-migrate,   context: apps/logger/prisma,    dockerfile: apps/logger/prisma/Dockerfile }
+          - { name: auth-web,         context: .,                    dockerfile: apps/auth/frontend/Dockerfile }
+          - { name: auth-api,         context: apps/auth/backend,     dockerfile: apps/auth/backend/Dockerfile }
+          - { name: auth-migrate,     context: apps/auth/prisma,      dockerfile: apps/auth/prisma/Dockerfile }
+          - { name: exo-web,          context: .,                    dockerfile: apps/exo/frontend/Dockerfile }
+          - { name: exo-api,          context: apps/exo/backend,      dockerfile: apps/exo/backend/Dockerfile }
+          - { name: exo-migrate,      context: apps/exo/prisma,       dockerfile: apps/exo/prisma/Dockerfile }
+          - { name: sprinter-web,     context: .,                    dockerfile: apps/sprinter/frontend/Dockerfile }
+          - { name: sprinter-bot,     context: apps/sprinter/backend, dockerfile: apps/sprinter/backend/Dockerfile }
+          - { name: sprinter-migrate, context: apps/sprinter/prisma,  dockerfile: apps/sprinter/prisma/Dockerfile }
+          - { name: edge-nginx,       context: infra/nginx,           dockerfile: infra/nginx/Dockerfile }
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-qemu-action@v3
@@ -40,8 +52,16 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - uses: docker/build-push-action@v6
         with:
-          context: .
+          context: ${{ matrix.image.context }}
           file: ${{ matrix.image.dockerfile }}
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ghcr.io/biotrondesignteam/${{ matrix.image.name }}:${{ github.ref_name }}
+      # The image is already in the registry at this point; a failure here
+      # turns the release red so nobody deploys it.
+      - uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ghcr.io/biotrondesignteam/${{ matrix.image.name }}:${{ github.ref_name }}
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: '1'
