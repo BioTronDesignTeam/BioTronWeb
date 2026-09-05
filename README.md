@@ -2,8 +2,8 @@
 
 One repository for the BioTron web platform: six products, the shared
 component library, the shared Go client, and the edge that serves them. Every
-piece arrived with its full history; the separate repositories it came from
-are untouched and remain the source of truth until the team decides to switch.
+piece arrived with its full history from the repository it came from. This is
+where the platform is developed now; the separate repositories are frozen.
 
 ## Layout
 
@@ -52,7 +52,7 @@ docker compose up -d                     # the whole platform (needs each app's 
 Frontend images build from the repository root so they can see
 `packages/style`; each app's compose file already sets `context: ../..`.
 
-## How this preview was built
+## How the repository was assembled
 
 1. `git subtree add` for each repository, from its checked-out branch, so every
    commit is preserved and the originals were only read.
@@ -65,18 +65,18 @@ Frontend images build from the repository root so they can see
    updated; the root compose validated with `docker compose config`.
 6. `go work sync`, then every Go module built, vetted, and tested.
 
-Verified in this preview: every frontend builds from the workspace, the root
-lint runs, every Go module builds under `go.work`, and the root compose
-configuration parses with the includes. Not verified: no image was built and no
-container was started from here, because the separate repositories are still
-running on the same ports.
+Verified at assembly: every frontend builds from the workspace, the root lint
+runs, every Go module builds under `go.work`, and the root compose
+configuration parses with the includes. Not yet done: no image has been built
+and no container started from here, because the containers on the host still
+run from the separate repositories on the same ports.
 
-## What is deliberately left for the real migration
+## What is still to do
 
 - Go module paths still carry their old names
   (`github.com/BioTronDesignTeam/Logger/backend` and so on). Renaming them
   to `github.com/BioTronDesignTeam/biotron/apps/<app>/backend` is a
-  find-and-replace plus `go work sync`, done when the repo becomes real.
+  find-and-replace plus `go work sync`.
 - `apps/auth/backend/internal/eventlog` is a copy of the Logger client. It
   should import `go/logclient` instead and be deleted.
 - The OAuthManager permission-check client that Logger, Exo, and Calendar each
