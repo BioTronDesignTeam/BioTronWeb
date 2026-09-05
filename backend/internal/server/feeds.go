@@ -34,11 +34,13 @@ func (h *Handler) scopeFeed(c fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
+	// The path, not the leaf name: two subteams may both be called "Software",
+	// and a subscriber ends up with both feeds side by side.
 	name := scope.Name
 	if scope.Kind != "TEAM" {
-		name = "BioTron — " + scope.Name
+		name = "BioTron — " + scope.Path
 	}
-	filename := scope.Slug + ".ics"
+	filename := scope.SlugPath + ".ics"
 	source := h.config.PublicBaseURL + "/v1/feeds/scopes/" + scope.ID + ".ics"
 	return h.sendFeed(c, name, filename, source, scope.UpdatedAt, series)
 }

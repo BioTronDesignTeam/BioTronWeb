@@ -52,7 +52,7 @@ func TestUpcomingUsesTheSharedOccurrenceShape(t *testing.T) {
 	sort.Strings(got)
 	want := []string{
 		"all_day", "description", "ends_at", "location", "modified", "recurrence_id_local",
-		"recurring", "scope_id", "scope_kind", "scope_name", "series_id", "series_sequence",
+		"recurring", "scope_id", "scope_kind", "scope_name", "scope_path", "series_id", "series_sequence",
 		"starts_at", "timezone", "title", "uid", "url",
 	}
 	if len(got) != len(want) {

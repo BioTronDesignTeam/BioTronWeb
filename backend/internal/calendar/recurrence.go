@@ -295,6 +295,7 @@ func Expand(series []model.EventSeries, from, to time.Time, location *time.Locat
 				UID:            event.UID,
 				ScopeID:        event.ScopeID,
 				ScopeName:      event.ScopeName,
+				ScopePath:      event.ScopePath,
 				ScopeKind:      event.ScopeKind,
 				Title:          event.Title,
 				Description:    event.Description,

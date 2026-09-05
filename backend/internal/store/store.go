@@ -56,15 +56,24 @@ func (s *Store) Ping(ctx context.Context) error {
 func (s *Store) ListScopes(ctx context.Context, includeArchived bool) ([]model.Scope, error) {
 	rows, err := s.pool.Query(ctx, `
 		WITH RECURSIVE scope_tree AS (
-			SELECT id, parent_id, status = 'ACTIVE' AS effectively_active
+			SELECT id, parent_id, status = 'ACTIVE' AS effectively_active,
+			       name AS path, slug AS slug_path, TRUE AS is_root
 			FROM calendar_scopes WHERE parent_id IS NULL
 			UNION ALL
+			-- A child of the team root starts its own path, so "Exo" is not
+			-- written "BioTron / Exo"; deeper scopes append to their parent.
 			SELECT child.id, child.parent_id,
-			       parent.effectively_active AND child.status = 'ACTIVE'
+			       parent.effectively_active AND child.status = 'ACTIVE',
+			       CASE WHEN parent.is_root THEN child.name
+			            ELSE parent.path || ' · ' || child.name END,
+			       CASE WHEN parent.is_root THEN child.slug
+			            ELSE parent.slug_path || '-' || child.slug END,
+			       FALSE
 			FROM calendar_scopes child
 			JOIN scope_tree parent ON child.parent_id = parent.id
 		)
-		SELECT s.id::text, s.kind::text, s.name, s.slug, s.status::text,
+		SELECT s.id::text, s.kind::text, s.name, s.slug,
+		       visibility.path, visibility.slug_path, s.status::text,
 		       COALESCE(s.parent_id::text, ''), s.archived_at, s.created_at, s.updated_at,
 		       (SELECT count(*) FROM calendar_scopes c WHERE c.parent_id = s.id),
 		       (SELECT count(*) FROM event_series e WHERE e.scope_id = s.id)
@@ -90,11 +99,27 @@ func (s *Store) ListScopes(ctx context.Context, includeArchived bool) ([]model.S
 
 func (s *Store) GetScope(ctx context.Context, id string) (model.Scope, error) {
 	row := s.pool.QueryRow(ctx, `
-		SELECT s.id::text, s.kind::text, s.name, s.slug, s.status::text,
+		WITH RECURSIVE scope_tree AS (
+			SELECT id, parent_id, name AS path, slug AS slug_path, TRUE AS is_root
+			FROM calendar_scopes WHERE parent_id IS NULL
+			UNION ALL
+			SELECT child.id, child.parent_id,
+			       CASE WHEN parent.is_root THEN child.name
+			            ELSE parent.path || ' · ' || child.name END,
+			       CASE WHEN parent.is_root THEN child.slug
+			            ELSE parent.slug_path || '-' || child.slug END,
+			       FALSE
+			FROM calendar_scopes child
+			JOIN scope_tree parent ON child.parent_id = parent.id
+		)
+		SELECT s.id::text, s.kind::text, s.name, s.slug,
+		       tree.path, tree.slug_path, s.status::text,
 		       COALESCE(s.parent_id::text, ''), s.archived_at, s.created_at, s.updated_at,
 		       (SELECT count(*) FROM calendar_scopes c WHERE c.parent_id = s.id),
 		       (SELECT count(*) FROM event_series e WHERE e.scope_id = s.id)
-		FROM calendar_scopes s WHERE s.id = $1
+		FROM calendar_scopes s
+		JOIN scope_tree tree ON tree.id = s.id
+		WHERE s.id = $1
 	`, id)
 	return scanScope(row)
 }
@@ -220,21 +245,30 @@ func (s *Store) listSeries(ctx context.Context, scopeID string, includeDrafts, i
 	windowFrom, windowTo := window.widened()
 	rows, err := s.pool.Query(ctx, `
 		WITH RECURSIVE scope_tree AS (
-			SELECT id, parent_id, status = 'ACTIVE' AS effectively_active
+			SELECT id, parent_id, status = 'ACTIVE' AS effectively_active,
+			       name AS path, slug AS slug_path, TRUE AS is_root
 			FROM calendar_scopes WHERE parent_id IS NULL
 			UNION ALL
+			-- A child of the team root starts its own path, so "Exo" is not
+			-- written "BioTron / Exo"; deeper scopes append to their parent.
 			SELECT child.id, child.parent_id,
-			       parent.effectively_active AND child.status = 'ACTIVE'
+			       parent.effectively_active AND child.status = 'ACTIVE',
+			       CASE WHEN parent.is_root THEN child.name
+			            ELSE parent.path || ' · ' || child.name END,
+			       CASE WHEN parent.is_root THEN child.slug
+			            ELSE parent.slug_path || '-' || child.slug END,
+			       FALSE
 			FROM calendar_scopes child
 			JOIN scope_tree parent ON child.parent_id = parent.id
 		)
-		SELECT e.id::text, e.uid, e.scope_id::text, s.name, s.kind::text, e.state::text,
+		SELECT e.id::text, e.uid, e.scope_id::text, s.name, tree.path, s.kind::text, e.state::text,
 		       e.title, e.description, e.location, e.url, e.starts_at_local, e.ends_at_local,
 		       e.timezone, e.all_day, COALESCE(e.recurrence_until::text, ''), e.sequence,
 		       e.published_at, e.cancelled_at, e.created_at, e.updated_at
 		FROM event_series e
 		JOIN calendar_scopes s ON s.id = e.scope_id
 		JOIN scope_tree visibility ON visibility.id = s.id
+		JOIN scope_tree tree ON tree.id = s.id
 		WHERE ($1 = '' OR e.scope_id = $1::uuid)
 		  AND ($2 OR e.state IN ('PUBLISHED', 'CANCELLED'))
 		  AND ($3 OR visibility.effectively_active)
@@ -273,11 +307,24 @@ func (s *Store) listSeries(ctx context.Context, scopeID string, includeDrafts, i
 
 func (s *Store) GetSeries(ctx context.Context, id string) (model.EventSeries, error) {
 	row := s.pool.QueryRow(ctx, `
-		SELECT e.id::text, e.uid, e.scope_id::text, s.name, s.kind::text, e.state::text,
+		WITH RECURSIVE scope_tree AS (
+			SELECT id, parent_id, name AS path, TRUE AS is_root
+			FROM calendar_scopes WHERE parent_id IS NULL
+			UNION ALL
+			SELECT child.id, child.parent_id,
+			       CASE WHEN parent.is_root THEN child.name
+			            ELSE parent.path || ' · ' || child.name END,
+			       FALSE
+			FROM calendar_scopes child
+			JOIN scope_tree parent ON child.parent_id = parent.id
+		)
+		SELECT e.id::text, e.uid, e.scope_id::text, s.name, tree.path, s.kind::text, e.state::text,
 		       e.title, e.description, e.location, e.url, e.starts_at_local, e.ends_at_local,
 		       e.timezone, e.all_day, COALESCE(e.recurrence_until::text, ''), e.sequence,
 		       e.published_at, e.cancelled_at, e.created_at, e.updated_at
-		FROM event_series e JOIN calendar_scopes s ON s.id = e.scope_id
+		FROM event_series e
+		JOIN calendar_scopes s ON s.id = e.scope_id
+		JOIN scope_tree tree ON tree.id = s.id
 		WHERE e.id = $1
 	`, id)
 	event, err := scanSeries(row)
@@ -506,7 +553,8 @@ type scanner interface {
 func scanScope(row scanner) (model.Scope, error) {
 	var scope model.Scope
 	var parentID string
-	if err := row.Scan(&scope.ID, &scope.Kind, &scope.Name, &scope.Slug, &scope.Status,
+	if err := row.Scan(&scope.ID, &scope.Kind, &scope.Name, &scope.Slug,
+		&scope.Path, &scope.SlugPath, &scope.Status,
 		&parentID, &scope.ArchivedAt, &scope.CreatedAt, &scope.UpdatedAt,
 		&scope.ChildCount, &scope.EventCount); err != nil {
 		return model.Scope{}, mapNotFound(err)
@@ -520,7 +568,7 @@ func scanScope(row scanner) (model.Scope, error) {
 func scanSeries(row scanner) (model.EventSeries, error) {
 	var event model.EventSeries
 	var recurrenceUntil string
-	if err := row.Scan(&event.ID, &event.UID, &event.ScopeID, &event.ScopeName, &event.ScopeKind,
+	if err := row.Scan(&event.ID, &event.UID, &event.ScopeID, &event.ScopeName, &event.ScopePath, &event.ScopeKind,
 		&event.State, &event.Title, &event.Description, &event.Location, &event.URL,
 		&event.StartsAtLocal, &event.EndsAtLocal, &event.Timezone, &event.AllDay,
 		&recurrenceUntil, &event.Sequence, &event.PublishedAt, &event.CancelledAt,

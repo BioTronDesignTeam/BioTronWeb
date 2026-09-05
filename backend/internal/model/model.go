@@ -21,10 +21,16 @@ const (
 )
 
 type Scope struct {
-	ID         string     `json:"id"`
-	Kind       string     `json:"kind"`
-	Name       string     `json:"name"`
-	Slug       string     `json:"slug"`
+	ID   string `json:"id"`
+	Kind string `json:"kind"`
+	Name string `json:"name"`
+	Slug string `json:"slug"`
+	// Path and SlugPath qualify a scope by its ancestors, so that the two
+	// subteams both named "Software" read "Exo · Software" and
+	// "Enable · Software" wherever they appear outside the scope tree. The
+	// team root is left out: it is the same for every scope and adds nothing.
+	Path       string     `json:"path"`
+	SlugPath   string     `json:"slug_path"`
 	Status     string     `json:"status"`
 	ParentID   *string    `json:"parent_id,omitempty"`
 	ArchivedAt *time.Time `json:"archived_at,omitempty"`
@@ -39,6 +45,7 @@ type EventSeries struct {
 	UID             string          `json:"uid"`
 	ScopeID         string          `json:"scope_id"`
 	ScopeName       string          `json:"scope_name,omitempty"`
+	ScopePath       string          `json:"scope_path,omitempty"`
 	ScopeKind       string          `json:"scope_kind,omitempty"`
 	State           string          `json:"state"`
 	Title           string          `json:"title"`
@@ -74,6 +81,7 @@ type Occurrence struct {
 	UID              string    `json:"uid"`
 	ScopeID          string    `json:"scope_id"`
 	ScopeName        string    `json:"scope_name"`
+	ScopePath        string    `json:"scope_path"`
 	ScopeKind        string    `json:"scope_kind"`
 	Title            string    `json:"title"`
 	Description      string    `json:"description"`
