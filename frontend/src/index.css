@@ -94,9 +94,10 @@ h1, h2, h3, p { margin-top: 0; }
   backdrop-filter: blur(16px);
 }
 .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
-.brand strong, .brand small { display: block; }
-.brand strong { font-size: .94rem; letter-spacing: .02em; }
-.brand small { margin-top: 2px; color: var(--logger-muted); font-size: .72rem; }
+/* The wordmark, the same mark and width the calendar header uses. */
+.brand__mark { width: 112px; }
+.brand__divider { width: 1px; height: 24px; background: var(--logger-border); }
+.brand__name { font-size: .875rem; font-weight: 650; letter-spacing: .02em; }
 .topbar-actions { display: flex; align-items: center; gap: 10px; }
 
 .page {

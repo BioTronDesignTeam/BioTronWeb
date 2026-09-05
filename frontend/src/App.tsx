@@ -188,13 +188,11 @@ function Shell({
   return (
     <div className="shell">
       <header className="topbar">
-        <a className="brand" href="/">
-          <Brand compact />
-          <span>
-            <strong>Logger</strong>
-            <small>Platform status</small>
-          </span>
-        </a>
+        <div className="brand">
+          <Brand className="brand__mark" />
+          <span className="brand__divider" aria-hidden="true" />
+          <span className="brand__name">Status Logger</span>
+        </div>
         <div className="topbar-actions">
           <ThemeToggle />
           {session.authenticated ? (
