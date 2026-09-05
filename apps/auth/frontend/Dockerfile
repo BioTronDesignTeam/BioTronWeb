@@ -3,7 +3,7 @@
 # Built from the repository root (compose sets context: ../..) so the image
 # can see packages/style. npm installs only this workspace and the shared
 # library, then builds the library before the app that imports it.
-FROM node:22-bookworm-slim AS build
+FROM node:24-bookworm-slim AS build
 
 WORKDIR /repo
 

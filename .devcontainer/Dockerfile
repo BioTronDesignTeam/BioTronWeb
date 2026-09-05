@@ -2,7 +2,7 @@
 
 FROM golang:1.27-bookworm AS go
 
-FROM node:22-bookworm-slim
+FROM node:24-bookworm-slim
 
 COPY --from=go /usr/local/go /usr/local/go
 
