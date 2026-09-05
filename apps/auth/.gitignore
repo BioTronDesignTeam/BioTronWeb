@@ -1,0 +1,11 @@
+# OS / editor
+.DS_Store
+*.swp
+.vscode/
+.idea/
+
+# Secrets / certs (the only committed environment template is /.env.example)
+*.pem
+.env
+.env.*
+!/.env.example

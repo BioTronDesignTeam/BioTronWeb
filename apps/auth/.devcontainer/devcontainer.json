@@ -1,0 +1,40 @@
+{
+  "name": "OAuthManager",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+  "remoteUser": "node",
+  "forwardPorts": [5173, 8080],
+  "portsAttributes": {
+    "5173": {
+      "label": "OAuthManager UI",
+      "onAutoForward": "openBrowserOnce"
+    },
+    "8080": {
+      "label": "OAuthManager API",
+      "onAutoForward": "notify"
+    }
+  },
+  "runArgs": [
+    "--add-host=host.docker.internal:host-gateway"
+  ],
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "bradlc.vscode-tailwindcss",
+        "golang.go",
+        "Prisma.prisma",
+        "ms-azuretools.vscode-docker"
+      ],
+      "settings": {
+        "editor.formatOnSave": true,
+        "terminal.integrated.defaultProfile.linux": "bash"
+      }
+    }
+  }
+}

@@ -1,0 +1,95 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Operator = org member who can sign into Auth (GitHub org membership at login).
+model Operator {
+  githubId     BigInt          @id @map("github_id")
+  login        String
+  name         String?
+  avatarUrl    String?         @map("avatar_url")
+  isSuperuser  Boolean         @default(false) @map("is_superuser")
+  isManager    Boolean         @default(false) @map("is_manager")
+  isBanned     Boolean         @default(false) @map("is_banned")
+  createdAt    DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  lastLoginAt  DateTime        @default(now()) @map("last_login_at") @db.Timestamptz(6)
+  sessions     Session[]
+  grants       Grant[]
+
+  @@map("operators")
+}
+
+model Session {
+  id         String   @id
+  operatorId BigInt   @map("operator_id")
+  operator   Operator @relation(fields: [operatorId], references: [githubId], onDelete: Cascade)
+  guestAppId String?  @map("guest_app_id")
+  guestApp   App?     @relation("GuestSessions", fields: [guestAppId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  expiresAt  DateTime @map("expires_at") @db.Timestamptz(6)
+  userAgent  String?  @map("user_agent")
+
+  @@index([operatorId])
+  @@index([guestAppId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+// Product-scoped guest login key, one per app and Eastern day. Only apps with
+// dailyKeyEnabled participate; keys rotate automatically at Eastern midnight.
+model GuestKey {
+  appId     String   @map("app_id")
+  app       App      @relation(fields: [appId], references: [id], onDelete: Cascade)
+  day       DateTime @db.Date
+  key       String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@id([appId, day])
+  @@map("guest_keys")
+}
+
+// Registered BioTron tool. New apps are rows, not schema migrations.
+model App {
+  id              String          @id
+  name            String
+  description     String          @default("")
+  dailyKeyEnabled Boolean         @default(false) @map("daily_key_enabled")
+  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  permissions     Permission[]
+  guestKeys       GuestKey[]
+  guestSessions   Session[]       @relation("GuestSessions")
+
+  @@map("apps")
+}
+
+// Catalog of requestable/checkable permissions for an app.
+model Permission {
+  appId       String @map("app_id")
+  app         App    @relation(fields: [appId], references: [id], onDelete: Cascade)
+  key         String
+  label       String
+  description String @default("")
+
+  grants   Grant[]
+
+  @@id([appId, key])
+  @@map("permissions")
+}
+
+model Grant {
+  operatorId    BigInt     @map("operator_id")
+  operator      Operator   @relation(fields: [operatorId], references: [githubId], onDelete: Cascade)
+  appId         String     @map("app_id")
+  permissionKey String     @map("permission_key")
+  permission    Permission @relation(fields: [appId, permissionKey], references: [appId, key], onDelete: Cascade)
+  createdAt     DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@id([operatorId, appId, permissionKey])
+  @@index([appId])
+  @@map("grants")
+}

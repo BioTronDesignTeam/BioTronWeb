@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/biotron-hand.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <title>BioTron Auth</title>
+    <style>
+      html { background: #ffffff; }
+      html.dark { background: #070b0e; }
+    </style>
+    <script>
+      // This complete bootstrap must stay in HTML so theme state is applied
+      // before React and its CSS load, preventing a light first-paint flash.
+      (function () {
+        try {
+          var match = document.cookie.match(/(?:^|;\s*)biotron-theme=(dark|light)(?:;|$)/)
+          var theme = match ? match[1] : null
+          if (!theme) {
+            var legacy = localStorage.getItem('darkMode')
+            if (legacy === 'true' || legacy === 'false') {
+              theme = legacy === 'true' ? 'dark' : 'light'
+              var hostname = window.location.hostname
+              var domain = ''
+              if (hostname === 'biotron.ca' || hostname.endsWith('.biotron.ca')) domain = '; Domain=biotron.ca'
+              if (hostname === 'biotron-dev.com' || hostname.endsWith('.biotron-dev.com')) domain = '; Domain=biotron-dev.com'
+              var secure = window.location.protocol === 'https:' ? '; Secure' : ''
+              document.cookie = 'biotron-theme=' + theme + '; Path=/; Max-Age=31536000; SameSite=Lax' + domain + secure
+            }
+          }
+          var dark = theme === 'dark'
+          var root = document.documentElement
+          root.classList.toggle('dark', dark)
+          root.style.colorScheme = dark ? 'dark' : 'light'
+          root.style.backgroundColor = dark ? '#070b0e' : '#ffffff'
+        } catch (e) {}
+      })()
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

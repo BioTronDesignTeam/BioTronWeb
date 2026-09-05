@@ -1,0 +1,7 @@
+# build / air output
+bin/
+tmp/
+
+# go test / profiling artifacts
+*.test
+*.out

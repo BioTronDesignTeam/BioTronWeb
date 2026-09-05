@@ -1,0 +1,86 @@
+@import "tailwindcss";
+
+/* Class-based dark mode: `dark:` utilities respond to a `.dark` ancestor
+   (set on <html> by the inline script in index.html), not the OS preference. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* The BioTron dark palette, taken from the public site's tokens.css. Naming it
+   here gives every component a utility (`dark:bg-surface`, `dark:text-muted`)
+   instead of an arbitrary hex, so the whole app moves together when a value
+   changes. These are dark-mode values only: use them exclusively behind
+   `dark:`, never as a light-mode colour. */
+@theme {
+  --color-page: #070b0e;
+  --color-surface: #0e151b;
+  --color-surface-2: #131c24;
+  --color-surface-deep: #04070a;
+  --color-muted: #9fb0ba;
+  --color-faint: #6b7d87;
+  --color-link: #7f9cf5;
+  --color-highlight: #160b6c;
+  --color-brand: #3050b0;
+}
+
+@layer base {
+  body {
+    background: #ffffff;
+    color: #16033c;
+  }
+
+  .dark body {
+    background: #070b0e;
+    color: #ffffff;
+  }
+
+  /* Ease color changes app-wide so flipping light <-> dark cross-fades instead
+     of snapping. Only color properties transition, so layout and transform
+     animations (e.g. the toggle slide) are unaffected. */
+  *,
+  *::before,
+  *::after {
+    transition-property: color, background-color, border-color, fill, stroke;
+    transition-duration: 250ms;
+    transition-timing-function: ease;
+  }
+}
+
+/* Safe-area helpers, deliberately unlayered so they win over Tailwind's own
+   padding utilities. `index.html` opts into `viewport-fit=cover`, so on a
+   notched phone these keep the sticky header, the page gutters, and the last
+   row of controls clear of the cutout and the home indicator. Every `env()`
+   resolves to 0 elsewhere, which is why the desktop gutters are unchanged. */
+.px-page {
+  padding-left: max(1rem, env(safe-area-inset-left));
+  padding-right: max(1rem, env(safe-area-inset-right));
+}
+
+@media (min-width: 640px) {
+  .px-page {
+    padding-left: max(1.5rem, env(safe-area-inset-left));
+    padding-right: max(1.5rem, env(safe-area-inset-right));
+  }
+}
+
+@media (min-width: 1024px) {
+  .px-page {
+    padding-left: max(2rem, env(safe-area-inset-left));
+    padding-right: max(2rem, env(safe-area-inset-right));
+  }
+}
+
+.pt-safe {
+  padding-top: env(safe-area-inset-top);
+}
+
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}

@@ -1,0 +1,68 @@
+name: biotron-oauth-manager
+
+services:
+  migrate:
+    build:
+      context: ./prisma
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL in .env}
+    networks:
+      - biotron
+    restart: "no"
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL in .env}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      CACHE_TTL_SECONDS: ${CACHE_TTL_SECONDS:-300}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      GITHUB_ORG: ${GITHUB_ORG:-BioTronDesignTeam}
+      OAUTH_CALLBACK_URL: ${OAUTH_CALLBACK_URL:-http://localhost:8080/auth/github/callback}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      COOKIE_SAMESITE: ${COOKIE_SAMESITE:-Lax}
+      COOKIE_DOMAIN: ${COOKIE_DOMAIN:-}
+      SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-168}
+      SUPERUSER_GITHUB_IDS: ${SUPERUSER_GITHUB_IDS:-}
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-127.0.0.1,::1,172.16.0.0/12}
+      LOGGER_URL: ${LOGGER_URL:-http://logger-api:8080}
+      LOGGER_INGEST_TOKEN: ${LOGGER_INGEST_TOKEN:-}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      PORT: "8080"
+    ports:
+      - "127.0.0.1:${API_PORT:-8080}:8080"
+    networks:
+      biotron:
+        aliases:
+          - oauth-manager
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE: ${VITE_API_BASE:-http://localhost:8080}
+    ports:
+      - "127.0.0.1:${WEB_PORT:-5173}:80"
+    networks:
+      biotron:
+        aliases:
+          - oauth-web
+    depends_on:
+      - api
+    restart: unless-stopped
+
+networks:
+  biotron:
+    external: true
+    name: biotron
