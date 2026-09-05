@@ -1,10 +1,11 @@
 # syntax=docker/dockerfile:1
 
 # Built from the repository root (compose sets context: ../..) so the image
-# can see packages/style. npm installs only this workspace and the shared
-# library with scripts off, because the library's prepare step would try to
-# build before its sources are copied in; the explicit build below runs
-# once the sources are present, library first, then the app that imports it.
+# can see packages/style. npm installs the root, which declares the build
+# toolchain once for every app, plus this workspace and the shared library,
+# with scripts off, because the library's prepare step would try to build
+# before its sources are copied in; the explicit build below runs once the
+# sources are present, library first, then the app that imports it.
 FROM node:24-bookworm-slim AS build
 
 WORKDIR /repo
@@ -15,7 +16,7 @@ ENV VITE_API_BASE=${VITE_API_BASE}
 COPY package.json package-lock.json ./
 COPY packages/style/package.json packages/style/
 COPY apps/auth/frontend/package.json apps/auth/frontend/
-RUN npm ci --ignore-scripts --workspace packages/style --workspace apps/auth/frontend
+RUN npm ci --ignore-scripts --include-workspace-root --workspace packages/style --workspace apps/auth/frontend
 
 COPY packages/style packages/style
 COPY apps/auth/frontend apps/auth/frontend
