@@ -109,7 +109,7 @@ function MemberActions({
         onClose={() => setPending(null)}
         aria-labelledby={`confirm-${member.github_id}-title`}
         aria-describedby={`confirm-${member.github_id}-detail`}
-        className="w-full max-w-md rounded-xl border border-slate-300 bg-slate-50 p-4 text-left backdrop:bg-black/40 dark:border-white/15 dark:bg-surface-2"
+        className="m-auto w-full max-w-md rounded-xl border border-slate-300 bg-slate-50 p-4 text-left backdrop:bg-black/40 dark:border-white/15 dark:bg-surface-2"
       >
         {text && (
           <>
