@@ -374,11 +374,12 @@ function AccessNotice() {
       <h2>You do not have Logger access</h2>
       <p>
         You are signed in, but your account does not hold the <code>logger</code> ·{' '}
-        <code>view</code> permission, so the log explorer stays hidden. Everything on this status
-        page is public and needs no permission at all.
+        <code>view</code> permission, so the log explorer stays hidden. Ask a manager in a meeting
+        or on Discord to grant it. Everything on this status page is public and needs no
+        permission at all.
       </p>
       <a className="button button--secondary" href={accessManagerURL()}>
-        Request access in OAuth Manager
+        See your permissions in OAuth Manager
       </a>
     </section>
   );
