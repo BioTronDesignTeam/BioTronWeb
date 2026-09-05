@@ -71,18 +71,6 @@ export type GrantsResponse = {
   full_access: boolean;
 };
 
-export type AccessRequest = {
-  id: string;
-  requester_id: number;
-  requester_login: string;
-  app_id: string;
-  app_name: string;
-  permission_key: string;
-  permission_label: string;
-  status: string;
-  created_at: string;
-};
-
 export type OrgMember = {
   github_id: number;
   login: string;
@@ -102,17 +90,6 @@ export const logout = () => api<void>('/auth/logout', { method: 'POST' });
 export const listApps = () => api<AppInfo[]>('/apps');
 export const listPermissions = () => api<Permission[]>('/permissions');
 export const myGrants = () => api<GrantsResponse>('/me/grants');
-export const myRequests = () => api<AccessRequest[]>('/me/requests');
-export const createRequest = (app_id: string, permission_key: string) =>
-  api<AccessRequest>('/requests', {
-    method: 'POST',
-    body: JSON.stringify({ app_id, permission_key }),
-  });
-export const pendingRequests = () => api<AccessRequest[]>('/requests/pending');
-export const approveRequest = (id: string) =>
-  api<AccessRequest>(`/requests/${id}/approve`, { method: 'POST' });
-export const denyRequest = (id: string) =>
-  api<AccessRequest>(`/requests/${id}/deny`, { method: 'POST' });
 
 export const listOrgMembers = () => api<OrgMember[]>('/org/members');
 export const memberGrants = (id: number) => api<Grant[]>(`/org/members/${id}/grants`);

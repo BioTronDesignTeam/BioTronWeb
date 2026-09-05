@@ -3,7 +3,7 @@ import { type ProductDailyKey } from '../api';
 
 /**
  * Reveal and copy state for the Keys tab. It lives above the tab so a key you
- * revealed is still revealed when you come back from Approvals, and it is
+ * revealed is still revealed when you come back from another tab, and it is
  * reset explicitly on logout because the root component never unmounts.
  */
 export function useDailyKeyReveal(onError: (message: string) => void) {

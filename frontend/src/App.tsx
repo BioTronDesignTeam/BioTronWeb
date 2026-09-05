@@ -1,19 +1,15 @@
 import { useCallback, useMemo, useState } from 'react';
 import {
   type Grant,
-  approveRequest,
   banMember,
   createGrant,
-  createRequest,
   deleteGrant,
-  denyRequest,
   logout,
   setManager,
   unbanMember,
 } from './api';
 import AccessTab from './components/AccessTab';
 import AppHeader from './components/AppHeader';
-import ApprovalsTab from './components/ApprovalsTab';
 import KeysTab from './components/KeysTab';
 import OrgTab from './components/OrgTab';
 import SignInScreen from './components/SignInScreen';
@@ -53,24 +49,6 @@ export default function App() {
       setError(e instanceof Error ? e.message : fallback);
     }
   }, []);
-
-  const onRequest = (appId: string, permissionKey: string) =>
-    void runAction('Request failed', async () => {
-      await createRequest(appId, permissionKey);
-      await refresh();
-    });
-
-  const onApprove = (id: string) =>
-    void runAction('Approve failed', async () => {
-      await approveRequest(id);
-      await refresh();
-    });
-
-  const onDeny = (id: string) =>
-    void runAction('Deny failed', async () => {
-      await denyRequest(id);
-      await refresh();
-    });
 
   const onBan = (id: number) =>
     void runAction('Ban failed', async () => {
@@ -130,7 +108,7 @@ export default function App() {
       <AppHeader me={me} onLogout={() => void onLogout()} />
 
       <main className="mx-auto w-full max-w-6xl px-page py-6 sm:py-8 lg:py-10">
-        <TabBar tab={tab} onSelect={setTab} isStaff={me.is_staff} pendingCount={directory.pending.length} />
+        <TabBar tab={tab} onSelect={setTab} isStaff={me.is_staff} />
 
         {error && (
           <p className="mb-6 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700 dark:bg-red-950/50 dark:text-red-300">
@@ -144,14 +122,8 @@ export default function App() {
             apps={directory.apps}
             permissions={directory.permissions}
             grants={directory.grants}
-            requests={directory.requests}
             fullAccess={directory.fullAccess}
-            onRequest={onRequest}
           />
-        )}
-
-        {tab === 'approvals' && me.is_staff && (
-          <ApprovalsTab pending={directory.pending} onApprove={onApprove} onDeny={onDeny} />
         )}
 
         {tab === 'keys' && me.is_staff && (

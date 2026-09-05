@@ -1,43 +1,28 @@
-import { useMemo, type ReactNode } from 'react';
-import type { AccessRequest, AppInfo, Grant, Me, Permission } from '../api';
-import { compactSecondaryButton, divided, mutedText, panel, panelEmpty, panelHeader, panelHeading } from './ui';
+import { useMemo } from 'react';
+import type { AppInfo, Grant, Me, Permission } from '../api';
+import { divided, mutedText, panel, panelEmpty, panelHeader, panelHeading } from './ui';
 
-function Badge({ variant, children }: { variant: 'granted' | 'pending'; children: ReactNode }) {
-  const styles =
-    variant === 'granted'
-      ? 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-800'
-      : 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-800';
-  return (
-    <span
-      className={`inline-flex items-center rounded-full px-3 py-1.5 text-sm font-medium ring-1 ${styles}`}
-    >
-      {children}
-    </span>
-  );
-}
-
-function PermissionControl({
-  permission,
-  state,
-  onRequest,
-}: {
-  permission: Permission;
-  state: 'granted' | 'pending' | 'locked' | 'requestable';
-  onRequest: () => void;
-}) {
-  if (state === 'granted') return <Badge variant="granted">{permission.label}</Badge>;
-  if (state === 'pending') return <Badge variant="pending">{permission.label} pending</Badge>;
-  if (state === 'locked') {
+/**
+ * Held permissions are green chips with a check; the rest are plain outlined
+ * chips, so the difference survives without colour. There is nothing to click:
+ * access is asked for in a meeting or on Discord and a manager grants it from
+ * the Org tab.
+ */
+function PermissionChip({ label, granted }: { label: string; granted: boolean }) {
+  if (granted) {
     return (
-      <span className="inline-flex min-h-11 items-center rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-400 sm:min-h-0 dark:border-white/10 dark:text-slate-500">
-        {permission.label}
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-800">
+        <span aria-hidden="true">✓</span>
+        {label}
+        <span className="sr-only"> granted</span>
       </span>
     );
   }
   return (
-    <button type="button" onClick={onRequest} className={compactSecondaryButton}>
-      Request {permission.label}
-    </button>
+    <span className="inline-flex items-center rounded-full border border-dashed border-slate-300 px-3 py-1.5 text-sm text-slate-500 dark:border-white/15 dark:text-slate-400">
+      {label}
+      <span className="sr-only"> not granted</span>
+    </span>
   );
 }
 
@@ -46,17 +31,13 @@ export default function AccessTab({
   apps,
   permissions,
   grants,
-  requests,
   fullAccess,
-  onRequest,
 }: {
   me: Me;
   apps: AppInfo[];
   permissions: Permission[];
   grants: Grant[];
-  requests: AccessRequest[];
   fullAccess: boolean;
-  onRequest: (appId: string, permissionKey: string) => void;
 }) {
   const permissionsByApp = useMemo(() => {
     const map = new Map<string, Permission[]>();
@@ -73,33 +54,19 @@ export default function AccessTab({
     [grants],
   );
 
-  const pendingSet = useMemo(() => {
-    const keys = new Set<string>();
-    for (const request of requests) {
-      if (request.status === 'pending') keys.add(`${request.app_id}:${request.permission_key}`);
-    }
-    return keys;
-  }, [requests]);
-
-  function stateOf(appId: string, permissionKey: string) {
-    const key = `${appId}:${permissionKey}`;
-    if (fullAccess || grantSet.has(key)) return 'granted' as const;
-    if (pendingSet.has(key)) return 'pending' as const;
-    return me.is_guest ? ('locked' as const) : ('requestable' as const);
-  }
+  const role = me.is_superuser ? 'superuser' : 'manager';
 
   return (
     <section className={panel}>
       <div className={panelHeader}>
-        <h2 className={panelHeading}>Tools</h2>
-        {fullAccess && (
+        <h2 className={panelHeading}>Your permissions</h2>
+        {fullAccess ? (
           <p className="mt-1 text-sm text-emerald-600 dark:text-emerald-400">
-            You have full access to all tools.
+            You have full access to every tool as a {role}.
           </p>
-        )}
-        {me.is_guest && (
+        ) : (
           <p className={`mt-1 ${mutedText}`}>
-            Guest session — expires at Eastern midnight when today&apos;s key rotates.
+            To change these, ask a manager in a meeting or on Discord.
           </p>
         )}
       </div>
@@ -120,11 +87,10 @@ export default function AccessTab({
               ) : (
                 <div className="mt-4 flex flex-wrap gap-2">
                   {perms.map((perm) => (
-                    <PermissionControl
+                    <PermissionChip
                       key={perm.key}
-                      permission={perm}
-                      state={stateOf(app.id, perm.key)}
-                      onRequest={() => onRequest(app.id, perm.key)}
+                      label={perm.label}
+                      granted={fullAccess || grantSet.has(`${app.id}:${perm.key}`)}
                     />
                   ))}
                 </div>

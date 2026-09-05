@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 
-export type Tab = 'access' | 'approvals' | 'keys' | 'org';
+export type Tab = 'access' | 'keys' | 'org';
 
 function TabButton({
   active,
@@ -27,24 +27,22 @@ function TabButton({
 }
 
 /**
- * Four tabs will not fit across a 375px viewport, so they wrap into a 2x2 grid
- * on a phone and only line up in a single row from the `sm` breakpoint.
+ * Staff see three tabs, which fit in one row at every width the header
+ * supports; a member sees only their own access.
  */
 export default function TabBar({
   tab,
   onSelect,
   isStaff,
-  pendingCount,
 }: {
   tab: Tab;
   onSelect: (tab: Tab) => void;
   isStaff: boolean;
-  pendingCount: number;
 }) {
   return (
     <div
       className={`mb-6 rounded-xl bg-slate-200/80 p-1 ring-1 ring-slate-300 dark:bg-slate-800/80 dark:ring-white/10 ${
-        isStaff ? 'grid grid-cols-2 gap-1 sm:grid-cols-4' : 'inline-flex'
+        isStaff ? 'grid grid-cols-3 gap-1' : 'inline-flex'
       }`}
     >
       <TabButton active={tab === 'access'} onClick={() => onSelect('access')}>
@@ -52,9 +50,6 @@ export default function TabBar({
       </TabButton>
       {isStaff && (
         <>
-          <TabButton active={tab === 'approvals'} onClick={() => onSelect('approvals')}>
-            Approvals{pendingCount ? ` (${pendingCount})` : ''}
-          </TabButton>
           <TabButton active={tab === 'keys'} onClick={() => onSelect('keys')}>
             Keys
           </TabButton>

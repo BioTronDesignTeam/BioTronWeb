@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useReducer } from 'react';
 import {
-  type AccessRequest,
   type AppInfo,
   type Grant,
   type Me,
@@ -13,8 +12,6 @@ import {
   listOrgMembers,
   listPermissions,
   myGrants,
-  myRequests,
-  pendingRequests,
 } from '../api';
 
 /** Everything one signed-in operator can see, loaded as a single snapshot. */
@@ -25,8 +22,6 @@ export type AccessDirectory = {
   permissions: Permission[];
   grants: Grant[];
   fullAccess: boolean;
-  requests: AccessRequest[];
-  pending: AccessRequest[];
   members: OrgMember[];
   dailyKeys: ProductDailyKey[];
 };
@@ -41,8 +36,6 @@ const signedOut: Snapshot = {
   permissions: [],
   grants: [],
   fullAccess: false,
-  requests: [],
-  pending: [],
   members: [],
   dailyKeys: [],
 };
@@ -61,29 +54,27 @@ function reducer(state: AccessDirectory, action: Action): AccessDirectory {
   }
 }
 
-type StaffSnapshot = Pick<Snapshot, 'pending' | 'members' | 'dailyKeys'>;
+type StaffSnapshot = Pick<Snapshot, 'members' | 'dailyKeys'>;
 
-/** Approvals, the org roster, and the daily keys only exist for staff. */
+/** The org roster and the daily keys only exist for staff. */
 async function loadStaffSnapshot(me: Me): Promise<StaffSnapshot> {
-  if (!me.is_staff) return { pending: [], members: [], dailyKeys: [] };
-  const [pending, members, dailyKeys] = await Promise.all([
-    pendingRequests(),
+  if (!me.is_staff) return { members: [], dailyKeys: [] };
+  const [members, dailyKeys] = await Promise.all([
     listOrgMembers(),
     // A product with no key configured must not blank the whole screen.
     getProductDailyKeys().catch((): ProductDailyKey[] => []),
   ]);
-  return { pending, members, dailyKeys };
+  return { members, dailyKeys };
 }
 
 async function loadSnapshot(): Promise<Snapshot> {
   // Identity first: it decides which of the following requests are worth
   // making at all, and a rejection here is what "signed out" looks like.
   const me = await getMe();
-  const [apps, permissions, grantsResponse, requests, staff] = await Promise.all([
+  const [apps, permissions, grantsResponse, staff] = await Promise.all([
     listApps(),
     listPermissions(),
     myGrants(),
-    myRequests(),
     loadStaffSnapshot(me),
   ]);
 
@@ -93,7 +84,6 @@ async function loadSnapshot(): Promise<Snapshot> {
     permissions,
     grants: grantsResponse.grants,
     fullAccess: grantsResponse.full_access,
-    requests,
     ...staff,
   };
 }
