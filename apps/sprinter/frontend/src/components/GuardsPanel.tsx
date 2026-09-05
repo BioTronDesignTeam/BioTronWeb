@@ -41,7 +41,7 @@ export function GuardsPanel({ guards, onSave, onClear }: GuardsPanelProps) {
       <div className="border-b border-ink/10 px-5 py-4 dark:border-line">
         <h2 className="font-semibold">Guards</h2>
         <p className="mt-1 text-sm text-ink/60 dark:text-muted">
-          An empty channel ids list means any channel. An empty role ids list means nobody.
+          An empty channel ids list means any channel. A guard needs at least one role; to turn a feature off, clear the guard.
         </p>
       </div>
       <div className="divide-y divide-ink/10 dark:divide-line">

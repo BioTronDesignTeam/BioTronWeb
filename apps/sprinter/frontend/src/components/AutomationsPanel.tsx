@@ -153,7 +153,8 @@ function AutomationForm({ automation, scopes, onCancel, onSave }: {
       name: name.trim(),
       scope_id: scopeId,
       channel_id: channelId.trim(),
-      lead_user_id: kind === 'NUDGE' ? (leadUserId.trim() || null) : null,
+      // An empty string clears the lead on the API; null would leave it unchanged.
+      lead_user_id: kind === 'NUDGE' ? leadUserId.trim() : '',
       lead_hours: leadHours,
       lookback_hours: kind === 'NUDGE' ? lookbackHours : 0,
       any_author: kind === 'NUDGE' ? anyAuthor : false,

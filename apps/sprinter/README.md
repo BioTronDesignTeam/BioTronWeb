@@ -220,6 +220,9 @@ One file, `apps/sprinter/.env`, feeds Compose, the backend, the frontend,
 and Prisma. Do not add environment files below it. `go run .` reads
 `../.env`.
 
+- `VITE_API_URL`, `VITE_AUTH_URL`, `VITE_CALENDAR_URL`. Compiled into the
+  admin page: the bot's API, Auth for login, and Calendar for the scope
+  list. Never secrets.
 - `DISCORD_TOKEN`. Empty means no gateway session and no commands.
 - `DISCORD_GUILD_ID`. The guild commands are registered in. The backend
   refuses to start with a token and no guild.
