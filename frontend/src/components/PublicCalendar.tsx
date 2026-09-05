@@ -70,16 +70,7 @@ export function PublicCalendar(props: PublicCalendarProps) {
 
   return (
     <main className="mx-auto w-full max-w-[1500px] px-4 pb-16 pt-8 sm:px-6 lg:px-8">
-      <section className="mb-8 grid gap-5 lg:grid-cols-[1fr_auto] lg:items-end">
-        <div>
-          <h1 className="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-brand dark:text-soft">Public calendar</h1>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-ink/65 sm:text-base dark:text-white/65">Team meetings, project sessions, and subteam work blocks. Times are shown in Waterloo time.</p>
-        </div>
-        <button type="button" onClick={props.onSubscribe} className="min-h-12 rounded-full bg-deep px-6 text-sm font-semibold text-white hover:bg-brand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand">
-          Subscribe to a calendar
-        </button>
-      </section>
-
+      <h1 className="sr-only">BioTron public calendar</h1>
       <section className="overflow-hidden rounded-3xl border border-ink/10 bg-white dark:border-white/10 dark:bg-white/[0.04]">
         <div className="flex flex-col gap-4 border-b border-ink/10 p-4 sm:p-5 dark:border-white/10 lg:flex-row lg:items-center">
           {/* The month name goes above the controls on a phone. Beside four
@@ -92,13 +83,18 @@ export function PublicCalendar(props: PublicCalendarProps) {
               <button type="button" className="grid size-11 place-items-center rounded-full border border-ink/15 hover:bg-soft/25 dark:border-white/15 dark:hover:bg-white/10" onClick={() => props.onMonthChange(addMonths(props.month, 1))} aria-label="Next month">→</button>
             </div>
           </div>
-          <label className="lg:ml-auto">
-            <span className="sr-only">Filter calendar</span>
-            <select value={props.selectedScope} onChange={(event) => props.onScopeChange(event.target.value)} className="min-h-11 w-full rounded-full border border-ink/15 bg-transparent px-4 text-sm font-medium outline-none focus:border-brand sm:w-auto dark:border-white/20">
-              <option value="">All BioTron events</option>
-              {props.scopes.map((scope) => <option key={scope.id} value={scope.id}>{scope.kind === 'TEAM' ? 'Teamwide' : scope.path}</option>)}
-            </select>
-          </label>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-2 lg:ml-auto">
+            <label>
+              <span className="sr-only">Filter calendar</span>
+              <select value={props.selectedScope} onChange={(event) => props.onScopeChange(event.target.value)} className="min-h-11 w-full rounded-full border border-ink/15 bg-transparent px-4 text-sm font-medium outline-none focus:border-brand sm:w-auto dark:border-white/20">
+                <option value="">All BioTron events</option>
+                {props.scopes.map((scope) => <option key={scope.id} value={scope.id}>{scope.kind === 'TEAM' ? 'Teamwide' : scope.path}</option>)}
+              </select>
+            </label>
+            <button type="button" onClick={props.onSubscribe} className="min-h-11 whitespace-nowrap rounded-full bg-deep px-5 text-sm font-semibold text-white hover:bg-brand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand">
+              Subscribe to a calendar
+            </button>
+          </div>
         </div>
 
         {props.error && <div className="border-b border-red-500/20 bg-red-50 px-5 py-3 text-sm text-red-800 dark:bg-red-950/30 dark:text-red-200">{props.error}</div>}
