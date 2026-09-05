@@ -2,7 +2,9 @@
 
 # Built from the repository root (compose sets context: ../..) so the image
 # can see packages/style. npm installs only this workspace and the shared
-# library, then builds the library before the app that imports it.
+# library with scripts off, because the library's prepare step would try to
+# build before its sources are copied in; the explicit build below runs
+# once the sources are present, library first, then the app that imports it.
 FROM node:24-bookworm-slim AS build
 
 WORKDIR /repo
@@ -13,7 +15,7 @@ ENV VITE_API_URL=${VITE_API_URL}
 COPY package.json package-lock.json ./
 COPY packages/style/package.json packages/style/
 COPY apps/sprinter/frontend/package.json apps/sprinter/frontend/
-RUN npm ci --workspace packages/style --workspace apps/sprinter/frontend
+RUN npm ci --ignore-scripts --workspace packages/style --workspace apps/sprinter/frontend
 
 COPY packages/style packages/style
 COPY apps/sprinter/frontend apps/sprinter/frontend
