@@ -1,32 +1,70 @@
 {
   "name": "BioTron",
-  "build": { "dockerfile": "Dockerfile", "context": ".." },
-  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
-  "forwardPorts": [5173, 5174, 5175, 5176, 5177, 5178, 8080, 8081, 8082, 8083, 8084],
-  "portsAttributes": {
-    "5173": { "label": "Auth" },
-    "5174": { "label": "Exo" },
-    "5175": { "label": "Logger" },
-    "5176": { "label": "Calendar" },
-    "5177": { "label": "Site" },
-    "5178": { "label": "Sprinter" },
-    "8080": { "label": "Auth API" },
-    "8081": { "label": "Exo API" },
-    "8082": { "label": "Logger API" },
-    "8083": { "label": "Calendar API" },
-    "8084": { "label": "Sprinter API" }
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "dev",
+  "workspaceFolder": "/workspaces/biotron",
+  "shutdownAction": "stopCompose",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
   },
-  "runArgs": ["--add-host=host.docker.internal:host-gateway"],
+  "forwardPorts": [
+    5173,
+    5174,
+    5175,
+    5176,
+    5177,
+    5178,
+    8080,
+    8081,
+    8082,
+    8083,
+    8084
+  ],
+  "portsAttributes": {
+    "5173": {
+      "label": "Auth"
+    },
+    "5174": {
+      "label": "Exo"
+    },
+    "5175": {
+      "label": "Logger"
+    },
+    "5176": {
+      "label": "Calendar"
+    },
+    "5177": {
+      "label": "Site"
+    },
+    "5178": {
+      "label": "Sprinter"
+    },
+    "8080": {
+      "label": "Auth API"
+    },
+    "8081": {
+      "label": "Exo API"
+    },
+    "8082": {
+      "label": "Logger API"
+    },
+    "8083": {
+      "label": "Calendar API"
+    },
+    "8084": {
+      "label": "Sprinter API"
+    }
+  },
   "postCreateCommand": "bash .devcontainer/post-create.sh",
   "remoteUser": "node",
   "customizations": {
     "vscode": {
       "extensions": [
-        "dbaeumer.vscode-eslint",
         "esbenp.prettier-vscode",
         "bradlc.vscode-tailwindcss",
         "golang.go",
-        "Prisma.prisma"
+        "Prisma.prisma",
+        "oxc.oxc-vscode"
       ]
     }
   }

@@ -1,0 +1,87 @@
+# The development container and the two services every app depends on, so
+# opening the devcontainer is the whole setup: no host Postgres, no host
+# Redis, nothing to start by hand.
+#
+# postgres and redis here are deliberately their own definitions, not a
+# reference to infra/docker-compose.yml. They may drift from it; when they
+# do, a commit brings them back in line. Keep the images matching by hand.
+# The service names and credentials are the ones every app's .env.example
+# already uses, so a fresh clone works without editing anything.
+name: biotron-dev
+
+services:
+  dev:
+    build:
+      context: ..
+      dockerfile: .devcontainer/Dockerfile
+    command: sleep infinity
+    working_dir: /workspaces/biotron
+    volumes:
+      - ..:/workspaces/biotron:cached
+      # The workspace is bind-mounted from the host, whose node_modules hold
+      # the host's native binaries. Each node_modules is masked by a volume so
+      # the container installs its own Linux ones without touching the host's.
+      - nm-auth-frontend:/workspaces/biotron/apps/auth/frontend/node_modules
+      - nm-auth-prisma:/workspaces/biotron/apps/auth/prisma/node_modules
+      - nm-calendar-frontend:/workspaces/biotron/apps/calendar/frontend/node_modules
+      - nm-calendar-prisma:/workspaces/biotron/apps/calendar/prisma/node_modules
+      - nm-exo-frontend:/workspaces/biotron/apps/exo/frontend/node_modules
+      - nm-exo-prisma:/workspaces/biotron/apps/exo/prisma/node_modules
+      - nm-logger-frontend:/workspaces/biotron/apps/logger/frontend/node_modules
+      - nm-logger-prisma:/workspaces/biotron/apps/logger/prisma/node_modules
+      - nm-site-frontend:/workspaces/biotron/apps/site/frontend/node_modules
+      - nm-sprinter-frontend:/workspaces/biotron/apps/sprinter/frontend/node_modules
+      - nm-sprinter-prisma:/workspaces/biotron/apps/sprinter/prisma/node_modules
+      - nm-root:/workspaces/biotron/node_modules
+      - nm-style:/workspaces/biotron/packages/style/node_modules
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:18.6-alpine
+    environment:
+      POSTGRES_USER: biotron
+      POSTGRES_PASSWORD: change-me
+      POSTGRES_DB: biotron
+    volumes:
+      # Postgres 18 keeps its data one level above the old path; see the note
+      # in infra/docker-compose.yml.
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U biotron -d biotron"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:8.10.1-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  postgres-data:
+  redis-data:
+  nm-auth-frontend:
+  nm-auth-prisma:
+  nm-calendar-frontend:
+  nm-calendar-prisma:
+  nm-exo-frontend:
+  nm-exo-prisma:
+  nm-logger-frontend:
+  nm-logger-prisma:
+  nm-site-frontend:
+  nm-sprinter-frontend:
+  nm-sprinter-prisma:
+  nm-root:
+  nm-style:

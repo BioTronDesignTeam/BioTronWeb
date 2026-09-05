@@ -71,6 +71,27 @@ docker compose up -d                     # the whole platform (needs each app's 
 Frontend images build from the repository root so they can see
 `packages/style`; each app's compose file already sets `context: ../..`.
 
+## The devcontainer
+
+Open the repository in its devcontainer and everything is there: Node 24, Go
+1.27, a Postgres, and a Redis. `.devcontainer/docker-compose.yml` starts the
+two databases beside the workspace container, with the service names and
+credentials every app's `.env.example` already uses, and the post-create
+step installs every workspace, copies each app's `.env` from its example
+where none exists, and applies every app's migrations. After that any app
+runs natively against the sidecars, for example:
+
+```bash
+cd apps/logger/backend && set -a && . ../.env && set +a && PORT=8082 go run .
+npm run dev -w apps/logger/frontend
+```
+
+Two things to know. The sidecar Postgres and Redis are their own definitions,
+not a reference to `infra/docker-compose.yml`; they can drift from it, and a
+commit brings them back when they do. And the workspace is bind-mounted from
+the host, so every `node_modules` is masked by a container-side volume; the
+container installs its own binaries and never touches the host's.
+
 ## How the repository was assembled
 
 1. `git subtree add` for each repository, from its checked-out branch, so every
