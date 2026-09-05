@@ -26,7 +26,8 @@ export default function TopBar({
       <div className="grid grid-cols-3 items-center px-6 py-3">
         {/* Left: machine selector */}
         <div className="flex items-center gap-3 justify-self-start">
-          <Brand compact />
+          {/* The wordmark at the width every other BioTron header uses. */}
+          <Brand className="w-28" />
           <MachineSelector machines={machines} selected={selectedMachine} onSelect={onSelectMachine} />
         </div>
 
