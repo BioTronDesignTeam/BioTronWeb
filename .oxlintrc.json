@@ -1,6 +1,13 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["typescript", "unicorn", "oxc", "react", "jsx-a11y", "import"],
+  "plugins": [
+    "typescript",
+    "unicorn",
+    "oxc",
+    "react",
+    "jsx-a11y",
+    "import"
+  ],
   "options": {
     "typeAware": true
   },
@@ -29,12 +36,19 @@
     "react/set-state-in-effect": "warn",
     "react/immutability": "warn",
     "react/refs": "warn",
-    "import/no-cycle": "warn"
+    "import/no-cycle": "warn",
+    "jsx-a11y/prefer-tag-over-role": "warn"
   },
   "overrides": [
     {
-      "files": ["**/*.config.ts", "packages/style/scripts/**", "packages/style/src/vite.js"],
-      "env": { "node": true }
+      "files": [
+        "**/*.config.ts",
+        "packages/style/scripts/**",
+        "packages/style/src/vite.js"
+      ],
+      "env": {
+        "node": true
+      }
     }
   ]
 }

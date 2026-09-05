@@ -69,16 +69,24 @@ export function Modal({ title, children, onClose, wide = false }: ModalProps) {
   }, []);
 
   return createPortal(
-    // Dismiss on click, not mousedown: a text selection that starts inside the
-    // dialog and drags onto the backdrop used to close it mid-gesture.
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/65 p-0 backdrop-blur-sm dark:bg-black/70 sm:items-center sm:p-6" role="presentation" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-6">
+      {/* The backdrop is a real close control rather than a div with a click
+          handler, so it needs no keyboard shim. It dismisses on click, not
+          mousedown: a text selection that starts inside the dialog and drags
+          onto the backdrop used to close it mid-gesture. It sits outside the
+          focus trap; Escape is the keyboard route. */}
+      <button
+        type="button"
+        aria-label="Close"
+        onClick={onClose}
+        className="absolute inset-0 cursor-default bg-ink/65 backdrop-blur-sm dark:bg-black/70"
+      />
       <section
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"
-        className={`max-h-[92dvh] w-full overflow-y-auto overscroll-contain rounded-t-3xl border border-soft/40 bg-white p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] text-ink sm:rounded-3xl sm:p-7 sm:pb-7 dark:border-line-strong dark:bg-surface dark:text-white ${wide ? 'sm:max-w-4xl' : 'sm:max-w-xl'}`}
-        onClick={(event) => event.stopPropagation()}
+        className={`relative max-h-[92dvh] w-full overflow-y-auto overscroll-contain rounded-t-3xl border border-soft/40 bg-white p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] text-ink sm:rounded-3xl sm:p-7 sm:pb-7 dark:border-line-strong dark:bg-surface dark:text-white ${wide ? 'sm:max-w-4xl' : 'sm:max-w-xl'}`}
       >
         <header className="mb-5 flex items-center justify-between gap-4">
           <h2 id="modal-title" className="text-xl font-semibold tracking-tight">{title}</h2>
