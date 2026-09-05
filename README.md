@@ -18,7 +18,6 @@ where the platform is developed now; the separate repositories are frozen.
 | `packages/style` | `@biotron/style`: brand, theme, shared controls | `BioTronStyle` |
 | `go/logclient` | Go client every service uses to send events to Logger | `Logger/client` |
 | `infra` | Edge Nginx, cloudflared, Postgres, Redis, deployment manifests | `Server` |
-| `docs` | Brand assets, plans, decision records | the workspace folder |
 
 Each app keeps its own `README.md`, `.env.example`, `docker-compose.yml`, and
 `prisma/` where it always was.
@@ -57,7 +56,7 @@ Frontend images build from the repository root so they can see
 1. `git subtree add` for each repository, from its checked-out branch, so every
    commit is preserved and the originals were only read.
 2. Root files added once: devcontainer, lint and TypeScript bases, CI
-   workflows, brand assets.
+   workflows.
 3. `Logger/client` moved to `go/logclient` with a workspace module path.
 4. Frontends switched to the workspace-linked library; per-app lockfiles
    removed; one root install.

@@ -7,5 +7,4 @@
 **/.env.*
 !**/.env.example
 **/.devcontainer
-docs
 infra/manifests

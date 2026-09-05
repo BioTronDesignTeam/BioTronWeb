@@ -17,6 +17,7 @@
     },
     "./styles.css": "./dist/biotron-style.css",
     "./favicon.png": "./dist/biotron-hand.png",
+    "./uw-logo.png": "./dist/UW_Logo.png",
     "./vite": {
       "types": "./dist/vite.d.ts",
       "import": "./dist/vite.js"
