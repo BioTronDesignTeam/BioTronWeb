@@ -1,6 +1,6 @@
 # Go logging client
 
-Import `github.com/BioTronDesignTeam/Logger/client` from BioTron Go services.
+Import `github.com/BioTronDesignTeam/biotron/go/logclient` from BioTron Go services.
 The client reads:
 
 - `LOGGER_URL` — defaults to `http://logger-api:8080`

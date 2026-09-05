@@ -241,7 +241,7 @@ appears afterwards as a red day.
 
 ## Application logging
 
-Go services import `github.com/BioTronDesignTeam/Logger/client`. Each container
+Go services import `github.com/BioTronDesignTeam/biotron/go/logclient`. Each container
 sets:
 
 - `LOGGER_URL=http://logger-api:8080`
