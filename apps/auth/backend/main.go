@@ -11,10 +11,10 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/joho/godotenv"
 
+	"github.com/BioTronDesignTeam/biotron/go/logclient"
 	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/auth"
 	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/cache"
 	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/config"
-	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/eventlog"
 	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/server"
 	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/store"
 )
@@ -50,7 +50,7 @@ func main() {
 		log.Fatalf("connect redis: %v", err)
 	}
 	defer c.Close()
-	events := eventlog.NewFromEnv("oauth-manager")
+	events := logclient.NewFromEnv("oauth-manager")
 	if !events.Enabled() {
 		log.Println("warning: LOGGER_INGEST_TOKEN unset — structured logging is disabled")
 	}
@@ -82,7 +82,7 @@ func main() {
 
 	app := server.New(h, cfg.AllowedOrigins, cfg.TrustedProxies, events)
 	addr := ":" + cfg.Port
-	events.LogAsync(eventlog.Info, "OAuthManager started", map[string]any{"port": cfg.Port})
+	events.LogAsync(logclient.Info, "OAuthManager started", map[string]any{"port": cfg.Port})
 
 	go func() {
 		log.Printf("oauth-manager listening on %s", addr)
@@ -98,7 +98,7 @@ func main() {
 	<-ctx.Done()
 	log.Println("shutting down")
 	shutdownLogCtx, cancelShutdownLog := context.WithTimeout(context.Background(), 2*time.Second)
-	if err := events.Log(shutdownLogCtx, eventlog.Info, "OAuthManager stopping", nil); err != nil {
+	if err := events.Log(shutdownLogCtx, logclient.Info, "OAuthManager stopping", nil); err != nil {
 		log.Printf("structured shutdown log: %v", err)
 	}
 	cancelShutdownLog()

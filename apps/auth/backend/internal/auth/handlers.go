@@ -9,8 +9,8 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 
+	"github.com/BioTronDesignTeam/biotron/go/logclient"
 	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/cache"
-	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/eventlog"
 	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/store"
 )
 
@@ -36,7 +36,7 @@ type Handler struct {
 	// ban, and the manager flag are the only record of who decided what; each
 	// one is logged with the actor and the target. Nil disables delivery
 	// without changing behaviour.
-	Events *eventlog.Client
+	Events *logclient.Client
 }
 
 // audit records one change to access or standing. The payload names the actor
@@ -48,7 +48,7 @@ func (h *Handler) audit(message string, actor *store.SessionOperator, payload ma
 	}
 	payload["actor_id"] = actor.GitHubID
 	payload["actor_login"] = actor.Login
-	h.Events.LogAsync(eventlog.Info, message, payload)
+	h.Events.LogAsync(logclient.Info, message, payload)
 }
 
 func (h *Handler) LoginRedirect(c fiber.Ctx) error {

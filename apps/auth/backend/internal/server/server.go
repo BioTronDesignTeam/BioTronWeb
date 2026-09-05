@@ -11,11 +11,11 @@ import (
 	"github.com/gofiber/fiber/v3/middleware/logger"
 	"github.com/gofiber/fiber/v3/middleware/recover"
 
+	"github.com/BioTronDesignTeam/biotron/go/logclient"
 	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/auth"
-	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/eventlog"
 )
 
-func New(h *auth.Handler, allowedOrigins []string, trustedProxies []string, events *eventlog.Client) *fiber.App {
+func New(h *auth.Handler, allowedOrigins []string, trustedProxies []string, events *logclient.Client) *fiber.App {
 	app := fiber.New(fiber.Config{
 		ReadTimeout: 15 * time.Second,
 		IdleTimeout: 60 * time.Second,
@@ -80,7 +80,7 @@ func New(h *auth.Handler, allowedOrigins []string, trustedProxies []string, even
 	return app
 }
 
-func logRequests(events *eventlog.Client) fiber.Handler {
+func logRequests(events *logclient.Client) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		started := time.Now()
 		err := c.Next()
@@ -99,11 +99,11 @@ func logRequests(events *eventlog.Client) fiber.Handler {
 		if status < 400 && (c.Method() == fiber.MethodOptions || c.Path() == "/v1/check" || c.Path() == "/auth/me") {
 			return err
 		}
-		level := eventlog.Info
+		level := logclient.Info
 		if status >= 500 {
-			level = eventlog.Error
+			level = logclient.Error
 		} else if status >= 400 {
-			level = eventlog.Warning
+			level = logclient.Warning
 		}
 		// Clone before handing these to LogAsync. Fiber returns method and path
 		// as strings pointing into the pooled request buffer, and LogAsync
