@@ -34,7 +34,7 @@ const SCOPE_NAME_MAX = 80;
 const actionClass = 'min-h-11 rounded-full px-3 text-xs font-semibold hover:bg-soft/25 dark:hover:bg-white/10';
 const destructiveActionClass = 'min-h-11 rounded-full px-3 text-xs font-semibold text-red-700 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950/30';
 const destructiveEventClass = 'min-h-11 rounded-full px-4 text-sm font-semibold text-red-700 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950/30';
-const panelClass = 'overflow-hidden rounded-3xl border border-ink/10 bg-white dark:border-white/10 dark:bg-white/[0.04]';
+const panelClass = 'overflow-hidden rounded-3xl border border-ink/10 bg-white dark:border-line dark:bg-surface';
 const fieldClass = 'mt-1 min-h-11 w-full rounded-xl border border-ink/15 bg-transparent px-3 text-sm dark:border-white/20';
 
 function stateStyle(state: EventSeries['state']) {
@@ -93,7 +93,7 @@ export function AdminPanel(props: AdminPanelProps) {
         <div><p className="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-brand dark:text-soft">Calendar editor</p><h1 className="text-3xl font-semibold tracking-[-0.04em] sm:text-4xl">Keep the schedule useful.</h1></div>
         {tab === 'events' && <button type="button" onClick={props.onCreateEvent} className="min-h-12 rounded-full bg-deep px-6 text-sm font-semibold text-white hover:bg-brand">Create event</button>}
       </div>
-      <div className="mb-6 flex gap-1 rounded-full bg-ink/5 p-1 dark:bg-white/10 sm:w-fit">
+      <div className="mb-6 flex gap-1 rounded-full bg-ink/5 p-1 dark:bg-surface-2 sm:w-fit">
         <button type="button" onClick={() => setTab('events')} className={tabClass('events')}>Events</button>
         <button type="button" onClick={() => setTab('scopes')} className={tabClass('scopes')}>Projects &amp; subteams</button>
       </div>
@@ -258,7 +258,7 @@ function AddScopeForm({ teamId, activeProjects, onCreate }: {
   }
 
   return (
-    <aside className="h-fit rounded-3xl border border-ink/10 bg-white p-5 dark:border-white/10 dark:bg-white/[0.04]">
+    <aside className="h-fit rounded-3xl border border-ink/10 bg-white p-5 dark:border-line dark:bg-surface">
       <h2 className="font-semibold">Add a calendar</h2>
       <form onSubmit={(event) => void submit(event)} className="mt-4 space-y-4">
         <label className="block">
@@ -332,7 +332,7 @@ function ScopeRow({ scope, nested = false, restorable = true, onRename, onArchiv
 }) {
   const blocked = deleteBlockedReason(scope);
   return (
-    <div className={`flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center ${nested ? 'bg-ink/[0.018] pl-9 dark:bg-black/10' : ''}`}>
+    <div className={`flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center ${nested ? 'bg-ink/[0.018] pl-9 dark:bg-surface-2' : ''}`}>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <p className="truncate font-semibold">{scope.name}</p>

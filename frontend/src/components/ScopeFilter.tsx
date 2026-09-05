@@ -135,7 +135,7 @@ export function ScopeFilter({ scopes, selected, onChange }: ScopeFilterProps) {
         <div
           ref={panel}
           style={{ top: placement.top, right: placement.right, maxHeight: placement.maxHeight }}
-          className="fixed z-50 w-72 max-w-[calc(100vw-1rem)] overflow-y-auto rounded-2xl border border-ink/10 bg-white p-2 shadow-xl dark:border-white/15 dark:bg-ink"
+          className="fixed z-50 w-72 max-w-[calc(100vw-1rem)] overflow-y-auto rounded-2xl border border-ink/10 bg-white p-2 shadow-xl dark:border-line-strong dark:bg-surface"
         >
           <div className="flex items-center justify-between px-2 py-1">
             <span className="text-xs font-bold uppercase tracking-[0.16em] text-ink/50 dark:text-white/50">Calendars</span>

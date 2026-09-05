@@ -66,7 +66,7 @@ export function SubscribePanel({ scopes, onClose }: SubscribePanelProps) {
           aria-label={`${label} subscription address`}
           onFocus={(event) => event.currentTarget.select()}
           onClick={(event) => event.currentTarget.select()}
-          className="mt-3 min-h-11 w-full select-all rounded-xl border border-ink/10 bg-ink/[0.03] px-3 font-mono text-xs text-ink/70 outline-none focus:border-brand dark:border-white/10 dark:bg-white/5 dark:text-white/70"
+          className="mt-3 min-h-11 w-full select-all rounded-xl border border-ink/10 bg-ink/[0.03] px-3 font-mono text-xs text-ink/70 outline-none focus:border-brand dark:border-line-strong dark:bg-surface-deep dark:text-muted"
         />
         {outcome && (
           <p role="status" className={`mt-2 text-xs ${outcome.copied ? 'text-ink/60 dark:text-white/60' : 'text-red-700 dark:text-red-300'}`}>

@@ -71,13 +71,13 @@ export function Modal({ title, children, onClose, wide = false }: ModalProps) {
   return createPortal(
     // Dismiss on click, not mousedown: a text selection that starts inside the
     // dialog and drags onto the backdrop used to close it mid-gesture.
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/65 p-0 backdrop-blur-sm sm:items-center sm:p-6" role="presentation" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/65 p-0 backdrop-blur-sm dark:bg-black/70 sm:items-center sm:p-6" role="presentation" onClick={onClose}>
       <section
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"
-        className={`max-h-[92dvh] w-full overflow-y-auto overscroll-contain rounded-t-3xl border border-soft/40 bg-white p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] text-ink sm:rounded-3xl sm:p-7 sm:pb-7 dark:border-white/15 dark:bg-ink dark:text-white ${wide ? 'sm:max-w-4xl' : 'sm:max-w-xl'}`}
+        className={`max-h-[92dvh] w-full overflow-y-auto overscroll-contain rounded-t-3xl border border-soft/40 bg-white p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] text-ink sm:rounded-3xl sm:p-7 sm:pb-7 dark:border-line-strong dark:bg-surface dark:text-white ${wide ? 'sm:max-w-4xl' : 'sm:max-w-xl'}`}
         onClick={(event) => event.stopPropagation()}
       >
         <header className="mb-5 flex items-center justify-between gap-4">

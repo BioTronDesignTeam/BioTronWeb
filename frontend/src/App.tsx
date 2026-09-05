@@ -191,7 +191,7 @@ export function App() {
   const editorScopes = managing ? adminScopes : scopes;
 
   return (
-    <div className="min-h-dvh bg-white text-ink dark:bg-ink dark:text-white">
+    <div className="min-h-dvh bg-white text-ink dark:bg-page dark:text-white">
       <Header auth={auth} managing={managing} onManage={() => setManaging(true)} onPublic={() => setManaging(false)} onLoggedOut={() => { setAuth({ can_write: false }); setManaging(false); }} />
       {managing && auth.can_write ? (
         <AdminPanel

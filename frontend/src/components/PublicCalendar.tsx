@@ -72,7 +72,7 @@ export function PublicCalendar(props: PublicCalendarProps) {
   return (
     <main className="mx-auto w-full max-w-[1500px] px-4 pb-16 pt-8 sm:px-6 lg:px-8">
       <h1 className="sr-only">BioTron public calendar</h1>
-      <section className="overflow-hidden rounded-3xl border border-ink/10 bg-white dark:border-white/10 dark:bg-white/[0.04]">
+      <section className="overflow-hidden rounded-3xl border border-ink/10 bg-white dark:border-line dark:bg-surface">
         <div className="flex flex-col gap-4 border-b border-ink/10 p-4 sm:p-5 dark:border-white/10 lg:flex-row lg:items-center">
           {/* The month sits between the arrows. Its box has a fixed width so
               that a shorter month name does not slide the next-month button
@@ -105,7 +105,7 @@ export function PublicCalendar(props: PublicCalendarProps) {
               const events = grouped.get(key) || [];
               const muted = day.getUTCMonth() !== currentMonth;
               return (
-                <div key={key} className={`min-h-32 border-b border-r border-ink/10 p-2 dark:border-white/10 xl:min-h-40 ${muted ? 'bg-ink/[0.018] text-ink/35 dark:bg-black/10 dark:text-white/30' : ''}`}>
+                <div key={key} className={`min-h-32 border-b border-r border-ink/10 p-2 dark:border-white/10 xl:min-h-40 ${muted ? 'bg-ink/[0.018] text-ink/35 dark:bg-black/10 dark:text-faint' : ''}`}>
                   <div className={`mb-2 grid size-7 place-items-center rounded-full text-xs font-semibold ${key === today ? 'bg-deep text-white' : ''}`}>{day.getUTCDate()}</div>
                   <div className="max-h-24 space-y-1.5 overflow-y-auto pr-1 xl:max-h-32">
                     {events.map((occurrence) => <EventButton key={`${occurrence.series_id}-${occurrence.recurrence_id_local}`} occurrence={occurrence} compact onClick={() => props.onSelectEvent(occurrence)} />)}
@@ -131,7 +131,7 @@ export function PublicCalendar(props: PublicCalendarProps) {
             return (
               <div key={key}>
                 {showMonth && (
-                  <p className="bg-ink/[0.03] px-4 py-2 text-xs font-bold uppercase tracking-wider text-ink/50 dark:bg-white/5 dark:text-white/50">
+                  <p className="bg-ink/[0.03] px-4 py-2 text-xs font-bold uppercase tracking-wider text-ink/50 dark:bg-surface-2 dark:text-muted">
                     {agendaMonthFormat.format(new Date(`${key}T12:00:00Z`))}
                   </p>
                 )}

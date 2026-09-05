@@ -15,7 +15,7 @@ export function Header({ auth, managing, onManage, onPublic, onLoggedOut }: Head
   const operator = auth.operator;
   const [logoutError, setLogoutError] = useState('');
   return (
-    <header className="sticky top-0 z-40 border-b border-ink/10 bg-white/90 pt-[env(safe-area-inset-top,0px)] backdrop-blur-xl dark:border-white/10 dark:bg-ink/90">
+    <header className="sticky top-0 z-40 border-b border-ink/10 bg-white/90 pt-[env(safe-area-inset-top,0px)] backdrop-blur-xl dark:border-line-strong dark:bg-surface/90">
       <div className="mx-auto flex min-h-16 max-w-[1500px] items-center gap-3 px-4 sm:px-6 lg:px-8">
         <div className="flex min-h-11 min-w-0 items-center gap-3">
           <Brand className="w-28" />
