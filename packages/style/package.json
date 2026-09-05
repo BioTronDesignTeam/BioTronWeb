@@ -1,0 +1,45 @@
+{
+  "name": "@biotron/style",
+  "private": true,
+  "version": "0.3.0",
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/biotron-style.umd.cjs",
+  "module": "./dist/biotron-style.js",
+  "types": "./dist/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/biotron-style.js",
+      "require": "./dist/biotron-style.umd.cjs"
+    },
+    "./styles.css": "./dist/biotron-style.css",
+    "./favicon.png": "./dist/biotron-hand.png",
+    "./vite": {
+      "types": "./dist/vite.d.ts",
+      "import": "./dist/vite.js"
+    }
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build && tsc -p tsconfig.build.json && node scripts/copy-static.mjs",
+    "prepare": "npm run build",
+    "preview": "vite preview"
+  },
+  "peerDependencies": {
+    "react": "^18.3.1 || ^19.0.0",
+    "react-dom": "^18.3.1 || ^19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.7",
+    "@vitejs/plugin-react": "^6.1.1",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "typescript": "~7.0.2",
+    "vite": "^8.2.2"
+  }
+}
