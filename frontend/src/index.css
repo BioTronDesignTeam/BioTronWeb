@@ -448,7 +448,9 @@ h1, h2, h3, h4, p { margin-top: 0; }
   .page { padding: 32px max(16px, env(safe-area-inset-left)) calc(72px + env(safe-area-inset-bottom)); }
   .topbar { padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
   .topbar--narrow { padding-top: 16px; }
-  .topbar--narrow .brand__divider, .topbar--narrow .brand__name { display: none; }
+  /* On a phone the wordmark stands alone on every page, the log explorer
+     included, so the header reads the same wherever the visitor lands. */
+  .brand__divider, .brand__name { display: none; }
   .column { gap: 16px; padding: 16px max(16px, env(safe-area-inset-left)) calc(56px + env(safe-area-inset-bottom)); }
   .group { padding: 12px; }
   .group__count { display: none; }
