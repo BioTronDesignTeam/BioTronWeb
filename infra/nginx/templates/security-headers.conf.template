@@ -1,0 +1,43 @@
+# Resource-loading half of the edge Content-Security-Policy.
+#
+# The nginx image's entrypoint runs envsubst over /etc/nginx/templates/*.template
+# into /etc/nginx/conf.d/, which nginx.conf includes from inside the http block.
+# This file lives in templates/ only because the policy has to name the product
+# subdomains and therefore needs ${BASE_DOMAIN}; the deployment-independent
+# headers stay in nginx.conf. Both are at http level, so they accumulate rather
+# than override each other.
+#
+# WHY REPORT-ONLY.
+#
+# Every frontend except Sprinter carries a synchronous inline theme bootstrap in
+# index.html, and AGENTS.md requires it to stay there so the dark theme applies
+# before React loads. React also writes inline style attributes throughout. An
+# enforced "script-src 'self'; style-src 'self'" would therefore white-flash or
+# blank all five apps on first paint. The honest alternatives are per-app script
+# hashes -- which this shared edge cannot compute, and which break on every
+# index.html edit -- or 'unsafe-inline', which gives back most of what a CSP is
+# for. So the policy below is shipped in Report-Only: it is exact about the
+# origins the apps legitimately reach, it produces console violations for
+# anything else, and it cannot break a page.
+#
+# TO ENFORCE IT LATER: collect violations from a staging browse of all five apps
+# first. Then either give the bootstrap a build-time nonce/hash and drop
+# 'unsafe-inline' from script-src, or accept 'unsafe-inline' for script-src and
+# rename this header to Content-Security-Policy. Do not enforce it blind.
+#
+# The directives were derived by reading what the apps actually load:
+#   script-src / style-src  inline theme bootstrap and <style> in each
+#                           index.html, plus React inline style attributes;
+#                           bundles themselves are same-origin Vite output.
+#   img-src                 same-origin assets, Vite's inlined data: URIs, and
+#                           GitHub avatars (operator.avatar_url is rendered in
+#                           the account menu of all four authenticated apps).
+#   font-src                Tailwind ships no webfont and no frontend links
+#                           Google Fonts; data: covers any future inlined face.
+#   connect-src             each frontend calls its own API and, cross-origin,
+#                           auth.${BASE_DOMAIN}; the public site calls the
+#                           calendar API. Enumerated rather than wildcarded.
+#   worker-src blob:        Three.js loaders on the public site construct their
+#                           decoder workers from blobs.
+#   frame-src 'none'        no frontend embeds an iframe.
+add_header Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://avatars.githubusercontent.com; font-src 'self' data:; connect-src 'self' https://${BASE_DOMAIN} https://www.${BASE_DOMAIN} https://auth.${BASE_DOMAIN} https://exo.${BASE_DOMAIN} https://logs.${BASE_DOMAIN} https://calendar.${BASE_DOMAIN} https://sprinter.${BASE_DOMAIN}; worker-src 'self' blob:; frame-src 'none'; frame-ancestors 'none'; base-uri 'none'; object-src 'none'; form-action 'self'" always;
