@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/logger"
+	"github.com/gofiber/fiber/v3/middleware/recover"
 
 	"github.com/BioTronDesignTeam/biotron/go/logclient"
 )
@@ -134,5 +136,34 @@ func TestSkipDropsRefusedRequests(t *testing.T) {
 	get(t, app, "GET", "/ok")
 	if len(sink.events) != 1 || sink.events[0].payload["path"] != "/ok" {
 		t.Fatalf("skip must drop the refused request only; got %+v", sink.events)
+	}
+}
+
+// Fiber's console logger runs the error handler itself and returns nil, so
+// a fiberlog mounted inside it would never see a returned error. This pins
+// the documented order: Fiber's logger, then fiberlog, then recover.
+func TestSeesErrorsAndPanicsInTheDocumentedOrder(t *testing.T) {
+	sink := &recorder{}
+	app := fiber.New()
+	app.Use(logger.New(logger.Config{Stream: io.Discard}))
+	app.Use(New(sink, Options{}))
+	app.Use(recover.New())
+	app.Get("/refused", func(c fiber.Ctx) error { return fiber.ErrUnauthorized })
+	app.Get("/panics", func(c fiber.Ctx) error { panic("boom") })
+
+	if status, _ := get(t, app, "GET", "/refused"); status != 401 {
+		t.Fatalf("status = %d", status)
+	}
+	if status, _ := get(t, app, "GET", "/panics"); status != 500 {
+		t.Fatalf("status = %d", status)
+	}
+	if len(sink.events) != 2 {
+		t.Fatalf("got %d events: %+v", len(sink.events), sink.events)
+	}
+	if got := sink.events[0].payload["error"]; got != "Unauthorized" {
+		t.Errorf("refused request error = %v, want Unauthorized", got)
+	}
+	if got, _ := sink.events[1].payload["error"].(string); got == "" || sink.events[1].payload["status"] != 500 {
+		t.Errorf("panic must be logged as a 500 with a cause; got %+v", sink.events[1])
 	}
 }

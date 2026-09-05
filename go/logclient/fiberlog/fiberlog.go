@@ -52,8 +52,10 @@ func SetActor(c fiber.Ctx, login string) {
 	}
 }
 
-// New returns the middleware. Mount it first, before recover, so a panic is
-// logged as the 500 it became.
+// New returns the middleware. Mount Fiber's own logger first, then this,
+// then recover. Fiber's logger runs the app's error handler itself and
+// returns nil, so anything mounted inside it never sees a returned error;
+// recover must sit inside this so a panic is logged as the 500 it became.
 func New(sink Sink, options Options) fiber.Handler {
 	quiet := make(map[string]bool, len(options.Quiet))
 	for _, path := range options.Quiet {
