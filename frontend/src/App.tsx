@@ -14,7 +14,7 @@ function App() {
 
   if (state.status === 'loading') {
     return (
-      <div className="flex min-h-screen items-center justify-center text-sm text-slate-500 dark:text-slate-400">
+      <div className="flex min-h-screen items-center justify-center text-sm text-slate-500 dark:text-muted">
         Loading…
       </div>
     )
@@ -34,9 +34,9 @@ function App() {
         onModeChange={setMode}
       />
       <main className="mx-auto max-w-7xl px-6 py-10">
-        <p className="text-sm text-slate-500 dark:text-slate-400">
+        <p className="text-sm text-slate-500 dark:text-muted">
           {mode === 'live' ? 'Live' : 'Historical'} view —{' '}
-          <span className="text-slate-900 dark:text-slate-200">{machine}</span>
+          <span className="text-slate-900 dark:text-white">{machine}</span>
         </p>
       </main>
     </div>
