@@ -35,7 +35,7 @@ const actionClass = 'min-h-11 rounded-full px-3 text-xs font-semibold hover:bg-s
 const destructiveActionClass = 'min-h-11 rounded-full px-3 text-xs font-semibold text-red-700 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950/30';
 const destructiveEventClass = 'min-h-11 rounded-full px-4 text-sm font-semibold text-red-700 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950/30';
 const panelClass = 'overflow-hidden rounded-3xl border border-ink/10 bg-white dark:border-line dark:bg-surface';
-const fieldClass = 'mt-1 min-h-11 w-full rounded-xl border border-ink/15 bg-transparent px-3 text-sm dark:border-white/20';
+const fieldClass = 'mt-1 min-h-11 w-full rounded-xl border border-ink/15 bg-transparent px-3 text-sm dark:border-line-strong dark:bg-surface-deep';
 
 function stateStyle(state: EventSeries['state']) {
   if (state === 'PUBLISHED') return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-400/15 dark:text-emerald-200';
@@ -85,7 +85,7 @@ export function AdminPanel(props: AdminPanelProps) {
   }
 
   const tabClass = (name: 'events' | 'scopes') =>
-    `min-h-11 flex-1 rounded-full px-5 text-sm font-semibold sm:flex-none ${tab === name ? 'bg-white text-ink dark:bg-highlight dark:text-white' : 'text-ink/60 dark:text-white/60'}`;
+    `min-h-11 flex-1 rounded-full px-5 text-sm font-semibold sm:flex-none ${tab === name ? 'bg-white text-ink dark:bg-highlight dark:text-white' : 'text-ink/60 dark:text-muted'}`;
 
   return (
     <main className="mx-auto w-full max-w-[1200px] px-4 pb-16 pt-8 sm:px-6 lg:px-8">
@@ -121,8 +121,8 @@ export function AdminPanel(props: AdminPanelProps) {
       ) : (
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
           <section className={panelClass}>
-            <div className="border-b border-ink/10 px-5 py-4 dark:border-white/10"><h2 className="font-semibold">Calendar structure</h2><p className="mt-1 text-sm text-ink/60 dark:text-white/60">Archived calendars keep their history and subscription URL.</p></div>
-            <div className="divide-y divide-ink/10 dark:divide-white/10">
+            <div className="border-b border-ink/10 px-5 py-4 dark:border-line"><h2 className="font-semibold">Calendar structure</h2><p className="mt-1 text-sm text-ink/60 dark:text-muted">Archived calendars keep their history and subscription URL.</p></div>
+            <div className="divide-y divide-ink/10 dark:divide-line">
               {projects.map((project) => (
                 <ScopeGroup
                   key={project.id}
@@ -195,14 +195,14 @@ function EventList({ events, onEdit, onPublish, onCancel, onDelete }: {
       <section className={panelClass}>
         <div className="px-6 py-16 text-center">
           <p className="font-semibold">No events yet.</p>
-          <p className="mt-2 text-sm text-ink/60 dark:text-white/60">Create the first team, project, or subteam event.</p>
+          <p className="mt-2 text-sm text-ink/60 dark:text-muted">Create the first team, project, or subteam event.</p>
         </div>
       </section>
     );
   }
   return (
     <section className={panelClass}>
-      <div className="divide-y divide-ink/10 dark:divide-white/10">
+      <div className="divide-y divide-ink/10 dark:divide-line">
         {sorted.map((event) => (
           <article key={event.id} className="grid gap-4 p-5 sm:grid-cols-[1fr_auto] sm:items-center">
             <div className="min-w-0">
@@ -210,13 +210,13 @@ function EventList({ events, onEdit, onPublish, onCancel, onDelete }: {
                 <h2 className="truncate font-semibold">{event.title}</h2>
                 <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${stateStyle(event.state)}`}>{event.state.toLowerCase()}</span>
               </div>
-              <p className="mt-1 text-sm text-ink/60 dark:text-white/60">
+              <p className="mt-1 text-sm text-ink/60 dark:text-muted">
                 {event.scope_path} · {localDate(event.starts_at_local)} at {timeOfDayLabel(event.starts_at_local)}
                 {event.recurrence_until ? ` · weekly through ${localDate(event.recurrence_until)}` : ''}
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <button type="button" onClick={() => onEdit(event)} className="min-h-11 rounded-full border border-ink/15 px-4 text-sm font-semibold hover:bg-soft/25 dark:border-white/20 dark:hover:bg-white/10">Edit</button>
+              <button type="button" onClick={() => onEdit(event)} className="min-h-11 rounded-full border border-ink/15 px-4 text-sm font-semibold hover:bg-soft/25 dark:border-line-strong dark:hover:bg-white/10">Edit</button>
               {event.state !== 'PUBLISHED' && <button type="button" onClick={() => void onPublish(event)} className="min-h-11 rounded-full bg-deep px-4 text-sm font-semibold text-white hover:bg-brand dark:bg-brand dark:hover:brightness-110">{event.state === 'CANCELLED' ? 'Republish' : 'Publish'}</button>}
               {event.state === 'PUBLISHED' && <button type="button" onClick={() => onCancel(event)} className={destructiveEventClass}>Cancel series</button>}
               {event.state === 'DRAFT' && <button type="button" onClick={() => onDelete(event)} className={destructiveEventClass}>Delete</button>}
@@ -281,14 +281,14 @@ function AddScopeForm({ teamId, activeProjects, onCreate }: {
           </label>
         )}
         {kind === 'SUBTEAM' && activeProjects.length === 0 && (
-          <p className="text-sm text-ink/60 dark:text-white/60">A subteam has to sit under an active project. Add or restore a project first.</p>
+          <p className="text-sm text-ink/60 dark:text-muted">A subteam has to sit under an active project. Add or restore a project first.</p>
         )}
         {error && <p className="text-sm text-red-700 dark:text-red-300">{error}</p>}
         <button type="submit" disabled={saving || !parentId} className="min-h-11 w-full rounded-full bg-deep px-4 text-sm font-semibold text-white hover:bg-brand dark:bg-brand dark:hover:brightness-110 disabled:opacity-50">
           Add {kind === 'PROJECT' ? 'project' : 'subteam'}
         </button>
       </form>
-      <p className="mt-5 text-xs leading-5 text-ink/50 dark:text-white/50">Permanent deletion is available only for empty calendars. Archive anything with event history.</p>
+      <p className="mt-5 text-xs leading-5 text-ink/50 dark:text-muted">Permanent deletion is available only for empty calendars. Archive anything with event history.</p>
     </aside>
   );
 }
@@ -338,7 +338,7 @@ function ScopeRow({ scope, nested = false, restorable = true, onRename, onArchiv
           <p className="truncate font-semibold">{scope.name}</p>
           {scope.status === 'ARCHIVED' && <span className="rounded-full bg-ink/8 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider dark:bg-white/10">Archived</span>}
         </div>
-        <p className="mt-1 text-xs text-ink/50 dark:text-white/50">
+        <p className="mt-1 text-xs text-ink/50 dark:text-muted">
           {scope.event_count} events{scope.kind === 'PROJECT' ? ` · ${scope.child_count} subteams` : ''}
           {blocked ? ` · cannot be deleted: ${blocked}` : ''}
         </p>

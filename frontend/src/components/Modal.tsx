@@ -82,7 +82,7 @@ export function Modal({ title, children, onClose, wide = false }: ModalProps) {
       >
         <header className="mb-5 flex items-center justify-between gap-4">
           <h2 id="modal-title" className="text-xl font-semibold tracking-tight">{title}</h2>
-          <button ref={closeRef} type="button" onClick={onClose} className="grid size-11 shrink-0 place-items-center rounded-full border border-ink/15 text-xl hover:bg-soft/30 dark:border-white/20 dark:hover:bg-white/10" aria-label="Close">
+          <button ref={closeRef} type="button" onClick={onClose} className="grid size-11 shrink-0 place-items-center rounded-full border border-ink/15 text-xl hover:bg-soft/30 dark:border-line-strong dark:hover:bg-white/10" aria-label="Close">
             ×
           </button>
         </header>

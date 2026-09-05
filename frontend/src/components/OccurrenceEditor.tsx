@@ -55,7 +55,7 @@ function seriesBaseline(occurrence: Occurrence, series: EventSeries) {
 
 type PatchFields = ReturnType<typeof seriesBaseline>;
 
-const inputClass = 'mt-1 min-h-11 w-full rounded-xl border border-ink/15 bg-transparent px-3 py-2 text-sm outline-none focus:border-brand dark:border-white/20';
+const inputClass = 'mt-1 min-h-11 w-full rounded-xl border border-ink/15 bg-transparent px-3 py-2 text-sm outline-none focus:border-brand dark:border-line-strong dark:bg-surface-deep dark:focus:border-link';
 
 export function OccurrenceEditor({ occurrence, series, onClose, onSave, onReset }: OccurrenceEditorProps) {
   const [title, setTitle] = useState(occurrence.title);
@@ -123,7 +123,7 @@ export function OccurrenceEditor({ occurrence, series, onClose, onSave, onReset 
 
   return (
     <Modal title="Edit this occurrence" onClose={onClose} wide>
-      <p className="mb-5 text-sm leading-6 text-ink/65 dark:text-white/65">
+      <p className="mb-5 text-sm leading-6 text-ink/65 dark:text-muted">
         This changes only the selected meeting. The rest of the weekly series keeps its normal schedule, and any field you leave matching the series keeps following later series-wide edits.
       </p>
       <form onSubmit={(formEvent) => void submit(formEvent)}>

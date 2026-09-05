@@ -34,7 +34,7 @@ export function ConfirmDialog({ title, message, confirmLabel, destructive = fals
 
   return (
     <Modal title={title} onClose={onCancel}>
-      <p className="text-sm leading-6 text-ink/70 dark:text-white/70">{message}</p>
+      <p className="text-sm leading-6 text-ink/70 dark:text-muted">{message}</p>
       <div className="mt-7 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         <button type="button" onClick={onCancel} className={cancelClass}>Keep as is</button>
         <button type="button" disabled={busy} onClick={() => void confirm()} className={destructive ? destructiveClass : primaryClass}>{confirmLabel}</button>
@@ -80,7 +80,7 @@ export function PromptDialog({ title, message, label, initialValue, confirmLabel
   return (
     <Modal title={title} onClose={onCancel}>
       <form onSubmit={(event) => void submit(event)}>
-        <p className="text-sm leading-6 text-ink/70 dark:text-white/70">{message}</p>
+        <p className="text-sm leading-6 text-ink/70 dark:text-muted">{message}</p>
         <label className="mt-5 block">
           <span className="text-sm font-semibold">{label}</span>
           <input
@@ -89,10 +89,10 @@ export function PromptDialog({ title, message, label, initialValue, confirmLabel
             maxLength={maxLength}
             value={value}
             onChange={(event) => setValue(event.target.value)}
-            className="mt-1 min-h-11 w-full rounded-xl border border-ink/15 bg-transparent px-3 py-2 text-sm outline-none focus:border-brand dark:border-white/20"
+            className="mt-1 min-h-11 w-full rounded-xl border border-ink/15 bg-transparent px-3 py-2 text-sm outline-none focus:border-brand dark:border-line-strong dark:bg-surface-deep dark:focus:border-link"
           />
         </label>
-        <p className="mt-2 text-xs text-ink/50 dark:text-white/50">
+        <p className="mt-2 text-xs text-ink/50 dark:text-muted">
           {invalid ? `Use between ${minLength} and ${maxLength} characters.` : `${trimmed.length} of ${maxLength} characters.`}
         </p>
         <div className="mt-7 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">

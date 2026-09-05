@@ -209,7 +209,7 @@ export function App() {
       ) : (
         <PublicCalendar month={month} scopes={scopes} occurrences={visibleOccurrences} selectedScopes={selectedScopes} loading={loading} error={error} onMonthChange={setMonth} onScopeChange={setSelectedScopes} onSubscribe={() => setShowSubscribe(true)} onSelectEvent={(occurrence) => { setEventActionError(''); setSelectedOccurrence(occurrence); }} />
       )}
-      <footer className="border-t border-ink/10 px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] pt-6 text-center text-xs text-ink/50 dark:border-white/10 dark:text-white/45">Times use America/Toronto · Calendar subscriptions update on each calendar app’s schedule</footer>
+      <footer className="border-t border-ink/10 px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] pt-6 text-center text-xs text-ink/50 dark:border-line dark:text-faint">Times use America/Toronto · Calendar subscriptions update on each calendar app’s schedule</footer>
 
       {showSubscribe && <SubscribePanel scopes={scopes} onClose={() => setShowSubscribe(false)} />}
       {selectedOccurrence && <EventDetails occurrence={selectedOccurrence} canWrite={auth.can_write} error={eventActionError} onClose={() => { setEventActionError(''); setSelectedOccurrence(undefined); }} onEditSeries={() => void openEditor(selectedOccurrence, 'series')} onEditOccurrence={() => void openEditor(selectedOccurrence, 'occurrence')} onCancelOccurrence={() => setCancellingOccurrence(selectedOccurrence)} />}

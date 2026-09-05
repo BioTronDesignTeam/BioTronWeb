@@ -41,8 +41,8 @@ function addLocalDays(value: string, days: number) {
   return new Date(Date.UTC(year, month - 1, day + days, 12)).toISOString().slice(0, 10);
 }
 
-const inputClass = 'mt-1 min-h-11 w-full rounded-xl border border-ink/15 bg-transparent px-3 py-2 text-sm outline-none focus:border-brand dark:border-white/20';
-const checkboxLabelClass = 'flex min-h-11 items-center gap-3 rounded-xl border border-ink/10 px-3 dark:border-white/15';
+const inputClass = 'mt-1 min-h-11 w-full rounded-xl border border-ink/15 bg-transparent px-3 py-2 text-sm outline-none focus:border-brand dark:border-line-strong dark:bg-surface-deep dark:focus:border-link';
+const checkboxLabelClass = 'flex min-h-11 items-center gap-3 rounded-xl border border-ink/10 px-3 dark:border-line';
 
 interface Schedule {
   startsAt: string;
@@ -85,7 +85,7 @@ function ScheduleFields({ schedule, warnDroppingOccurrences, onChange }: {
         <label className="sm:col-span-2">
           <span className="text-sm font-semibold">Repeat through</span>
           <input required type="date" min={startsAt.slice(0, 10)} value={recurrenceUntil} onChange={(e) => onChange({ recurrenceUntil: e.target.value })} className={inputClass} />
-          <span className="mt-1 block text-xs text-ink/50 dark:text-white/50">The end date is inclusive. Schedule a new series when the next term’s meeting time is known.</span>
+          <span className="mt-1 block text-xs text-ink/50 dark:text-muted">The end date is inclusive. Schedule a new series when the next term’s meeting time is known.</span>
         </label>
       )}
       {warnDroppingOccurrences && (
