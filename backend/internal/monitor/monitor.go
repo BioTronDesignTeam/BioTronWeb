@@ -16,12 +16,19 @@ import (
 type Store interface {
 	SetLatestHealth(context.Context, model.Health) error
 	InsertHealth(context.Context, model.Health) error
+	// PingPostgres and PingRedis probe the shared infrastructure through the
+	// connections Logger already holds, so the database and cache can sit in
+	// the catalog without the monitor learning their wire protocols or being
+	// handed a second set of credentials.
+	PingPostgres(context.Context) error
+	PingRedis(context.Context) error
 }
 
 type Monitor struct {
 	store           Store
 	catalog         *catalog.Catalog
 	client          *http.Client
+	timeout         time.Duration
 	interval        time.Duration
 	historyInterval time.Duration
 	last            map[string]persistedState
@@ -37,6 +44,7 @@ func New(store Store, serviceCatalog *catalog.Catalog, interval, historyInterval
 		store:           store,
 		catalog:         serviceCatalog,
 		client:          &http.Client{Timeout: timeout},
+		timeout:         timeout,
 		interval:        interval,
 		historyInterval: historyInterval,
 		last:            make(map[string]persistedState),
@@ -98,6 +106,34 @@ func (m *Monitor) poll(ctx context.Context) {
 }
 
 func (m *Monitor) probe(ctx context.Context, component catalog.Component) model.Health {
+	switch component.Check {
+	case catalog.CheckPostgres:
+		return m.probeDependency(ctx, component, m.store.PingPostgres)
+	case catalog.CheckRedis:
+		return m.probeDependency(ctx, component, m.store.PingRedis)
+	default:
+		return m.probeHTTP(ctx, component)
+	}
+}
+
+// probeDependency judges a shared dependency by whether Logger's own connection
+// to it answers a ping inside the health timeout. The detail keeps the same
+// "in Nms" shape as an HTTP probe so the explorer reads the same either way.
+func (m *Monitor) probeDependency(ctx context.Context, component catalog.Component, ping func(context.Context) error) model.Health {
+	started := time.Now()
+	health := model.Health{Service: component.ID, CheckedAt: started}
+	ctx, cancel := context.WithTimeout(ctx, m.timeout)
+	defer cancel()
+	if err := ping(ctx); err != nil {
+		health.Detail = err.Error()
+		return health
+	}
+	health.OK = true
+	health.Detail = fmt.Sprintf("%s ping in %s", component.Check, time.Since(started).Round(time.Millisecond))
+	return health
+}
+
+func (m *Monitor) probeHTTP(ctx context.Context, component catalog.Component) model.Health {
 	started := time.Now()
 	health := model.Health{Service: component.ID, CheckedAt: started}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, component.HealthURL, nil)

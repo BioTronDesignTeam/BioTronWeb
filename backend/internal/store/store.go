@@ -63,11 +63,16 @@ func (s *Store) Close() {
 }
 
 func (s *Store) Ping(ctx context.Context) error {
-	if err := s.db.Ping(ctx); err != nil {
+	if err := s.PingPostgres(ctx); err != nil {
 		return err
 	}
-	return s.cache.Ping(ctx).Err()
+	return s.PingRedis(ctx)
 }
+
+// PingPostgres and PingRedis are split out so the health monitor can report
+// the shared database and cache as separate components on the status page.
+func (s *Store) PingPostgres(ctx context.Context) error { return s.db.Ping(ctx) }
+func (s *Store) PingRedis(ctx context.Context) error    { return s.cache.Ping(ctx).Err() }
 
 func (s *Store) InsertLog(ctx context.Context, input model.NewLog) (model.Log, error) {
 	var entry model.Log

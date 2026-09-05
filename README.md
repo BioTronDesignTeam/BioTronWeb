@@ -211,6 +211,34 @@ Service ids must match a component in
 replacement catalog when an environment needs different applications or health
 URLs.
 
+### Catalog checks
+
+Every component names how it is probed with a `check`:
+
+| `check` | What the monitor does | Needs `health_url` |
+|---|---|---|
+| `http` (default) | `GET health_url`; 2xx or 3xx is healthy | yes |
+| `postgres` | Pings the shared database through Logger's own pool | no |
+| `redis` | Pings the shared cache through Logger's own client | no |
+
+The default catalog ends with an **Infrastructure** application holding the
+shared database, cache, and edge proxy (`http://edge-proxy:8080/_edge/health`,
+Nginx's alias on the `biotron` network). When several applications go red at
+once, that row says whether the cause is shared. The database and cache are
+pinged rather than fetched because they speak no HTTP, and a URL for them would
+have to carry credentials; a `health_url` on a ping check is refused rather
+than silently ignored.
+
+The edge proxy only runs where `Server/` is deployed, so on a laptop that has
+not started the edge it reports down and the banner reads degraded. That is
+true, not a bug: use `LOGGER_CATALOG_JSON` to leave it out of a local catalog
+if the red row is a nuisance.
+
+Note that the page needs the database to render at all: `/v1/status` reads
+ninety days of history from Postgres, so during a database outage the page
+says "status is unavailable" rather than naming the database. The outage
+appears afterwards as a red day.
+
 ## Application logging
 
 Go services import `github.com/BioTronDesignTeam/Logger/client`. Each container

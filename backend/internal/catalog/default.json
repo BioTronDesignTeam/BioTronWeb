@@ -51,5 +51,15 @@
       { "id": "sprinter-web", "name": "Web", "health_url": "http://sprinter-web/" },
       { "id": "sprinter", "name": "Bot API", "health_url": "http://sprinter:8080/health" }
     ]
+  },
+  {
+    "id": "infrastructure",
+    "name": "Infrastructure",
+    "description": "Shared database, cache, and edge proxy",
+    "components": [
+      { "id": "postgres", "name": "Database", "check": "postgres" },
+      { "id": "redis", "name": "Cache", "check": "redis" },
+      { "id": "edge-proxy", "name": "Edge proxy", "health_url": "http://edge-proxy:8080/_edge/health" }
+    ]
   }
 ]
