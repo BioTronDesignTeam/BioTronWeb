@@ -3,5 +3,146 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Persona, lead, and announcement configuration models will be added with the
-// first bot behavior that persists them.
+enum AutomationKind {
+  ANNOUNCE
+  NUDGE
+}
+
+enum NudgeDelivery {
+  DM
+  CHANNEL
+}
+
+enum NudgeTrigger {
+  UPCOMING
+  CANCELLED
+}
+
+enum NudgeStatus {
+  SATISFIED
+  SENT
+}
+
+// Restricts who can use a bot feature. subject names the feature ("agent",
+// "agent-thread", "announce", "nudge"); empty roleIds or channelIds means no
+// restriction on that dimension.
+model Guard {
+  subject    String   @id
+  guildId    String   @map("guild_id")
+  roleIds    String[] @map("role_ids")
+  channelIds String[] @map("channel_ids")
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("guards")
+}
+
+// One row per scheduled announcement or lead-nudge job the bot runs against a
+// Calendar scope. scopeId has no foreign key: Calendar owns that table in its
+// own schema.
+model Automation {
+  id            String         @id @default(uuid()) @db.Uuid
+  kind          AutomationKind
+  name          String
+  scopeId       String         @map("scope_id") @db.Uuid
+  channelId     String         @map("channel_id")
+  leadUserId    String?        @map("lead_user_id")
+  leadHours     Int            @default(24) @map("lead_hours")
+  lookbackHours Int            @default(24) @map("lookback_hours")
+  anyAuthor     Boolean        @default(false) @map("any_author")
+  postHour      Int?           @map("post_hour")
+  deliver       NudgeDelivery  @default(DM)
+  enabled       Boolean        @default(true)
+  createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  seenOccurrences   SeenOccurrence[]
+  postedOccurrences PostedOccurrence[]
+  nudges            Nudge[]
+
+  @@map("automations")
+}
+
+// One live /agent-thread conversation. Distinct from a one-shot /agent reply,
+// which needs no row here.
+model AgentThread {
+  threadId     String   @id @map("thread_id")
+  guildId      String   @map("guild_id")
+  channelId    String   @map("channel_id")
+  openerId     String   @map("opener_id")
+  model        String
+  turnCount    Int      @default(0) @map("turn_count")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  lastActiveAt DateTime @map("last_active_at") @db.Timestamptz(6)
+
+  messages AgentMessage[]
+
+  @@map("agent_threads")
+}
+
+// One turn of an agent thread's transcript, kept so a thread can be replayed
+// or resumed across bot restarts.
+model AgentMessage {
+  id        BigInt      @id @default(autoincrement())
+  threadId  String      @map("thread_id")
+  thread    AgentThread @relation(fields: [threadId], references: [threadId], onDelete: Cascade)
+  sequence  Int
+  role      String
+  content   Json
+  createdAt DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([threadId, sequence])
+  @@map("agent_messages")
+}
+
+// The public Calendar JSON drops a cancelled occurrence instead of flagging
+// it, so the bot remembers what it saw and treats a vanished future
+// occurrence as cancelled.
+model SeenOccurrence {
+  automationId      String     @map("automation_id") @db.Uuid
+  automation        Automation @relation(fields: [automationId], references: [id], onDelete: Cascade)
+  uid               String
+  recurrenceIdLocal String     @map("recurrence_id_local")
+  sequence          Int
+  startsAt          DateTime   @map("starts_at") @db.Timestamptz(6)
+  endsAt            DateTime   @map("ends_at") @db.Timestamptz(6)
+  title             String
+  scopeId           String     @map("scope_id") @db.Uuid
+  firstSeenAt       DateTime   @map("first_seen_at") @db.Timestamptz(6)
+  lastSeenAt        DateTime   @map("last_seen_at") @db.Timestamptz(6)
+
+  @@id([automationId, uid, recurrenceIdLocal])
+  @@map("seen_occurrences")
+}
+
+// Calendar bumps sequence on every edit, so a changed occurrence is posted
+// or edited again and an unchanged one is not.
+model PostedOccurrence {
+  automationId      String     @map("automation_id") @db.Uuid
+  automation        Automation @relation(fields: [automationId], references: [id], onDelete: Cascade)
+  uid               String
+  recurrenceIdLocal String     @map("recurrence_id_local")
+  sequence          Int
+  channelId         String     @map("channel_id")
+  messageId         String     @map("message_id")
+  postedAt          DateTime   @map("posted_at") @db.Timestamptz(6)
+
+  @@id([automationId, uid, recurrenceIdLocal])
+  @@map("posted_occurrences")
+}
+
+// Tracks each lead-nudge sent for an occurrence so the bot never nudges the
+// same trigger twice, and can tell an unmet nudge from a satisfied one.
+model Nudge {
+  automationId      String       @map("automation_id") @db.Uuid
+  automation        Automation   @relation(fields: [automationId], references: [id], onDelete: Cascade)
+  uid               String
+  recurrenceIdLocal String       @map("recurrence_id_local")
+  sequence          Int
+  trigger           NudgeTrigger
+  status            NudgeStatus
+  messageId         String?      @map("message_id")
+  createdAt         DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@id([automationId, uid, recurrenceIdLocal, sequence, trigger])
+  @@map("nudges")
+}
