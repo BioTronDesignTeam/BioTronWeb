@@ -50,7 +50,10 @@ set it to the shared parent domain (for example `.biotron.ca`) when products
 are deployed on sibling subdomains so the OAuth session reaches each tool.
 
 The API sends lifecycle and completed-request events to Logger as
-`oauth-manager`. Set `LOGGER_INGEST_TOKEN` to the same shared secret used by
+`oauth-manager`, plus one audit event for every grant, revoke, ban, unban, and
+manager-flag change, naming the actor and the target by id and login. Access
+is decided in meetings and on Discord, so those events are the only record of
+who changed what. Set `LOGGER_INGEST_TOKEN` to the same shared secret used by
 Logger; leaving it empty disables structured delivery without preventing Auth
 from starting. Request metadata never includes query strings, cookies, or
 credentials.

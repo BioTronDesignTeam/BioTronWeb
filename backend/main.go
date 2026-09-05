@@ -68,6 +68,7 @@ func main() {
 		Store:  st,
 		Cache:  c,
 		GitHub: gh,
+		Events: events,
 		Cfg: auth.Config{
 			FrontendURL:    cfg.FrontendURL,
 			AllowedOrigins: cfg.AllowedOrigins,

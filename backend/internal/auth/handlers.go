@@ -10,6 +10,7 @@ import (
 	"github.com/gofiber/fiber/v3"
 
 	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/cache"
+	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/eventlog"
 	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/store"
 )
 
@@ -30,6 +31,24 @@ type Handler struct {
 	Cache  *cache.Cache
 	GitHub *GitHubClient
 	Cfg    Config
+	// Events carries the audit trail to Logger. Access is asked for in a
+	// meeting or on Discord and granted by hand, so the grant, the revoke, the
+	// ban, and the manager flag are the only record of who decided what; each
+	// one is logged with the actor and the target. Nil disables delivery
+	// without changing behaviour.
+	Events *eventlog.Client
+}
+
+// audit records one change to access or standing. The payload names the actor
+// and the target by id and login only; it never carries a session, a key, or
+// a cookie.
+func (h *Handler) audit(message string, actor *store.SessionOperator, payload map[string]any) {
+	if h.Events == nil || actor == nil {
+		return
+	}
+	payload["actor_id"] = actor.GitHubID
+	payload["actor_login"] = actor.Login
+	h.Events.LogAsync(eventlog.Info, message, payload)
 }
 
 func (h *Handler) LoginRedirect(c fiber.Ctx) error {
@@ -234,6 +253,9 @@ func (h *Handler) CreateGrant(c fiber.Ctx) error {
 	if h.Cache != nil {
 		_ = h.Cache.InvalidateGrants(c.Context(), *body.OperatorID)
 	}
+	h.audit("Permission granted", OperatorFrom(c), map[string]any{
+		"target_id": *body.OperatorID, "app": body.AppID, "permission": body.PermissionKey,
+	})
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
@@ -255,6 +277,9 @@ func (h *Handler) DeleteGrant(c fiber.Ctx) error {
 	if h.Cache != nil {
 		_ = h.Cache.InvalidateGrants(c.Context(), *body.OperatorID)
 	}
+	h.audit("Permission revoked", OperatorFrom(c), map[string]any{
+		"target_id": *body.OperatorID, "app": body.AppID, "permission": body.PermissionKey,
+	})
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
@@ -335,9 +360,12 @@ func (h *Handler) setBanned(c fiber.Ctx, banned bool) error {
 	if err := h.Store.SetBanned(c.Context(), id, banned); err != nil {
 		return fiber.ErrInternalServerError
 	}
+	message := "Operator unbanned"
 	if banned {
 		_, _ = h.Store.DeleteSessionsForOperator(c.Context(), id)
+		message = "Operator banned"
 	}
+	h.audit(message, actor, map[string]any{"target_id": id, "target_login": target.Login})
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
@@ -366,6 +394,15 @@ func (h *Handler) SetManager(c fiber.Ctx) error {
 		return fiber.ErrInternalServerError
 	}
 	_, _ = h.Store.DeleteSessionsForOperator(c.Context(), id)
+	message := "Manager flag removed"
+	if body.Manager {
+		message = "Manager flag set"
+	}
+	payload := map[string]any{"target_id": id}
+	if target, err := h.Store.GetOperator(c.Context(), id); err == nil {
+		payload["target_login"] = target.Login
+	}
+	h.audit(message, actor, payload)
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
