@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowRight, ArrowUpRight, CalendarDays, Clock3, MapPin } from 'lucide-react';
+import { ArrowUpRight, CalendarDays, Clock3, MapPin } from 'lucide-react';
 import PageMeta from '../components/PageMeta';
 
 /**
@@ -138,9 +138,6 @@ export default function CalendarPage() {
           <div className="calendarpage__actions">
             <a href={CALENDAR_URL} className="calendarpage__primary">
               Open full calendar <ArrowUpRight size={16} />
-            </a>
-            <a href={`${CALENDAR_URL}/?subscribe=1`} className="calendarpage__secondary">
-              Choose subscriptions <ArrowRight size={16} />
             </a>
           </div>
         </section>
