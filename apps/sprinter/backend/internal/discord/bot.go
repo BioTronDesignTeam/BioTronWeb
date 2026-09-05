@@ -674,3 +674,7 @@ func userID(interaction *discordgo.InteractionCreate) string {
 	}
 	return ""
 }
+
+// Session exposes the gateway session for the scheduler's Discord adapter,
+// which posts announcements and nudges outside any interaction.
+func (b *Bot) Session() *discordgo.Session { return b.session }

@@ -29,7 +29,9 @@ type Config struct {
 	// the model, so an old thread costs more per answer than a new one.
 	ThreadMaxTurns int
 	// AgentTimeout bounds one whole question, tool calls included.
-	AgentTimeout    time.Duration
+	AgentTimeout time.Duration
+	// PollInterval is how often the scheduler reads Calendar.
+	PollInterval    time.Duration
 	CalendarURL     string
 	LoggerURL       string
 	OAuthManagerURL string
@@ -49,6 +51,7 @@ func Load() Config {
 		GeminiModel:     getenv("GEMINI_MODEL", "gemini-2.5-flash"),
 		ThreadMaxTurns:  getint("THREAD_MAX_TURNS", 40),
 		AgentTimeout:    getduration("AGENT_TIMEOUT", 2*time.Minute),
+		PollInterval:    getduration("POLL_INTERVAL", 5*time.Minute),
 		CalendarURL:     trimURL(getenv("CALENDAR_URL", "http://calendar-api:8080")),
 		LoggerURL:       trimURL(getenv("LOGGER_URL", "http://logger-api:8080")),
 		OAuthManagerURL: trimURL(getenv("OAUTH_MANAGER_URL", "http://oauth-manager:8080")),

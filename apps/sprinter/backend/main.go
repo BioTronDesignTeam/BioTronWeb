@@ -14,10 +14,13 @@ import (
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
 	"github.com/BioTronDesignTeam/Sprinter/backend/internal/agent"
 	"github.com/BioTronDesignTeam/Sprinter/backend/internal/auth"
+	"github.com/BioTronDesignTeam/Sprinter/backend/internal/calendar"
 	"github.com/BioTronDesignTeam/Sprinter/backend/internal/config"
 	"github.com/BioTronDesignTeam/Sprinter/backend/internal/discord"
+	"github.com/BioTronDesignTeam/Sprinter/backend/internal/model"
 	"github.com/BioTronDesignTeam/Sprinter/backend/internal/model/gemini"
 	"github.com/BioTronDesignTeam/Sprinter/backend/internal/readstore"
+	"github.com/BioTronDesignTeam/Sprinter/backend/internal/scheduler"
 	"github.com/BioTronDesignTeam/Sprinter/backend/internal/server"
 	"github.com/BioTronDesignTeam/Sprinter/backend/internal/store"
 	"github.com/BioTronDesignTeam/Sprinter/backend/internal/tools"
@@ -58,7 +61,7 @@ func main() {
 		events.LogAsync(logclient.Warning, "Read database unset", nil)
 	}
 
-	modelName, runner := buildRunner(cfg, reader, events)
+	modelName, runner, answering := buildRunner(cfg, reader, events)
 
 	var bot *discord.Bot
 	if !cfg.DiscordEnabled() {
@@ -83,6 +86,28 @@ func main() {
 			log.Fatalf("open Discord session: %v", err)
 		}
 		defer bot.Close()
+
+		// The scheduler needs a gateway session to post with, so it runs only
+		// beside a live bot. Automations are read from Postgres on every tick,
+		// which is how an admin change takes effect without a restart.
+		location, err := time.LoadLocation("America/Toronto")
+		if err != nil {
+			log.Fatalf("load location: %v", err)
+		}
+		sched := scheduler.New(scheduler.Deps{
+			Store:    sprinterStore,
+			Calendar: calendar.NewClient(cfg.CalendarURL, location),
+			Discord:  scheduler.NewDiscordSession(bot.Session()),
+			Model:    answering,
+			Events:   events,
+			Location: location,
+		})
+		schedulerCtx, stopScheduler := context.WithCancel(context.Background())
+		defer stopScheduler()
+		go sched.Run(schedulerCtx, cfg.PollInterval)
+		events.LogAsync(logclient.Info, "Scheduler started", map[string]any{
+			"poll_interval": cfg.PollInterval.String(),
+		})
 	}
 
 	authClient := auth.NewClient(cfg.OAuthManagerURL)
@@ -113,15 +138,15 @@ func main() {
 	}
 }
 
-// buildRunner picks what answers questions, and names it for the
-// agent_threads row. Without a key the echo runner stands in, and the warning
+// buildRunner picks what answers questions, names it for the agent_threads
+// row, and hands the bare model to the scheduler for nudge drafts. Without a key the echo runner stands in, and the warning
 // says so: an operator reading the log must be able to tell "the model is
 // broken" from "there is no model".
-func buildRunner(cfg config.Config, reader *readstore.Store, events *logclient.Client) (string, discord.Runner) {
+func buildRunner(cfg config.Config, reader *readstore.Store, events *logclient.Client) (string, discord.Runner, model.Model) {
 	if !cfg.ModelEnabled() {
 		events.LogAsync(logclient.Warning, "Model unset", nil)
 		log.Println("warning: GEMINI_API_KEY unset — every answer is an echo")
-		return "echo", discord.EchoRunner{}
+		return "echo", discord.EchoRunner{}, nil
 	}
 	answering, err := gemini.New(context.Background(), cfg.GeminiAPIKey, cfg.GeminiModel)
 	if err != nil {
@@ -143,7 +168,7 @@ func buildRunner(cfg config.Config, reader *readstore.Store, events *logclient.C
 	events.LogAsync(logclient.Info, "Model ready", map[string]any{
 		"model": loop.Model(), "tools": names,
 	})
-	return loop.Model(), agent.NewRunner(loop)
+	return loop.Model(), agent.NewRunner(loop), answering
 }
 
 func connectStore(databaseURL string) (*store.Store, error) {

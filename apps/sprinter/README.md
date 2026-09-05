@@ -8,8 +8,9 @@ A question goes to Gemini, which may call the bot's six read-only tools
 before it answers. Without `GEMINI_API_KEY` the bot echoes the question
 back instead; everything around the model still runs.
 
-The announce and nudge automations can be configured but do not run yet.
-Nothing reads them.
+A scheduler reads Calendar every few minutes, posts announcements for
+the scopes staff configured, and nudges a lead who has not announced an
+event that is coming up or was cancelled.
 
 ## Layout
 
@@ -153,6 +154,34 @@ The model is told that tool results are data and never instructions. A
 log message can contain words that read like an order; Sprinter reports
 them and does not act on them.
 
+## Automations
+
+The scheduler ticks on `POLL_INTERVAL` (default five minutes). Each tick
+reads Calendar's `/v1/events` for every enabled automation, in the window
+from now to `lead_hours` ahead. It runs only beside a live Discord
+session, because it posts through the bot.
+
+An **ANNOUNCE** automation posts each occurrence to `channel_id` once it
+falls inside `lead_hours`. It edits the post if the occurrence changes
+afterward, and posts only once per occurrence. `post_hour`, when set,
+holds the post back until the local hour reaches it, so a tick before
+dawn does not wake the channel.
+
+A **NUDGE** automation checks whether `lead_user_id` has already posted in
+`channel_id` since `lookback_hours` ago. `any_author` widens that check to
+anyone, not only the lead. If nobody has posted, Sprinter sends a nudge
+with a drafted announcement from the model: a DM, or a channel mention
+when `deliver` is `CHANNEL`. The lead can post the draft as is. Without a
+model the nudge still goes out, without the draft.
+
+Calendar's public feed drops a cancelled occurrence instead of flagging
+it. Sprinter remembers what it last saw, so a future occurrence that
+stops coming back is treated as cancelled: a NUDGE automation tells the
+lead, and an ANNOUNCE automation's post is edited to say so.
+
+One automation's failure never stops the others. A Calendar outage skips
+that automation for the tick; it is never read as "nothing is scheduled".
+
 ## Admin API
 
 | Method | Path | Notes |
@@ -205,7 +234,9 @@ and Prisma. Do not add environment files below it. `go run .` reads
   default.
 - `AGENT_TIMEOUT`. How long one question may take, tool calls included.
   `2m` by default.
-- `CALENDAR_URL`. Where `calendar_upcoming` reads.
+- `CALENDAR_URL`. Where `calendar_upcoming` and the scheduler read.
+- `POLL_INTERVAL`. How often the scheduler reads Calendar. `5m` by
+  default.
 - `OAUTH_MANAGER_URL`. Where the admin permission is checked.
 - `FRONTEND_URL` and `CORS_ORIGINS`. The origins that may make
   credentialed admin requests. List each host as `localhost` and
@@ -254,6 +285,15 @@ operator's business, what it said is not.
 | `Automation updated` | info | `automation_id`, `kind`, `enabled` |
 | `Automation deleted` | info | `automation_id` |
 | `Authorization service unavailable` | error | `error` |
+| `Scheduler started` | info | `poll_interval` |
+| `Scheduler tick failed` | error | `error` |
+| `Calendar fetch failed` | error | `automation_id`, `error` |
+| `Occurrence vanished` | info | `automation_id`, `uid`, `recurrence_id_local` |
+| `Announcement posted` | info | `automation_id`, `uid`, `message_id` |
+| `Announcement updated` | info | `automation_id`, `uid`, `message_id` |
+| `Nudge satisfied` | info | `automation_id`, `uid`, `trigger` |
+| `Nudge sent` | info | `automation_id`, `uid`, `trigger`, `delivered` |
+| `Automation failed` | error | `automation_id`, `error` |
 | `HTTP request completed` | info, warning on 4xx, error on 5xx | `method`, `path`, `status`, `duration_ms`, `actor` and `error` when known |
 
 `/health` and `/v1/auth/status` are logged only when they fail. A domain
@@ -275,12 +315,12 @@ transitive dependency `deepmerge-ts` to 8.0.0; `@prisma/config` asks for
 | `automations` | One announce or nudge job: kind, Calendar scope, channel, and its windows. |
 | `agent_threads` | One `/agent-thread` conversation, keyed by the Discord thread. |
 | `agent_messages` | Its transcript. One row per turn, unique on `(thread_id, sequence)`. |
-| `seen_occurrences` | Calendar occurrences an announce job has read. |
-| `posted_occurrences` | The messages it posted for them. |
-| `nudges` | What a nudge job has already chased. |
+| `seen_occurrences` | Calendar occurrences an automation has read, so a vanished one reads as cancelled. |
+| `posted_occurrences` | The messages an announce job posted, with the sequence they reflect. |
+| `nudges` | What a nudge job has already chased, per occurrence and trigger. |
 
-The last three are not written yet. Deleting a thread removes its
-messages; deleting an automation removes its occurrence rows.
+Deleting a thread removes its messages; deleting an automation removes
+its occurrence rows.
 
 The bot opens two pools. `DATABASE_URL` writes its own schema.
 `READ_DATABASE_URL`, a read-only role, is what the tools read through, so
@@ -294,7 +334,10 @@ user.
 
 ## Frontend
 
-One placeholder page: an eyebrow, the word "Sprinter", and one sentence.
-`index.css` carries its own colors. The page does not import
-`@biotron/style` or its `styles.css`: no wordmark, no theme toggle, no
-`--biotron-*` tokens. Nothing calls the admin API yet.
+One admin page behind the shared GitHub login. Signed out, it shows the
+login screen. Signed in without `sprinter/admin`, it says so and points
+at Auth. With the permission it shows two panels: the four guards, and
+the automations with a form to add or edit one. Calendar scopes for the
+form come from Calendar's public `/v1/scopes`. The page uses
+`@biotron/style` for the wordmark, theme toggle, and user menu, and keeps
+the theme bootstrap in `index.html` like every other frontend.

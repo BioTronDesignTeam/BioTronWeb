@@ -24,6 +24,7 @@ services:
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
       THREAD_MAX_TURNS: ${THREAD_MAX_TURNS:-40}
       AGENT_TIMEOUT: ${AGENT_TIMEOUT:-2m}
+      POLL_INTERVAL: ${POLL_INTERVAL:-5m}
       CALENDAR_URL: ${CALENDAR_URL:-http://calendar-api:8080}
       OAUTH_MANAGER_URL: ${OAUTH_MANAGER_URL:-http://oauth-manager:8080}
       LOGGER_URL: ${LOGGER_URL:-http://logger-api:8080}
