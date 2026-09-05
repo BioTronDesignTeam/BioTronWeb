@@ -22,6 +22,10 @@ export type StatusApplication = {
   name: string;
   description: string;
   state: StatusState;
+  /** Every component's observed time combined, so a collapsed row has a figure. */
+  uptime_24h: number | null;
+  uptime_7d: number | null;
+  uptime_90d: number | null;
   components: StatusComponent[];
 };
 
@@ -50,9 +54,17 @@ export type ComponentHistory = {
   buckets: HistoryBucket[];
 };
 
+export type ApplicationHistory = {
+  id: string;
+  name: string;
+  buckets: HistoryBucket[];
+};
+
 export type StatusHistoryResponse = {
   days: number;
   timezone: string;
+  /** One daily series per application, the components' days combined. */
+  applications: ApplicationHistory[];
   components: ComponentHistory[];
 };
 

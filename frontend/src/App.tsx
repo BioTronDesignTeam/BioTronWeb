@@ -1,16 +1,18 @@
 import {
   FormEvent,
+  KeyboardEvent,
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   useSyncExternalStore,
+  type CSSProperties,
   type ReactNode,
 } from 'react';
 import { Brand, Button, ThemeToggle, UserMenu } from '@biotron/style';
 import {
   type ApplicationStatus,
-  type ComponentHistory,
   type HealthState,
   type HistoryBucket,
   type Identity,
@@ -18,6 +20,7 @@ import {
   type LogLevel,
   type Session,
   type StatusApplication,
+  type StatusHistoryResponse,
   type StatusResponse,
   type StatusState,
   accessManagerURL,
@@ -38,30 +41,51 @@ const HISTORY_DAYS = 90;
 // Building an Intl formatter is expensive, so the shared instances live here
 // rather than being rebuilt inside a function that runs on every render.
 const relativeFormatter = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
-const dateFormatter = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+const longDateFormatter = new Intl.DateTimeFormat(undefined, {
+  weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
+});
+const rangeFormatter = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+const monthFormatter = new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric' });
+const weekdayFormatter = new Intl.DateTimeFormat(undefined, { weekday: 'short' });
 
 type LogMode = 'recent' | 'history';
 
 /**
- * Status is never conveyed by colour alone: every state carries a glyph and a
- * word as well, so the page still reads correctly in monochrome or to anyone
- * who cannot separate the hues.
+ * Status is never conveyed by colour alone: every state carries its own glyph
+ * shape and a word as well, so the page still reads correctly in monochrome or
+ * to anyone who cannot separate the hues.
  */
-const statusMeta: Record<StatusState, { label: string; glyph: string; headline: string }> = {
-  operational: { label: 'Operational', glyph: '✓', headline: 'All systems operational' },
-  degraded: { label: 'Degraded', glyph: '!', headline: 'Some systems are degraded' },
-  down: { label: 'Down', glyph: '✕', headline: 'Major outage' },
-  unknown: { label: 'No data', glyph: '?', headline: 'Status is not being observed' },
+const statusMeta: Record<StatusState, { label: string; headline: string; description: string }> = {
+  operational: {
+    label: 'Operational',
+    headline: 'All systems operational',
+    description: 'We are not aware of any issues affecting the platform.',
+  },
+  degraded: {
+    label: 'Degraded',
+    headline: 'Some systems are degraded',
+    description: 'One or more components are unavailable or not being observed. Expand an application below for detail.',
+  },
+  down: {
+    label: 'Down',
+    headline: 'Major outage',
+    description: 'Every component is currently failing its health check.',
+  },
+  unknown: {
+    label: 'No data',
+    headline: 'Status is not being observed',
+    description: 'Logger has no recent health checks to report.',
+  },
 };
 
-const healthMeta: Record<HealthState, { label: string; glyph: string }> = {
-  healthy: { label: 'Operational', glyph: '✓' },
-  unhealthy: { label: 'Unavailable', glyph: '✕' },
-  unknown: { label: 'Awaiting check', glyph: '?' },
+const healthMeta: Record<HealthState, { label: string; state: StatusState }> = {
+  healthy: { label: 'Operational', state: 'operational' },
+  unhealthy: { label: 'Unavailable', state: 'down' },
+  unknown: { label: 'Awaiting check', state: 'unknown' },
 };
 
 function relativeTime(timestamp?: string | null) {
-  if (!timestamp) return 'Not checked yet';
+  if (!timestamp) return 'not checked yet';
   const seconds = Math.round((new Date(timestamp).getTime() - Date.now()) / 1000);
   if (Math.abs(seconds) < 60) return relativeFormatter.format(seconds, 'second');
   const minutes = Math.round(seconds / 60);
@@ -71,36 +95,106 @@ function relativeTime(timestamp?: string | null) {
   return relativeFormatter.format(Math.round(hours / 24), 'day');
 }
 
-/** A null uptime means the window was never observed, which is not 100%. */
-function uptimeLabel(value: number | null | undefined) {
-  return value === null || value === undefined ? 'No data' : `${value.toFixed(2)}%`;
+/** "100%", "99.43%", never "100.00%": trailing zeros only add noise. */
+function percent(value: number) {
+  return `${Number(value.toFixed(2))}%`;
 }
 
-function StatusBadge({ state, compact }: { state: StatusState; compact?: boolean }) {
-  const meta = statusMeta[state];
+/** A null uptime means the window was never observed, which is not 100%. */
+function uptimeText(value: number | null | undefined) {
+  return value === null || value === undefined ? 'No data' : `${percent(value)} uptime`;
+}
+
+function localNoon(date: string) {
+  return new Date(`${date}T12:00:00`);
+}
+
+/* Icons ------------------------------------------------------------------ */
+
+const glyphs: Record<StatusState, ReactNode> = {
+  operational: (
+    <>
+      <circle cx="8" cy="8" r="8" fill="currentColor" />
+      <path d="M4.6 8.3l2.2 2.2 4.6-4.8" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </>
+  ),
+  degraded: (
+    <>
+      <path d="M8 1.2L15.4 14.4H.6z" fill="currentColor" strokeLinejoin="round" />
+      <path d="M8 5.6v4" fill="none" stroke="#fff" strokeWidth="1.7" strokeLinecap="round" />
+      <circle cx="8" cy="12" r="1" fill="#fff" />
+    </>
+  ),
+  down: (
+    <>
+      <rect x="0.5" y="0.5" width="15" height="15" rx="3.5" fill="currentColor" />
+      <path d="M5.4 5.4l5.2 5.2M10.6 5.4l-5.2 5.2" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" />
+    </>
+  ),
+  unknown: (
+    <>
+      <circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" strokeWidth="1.5" strokeDasharray="2.6 2.1" />
+      <path d="M6.2 6.4a1.8 1.8 0 1 1 2.6 1.6c-.6.3-.8.6-.8 1.2" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <circle cx="8" cy="11.5" r=".9" fill="currentColor" />
+    </>
+  ),
+};
+
+function StatusIcon({ state, label }: { state: StatusState; label?: string }) {
   return (
-    <span className={`status-badge status-badge--${state}`}>
-      <span className="status-badge__glyph" aria-hidden="true">{meta.glyph}</span>
-      {!compact && <span className="status-badge__label">{meta.label}</span>}
-      {compact && <span className="visually-hidden">{meta.label}</span>}
+    <span className={`status-icon status-icon--${state}`}>
+      <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">{glyphs[state]}</svg>
+      <span className="visually-hidden">{label ?? statusMeta[state].label}</span>
     </span>
   );
 }
 
-function HealthBadge({ state }: { state: HealthState }) {
-  const meta = healthMeta[state];
+function Chevron({ open }: { open: boolean }) {
   return (
-    <span className={`status-badge status-badge--${state}`}>
-      <span className="status-badge__glyph" aria-hidden="true">{meta.glyph}</span>
-      <span className="status-badge__label">{meta.label}</span>
-    </span>
+    <svg className={`chevron ${open ? 'chevron--open' : ''}`} width="10" height="6" viewBox="0 0 10 6" aria-hidden="true" focusable="false">
+      <path d="M1.5 1l3.75 4L9 1" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function InfoIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true" focusable="false">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
+    </svg>
+  );
+}
+
+function CalendarIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true" focusable="false">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+    </svg>
   );
 }
 
 /**
- * How many days of the bar fit without pushing the page sideways. A phone gets
- * thirty; the bar also scrolls inside its own container, so even an
- * unanticipated width can never make the page body scroll horizontally.
+ * The description sits behind an "i" the way it does on every hosted status
+ * page, so a row stays one line tall. It opens on hover and on focus, and on a
+ * tap, because a tapped button is focused.
+ */
+function InfoTip({ id, name, text }: { id: string; name: string; text: string }) {
+  return (
+    <span className="info-tip">
+      <button type="button" className="info-tip__trigger" aria-label={`About ${name}`} aria-describedby={id}>
+        <InfoIcon />
+      </button>
+      <span role="tooltip" id={id} className="popover info-tip__bubble">{text}</span>
+    </span>
+  );
+}
+
+/* Ninety-day bar --------------------------------------------------------- */
+
+/**
+ * How many days of the bar fit without the pills turning into hairlines. A
+ * phone gets thirty, a tablet sixty. The bar is a flex row, so no width of
+ * viewport can ever make the page body scroll sideways.
  */
 const dayBreakpoints = [
   { query: '(max-width: 559px)', days: 30 },
@@ -128,57 +222,123 @@ function currentVisibleDays() {
 const useVisibleDays = () =>
   useSyncExternalStore(subscribeToWidth, currentVisibleDays, () => HISTORY_DAYS);
 
-function bucketTitle(bucket: HistoryBucket) {
-  const date = dateFormatter.format(new Date(`${bucket.date}T12:00:00`));
-  return `${date} — ${statusMeta[bucket.state].label}, ${uptimeLabel(bucket.uptime)}`;
+function dayDetail(bucket: HistoryBucket) {
+  switch (bucket.state) {
+    case 'operational':
+      return 'No incidents';
+    case 'degraded':
+      return `Degraded · ${uptimeText(bucket.uptime)}`;
+    case 'down':
+      return `Outage · ${uptimeText(bucket.uptime)}`;
+    default:
+      return 'No data · nobody was watching';
+  }
 }
 
-function UptimeBar({ buckets, days }: { buckets: HistoryBucket[]; days: number }) {
+/**
+ * One pill per day. Pointing at a pill, or focusing the bar and using the
+ * arrow keys, opens a popover naming the day and what happened on it, so the
+ * bar is more than a decorative stripe.
+ */
+function UptimeBar({ buckets, days, label }: { buckets: HistoryBucket[]; days: number; label: string }) {
   const shown = buckets.slice(-days);
-  const summary = `${days}-day history: ${shown.filter((bucket) => bucket.state === 'operational').length} fully operational days, ` +
-    `${shown.filter((bucket) => bucket.state === 'unknown').length} without data`;
+  const [active, setActive] = useState<number | null>(null);
+  const trackRef = useRef<HTMLDivElement>(null);
+  const summary = `${label}, ${shown.length}-day history: ` +
+    `${shown.filter((bucket) => bucket.state === 'operational').length} fully operational days, ` +
+    `${shown.filter((bucket) => bucket.state === 'degraded' || bucket.state === 'down').length} with incidents, ` +
+    `${shown.filter((bucket) => bucket.state === 'unknown').length} without data. Use the arrow keys to read each day.`;
+
+  const indexAt = (clientX: number) => {
+    const track = trackRef.current;
+    if (!track || shown.length === 0) return null;
+    const rect = track.getBoundingClientRect();
+    if (rect.width === 0) return null;
+    const ratio = (clientX - rect.left) / rect.width;
+    return Math.min(shown.length - 1, Math.max(0, Math.floor(ratio * shown.length)));
+  };
+
+  function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (shown.length === 0) return;
+    const current = active ?? shown.length - 1;
+    const moves: Record<string, number> = {
+      ArrowLeft: Math.max(0, current - 1),
+      ArrowRight: Math.min(shown.length - 1, current + 1),
+      Home: 0,
+      End: shown.length - 1,
+    };
+    if (event.key in moves) {
+      event.preventDefault();
+      setActive(moves[event.key]);
+    } else if (event.key === 'Escape') {
+      setActive(null);
+    }
+  }
+
+  const bucket = active === null ? null : shown[active];
 
   return (
     <div className="uptime-bar">
-      <div className="uptime-bar__scroll">
-        <div className="uptime-bar__track" role="img" aria-label={summary}>
-          {shown.map((bucket) => (
-            <span
-              className={`uptime-day uptime-day--${bucket.state}`}
-              key={bucket.date}
-              title={bucketTitle(bucket)}
-            />
-          ))}
-        </div>
+      <div
+        ref={trackRef}
+        className="uptime-bar__track"
+        role="group"
+        aria-label={summary}
+        tabIndex={0}
+        onPointerMove={(event) => setActive(indexAt(event.clientX))}
+        onPointerLeave={() => setActive(null)}
+        onFocus={() => setActive((current) => current ?? shown.length - 1)}
+        onBlur={() => setActive(null)}
+        onKeyDown={onKeyDown}
+      >
+        {shown.map((day, index) => (
+          <span
+            className={`uptime-day uptime-day--${day.state} ${index === active ? 'uptime-day--active' : ''}`}
+            key={day.date}
+          />
+        ))}
       </div>
-      <div className="uptime-bar__legend">
-        <span>{days} days ago</span>
-        <span aria-hidden="true" className="uptime-bar__rule" />
-        <span>Today</span>
+      <div className="uptime-bar__live" aria-live="polite">
+        {bucket && active !== null && (
+          <div
+            className="popover day-popover"
+            style={{ '--x': `${((active + 0.5) / shown.length) * 100}%` } as CSSProperties}
+          >
+            <div className="day-popover__date">{longDateFormatter.format(localNoon(bucket.date))}</div>
+            <div className={`day-popover__line day-popover__line--${bucket.state}`}>
+              <StatusIcon state={bucket.state} label="" />
+              <span>{dayDetail(bucket)}</span>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 }
+
+/* Shared chrome ---------------------------------------------------------- */
 
 function Shell({
   children,
   session,
   user,
   onLogout,
+  narrow = false,
 }: {
   children: ReactNode;
   session: Session;
   user?: Identity;
   onLogout: () => void | Promise<void>;
+  narrow?: boolean;
 }) {
   return (
     <div className="shell">
-      <header className="topbar">
-        <div className="brand">
+      <header className={`topbar ${narrow ? 'topbar--narrow' : ''}`}>
+        <a className="brand" href="/">
           <Brand className="brand__mark" />
           <span className="brand__divider" aria-hidden="true" />
           <span className="brand__name">Status Logger</span>
-        </div>
+        </a>
         <div className="topbar-actions">
           <ThemeToggle />
           {session.authenticated ? (
@@ -224,129 +384,155 @@ function AccessNotice() {
   );
 }
 
-function ApplicationRow({
+/* Public status data ----------------------------------------------------- */
+
+/**
+ * Both requests are unauthenticated, so this runs identically for a signed-out
+ * visitor and never depends on a session being resolved first.
+ */
+function usePlatformStatus(poll: boolean) {
+  const [status, setStatus] = useState<StatusResponse>();
+  const [history, setHistory] = useState<StatusHistoryResponse>();
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  const refresh = useCallback(async () => {
+    try {
+      const [current, past] = await Promise.all([getStatus(), getStatusHistory(HISTORY_DAYS)]);
+      setStatus(current);
+      setHistory(past);
+      setError('');
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Status is unavailable');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refresh();
+    if (!poll) return;
+    const timer = window.setInterval(() => void refresh(), 30000);
+    return () => window.clearInterval(timer);
+  }, [poll, refresh]);
+
+  return { status, history, error, loading };
+}
+
+/** "Jun 8 – Sep 5, 2026": the days the bars actually cover. */
+function rangeLabel(history?: StatusHistoryResponse) {
+  const buckets = history?.applications[0]?.buckets ?? history?.components[0]?.buckets;
+  if (!buckets || buckets.length === 0) return '';
+  return rangeFormatter.formatRange(localNoon(buckets[0].date), localNoon(buckets[buckets.length - 1].date));
+}
+
+/* Status page ------------------------------------------------------------ */
+
+function StatusBanner({ overall, loading }: { overall?: StatusResponse['overall']; loading: boolean }) {
+  const state = overall?.state ?? 'unknown';
+  const meta = statusMeta[state];
+  return (
+    <section className={`box box--${overall ? state : 'pending'}`} aria-live="polite">
+      <div className="box__head">
+        {overall && <StatusIcon state={state} label="" />}
+        <h1>{loading && !overall ? 'Checking platform status…' : meta.headline}</h1>
+      </div>
+      <div className="box__body">
+        <p>{overall ? meta.description : 'Health is checked from inside the BioTron service network.'}</p>
+        {overall && (
+          <p className="box__meta">
+            Updated {relativeTime(overall.updated_at)} · {uptimeText(overall.uptime_90d)} over {HISTORY_DAYS} days
+          </p>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function ComponentRow({
+  component,
+  buckets,
+  days,
+}: {
+  component: StatusApplication['components'][number];
+  buckets: HistoryBucket[];
+  days: number;
+}) {
+  return (
+    <div className="component">
+      <div className="component__row">
+        <StatusIcon state={component.state} />
+        <h4 className="component__name">{component.name}</h4>
+        <span className="row__uptime">{uptimeText(component.uptime_90d)}</span>
+      </div>
+      {buckets.length > 0 && <UptimeBar buckets={buckets} days={days} label={component.name} />}
+    </div>
+  );
+}
+
+/**
+ * One row per application. Collapsed, it is a name, a figure, and a bar. The
+ * "N components" control unfolds the parts beneath it, each with its own bar,
+ * so the whole platform fits on one screen until someone asks for more.
+ */
+function ApplicationGroup({
   application,
-  history,
+  applicationBuckets,
+  componentBuckets,
   days,
   explorable,
 }: {
   application: StatusApplication;
-  history: Map<string, ComponentHistory>;
+  applicationBuckets: HistoryBucket[];
+  componentBuckets: Map<string, HistoryBucket[]>;
   days: number;
   explorable: boolean;
 }) {
+  const [open, setOpen] = useState(false);
+  const count = application.components.length;
+  const panelID = `components-${application.id}`;
+
   return (
-    <article className="application-row">
-      <div className="application-row__head">
-        <div>
-          <h3>{application.name}</h3>
-          <p>{application.description}</p>
+    <div className="group">
+      <div className="group__row">
+        <StatusIcon state={application.state} />
+        <h3 className="group__name">{application.name}</h3>
+        <InfoTip id={`about-${application.id}`} name={application.name} text={application.description} />
+        <button
+          type="button"
+          className="group__toggle"
+          aria-expanded={open}
+          aria-controls={panelID}
+          onClick={() => setOpen((current) => !current)}
+        >
+          <span className="group__count">{count} {count === 1 ? 'component' : 'components'}</span>
+          <Chevron open={open} />
+        </button>
+        <span className="row__uptime">{uptimeText(application.uptime_90d)}</span>
+      </div>
+
+      {open && (
+        <div className="group__components" id={panelID}>
+          {application.components.map((component) => (
+            <ComponentRow
+              buckets={componentBuckets.get(component.id) ?? []}
+              component={component}
+              days={days}
+              key={component.id}
+            />
+          ))}
+          {explorable && (
+            <a className="group__logs" href={`/applications/${application.id}`}>
+              Open logs <span aria-hidden="true">→</span>
+            </a>
+          )}
         </div>
-        <StatusBadge state={application.state} />
-      </div>
-
-      <div className="component-rows">
-        {application.components.map((component) => {
-          const buckets = history.get(component.id)?.buckets ?? [];
-          return (
-            <div className="component-row" key={component.id}>
-              <div className="component-row__name">
-                <StatusBadge state={component.state} compact />
-                <strong>{component.name}</strong>
-                <span className="component-row__uptime">
-                  {uptimeLabel(component.uptime_90d)}
-                  <small> uptime</small>
-                </span>
-              </div>
-              {buckets.length > 0 && <UptimeBar buckets={buckets} days={days} />}
-            </div>
-          );
-        })}
-      </div>
-
-      {explorable && (
-        <a className="inspect-link" href={`/applications/${application.id}`}>
-          Open logs <span aria-hidden="true">→</span>
-        </a>
       )}
-    </article>
-  );
-}
 
-const INCIDENT_DAYS = 14;
-const incidentDateFormatter = new Intl.DateTimeFormat(undefined, {
-  weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
-});
-
-/**
- * Past incidents, read back out of the same daily history the bars are drawn
- * from. Logger has no separate incident record, so a day counts as an incident
- * when a component spent part of it degraded or down. A day with no data is not
- * an incident: nobody was watching, which is a different claim.
- */
-function IncidentHistory({
-  history,
-  applications,
-}: {
-  history: ComponentHistory[];
-  applications: StatusApplication[];
-}) {
-  // Component names repeat across applications: three of them are called "Web"
-  // and three "API". An incident line has to name the application too, or it
-  // says nothing about what was down.
-  const applicationNames = useMemo(
-    () => new Map(applications.map((application) => [application.id, application.name])),
-    [applications],
-  );
-
-  const byDate = useMemo(() => {
-    const index = new Map<string, { name: string; bucket: HistoryBucket }[]>();
-    for (const component of history) {
-      const application = applicationNames.get(component.application_id);
-      const name = application ? `${application} · ${component.name}` : component.name;
-      for (const bucket of component.buckets) {
-        if (bucket.state !== 'degraded' && bucket.state !== 'down') continue;
-        index.set(bucket.date, [...(index.get(bucket.date) ?? []), { name, bucket }]);
-      }
-    }
-    return index;
-  }, [history, applicationNames]);
-
-  const dates = useMemo(() => {
-    const out: string[] = [];
-    const cursor = new Date();
-    for (let day = 0; day < INCIDENT_DAYS; day += 1) {
-      out.push(cursor.toISOString().slice(0, 10));
-      cursor.setDate(cursor.getDate() - 1);
-    }
-    return out;
-  }, []);
-
-  return (
-    <section className="incidents" aria-label="Past incidents">
-      <h2>Past incidents</h2>
-      {dates.map((date) => {
-        const entries = byDate.get(date) ?? [];
-        return (
-          <div className="incident-day" key={date}>
-            <h3>{incidentDateFormatter.format(new Date(`${date}T12:00:00`))}</h3>
-            {entries.length === 0 ? (
-              <p className="incident-day__empty">No incidents reported.</p>
-            ) : (
-              <ul className="incident-day__list">
-                {entries.map((entry) => (
-                  <li key={`${date}-${entry.name}`}>
-                    <StatusBadge state={entry.bucket.state} />
-                    <strong>{entry.name}</strong>
-                    <span>{uptimeLabel(entry.bucket.uptime)} available</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        );
-      })}
-    </section>
+      {applicationBuckets.length > 0 && (
+        <UptimeBar buckets={applicationBuckets} days={days} label={application.name} />
+      )}
+    </div>
   );
 }
 
@@ -359,86 +545,181 @@ function StatusPage({
   user?: Identity;
   onLogout: () => void | Promise<void>;
 }) {
-  const [status, setStatus] = useState<StatusResponse>();
-  const [history, setHistory] = useState<ComponentHistory[]>([]);
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(true);
+  const { status, history, error, loading } = usePlatformStatus(true);
   const days = useVisibleDays();
 
-  const refresh = useCallback(async () => {
-    try {
-      // Both requests are unauthenticated, so this runs identically for a
-      // signed-out visitor and never depends on a session being resolved first.
-      const [current, past] = await Promise.all([getStatus(), getStatusHistory(HISTORY_DAYS)]);
-      setStatus(current);
-      setHistory(past.components);
-      setError('');
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Status is unavailable');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void refresh();
-    const timer = window.setInterval(() => void refresh(), 30000);
-    return () => window.clearInterval(timer);
-  }, [refresh]);
-
-  const historyByComponent = useMemo(() => {
-    const index = new Map<string, ComponentHistory>();
-    history.forEach((component) => index.set(component.id, component));
+  const applicationBuckets = useMemo(() => {
+    const index = new Map<string, HistoryBucket[]>();
+    history?.applications.forEach((application) => index.set(application.id, application.buckets));
+    return index;
+  }, [history]);
+  const componentBuckets = useMemo(() => {
+    const index = new Map<string, HistoryBucket[]>();
+    history?.components.forEach((component) => index.set(component.id, component.buckets));
     return index;
   }, [history]);
 
-  const overall = status?.overall;
-  const meta = statusMeta[overall?.state ?? 'unknown'];
-
   return (
-    <Shell session={session} user={user} onLogout={onLogout}>
-      <main className="page">
+    <Shell session={session} user={user} onLogout={onLogout} narrow>
+      <main className="column">
         {session.authenticated && !session.allowed && <AccessNotice />}
 
-        <section className={`banner banner--${overall?.state ?? 'unknown'}`}>
-          <span className="banner__glyph" aria-hidden="true">{meta.glyph}</span>
-          <div>
-            <h1>{loading && !overall ? 'Checking platform status…' : meta.headline}</h1>
-            <p>
-              {overall
-                ? `Updated ${relativeTime(overall.updated_at)} · checked from inside the BioTron service network`
-                : 'Health is checked from inside the BioTron service network.'}
-            </p>
-          </div>
-        </section>
+        <StatusBanner overall={status?.overall} loading={loading} />
 
         {error && <div className="inline-error">{error}</div>}
 
-        {overall && (
-          <p className="status-note">
-            Uptime over the past {HISTORY_DAYS} days: {uptimeLabel(overall.uptime_90d)}.
-            {' '}Last 24 hours {uptimeLabel(overall.uptime_24h)}, last 7 days {uptimeLabel(overall.uptime_7d)}.
-            {session.allowed ? ' Select an application to inspect its logs.' : ''}
-          </p>
-        )}
+        <section className="box" aria-labelledby="system-status">
+          <div className="box__head box__head--split">
+            <h2 id="system-status">System status</h2>
+            {history && <span className="box__range">{rangeLabel(history)}</span>}
+          </div>
+          <div className="box__rows">
+            {status?.applications.map((application) => (
+              <ApplicationGroup
+                application={application}
+                applicationBuckets={applicationBuckets.get(application.id) ?? []}
+                componentBuckets={componentBuckets}
+                days={days}
+                explorable={session.allowed}
+                key={application.id}
+              />
+            ))}
+            {!status && !error && <div className="box__placeholder">Loading components…</div>}
+          </div>
+        </section>
 
-        <div className="application-list">
-          {status?.applications.map((application) => (
-            <ApplicationRow
-              application={application}
-              days={days}
-              explorable={session.allowed}
-              history={historyByComponent}
-              key={application.id}
-            />
-          ))}
+        <div className="column__actions">
+          <a className="button button--secondary" href="/history">
+            <CalendarIcon /> View history
+          </a>
         </div>
 
-        <IncidentHistory history={history} applications={status?.applications ?? []} />
+        <p className="column__footnote">
+          Health is checked every 15 seconds from inside the BioTron service network. Uptime is
+          time-weighted across every component's observed time; days nobody was watching are
+          hatched and left out of the figures.
+        </p>
       </main>
     </Shell>
   );
 }
+
+/* History page ----------------------------------------------------------- */
+
+type Incident = {
+  key: string;
+  application: string;
+  component: string;
+  state: 'degraded' | 'down';
+  uptime: number | null;
+};
+
+type IncidentDay = { date: string; incidents: Incident[] };
+type IncidentMonth = { key: string; label: string; days: IncidentDay[] };
+
+/**
+ * Past incidents, read back out of the same daily history the bars are drawn
+ * from. Logger has no separate incident record, so a day counts as an incident
+ * when a component spent part of it degraded or down. A day with no data is not
+ * an incident: nobody was watching, which is a different claim.
+ */
+function incidentMonths(history: StatusHistoryResponse | undefined, applications: StatusApplication[]): IncidentMonth[] {
+  if (!history) return [];
+  // Component names repeat across applications: several are called "Web" and
+  // several "API". An incident line has to name the application too, or it
+  // says nothing about what was down.
+  const applicationNames = new Map(applications.map((application) => [application.id, application.name]));
+  const byDate = new Map<string, Incident[]>();
+  for (const component of history.components) {
+    const application = applicationNames.get(component.application_id) ?? component.application_id;
+    for (const bucket of component.buckets) {
+      if (bucket.state !== 'degraded' && bucket.state !== 'down') continue;
+      const list = byDate.get(bucket.date) ?? [];
+      list.push({
+        key: `${bucket.date}-${component.id}`,
+        application,
+        component: component.name,
+        state: bucket.state,
+        uptime: bucket.uptime,
+      });
+      byDate.set(bucket.date, list);
+    }
+  }
+
+  const months: IncidentMonth[] = [];
+  const dates = Array.from(byDate.keys()).sort().reverse();
+  for (const date of dates) {
+    const key = date.slice(0, 7);
+    let month = months[months.length - 1];
+    if (!month || month.key !== key) {
+      month = { key, label: monthFormatter.format(localNoon(date)), days: [] };
+      months.push(month);
+    }
+    month.days.push({ date, incidents: byDate.get(date) ?? [] });
+  }
+  return months;
+}
+
+function HistoryPage() {
+  const { status, history, error, loading } = usePlatformStatus(false);
+  const months = useMemo(() => incidentMonths(history, status?.applications ?? []), [history, status]);
+
+  return (
+    <main className="column">
+      <nav className="crumbs" aria-label="Breadcrumb">
+        <a href="/">BioTron</a>
+        <span aria-hidden="true">/</span>
+        <span aria-current="page">History</span>
+      </nav>
+
+      <div className="history__head">
+        <h1>History</h1>
+        {history && <span className="box__range">{rangeLabel(history)}</span>}
+      </div>
+
+      {error && <div className="inline-error">{error}</div>}
+      {loading && !history && <p className="history__empty">Loading history…</p>}
+      {history && months.length === 0 && (
+        <p className="history__empty">No incidents in the past {history.days} days.</p>
+      )}
+
+      {months.map((month) => (
+        <section className="month" key={month.key} aria-labelledby={`month-${month.key}`}>
+          <h2 className="month__name" id={`month-${month.key}`}>{month.label}</h2>
+          {month.days.map((day) => (
+            <div className="day" key={day.date}>
+              <div className="day__date">
+                <strong>{day.date.slice(8, 10)}</strong>
+                <span>{weekdayFormatter.format(localNoon(day.date))}</span>
+              </div>
+              <ul className="day__incidents">
+                {day.incidents.map((incident) => (
+                  <li className={`incident incident--${incident.state}`} key={incident.key}>
+                    <span className="incident__rail" aria-hidden="true" />
+                    <div className="incident__body">
+                      <div className="incident__title">
+                        <span>{incident.application} · {incident.component}</span>
+                        <span className="incident__uptime">{uptimeText(incident.uptime)}</span>
+                      </div>
+                      <p className="incident__detail">
+                        <StatusIcon state={incident.state} />
+                        {incident.state === 'down'
+                          ? 'Health checks failed repeatedly; the component was unavailable for part of the day.'
+                          : 'Health checks failed briefly; the component was available for the rest of the day.'}
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </section>
+      ))}
+    </main>
+  );
+}
+
+/* Log explorer (logger/view only) ---------------------------------------- */
 
 function LevelFilter({ selected, onChange }: { selected: Set<LogLevel>; onChange: (next: Set<LogLevel>) => void }) {
   return (
@@ -481,6 +762,16 @@ function LogRow({ entry }: { entry: LogEntry }) {
         </details>
       )}
     </article>
+  );
+}
+
+function HealthBadge({ state }: { state: HealthState }) {
+  const meta = healthMeta[state];
+  return (
+    <span className={`health-badge health-badge--${meta.state}`}>
+      <StatusIcon state={meta.state} label="" />
+      <span>{meta.label}</span>
+    </span>
   );
 }
 
@@ -551,7 +842,7 @@ function ApplicationDetail({ application }: { application: ApplicationStatus }) 
           <div className="component-tile" key={component.id}>
             <div><HealthBadge state={component.state} /><strong>{component.name}</strong></div>
             <span>{component.detail || healthMeta[component.state].label}</span>
-            <small>{relativeTime(component.checked_at)}</small>
+            <small>Checked {relativeTime(component.checked_at)}</small>
           </div>
         ))}
       </section>
@@ -646,6 +937,8 @@ function ExplorerRoute({
   );
 }
 
+/* Routing ---------------------------------------------------------------- */
+
 const signedOut: Session = { authenticated: false, allowed: false };
 
 export function App() {
@@ -677,7 +970,8 @@ export function App() {
     setSession(signedOut);
   }, []);
 
-  const detailMatch = window.location.pathname.match(/^\/applications\/([^/]+)\/?$/);
+  const path = window.location.pathname;
+  const detailMatch = path.match(/^\/applications\/([^/]+)\/?$/);
   if (detailMatch) {
     return (
       <ExplorerRoute
@@ -687,6 +981,14 @@ export function App() {
         sessionReady={sessionReady}
         user={user}
       />
+    );
+  }
+
+  if (/^\/history\/?$/.test(path)) {
+    return (
+      <Shell session={session} user={user} onLogout={onLogout} narrow>
+        <HistoryPage />
+      </Shell>
     );
   }
 

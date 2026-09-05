@@ -1,19 +1,19 @@
 :root {
   --logger-page: #ffffff;
-  --logger-chrome: color-mix(in srgb, #aedbfc 18%, #ffffff);
   --logger-surface: #ffffff;
-  --logger-surface-muted: color-mix(in srgb, #aedbfc 24%, #ffffff);
-  --logger-surface-deep: color-mix(in srgb, #3050b0 8%, #ffffff);
-  --logger-border: color-mix(in srgb, #aedbfc 75%, #ffffff);
-  --logger-border-strong: #aedbfc;
+  --logger-surface-muted: color-mix(in srgb, #16033c 4%, #ffffff);
+  --logger-surface-deep: color-mix(in srgb, #16033c 7%, #ffffff);
+  --logger-border: color-mix(in srgb, #16033c 11%, #ffffff);
+  --logger-border-soft: color-mix(in srgb, #16033c 6%, #ffffff);
+  --logger-border-strong: color-mix(in srgb, #16033c 22%, #ffffff);
   --logger-text: #16033c;
   --logger-text-soft: #160b6c;
-  --logger-muted: #3050b0;
-  --logger-muted-soft: color-mix(in srgb, #3050b0 70%, #ffffff);
+  --logger-muted: color-mix(in srgb, #16033c 62%, #ffffff);
+  --logger-muted-soft: color-mix(in srgb, #16033c 44%, #ffffff);
   --logger-accent: #3050b0;
   --logger-accent-soft: #aedbfc;
   --logger-on-accent: #ffffff;
-  --logger-shadow: color-mix(in srgb, #16033c 14%, transparent);
+  --logger-shadow: 0 1px 2px rgba(22, 3, 60, .04), 0 1px 4px rgba(22, 3, 60, .04);
   --logger-healthy: #16845f;
   --logger-danger: #b42347;
   --logger-warning: #8a5a00;
@@ -22,11 +22,16 @@
 
   /* Status hues are their own scale rather than reusing the brand accent, so
      operational never reads as "some shade of blue, like everything else".
-     Every one of them is paired with a glyph and a word in the markup. */
-  --status-operational: #10794f;
-  --status-degraded: #8a5300;
-  --status-down: #b31f45;
-  --status-unknown: #5a6788;
+     Every one of them is paired with a glyph shape and a word in the markup. */
+  --status-operational: #24c19a;
+  --status-degraded: #fbbf24;
+  --status-down: #f87171;
+  --status-unknown: #b4b4bc;
+  /* Text-weight versions for the few places a state is written in its colour. */
+  --status-operational-ink: #0f7a5f;
+  --status-degraded-ink: #9a6400;
+  --status-down-ink: #b3273f;
+  --status-unknown-ink: #5a6788;
 
   color: var(--logger-text);
   background: var(--logger-page);
@@ -37,30 +42,34 @@
 
 :root.dark {
   --logger-page: #16033c;
-  --logger-chrome: #160b6c;
-  --logger-surface: color-mix(in srgb, #160b6c 78%, #16033c);
-  --logger-surface-muted: color-mix(in srgb, #3050b0 28%, #16033c);
+  --logger-surface: color-mix(in srgb, #160b6c 42%, #16033c);
+  --logger-surface-muted: color-mix(in srgb, #3050b0 22%, #16033c);
   --logger-surface-deep: color-mix(in srgb, #16033c 82%, #000000);
-  --logger-border: color-mix(in srgb, #aedbfc 22%, transparent);
-  --logger-border-strong: color-mix(in srgb, #aedbfc 42%, transparent);
+  --logger-border: color-mix(in srgb, #aedbfc 20%, transparent);
+  --logger-border-soft: color-mix(in srgb, #aedbfc 11%, transparent);
+  --logger-border-strong: color-mix(in srgb, #aedbfc 40%, transparent);
   --logger-text: #ffffff;
   --logger-text-soft: #aedbfc;
-  --logger-muted: #aedbfc;
-  --logger-muted-soft: color-mix(in srgb, #aedbfc 64%, #16033c);
+  --logger-muted: color-mix(in srgb, #aedbfc 72%, #16033c);
+  --logger-muted-soft: color-mix(in srgb, #aedbfc 52%, #16033c);
   --logger-accent: #aedbfc;
   --logger-accent-soft: #3050b0;
   --logger-on-accent: #16033c;
-  --logger-shadow: color-mix(in srgb, #000000 40%, transparent);
+  --logger-shadow: none;
   --logger-healthy: #4fd6a0;
   --logger-danger: #ff9999;
   --logger-warning: #e6c875;
   --logger-info: #84c8ff;
   --logger-debug: #b5a8ff;
 
-  --status-operational: #4fd6a0;
-  --status-degraded: #f2bf6a;
-  --status-down: #ff8fa3;
-  --status-unknown: #97a4c9;
+  --status-operational: #1fa382;
+  --status-degraded: #f59e0b;
+  --status-down: #ef4444;
+  --status-unknown: #4a4a66;
+  --status-operational-ink: #5be0b8;
+  --status-degraded-ink: #f6c25a;
+  --status-down-ink: #ff8f9e;
+  --status-unknown-ink: #a3adcc;
 }
 
 * { box-sizing: border-box; }
@@ -68,7 +77,7 @@ body { margin: 0; min-width: 320px; min-height: 100vh; background: var(--logger-
 button, input { font: inherit; }
 a { color: inherit; text-decoration: none; }
 button { color: inherit; }
-h1, h2, h3, p { margin-top: 0; }
+h1, h2, h3, h4, p { margin-top: 0; }
 
 .visually-hidden {
   position: absolute;
@@ -79,6 +88,7 @@ h1, h2, h3, p { margin-top: 0; }
   white-space: nowrap;
 }
 
+/* Chrome ----------------------------------------------------------------- */
 .shell { min-height: 100vh; background: var(--logger-page); }
 .topbar {
   display: flex;
@@ -90,137 +100,195 @@ h1, h2, h3, p { margin-top: 0; }
   padding-left: max(24px, calc((100vw - 1200px) / 2), env(safe-area-inset-left));
   padding-right: max(24px, calc((100vw - 1200px) / 2), env(safe-area-inset-right));
   border-bottom: 1px solid var(--logger-border);
-  background: color-mix(in srgb, var(--logger-chrome) 92%, transparent);
+  background: color-mix(in srgb, var(--logger-surface) 92%, transparent);
   backdrop-filter: blur(16px);
+}
+/* The status pages keep the header inside the same narrow column as the
+   content, the way a hosted status page does, with no bar across the page. */
+.topbar--narrow {
+  width: min(718px, 100%);
+  min-height: 0;
+  margin: 0 auto;
+  padding: 24px max(24px, env(safe-area-inset-left)) 0;
+  border-bottom: 0;
+  background: transparent;
+  backdrop-filter: none;
 }
 .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
 /* The wordmark, the same mark and width the calendar header uses. */
 .brand__mark { width: 112px; }
-.brand__divider { width: 1px; height: 24px; background: var(--logger-border); }
-.brand__name { font-size: .875rem; font-weight: 650; letter-spacing: .02em; }
+.brand__divider { width: 1px; height: 24px; background: var(--logger-border-strong); }
+.brand__name { font-size: .875rem; font-weight: 600; letter-spacing: .01em; }
 .topbar-actions { display: flex; align-items: center; gap: 10px; }
 
-.page {
-  width: min(1200px, 100%);
+/* The single column every public page lives in: 718px like the reference,
+   14px type, 24px between blocks. ---------------------------------------- */
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  width: min(718px, 100%);
   margin: 0 auto;
-  padding: 48px max(24px, env(safe-area-inset-left)) calc(96px + env(safe-area-inset-bottom));
+  padding: 24px max(24px, env(safe-area-inset-left)) calc(64px + env(safe-area-inset-bottom));
+  font-size: .875rem;
+  line-height: 1.45;
 }
-.eyebrow { margin: 0 0 10px; color: var(--logger-accent); font-size: .72rem; font-weight: 750; letter-spacing: .14em; text-transform: uppercase; }
+.column__actions { display: flex; justify-content: center; }
+.column__footnote { margin: 0; color: var(--logger-muted-soft); font-size: .75rem; line-height: 1.4; text-align: center; }
 
-/* Overall banner ---------------------------------------------------------- */
-.banner {
+/* Content box: a hairline frame, a tinted head, white rows. --------------- */
+.box {
+  border: 1px solid var(--box-tone, var(--logger-border));
+  border-radius: 8px;
+  overflow: visible;
+  background: var(--logger-surface);
+  box-shadow: var(--logger-shadow);
+}
+.box__head {
   display: flex;
   align-items: center;
-  gap: 18px;
-  padding: 24px 28px;
-  border-radius: 14px;
-  background: var(--banner-tone, var(--status-unknown));
-  color: #ffffff;
+  gap: 8px;
+  padding: 14px 16px;
+  border-radius: 7px 7px 0 0;
+  background: var(--box-head, transparent);
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: 1.5;
 }
-.banner--operational { --banner-tone: var(--status-operational); }
-.banner--degraded { --banner-tone: var(--status-degraded); }
-.banner--down { --banner-tone: var(--status-down); }
-.banner--unknown { --banner-tone: var(--status-unknown); }
-.banner__glyph {
-  display: grid;
+.box__head--split { justify-content: space-between; flex-wrap: wrap; gap: 6px 16px; }
+.box__head h1, .box__head h2 { margin: 0; font-size: inherit; font-weight: inherit; letter-spacing: -.012em; }
+.box__range { color: var(--logger-muted-soft); font-size: .875rem; font-weight: 400; font-variant-numeric: tabular-nums; }
+.box__body { padding: 16px; border-top: 1px solid var(--logger-border-soft); }
+.box__body p { margin: 0; }
+.box__body p + p { margin-top: 6px; }
+.box__meta { color: var(--logger-muted-soft); font-size: .8125rem; }
+.box__rows > * + * { border-top: 1px solid var(--logger-border-soft); }
+.box__rows { border-top: 1px solid var(--logger-border-soft); }
+.box__placeholder { padding: 24px 16px; color: var(--logger-muted-soft); text-align: center; }
+
+.box--operational { --box-tone: var(--status-operational); --box-head: color-mix(in srgb, var(--status-operational) 18%, var(--logger-surface)); }
+.box--degraded { --box-tone: var(--status-degraded); --box-head: color-mix(in srgb, var(--status-degraded) 20%, var(--logger-surface)); }
+.box--down { --box-tone: var(--status-down); --box-head: color-mix(in srgb, var(--status-down) 18%, var(--logger-surface)); }
+.box--unknown { --box-tone: var(--status-unknown); --box-head: color-mix(in srgb, var(--status-unknown) 22%, var(--logger-surface)); }
+.box--pending { --box-head: var(--logger-surface-muted); }
+
+/* Status icons: the glyph shape carries the state before colour does. ----- */
+.status-icon {
+  display: inline-grid;
   flex: 0 0 auto;
   place-items: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, .18);
-  color: #ffffff;
-  font-size: 1.3rem;
-  font-weight: 800;
+  width: 16px;
+  height: 16px;
+  color: var(--icon-tone, var(--status-unknown));
+  vertical-align: -3px;
 }
-.banner h1 { margin-bottom: 6px; font-size: clamp(1.4rem, 4vw, 2rem); line-height: 1.15; letter-spacing: -.03em; }
-.banner p { margin: 0; color: rgba(255, 255, 255, .85); font-size: .85rem; line-height: 1.5; }
+.status-icon svg { display: block; width: 16px; height: 16px; }
+.status-icon--operational { --icon-tone: var(--status-operational); }
+.status-icon--degraded { --icon-tone: var(--status-degraded); }
+.status-icon--down { --icon-tone: var(--status-down); }
+.status-icon--unknown { --icon-tone: var(--status-unknown-ink); }
 
-.status-note { margin: 18px 2px 34px; color: var(--logger-muted); font-size: .85rem; line-height: 1.6; }
-
-.headline-uptime { margin-top: 20px; padding: 20px 24px; border: 1px solid var(--logger-border); border-radius: 14px; background: var(--logger-surface-muted); }
-.uptime-figures { display: flex; flex-wrap: wrap; gap: 8px 32px; margin: 0; }
-.uptime-figures div { min-width: 84px; }
-.uptime-figures dt { color: var(--logger-muted); font-size: .68rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
-.uptime-figures dd { margin: 4px 0 0; font-size: 1.05rem; font-weight: 750; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
-.headline-uptime .uptime-figures dd { font-size: 1.5rem; }
-
-/* Status badges: colour is never the only signal. ------------------------- */
-.status-badge {
+/* Application rows ------------------------------------------------------- */
+.group { padding: 12px 16px; }
+.group__row, .component__row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 28px;
+}
+.group__name, .component__name { margin: 0; font-size: .875rem; font-weight: 500; line-height: 1.45; }
+.row__uptime {
+  margin-left: auto;
+  color: var(--logger-muted-soft);
+  font-size: .875rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.group__toggle {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  white-space: nowrap;
-  color: var(--badge-tone, var(--status-unknown));
-  font-size: .72rem;
-  font-weight: 750;
-}
-.status-badge--operational, .status-badge--healthy { --badge-tone: var(--status-operational); }
-.status-badge--degraded { --badge-tone: var(--status-degraded); }
-.status-badge--down, .status-badge--unhealthy { --badge-tone: var(--status-down); }
-.status-badge--unknown { --badge-tone: var(--status-unknown); }
-.status-badge__glyph {
-  display: grid;
-  flex: 0 0 auto;
-  place-items: center;
-  width: 18px;
-  height: 18px;
-  border: 1px solid currentColor;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--badge-tone) 18%, transparent);
-  font-size: .68rem;
+  gap: 6px;
+  min-height: 28px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--logger-muted);
+  cursor: pointer;
+  font-size: .875rem;
   line-height: 1;
 }
-/* Each state also has its own outline shape, so the glyph, the word, and the
-   silhouette all agree before any colour is involved. */
-.status-badge--down .status-badge__glyph, .status-badge--unhealthy .status-badge__glyph { border-radius: 2px; }
-.status-badge--degraded .status-badge__glyph { border-radius: 6px; }
-.status-badge--unknown .status-badge__glyph { border-style: dashed; }
-
-/* Application list -------------------------------------------------------- */
-.section-heading { display: flex; justify-content: space-between; margin: 44px 0 18px; padding-top: 26px; border-top: 1px solid var(--logger-border); }
-.section-heading h2, .logs-panel h2 { margin-bottom: 6px; font-size: 1.35rem; letter-spacing: -.025em; }
-.section-heading p { margin: 0; color: var(--logger-muted); font-size: .88rem; }
-
-.application-list { display: grid; gap: 14px; }
-.application-row { padding: 22px; border: 1px solid var(--logger-border); border-radius: 14px; background: var(--logger-surface); }
-.application-row__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
-.application-row h3 { margin-bottom: 6px; font-size: 1.05rem; }
-.application-row__head p { max-width: 34rem; margin: 0; color: var(--logger-muted); font-size: .83rem; line-height: 1.5; }
-
-.component-rows { display: grid; gap: 18px; margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--logger-border); }
-.component-row { display: grid; gap: 10px; min-width: 0; }
-.component-row__name { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
-.component-row__name strong { font-size: .88rem; }
-.component-row__uptime {
-  margin-left: auto;
-  color: var(--logger-muted);
-  font-size: .82rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
+.group__toggle:hover { color: var(--logger-text); }
+.group__toggle:focus-visible { outline: 2px solid var(--logger-accent); outline-offset: 2px; }
+.chevron { color: var(--logger-border-strong); transition: transform .15s ease, color .15s ease; }
+.group__toggle:hover .chevron { color: var(--logger-text); }
+.chevron--open { transform: rotate(180deg); }
+.group__components { display: grid; gap: 8px; padding: 8px 0 8px 24px; }
+.component { display: grid; gap: 6px; }
+.group__logs {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  color: var(--logger-accent);
+  font-size: .8125rem;
+  font-weight: 600;
 }
-.component-row__uptime small { font-weight: 500; }
+.group__logs:hover { text-decoration: underline; }
 
-/* Past incidents ---------------------------------------------------------- */
-.incidents { margin-top: 48px; padding-top: 28px; border-top: 1px solid var(--logger-border); }
-.incidents h2 { margin-bottom: 8px; font-size: 1.35rem; letter-spacing: -.025em; }
-.incident-day { padding: 18px 0; border-bottom: 1px solid var(--logger-border); }
-.incident-day h3 { margin-bottom: 8px; font-size: .95rem; font-weight: 700; }
-.incident-day__empty { margin: 0; color: var(--logger-muted); font-size: .85rem; }
-.incident-day__list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
-.incident-day__list li { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; font-size: .85rem; }
-.incident-day__list span { color: var(--logger-muted); font-variant-numeric: tabular-nums; }
+/* Info tip --------------------------------------------------------------- */
+.info-tip { position: relative; display: inline-flex; }
+.info-tip__trigger {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--logger-border-strong);
+  cursor: help;
+}
+.info-tip__trigger:hover, .info-tip__trigger:focus-visible { color: var(--logger-muted); }
+.info-tip__trigger:focus-visible { outline: 2px solid var(--logger-accent); outline-offset: 1px; }
+.info-tip__bubble { display: none; top: calc(100% + 4px); left: 50%; width: max-content; max-width: min(280px, 70vw); transform: translateX(-50%); padding: 8px 10px; color: var(--logger-text); font-size: .8125rem; line-height: 1.4; }
+.info-tip:hover .info-tip__bubble, .info-tip:focus-within .info-tip__bubble { display: block; }
 
-/* Ninety-day bar. The track scrolls inside its own box, so no width of
-   viewport can ever make the page body scroll sideways. ------------------- */
-.uptime-bar { min-width: 0; }
-.uptime-bar__scroll { overflow-x: auto; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; }
-.uptime-bar__track { display: flex; gap: 2px; align-items: stretch; min-width: 100%; height: 30px; }
+/* Popover: the little card the bars and the info tips open. -------------- */
+.popover {
+  position: absolute;
+  z-index: 20;
+  border: 1px solid var(--logger-border);
+  border-radius: 6px;
+  background: var(--logger-surface);
+  box-shadow: 0 1px 2px rgba(22, 3, 60, .06), 0 4px 16px rgba(22, 3, 60, .10);
+}
+:root.dark .popover { box-shadow: 0 8px 24px rgba(0, 0, 0, .45); }
+
+/* Ninety-day bar: one pill per day, in a flex row, so no width of viewport
+   can ever make the page body scroll sideways. ---------------------------- */
+.uptime-bar { position: relative; min-width: 0; margin-top: 8px; }
+.uptime-bar__track {
+  display: flex;
+  gap: 2px;
+  align-items: stretch;
+  height: 16px;
+  border-radius: 3px;
+  cursor: crosshair;
+  /* A thumb dragged sideways reads the days; a thumb dragged up or down still
+     scrolls the page, so the bars never trap a phone user. */
+  touch-action: pan-y;
+}
+.uptime-bar__track:focus-visible { outline: 2px solid var(--logger-accent); outline-offset: 3px; }
 .uptime-day {
-  flex: 1 0 4px;
-  min-width: 4px;
-  border-radius: 2px;
+  flex: 1 1 0;
+  min-width: 2px;
+  border-radius: 1.5px;
   background: var(--day-tone, var(--status-unknown));
+  transition: opacity .1s ease;
 }
 .uptime-day--operational { --day-tone: var(--status-operational); }
 .uptime-day--degraded { --day-tone: var(--status-degraded); }
@@ -230,23 +298,88 @@ h1, h2, h3, p { margin-top: 0; }
 .uptime-day--unknown {
   background: repeating-linear-gradient(
     135deg,
-    color-mix(in srgb, var(--status-unknown) 34%, transparent) 0 3px,
-    transparent 3px 6px
+    color-mix(in srgb, var(--status-unknown) 55%, transparent) 0 2px,
+    color-mix(in srgb, var(--status-unknown) 14%, transparent) 2px 4px
   );
-  border: 1px solid color-mix(in srgb, var(--status-unknown) 40%, transparent);
 }
-.uptime-bar__legend { display: flex; align-items: center; gap: 10px; margin-top: 7px; color: var(--logger-muted); font-size: .68rem; }
-.uptime-bar__rule { flex: 1; height: 1px; background: var(--logger-border); }
+.uptime-bar__track:hover .uptime-day:not(.uptime-day--active),
+.uptime-bar__track:focus-visible .uptime-day:not(.uptime-day--active) { opacity: .55; }
+.uptime-day--active { opacity: 1; box-shadow: 0 0 0 1px var(--logger-text); }
 
-.inspect-link { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; margin-top: 6px; color: var(--logger-accent); font-size: .8rem; font-weight: 700; }
+.day-popover {
+  top: 22px;
+  left: clamp(0px, calc(var(--x) - 128px), calc(100% - min(256px, 100%)));
+  width: min(256px, 100%);
+  padding: 4px;
+}
+.day-popover__date { padding: 4px; color: var(--logger-muted-soft); font-size: .875rem; white-space: nowrap; }
+.day-popover__line { display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 4px 8px; border-radius: 4px; font-size: .875rem; }
+.day-popover__line--operational { color: var(--logger-muted-soft); }
+.day-popover__line--degraded, .day-popover__line--down { color: var(--logger-text); font-weight: 500; }
+.day-popover__line--unknown { color: var(--logger-muted-soft); }
+
+/* Buttons --------------------------------------------------------------- */
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: .875rem;
+  font-weight: 500;
+  line-height: 1;
+  transition: background .12s ease, border-color .12s ease;
+}
+.button--primary { border: 1px solid var(--logger-accent); background: var(--logger-accent); color: var(--logger-on-accent); }
+.button--secondary { border: 1px solid var(--logger-border-strong); background: var(--logger-surface); color: var(--logger-text); }
+.button--secondary:hover { background: var(--logger-surface-muted); }
+:root.dark .button--secondary { border-color: var(--logger-border-strong); background: transparent; }
+:root.dark .button--secondary:hover { background: var(--logger-surface-muted); }
 
 /* Signed in without logger/view ------------------------------------------ */
-.access-notice { margin-bottom: 24px; padding: 20px 24px; border: 1px solid color-mix(in srgb, var(--status-degraded) 45%, var(--logger-border)); border-radius: 14px; background: color-mix(in srgb, var(--status-degraded) 8%, var(--logger-surface)); }
-.access-notice h2 { margin-bottom: 8px; font-size: 1.05rem; }
-.access-notice p { max-width: 52rem; margin-bottom: 14px; color: var(--logger-muted); font-size: .85rem; line-height: 1.6; }
-.access-notice code { padding: 1px 5px; border-radius: 4px; background: var(--logger-surface-deep); color: var(--logger-text); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; }
+.access-notice { padding: 16px; border: 1px solid color-mix(in srgb, var(--status-degraded) 55%, var(--logger-border)); border-radius: 8px; background: color-mix(in srgb, var(--status-degraded) 10%, var(--logger-surface)); }
+.access-notice h2 { margin-bottom: 6px; font-size: 1rem; font-weight: 500; }
+.access-notice p { max-width: 52rem; margin-bottom: 12px; color: var(--logger-muted); line-height: 1.5; }
+.access-notice code { padding: 1px 5px; border-radius: 4px; background: var(--logger-surface-deep); color: var(--logger-text); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; }
+
+/* History page ---------------------------------------------------------- */
+.crumbs { display: flex; align-items: center; gap: 8px; color: var(--logger-muted-soft); font-size: .875rem; }
+.crumbs a:hover { color: var(--logger-text); text-decoration: underline; }
+.crumbs [aria-current] { color: var(--logger-text); }
+.history__head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px 16px; margin-top: -8px; padding-bottom: 8px; border-bottom: 1px solid var(--logger-border-soft); }
+.history__head h1 { margin: 0; font-size: 1rem; font-weight: 600; }
+.history__empty { margin: 0; color: var(--logger-muted-soft); }
+.month { display: flex; flex-direction: column; gap: 4px; }
+.month__name { margin: 0 0 8px; font-size: .875rem; font-weight: 600; }
+.day { display: flex; gap: 12px; }
+.day__date { display: flex; flex: 0 0 48px; flex-direction: column; padding-top: 12px; line-height: 1.2; }
+.day__date strong { font-size: 1rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.day__date span { color: var(--logger-muted-soft); font-size: .75rem; font-weight: 500; }
+.day__incidents { display: flex; flex: 1; flex-direction: column; min-width: 0; margin: 0; padding: 0; list-style: none; }
+.incident { display: flex; gap: 12px; padding: 12px 0; border-radius: 8px; }
+.incident__rail { flex: 0 0 4px; margin-left: 12px; border-radius: 1px; background: var(--rail-tone, var(--status-unknown)); }
+.incident--degraded { --rail-tone: var(--status-degraded); }
+.incident--down { --rail-tone: var(--status-down); }
+.incident__body { display: flex; flex: 1; flex-direction: column; gap: 4px; min-width: 0; padding-right: 12px; }
+.incident__title { display: flex; justify-content: space-between; gap: 12px; font-weight: 500; }
+.incident__uptime { flex: 0 0 auto; color: var(--logger-muted-soft); font-size: .75rem; font-weight: 500; font-variant-numeric: tabular-nums; padding-top: 2px; }
+.incident__detail { display: flex; align-items: flex-start; gap: 8px; margin: 0; color: var(--logger-muted); }
+.incident__detail .status-icon { margin-top: 2px; }
 
 /* Log explorer ------------------------------------------------------------ */
+.page {
+  width: min(1200px, 100%);
+  margin: 0 auto;
+  padding: 48px max(24px, env(safe-area-inset-left)) calc(96px + env(safe-area-inset-bottom));
+}
+.eyebrow { margin: 0 0 10px; color: var(--logger-accent); font-size: .72rem; font-weight: 750; letter-spacing: .14em; text-transform: uppercase; }
+.health-badge { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; color: var(--badge-tone, var(--status-unknown-ink)); font-size: .72rem; font-weight: 750; }
+.health-badge--operational { --badge-tone: var(--status-operational-ink); }
+.health-badge--degraded { --badge-tone: var(--status-degraded-ink); }
+.health-badge--down { --badge-tone: var(--status-down-ink); }
 .back-link { display: inline-flex; align-items: center; min-height: 44px; margin-bottom: 20px; color: var(--logger-muted); font-size: .82rem; }
 .back-link:hover { color: var(--logger-text); }
 .detail-page { padding-top: 32px; }
@@ -262,9 +395,9 @@ h1, h2, h3, p { margin-top: 0; }
 .component-tile small { color: var(--logger-muted); font-size: .7rem; }
 
 .logs-panel { border-top: 1px solid var(--logger-border); padding-top: 30px; }
+.logs-panel h2 { margin-bottom: 0; font-size: 1.35rem; letter-spacing: -.025em; }
 .logs-panel__heading { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin-bottom: 24px; }
 .logs-panel__heading .eyebrow { margin-bottom: 7px; }
-.logs-panel h2 { margin-bottom: 0; }
 .mode-switch { display: flex; padding: 3px; border: 1px solid var(--logger-border); border-radius: 9px; background: var(--logger-surface); }
 .mode-switch button { min-height: 38px; padding: 7px 16px; border: 0; border-radius: 6px; background: transparent; color: var(--logger-muted); cursor: pointer; font-size: .75rem; }
 .mode-switch button.active { background: var(--logger-surface-muted); color: var(--logger-text); }
@@ -283,9 +416,6 @@ h1, h2, h3, p { margin-top: 0; }
 .search-field input:focus, .date-fields input:focus { border-color: var(--logger-border-strong); }
 .date-fields { display: flex; grid-column: 1 / span 2; gap: 10px; }
 .date-fields label { flex: 1; }
-.button { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 0 16px; border-radius: 8px; cursor: pointer; font-size: .78rem; font-weight: 750; }
-.button--primary { border: 1px solid var(--logger-accent); background: var(--logger-accent); color: var(--logger-on-accent); }
-.button--secondary { border: 1px solid var(--logger-border); background: var(--logger-surface-muted); color: var(--logger-text); }
 .log-stream { overflow: hidden; border: 1px solid var(--logger-border); border-radius: 12px; background: var(--logger-surface); }
 .log-row { padding: 16px 18px; border-bottom: 1px solid var(--logger-border); }
 .log-row:last-child { border-bottom: 0; }
@@ -302,8 +432,8 @@ h1, h2, h3, p { margin-top: 0; }
 .log-row summary { min-height: 30px; color: var(--logger-muted); cursor: pointer; font-size: .7rem; }
 .log-row pre { overflow: auto; max-height: 320px; margin: 10px 0 0; padding: 12px; border-radius: 7px; background: var(--logger-surface-deep); color: var(--logger-muted); font-size: .7rem; line-height: 1.5; }
 .stream-loading, .inline-error, .empty-state { padding: 30px; text-align: center; color: var(--logger-muted); font-size: .8rem; }
-.inline-error { margin-top: 18px; border: 1px solid color-mix(in srgb, var(--logger-danger) 45%, var(--logger-border)); border-radius: 12px; color: var(--logger-danger); }
-.log-stream .inline-error { margin-top: 0; border: 0; }
+.inline-error { padding: 14px 16px; border: 1px solid color-mix(in srgb, var(--logger-danger) 45%, var(--logger-border)); border-radius: 8px; color: var(--logger-danger); }
+.log-stream .inline-error { border: 0; }
 .empty-state strong, .empty-state span { display: block; }
 .empty-state strong { margin-bottom: 7px; color: var(--logger-text); }
 .load-more { display: flex; margin: 16px auto 0; }
@@ -317,23 +447,29 @@ h1, h2, h3, p { margin-top: 0; }
 @media (max-width: 639px) {
   .page { padding: 32px max(16px, env(safe-area-inset-left)) calc(72px + env(safe-area-inset-bottom)); }
   .topbar { padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
-  .banner { align-items: flex-start; flex-direction: column; gap: 14px; padding: 20px; }
-  .application-row { padding: 18px; }
-  .application-row__head, .detail-title, .logs-panel__heading { align-items: flex-start; flex-direction: column; gap: 10px; }
-  .component-row__uptime { width: 100%; margin-left: 0; }
+  .topbar--narrow { padding-top: 16px; }
+  .topbar--narrow .brand__divider, .topbar--narrow .brand__name { display: none; }
+  .column { gap: 16px; padding: 16px max(16px, env(safe-area-inset-left)) calc(56px + env(safe-area-inset-bottom)); }
+  .group { padding: 12px; }
+  .group__count { display: none; }
+  .group__components { padding-left: 16px; }
+  .day__date { flex-basis: 40px; }
+  .incident__rail { margin-left: 4px; }
+  .detail-title, .logs-panel__heading { align-items: flex-start; flex-direction: column; gap: 10px; }
   .log-row__meta { flex-wrap: wrap; }
   .log-row__meta time { width: 100%; margin-left: 0; }
 }
 
 /* Touch pointers get the full 44px target on every control Logger owns.
    The shared theme toggle and account trigger are deliberately absent:
-   BioTronStyle now extends their hit areas with an invisible overlay, so
-   forcing a min-height here would visibly stretch them and leave Logger the
-   only frontend where that chrome renders a different size. .biotron-button
-   and the logout item stay, because the library does not cover those. */
+   BioTronStyle extends their hit areas with an invisible overlay, so forcing
+   a min-height here would visibly stretch them and leave Logger the only
+   frontend where that chrome renders a different size. .biotron-button and
+   the logout item stay, because the library does not cover those. */
 @media (pointer: coarse) {
   .button,
-  .inspect-link,
+  .group__toggle,
+  .group__logs,
   .back-link,
   .mode-switch button,
   .level-toggle span,
@@ -343,6 +479,9 @@ h1, h2, h3, p { margin-top: 0; }
   .biotron-user-menu__logout {
     min-height: 44px;
   }
+  .info-tip__trigger { width: 32px; height: 32px; }
+  .uptime-bar__track { height: 20px; }
+  .uptime-bar__track:hover .uptime-day:not(.uptime-day--active) { opacity: 1; }
 }
 
 @media (prefers-reduced-motion: reduce) {
