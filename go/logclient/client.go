@@ -1,12 +1,18 @@
-package logger
+// Package logclient sends structured events to Logger's ingest route.
+//
+// Every BioTron Go service uses this one client. The service name is passed
+// in code so that the binary and its Logger catalog id cannot drift apart.
+// An empty LOGGER_INGEST_TOKEN makes the client a no-op, so a service runs
+// unchanged where Logger is absent.
+package logclient
 
 import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -22,70 +28,47 @@ const (
 	Error   Level = "error"
 )
 
-type Config struct {
-	URL        string
-	Token      string
-	Service    string
-	Level      Level
-	HTTPClient *http.Client
-}
-
 type Client struct {
 	endpoint   string
 	token      string
 	service    string
 	minimum    int
 	httpClient *http.Client
+	slots      chan struct{}
 }
 
-func New(config Config) (*Client, error) {
-	if config.URL == "" || config.Token == "" || config.Service == "" {
-		return nil, errors.New("logger URL, token, and service are required")
-	}
-	minimum, ok := severity(config.Level)
+// NewFromEnv reads LOGGER_URL, LOGGER_INGEST_TOKEN, and LOG_LEVEL. It never
+// fails: an invalid LOG_LEVEL means info, and an empty token means disabled.
+func NewFromEnv(service string) *Client {
+	minimum, ok := severity(Level(strings.ToLower(getenv("LOG_LEVEL", string(Info)))))
 	if !ok {
-		return nil, fmt.Errorf("invalid log level %q", config.Level)
-	}
-	httpClient := config.HTTPClient
-	if httpClient == nil {
-		httpClient = &http.Client{Timeout: 2 * time.Second}
+		log.Printf("warning: invalid LOG_LEVEL; defaulting to info")
+		minimum, _ = severity(Info)
 	}
 	return &Client{
-		endpoint:   strings.TrimRight(config.URL, "/") + "/v1/logs",
-		token:      config.Token,
-		service:    config.Service,
+		endpoint:   strings.TrimRight(getenv("LOGGER_URL", "http://logger-api:8080"), "/") + "/v1/logs",
+		token:      os.Getenv("LOGGER_INGEST_TOKEN"),
+		service:    service,
 		minimum:    minimum,
-		httpClient: httpClient,
-	}, nil
+		httpClient: &http.Client{Timeout: 2 * time.Second},
+		slots:      make(chan struct{}, 32),
+	}
 }
 
-func NewFromEnv() (*Client, error) {
-	return New(Config{
-		URL:     getenv("LOGGER_URL", "http://logger-api:8080"),
-		Token:   os.Getenv("LOGGER_INGEST_TOKEN"),
-		Service: os.Getenv("LOGGER_SERVICE"),
-		Level:   Level(strings.ToLower(getenv("LOG_LEVEL", string(Info)))),
-	})
+func (c *Client) Enabled() bool {
+	return c != nil && c.token != ""
 }
 
-func (c *Client) LogDebug(ctx context.Context, message string, payload any) error {
-	return c.log(ctx, Debug, message, payload)
-}
-
-func (c *Client) LogInfo(ctx context.Context, message string, payload any) error {
-	return c.log(ctx, Info, message, payload)
-}
-
-func (c *Client) LogWarning(ctx context.Context, message string, payload any) error {
-	return c.log(ctx, Warning, message, payload)
-}
-
-func (c *Client) LogError(ctx context.Context, message string, payload any) error {
-	return c.log(ctx, Error, message, payload)
-}
-
-func (c *Client) log(ctx context.Context, level Level, message string, payload any) error {
-	current, _ := severity(level)
+// Log sends one event and waits for Logger's answer. Events below LOG_LEVEL
+// are dropped before any request is made.
+func (c *Client) Log(ctx context.Context, level Level, message string, payload any) error {
+	if !c.Enabled() {
+		return nil
+	}
+	current, ok := severity(level)
+	if !ok {
+		return fmt.Errorf("invalid log level %q", level)
+	}
 	if current < c.minimum {
 		return nil
 	}
@@ -116,6 +99,33 @@ func (c *Client) log(ctx context.Context, level Level, message string, payload a
 		return fmt.Errorf("logger returned HTTP %d", response.StatusCode)
 	}
 	return nil
+}
+
+// LogAsync sends in the background with a two-second timeout and at most 32
+// events in flight. Past that it drops the event and says so on the standard
+// log, so a slow Logger can never stall the service.
+func (c *Client) LogAsync(level Level, message string, payload any) {
+	if !c.Enabled() {
+		return
+	}
+	if c.slots != nil {
+		select {
+		case c.slots <- struct{}{}:
+		default:
+			log.Print("structured log delivery busy; dropping event")
+			return
+		}
+	}
+	go func() {
+		if c.slots != nil {
+			defer func() { <-c.slots }()
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		if err := c.Log(ctx, level, message, payload); err != nil {
+			log.Printf("structured log delivery failed: %v", err)
+		}
+	}()
 }
 
 func severity(level Level) (int, bool) {

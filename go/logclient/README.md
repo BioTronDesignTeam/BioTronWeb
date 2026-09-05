@@ -1,25 +1,31 @@
-# Go logging client
+# logclient
 
-Import `github.com/BioTronDesignTeam/biotron/go/logclient` from BioTron Go services.
-The client reads:
+The Go client BioTron services use to send events to Logger. Import
+`github.com/BioTronDesignTeam/biotron/go/logclient`. Each backend's `go.mod`
+replaces that path with `../../../go/logclient`, and `go.work` lists it, so
+one copy serves every service and a change needs no version bump.
 
-- `LOGGER_URL` — defaults to `http://logger-api:8080`
-- `LOGGER_INGEST_TOKEN` — shared ingestion secret
-- `LOGGER_SERVICE` — canonical component id from Logger's catalog
-- `LOG_LEVEL` — `debug`, `info`, `warning`, or `error`; defaults to `info`
+The client reads three variables:
 
-`LOG_LEVEL` is enforced before an HTTP request is made:
+- `LOGGER_URL`, default `http://logger-api:8080`.
+- `LOGGER_INGEST_TOKEN`, the ingest secret every sender shares. Empty means
+  send nothing, so a service runs unchanged where Logger is absent.
+- `LOG_LEVEL`: `debug`, `info`, `warning`, or `error`; default `info`. An
+  invalid value logs a warning and means `info`.
+
+The service name is passed in code so that the binary and its Logger
+catalog id cannot drift apart:
 
 ```go
-client, err := logger.NewFromEnv()
-if err != nil {
-    log.Fatal(err)
+events := logclient.NewFromEnv("exo-api")
+events.LogAsync(logclient.Info, "Exo API started", map[string]any{"port": port})
+if err := events.Log(ctx, logclient.Info, "Exo API stopping", nil); err != nil {
+	log.Printf("final log event failed: %v", err)
 }
-
-_ = client.LogInfo(ctx, "telemetry batch stored", map[string]any{
-    "samples": len(samples),
-})
 ```
 
-Keep calls to all four methods in the application. Change `LOG_LEVEL` per
-container instead of removing debug calls from source.
+`Log` sends one event and waits. `LogAsync` returns at once: it sends in a
+goroutine with a two-second timeout and at most 32 events in flight, and
+past that it drops the event and says so on the standard log. Events below
+`LOG_LEVEL` are dropped before any request. Keep debug calls in the code
+and lower `LOG_LEVEL` per container instead.
