@@ -100,7 +100,7 @@ external merge sort that spills roughly 9.5 MB to disk on every cache miss.
 | `backend/` | Go/Fiber ingest, query, health-monitor, cache, and authorization API |
 | `client/` | Reusable Go logging client with source-side `LOG_LEVEL` filtering |
 | `prisma/` | Logger-owned Postgres schema and migrations |
-| `.devcontainer/` | Node 22 + Go 1.27 development environment |
+| `.devcontainer/` | Node 24 + Go 1.27 development environment |
 | `docker-compose.yml` | Logger containers on the shared `biotron` network |
 
 ## Run locally

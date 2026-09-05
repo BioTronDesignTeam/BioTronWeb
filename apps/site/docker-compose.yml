@@ -1,7 +1,7 @@
 name: biotron-site
 
 services:
-  web:
+  site-web:
     build:
       context: ../..
       dockerfile: apps/site/frontend/Dockerfile

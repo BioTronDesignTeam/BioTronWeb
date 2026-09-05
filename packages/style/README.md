@@ -9,7 +9,7 @@ button primitives without requiring Tailwind or another CSS framework.
 | Path | What |
 |---|---|
 | `src/` | Exported React components, types, and shared CSS |
-| `.devcontainer/` | Node 22 development environment on Debian slim |
+| `.devcontainer/` | Node 24 development environment on Debian slim |
 | `package.json` | Library exports and package metadata |
 
 Reopen the repository in its devcontainer, then use

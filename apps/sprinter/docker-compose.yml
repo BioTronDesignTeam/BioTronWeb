@@ -1,7 +1,7 @@
 name: biotron-sprinter
 
 services:
-  migrate:
+  sprinter-migrate:
     build:
       context: ./prisma
       dockerfile: Dockerfile
@@ -11,7 +11,7 @@ services:
       - biotron
     restart: "no"
 
-  bot:
+  sprinter-bot:
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -28,11 +28,11 @@ services:
         aliases:
           - sprinter
     depends_on:
-      migrate:
+      sprinter-migrate:
         condition: service_completed_successfully
     restart: unless-stopped
 
-  web:
+  sprinter-web:
     build:
       context: ../..
       dockerfile: apps/sprinter/frontend/Dockerfile
@@ -45,7 +45,7 @@ services:
         aliases:
           - sprinter-web
     depends_on:
-      - bot
+      - sprinter-bot
     restart: unless-stopped
 
 networks:

@@ -14,7 +14,7 @@
 #   docker compose -f docker-compose.yml -f docker-compose.dev.yml up
 
 services:
-  api:
+  logger-api:
     environment:
       BIOTRON_ENV: development
       AUTH_DISABLED: "true"

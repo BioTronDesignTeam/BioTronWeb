@@ -1,7 +1,7 @@
 name: biotron-oauth-manager
 
 services:
-  migrate:
+  auth-migrate:
     build:
       context: ./prisma
       dockerfile: Dockerfile
@@ -11,7 +11,7 @@ services:
       - biotron
     restart: "no"
 
-  api:
+  auth-api:
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -42,11 +42,11 @@ services:
         aliases:
           - oauth-manager
     depends_on:
-      migrate:
+      auth-migrate:
         condition: service_completed_successfully
     restart: unless-stopped
 
-  web:
+  auth-web:
     build:
       context: ../..
       dockerfile: apps/auth/frontend/Dockerfile
@@ -59,7 +59,7 @@ services:
         aliases:
           - oauth-web
     depends_on:
-      - api
+      - auth-api
     restart: unless-stopped
 
 networks:

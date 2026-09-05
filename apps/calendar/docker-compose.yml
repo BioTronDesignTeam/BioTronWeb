@@ -1,7 +1,7 @@
 name: biotron-calendar
 
 services:
-  migrate:
+  calendar-migrate:
     build:
       context: ./prisma
       dockerfile: Dockerfile
@@ -11,7 +11,7 @@ services:
       - biotron
     restart: "no"
 
-  api:
+  calendar-api:
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -37,11 +37,11 @@ services:
         aliases:
           - calendar-api
     depends_on:
-      migrate:
+      calendar-migrate:
         condition: service_completed_successfully
     restart: unless-stopped
 
-  web:
+  calendar-web:
     build:
       context: ../..
       dockerfile: apps/calendar/frontend/Dockerfile
@@ -56,7 +56,7 @@ services:
         aliases:
           - calendar-web
     depends_on:
-      - api
+      - calendar-api
     restart: unless-stopped
 
 networks:

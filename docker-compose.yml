@@ -1,15 +1,16 @@
-# The whole platform from one place. `docker compose up -d` here starts the
-# edge, Postgres, Redis, and every product; each included file still works on
-# its own from its folder, exactly as the separate repositories did.
+# The six products from one place. `docker compose up -d --build` here builds
+# and starts every app; each included file still works on its own from its
+# folder, and each needs its own .env beside it (copy .env.example).
 #
-# Every app file needs its own .env beside it (copy .env.example). infra owns
-# the `biotron` and `biotron-edge` networks, so it is listed first.
+# infra/ is not included on purpose: it owns the Postgres data, Redis, and the
+# edge, and it outlives any app deploy. Start it first, on its own:
+#
+#   docker compose -f infra/docker-compose.yml --env-file infra/.env up -d
+#
+# It creates the external `biotron` network every app below joins.
 name: biotron
 
 include:
-  - path: infra/docker-compose.yml
-    project_directory: infra
-    env_file: infra/.env
   - path: apps/site/docker-compose.yml
     project_directory: apps/site
     env_file: apps/site/.env

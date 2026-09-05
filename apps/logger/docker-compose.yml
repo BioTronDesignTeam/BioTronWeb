@@ -1,7 +1,7 @@
 name: biotron-logger
 
 services:
-  migrate:
+  logger-migrate:
     build:
       context: ./prisma
       dockerfile: Dockerfile
@@ -11,7 +11,7 @@ services:
       - biotron
     restart: "no"
 
-  api:
+  logger-api:
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -37,11 +37,11 @@ services:
         aliases:
           - logger-api
     depends_on:
-      migrate:
+      logger-migrate:
         condition: service_completed_successfully
     restart: unless-stopped
 
-  web:
+  logger-web:
     build:
       context: ../..
       dockerfile: apps/logger/frontend/Dockerfile
@@ -55,7 +55,7 @@ services:
         aliases:
           - logger-web
     depends_on:
-      - api
+      - logger-api
     restart: unless-stopped
 
 networks:

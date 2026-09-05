@@ -9,7 +9,7 @@ and the lightweight upcoming-events view on the BioTron public site.
 - `frontend/` is React, TypeScript, Tailwind, and shared `BioTronStyle` UI.
 - `backend/` is the Go/Fiber public API, permission-enforced editor API, recurrence engine, and feed generator.
 - `prisma/` owns the `calendar` schema and its PostgreSQL migrations.
-- `.devcontainer/` provides Node 22, Go 1.27, Prisma tooling, and forwarded UI/API ports.
+- `.devcontainer/` provides Node 24, Go 1.27, Prisma tooling, and forwarded UI/API ports.
 - `docker-compose.yml` runs the migration, API, and static frontend containers on the shared `biotron` network.
 
 PostgreSQL is the source of truth. Redis is intentionally not part of the
