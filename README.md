@@ -30,9 +30,10 @@ Each app keeps its own `README.md`, `.env.example`, `docker-compose.yml`, and
 - **`go.work`** lists every backend and `go/logclient`. Each backend keeps its
   own `go.mod`, so an image compiles only its own code, but locally everything
   resolves together.
-- **`docker-compose.yml`** includes `infra` and every app. `docker compose up -d`
-  here starts the platform; `docker compose up -d --build web` inside an app
-  folder still works alone.
+- **`docker-compose.yml`** includes every app, and not `infra`, which owns the
+  databases and the edge and starts first on its own. `docker compose up -d`
+  here starts the six apps; `docker compose up -d --build logger-web` builds
+  one service, and each app's compose file still works alone from its folder.
 
 Ports do not change: Auth 5173/8080, Exo 5174/8081, Logger 5175/8082,
 Calendar 5176/8083, Site 5177, Sprinter 5178/8084.
@@ -109,9 +110,9 @@ container installs its own binaries and never touches the host's.
 
 Verified at assembly: every frontend builds from the workspace, the root lint
 runs, every Go module builds under `go.work`, and the root compose
-configuration parses with the includes. Not yet done: no image has been built
-and no container started from here, because the containers on the host still
-run from the separate repositories on the same ports.
+configuration parses with the includes. Since then every image has been built
+from here and every container on the host runs from this repository, on the
+same ports as before.
 
 ## What is still to do
 
