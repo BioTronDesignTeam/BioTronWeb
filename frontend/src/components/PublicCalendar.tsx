@@ -33,8 +33,8 @@ function EventButton({ occurrence, onClick, compact = false }: { occurrence: Occ
   const tone = occurrence.scope_kind === 'TEAM'
     ? 'border-brand bg-brand/10 dark:bg-brand/25'
     : occurrence.scope_kind === 'PROJECT'
-      ? 'border-deep bg-deep/8 dark:border-soft dark:bg-soft/15'
-      : 'border-soft bg-soft/40 dark:border-soft/70 dark:bg-soft/10';
+      ? 'border-deep bg-deep/8 dark:border-link dark:bg-highlight/70'
+      : 'border-soft bg-soft/40 dark:border-line-strong dark:bg-surface-2';
   return (
     <button type="button" onClick={onClick} className={`w-full border-l-[3px] text-left hover:brightness-95 dark:hover:brightness-110 ${tone} ${compact ? 'rounded-md px-2 py-1.5' : 'min-h-11 rounded-xl px-3 py-3'}`}>
       <span className={`block truncate font-semibold ${compact ? 'text-xs' : 'text-sm'}`}>{occurrence.title}</span>
@@ -137,7 +137,7 @@ export function PublicCalendar(props: PublicCalendarProps) {
                 )}
                 <section className="grid grid-cols-[4.5rem_1fr] gap-3 px-4 py-5">
                   <div>
-                    <p className="text-xs font-bold uppercase tracking-wider text-brand dark:text-soft">{dayLabel(key).split(',')[0]}</p>
+                    <p className="text-xs font-bold uppercase tracking-wider text-brand dark:text-link">{dayLabel(key).split(',')[0]}</p>
                     <p className="mt-1 text-2xl font-semibold">{Number(key.slice(-2))}</p>
                   </div>
                   <div className="min-w-0 space-y-2">

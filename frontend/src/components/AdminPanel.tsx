@@ -85,12 +85,12 @@ export function AdminPanel(props: AdminPanelProps) {
   }
 
   const tabClass = (name: 'events' | 'scopes') =>
-    `min-h-11 flex-1 rounded-full px-5 text-sm font-semibold sm:flex-none ${tab === name ? 'bg-white text-ink dark:bg-soft dark:text-ink' : 'text-ink/60 dark:text-white/60'}`;
+    `min-h-11 flex-1 rounded-full px-5 text-sm font-semibold sm:flex-none ${tab === name ? 'bg-white text-ink dark:bg-highlight dark:text-white' : 'text-ink/60 dark:text-white/60'}`;
 
   return (
     <main className="mx-auto w-full max-w-[1200px] px-4 pb-16 pt-8 sm:px-6 lg:px-8">
       <div className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div><p className="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-brand dark:text-soft">Calendar editor</p><h1 className="text-3xl font-semibold tracking-[-0.04em] sm:text-4xl">Keep the schedule useful.</h1></div>
+        <div><p className="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-brand dark:text-link">Calendar editor</p><h1 className="text-3xl font-semibold tracking-[-0.04em] sm:text-4xl">Keep the schedule useful.</h1></div>
         {tab === 'events' && <button type="button" onClick={props.onCreateEvent} className="min-h-12 rounded-full bg-deep px-6 text-sm font-semibold text-white hover:bg-brand">Create event</button>}
       </div>
       <div className="mb-6 flex gap-1 rounded-full bg-ink/5 p-1 dark:bg-surface-2 sm:w-fit">

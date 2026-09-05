@@ -86,18 +86,18 @@ export function SubscribePanel({ scopes, onClose }: SubscribePanelProps) {
       </p>
       <div className="space-y-6">
         <section>
-          <h3 className="mb-2 text-xs font-bold uppercase tracking-[0.16em] text-brand dark:text-soft">Everything</h3>
+          <h3 className="mb-2 text-xs font-bold uppercase tracking-[0.16em] text-brand dark:text-link">Everything</h3>
           {row('All BioTron events', 'Every public event across the team, projects, and subteams.')}
         </section>
         {sorted.root && (
           <section>
-            <h3 className="mb-2 text-xs font-bold uppercase tracking-[0.16em] text-brand dark:text-soft">Teamwide</h3>
+            <h3 className="mb-2 text-xs font-bold uppercase tracking-[0.16em] text-brand dark:text-link">Teamwide</h3>
             {row('Teamwide events', 'Only events assigned to the whole BioTron team.', sorted.root.id)}
           </section>
         )}
         {sorted.projects.map((project) => (
           <section key={project.id}>
-            <h3 className="mb-2 text-xs font-bold uppercase tracking-[0.16em] text-brand dark:text-soft">{project.name}</h3>
+            <h3 className="mb-2 text-xs font-bold uppercase tracking-[0.16em] text-brand dark:text-link">{project.name}</h3>
             <div className="space-y-2">
               {row(`${project.name} project`, `Only project-wide ${project.name} events.`, project.id)}
               {(sorted.subteamsByProject.get(project.id) || []).map((subteam) => (

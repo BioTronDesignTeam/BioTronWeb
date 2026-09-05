@@ -26,7 +26,7 @@ export function Header({ auth, managing, onManage, onPublic, onLoggedOut }: Head
           {auth.can_write && (
             <button
               type="button"
-              className="min-h-11 rounded-full px-4 text-sm font-semibold text-brand hover:bg-soft/30 dark:text-soft dark:hover:bg-white/10"
+              className="min-h-11 rounded-full px-4 text-sm font-semibold text-brand hover:bg-soft/30 dark:text-link dark:hover:bg-white/10"
               onClick={managing ? onPublic : onManage}
             >
               {managing ? <><span className="sm:hidden">View</span><span className="hidden sm:inline">View calendar</span></> : 'Manage'}

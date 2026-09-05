@@ -183,7 +183,7 @@ export function EventEditor({ event, scopes, onClose, onSave }: EventEditorProps
         {error && <p className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800 dark:bg-red-950/30 dark:text-red-200">{error}</p>}
         <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <button type="button" onClick={onClose} className="min-h-11 rounded-full px-5 text-sm font-semibold hover:bg-soft/25 dark:hover:bg-white/10">Cancel</button>
-          <button type="submit" value="draft" disabled={saving} className="min-h-11 rounded-full border border-deep px-5 text-sm font-semibold text-deep disabled:opacity-50 dark:border-soft dark:text-soft">{event ? 'Save changes' : 'Save draft'}</button>
+          <button type="submit" value="draft" disabled={saving} className="min-h-11 rounded-full border border-deep px-5 text-sm font-semibold text-deep disabled:opacity-50 dark:border-link dark:text-link">{event ? 'Save changes' : 'Save draft'}</button>
           {!event && <button type="submit" value="publish" disabled={saving} className="min-h-11 rounded-full bg-deep px-5 text-sm font-semibold text-white hover:bg-brand disabled:opacity-50">Create and publish</button>}
         </div>
       </form>

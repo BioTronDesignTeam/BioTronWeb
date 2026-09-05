@@ -125,7 +125,7 @@ export function ScopeFilter({ scopes, selected, onChange }: ScopeFilterProps) {
           <line x1="10" y1="19" x2="16" y2="19" />
         </svg>
         {selected.length > 0 && (
-          <span className="absolute right-0.5 top-0.5 grid h-5 min-w-5 place-items-center rounded-full bg-brand px-1 text-[11px] font-bold leading-none text-white dark:bg-soft dark:text-ink">
+          <span className="absolute right-0.5 top-0.5 grid h-5 min-w-5 place-items-center rounded-full bg-brand px-1 text-[11px] font-bold leading-none text-white">
             {selected.length}
           </span>
         )}
@@ -143,7 +143,7 @@ export function ScopeFilter({ scopes, selected, onChange }: ScopeFilterProps) {
               type="button"
               onClick={() => onChange([])}
               disabled={selected.length === 0}
-              className="rounded-full px-2 py-1 text-xs font-semibold text-brand hover:bg-soft/30 disabled:opacity-40 dark:text-soft dark:hover:bg-white/10"
+              className="rounded-full px-2 py-1 text-xs font-semibold text-brand hover:bg-soft/30 disabled:opacity-40 dark:text-link dark:hover:bg-white/10"
             >
               Clear
             </button>
