@@ -47,7 +47,8 @@ export default function OrgTab({
   useEffect(() => {
     if (selectedMemberId === null) return;
     if (!window.matchMedia('(max-width: 1023px)').matches) return;
-    detailRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    detailRef.current?.scrollIntoView({ block: 'start', behavior: reduceMotion ? 'auto' : 'smooth' });
   }, [selectedMemberId]);
 
   return (
