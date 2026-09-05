@@ -160,20 +160,6 @@ function UptimeBar({ buckets, days }: { buckets: HistoryBucket[]; days: number }
   );
 }
 
-function UptimeFigures({
-  values,
-}: {
-  values: { uptime_24h: number | null; uptime_7d: number | null; uptime_90d: number | null };
-}) {
-  return (
-    <dl className="uptime-figures">
-      <div><dt>24 hours</dt><dd>{uptimeLabel(values.uptime_24h)}</dd></div>
-      <div><dt>7 days</dt><dd>{uptimeLabel(values.uptime_7d)}</dd></div>
-      <div><dt>90 days</dt><dd>{uptimeLabel(values.uptime_90d)}</dd></div>
-    </dl>
-  );
-}
-
 function Shell({
   children,
   session,
@@ -267,10 +253,12 @@ function ApplicationRow({
               <div className="component-row__name">
                 <StatusBadge state={component.state} compact />
                 <strong>{component.name}</strong>
-                <small>Checked {relativeTime(component.checked_at)}</small>
+                <span className="component-row__uptime">
+                  {uptimeLabel(component.uptime_90d)}
+                  <small> uptime</small>
+                </span>
               </div>
               {buckets.length > 0 && <UptimeBar buckets={buckets} days={days} />}
-              <UptimeFigures values={component} />
             </div>
           );
         })}
@@ -282,6 +270,83 @@ function ApplicationRow({
         </a>
       )}
     </article>
+  );
+}
+
+const INCIDENT_DAYS = 14;
+const incidentDateFormatter = new Intl.DateTimeFormat(undefined, {
+  weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
+});
+
+/**
+ * Past incidents, read back out of the same daily history the bars are drawn
+ * from. Logger has no separate incident record, so a day counts as an incident
+ * when a component spent part of it degraded or down. A day with no data is not
+ * an incident: nobody was watching, which is a different claim.
+ */
+function IncidentHistory({
+  history,
+  applications,
+}: {
+  history: ComponentHistory[];
+  applications: StatusApplication[];
+}) {
+  // Component names repeat across applications: three of them are called "Web"
+  // and three "API". An incident line has to name the application too, or it
+  // says nothing about what was down.
+  const applicationNames = useMemo(
+    () => new Map(applications.map((application) => [application.id, application.name])),
+    [applications],
+  );
+
+  const byDate = useMemo(() => {
+    const index = new Map<string, { name: string; bucket: HistoryBucket }[]>();
+    for (const component of history) {
+      const application = applicationNames.get(component.application_id);
+      const name = application ? `${application} · ${component.name}` : component.name;
+      for (const bucket of component.buckets) {
+        if (bucket.state !== 'degraded' && bucket.state !== 'down') continue;
+        index.set(bucket.date, [...(index.get(bucket.date) ?? []), { name, bucket }]);
+      }
+    }
+    return index;
+  }, [history, applicationNames]);
+
+  const dates = useMemo(() => {
+    const out: string[] = [];
+    const cursor = new Date();
+    for (let day = 0; day < INCIDENT_DAYS; day += 1) {
+      out.push(cursor.toISOString().slice(0, 10));
+      cursor.setDate(cursor.getDate() - 1);
+    }
+    return out;
+  }, []);
+
+  return (
+    <section className="incidents" aria-label="Past incidents">
+      <h2>Past incidents</h2>
+      {dates.map((date) => {
+        const entries = byDate.get(date) ?? [];
+        return (
+          <div className="incident-day" key={date}>
+            <h3>{incidentDateFormatter.format(new Date(`${date}T12:00:00`))}</h3>
+            {entries.length === 0 ? (
+              <p className="incident-day__empty">No incidents reported.</p>
+            ) : (
+              <ul className="incident-day__list">
+                {entries.map((entry) => (
+                  <li key={`${date}-${entry.name}`}>
+                    <StatusBadge state={entry.bucket.state} />
+                    <strong>{entry.name}</strong>
+                    <span>{uptimeLabel(entry.bucket.uptime)} available</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        );
+      })}
+    </section>
   );
 }
 
@@ -350,21 +415,12 @@ function StatusPage({
         {error && <div className="inline-error">{error}</div>}
 
         {overall && (
-          <section className="headline-uptime" aria-label="Platform uptime">
-            <UptimeFigures values={overall} />
-          </section>
+          <p className="status-note">
+            Uptime over the past {HISTORY_DAYS} days: {uptimeLabel(overall.uptime_90d)}.
+            {' '}Last 24 hours {uptimeLabel(overall.uptime_24h)}, last 7 days {uptimeLabel(overall.uptime_7d)}.
+            {session.allowed ? ' Select an application to inspect its logs.' : ''}
+          </p>
         )}
-
-        <section className="section-heading">
-          <div>
-            <h2>Applications</h2>
-            <p>
-              {session.allowed
-                ? 'Select an application to inspect its logs.'
-                : 'Component availability over the last 90 days.'}
-            </p>
-          </div>
-        </section>
 
         <div className="application-list">
           {status?.applications.map((application) => (
@@ -377,6 +433,8 @@ function StatusPage({
             />
           ))}
         </div>
+
+        <IncidentHistory history={history} applications={status?.applications ?? []} />
       </main>
     </Shell>
   );

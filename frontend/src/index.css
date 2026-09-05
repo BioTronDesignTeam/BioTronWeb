@@ -112,11 +112,10 @@ h1, h2, h3, p { margin-top: 0; }
   display: flex;
   align-items: center;
   gap: 18px;
-  padding: 24px;
-  border: 1px solid var(--logger-border);
-  border-left: 6px solid var(--banner-tone, var(--status-unknown));
+  padding: 24px 28px;
   border-radius: 14px;
-  background: var(--logger-surface);
+  background: var(--banner-tone, var(--status-unknown));
+  color: #ffffff;
 }
 .banner--operational { --banner-tone: var(--status-operational); }
 .banner--degraded { --banner-tone: var(--status-degraded); }
@@ -129,13 +128,15 @@ h1, h2, h3, p { margin-top: 0; }
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  background: color-mix(in srgb, var(--banner-tone) 20%, transparent);
-  color: var(--banner-tone);
+  background: rgba(255, 255, 255, .18);
+  color: #ffffff;
   font-size: 1.3rem;
   font-weight: 800;
 }
-.banner h1 { margin-bottom: 6px; font-size: clamp(1.5rem, 4.5vw, 2.4rem); line-height: 1.1; letter-spacing: -.03em; }
-.banner p { margin: 0; color: var(--logger-muted); font-size: .85rem; line-height: 1.5; }
+.banner h1 { margin-bottom: 6px; font-size: clamp(1.4rem, 4vw, 2rem); line-height: 1.15; letter-spacing: -.03em; }
+.banner p { margin: 0; color: rgba(255, 255, 255, .85); font-size: .85rem; line-height: 1.5; }
+
+.status-note { margin: 18px 2px 34px; color: var(--logger-muted); font-size: .85rem; line-height: 1.6; }
 
 .headline-uptime { margin-top: 20px; padding: 20px 24px; border: 1px solid var(--logger-border); border-radius: 14px; background: var(--logger-surface-muted); }
 .uptime-figures { display: flex; flex-wrap: wrap; gap: 8px 32px; margin: 0; }
@@ -191,9 +192,24 @@ h1, h2, h3, p { margin-top: 0; }
 .component-row { display: grid; gap: 10px; min-width: 0; }
 .component-row__name { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
 .component-row__name strong { font-size: .88rem; }
-.component-row__name small { margin-left: auto; color: var(--logger-muted); font-size: .7rem; }
-.component-row .uptime-figures { gap: 6px 24px; }
-.component-row .uptime-figures dd { font-size: .85rem; }
+.component-row__uptime {
+  margin-left: auto;
+  color: var(--logger-muted);
+  font-size: .82rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.component-row__uptime small { font-weight: 500; }
+
+/* Past incidents ---------------------------------------------------------- */
+.incidents { margin-top: 48px; padding-top: 28px; border-top: 1px solid var(--logger-border); }
+.incidents h2 { margin-bottom: 8px; font-size: 1.35rem; letter-spacing: -.025em; }
+.incident-day { padding: 18px 0; border-bottom: 1px solid var(--logger-border); }
+.incident-day h3 { margin-bottom: 8px; font-size: .95rem; font-weight: 700; }
+.incident-day__empty { margin: 0; color: var(--logger-muted); font-size: .85rem; }
+.incident-day__list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.incident-day__list li { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; font-size: .85rem; }
+.incident-day__list span { color: var(--logger-muted); font-variant-numeric: tabular-nums; }
 
 /* Ninety-day bar. The track scrolls inside its own box, so no width of
    viewport can ever make the page body scroll sideways. ------------------- */
@@ -304,9 +320,7 @@ h1, h2, h3, p { margin-top: 0; }
   .banner { align-items: flex-start; flex-direction: column; gap: 14px; padding: 20px; }
   .application-row { padding: 18px; }
   .application-row__head, .detail-title, .logs-panel__heading { align-items: flex-start; flex-direction: column; gap: 10px; }
-  .component-row__name small { width: 100%; margin-left: 0; }
-  .headline-uptime { padding: 18px; }
-  .headline-uptime .uptime-figures dd { font-size: 1.2rem; }
+  .component-row__uptime { width: 100%; margin-left: 0; }
   .log-row__meta { flex-wrap: wrap; }
   .log-row__meta time { width: 100%; margin-left: 0; }
 }
