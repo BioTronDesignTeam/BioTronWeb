@@ -1,0 +1,64 @@
+name: biotron-logger
+
+services:
+  migrate:
+    build:
+      context: ./prisma
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL in .env}
+    networks:
+      - biotron
+    restart: "no"
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL in .env}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      LOGGER_INGEST_TOKEN: ${LOGGER_INGEST_TOKEN:?set LOGGER_INGEST_TOKEN in .env}
+      OAUTH_MANAGER_URL: ${OAUTH_MANAGER_URL:-http://oauth-manager:8080}
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-127.0.0.1,::1,172.16.0.0/12}
+      REDIS_TAIL_SIZE: ${REDIS_TAIL_SIZE:-500}
+      HEALTH_INTERVAL: ${HEALTH_INTERVAL:-15s}
+      HEALTH_HISTORY_INTERVAL: ${HEALTH_HISTORY_INTERVAL:-5m}
+      HEALTH_TIMEOUT: ${HEALTH_TIMEOUT:-3s}
+      STATUS_CACHE_TTL: ${STATUS_CACHE_TTL:-30s}
+      STATUS_RATE_LIMIT: ${STATUS_RATE_LIMIT:-60}
+      INGEST_RATE_LIMIT: ${INGEST_RATE_LIMIT:-600}
+      LOGGER_CATALOG_JSON: ${LOGGER_CATALOG_JSON:-}
+      PORT: "8080"
+    ports:
+      - "127.0.0.1:${API_PORT:-8082}:8080"
+    networks:
+      biotron:
+        aliases:
+          - logger-api
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-/api}
+        VITE_IDP_URL: ${VITE_IDP_URL:-http://localhost:8080}
+    ports:
+      - "127.0.0.1:${WEB_PORT:-5175}:80"
+    networks:
+      biotron:
+        aliases:
+          - logger-web
+    depends_on:
+      - api
+    restart: unless-stopped
+
+networks:
+  biotron:
+    external: true
+    name: biotron

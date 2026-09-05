@@ -1,0 +1,35 @@
+{
+  "name": "Logger",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+  "forwardPorts": [5175, 8082],
+  "portsAttributes": {
+    "5175": {
+      "label": "Logger portal (Vite)",
+      "onAutoForward": "openBrowserOnce"
+    },
+    "8082": {
+      "label": "Logger API",
+      "onAutoForward": "notify"
+    }
+  },
+  "runArgs": [
+    "--add-host=host.docker.internal:host-gateway"
+  ],
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  "remoteUser": "node",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "bradlc.vscode-tailwindcss",
+        "golang.go",
+        "Prisma.prisma"
+      ]
+    }
+  }
+}

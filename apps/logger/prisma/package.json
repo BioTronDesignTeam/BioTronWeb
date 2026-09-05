@@ -1,0 +1,16 @@
+{
+  "name": "logger-prisma",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "migrate": "prisma migrate dev",
+    "deploy": "prisma migrate deploy",
+    "generate": "prisma generate",
+    "studio": "prisma studio",
+    "format": "prisma format",
+    "validate": "prisma validate"
+  },
+  "devDependencies": {
+    "prisma": "6.12.0"
+  }
+}
