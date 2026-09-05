@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import type { AppInfo, Grant, OrgMember, Permission } from '../api';
 import type { OrgSelection } from '../hooks/useOrgSelection';
 import OrgMemberDetail from './OrgMemberDetail';
@@ -37,6 +38,18 @@ export default function OrgTab({
   onUnban: (id: number) => void;
   onSetManager: (id: number, manager: boolean) => void;
 }) {
+  // Below the lg breakpoint the detail stacks under the member list, so a tap
+  // on a member would otherwise change something off screen. Scroll it up
+  // under the sticky header; on desktop the two sit side by side and nothing
+  // moves.
+  const detailRef = useRef<HTMLDivElement>(null);
+  const selectedMemberId = selectedMember?.github_id ?? null;
+  useEffect(() => {
+    if (selectedMemberId === null) return;
+    if (!window.matchMedia('(max-width: 1023px)').matches) return;
+    detailRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }, [selectedMemberId]);
+
   return (
     <section className={panel}>
       <div className="grid grid-cols-1 lg:min-h-[28rem] lg:grid-cols-[minmax(0,16rem)_1fr]">
@@ -45,7 +58,7 @@ export default function OrgTab({
           selectedMemberId={selection.memberId}
           onSelect={onSelectMember}
         />
-        <div className="min-w-0">
+        <div ref={detailRef} className="min-w-0 scroll-mt-20">
           {!selectedMember ? (
             <div className="flex h-full items-center justify-center px-6 py-16 text-sm text-slate-500 dark:text-slate-400">
               Select a member to manage access.
