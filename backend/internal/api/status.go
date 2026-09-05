@@ -49,11 +49,17 @@ type publicComponent struct {
 	CheckedAt *time.Time `json:"checked_at"`
 }
 
+// publicApplication carries its own uptime figures as well as its components'.
+// The status page shows one bar per application until a visitor expands it, so
+// the roll-up has to exist before any component is on screen.
 type publicApplication struct {
 	ID          string            `json:"id"`
 	Name        string            `json:"name"`
 	Description string            `json:"description"`
 	State       string            `json:"state"`
+	Uptime24h   *float64          `json:"uptime_24h"`
+	Uptime7d    *float64          `json:"uptime_7d"`
+	Uptime90d   *float64          `json:"uptime_90d"`
 	Components  []publicComponent `json:"components"`
 }
 
@@ -75,10 +81,21 @@ type componentHistory struct {
 	Buckets       []historyBucket `json:"buckets"`
 }
 
+// applicationHistory is the daily series for one application: every
+// component's observed time on each day, combined. Aggregating durations rather
+// than averaging the components' percentages keeps a component with a shorter
+// history from dragging the application's figure around.
+type applicationHistory struct {
+	ID      string          `json:"id"`
+	Name    string          `json:"name"`
+	Buckets []historyBucket `json:"buckets"`
+}
+
 type historyResponse struct {
-	Days       int                `json:"days"`
-	Timezone   string             `json:"timezone"`
-	Components []componentHistory `json:"components"`
+	Days         int                  `json:"days"`
+	Timezone     string               `json:"timezone"`
+	Applications []applicationHistory `json:"applications"`
+	Components   []componentHistory   `json:"components"`
 }
 
 // status serves the public status page. It contains no health detail string, no
@@ -155,10 +172,12 @@ func (s *Server) buildStatus(ctx context.Context) (statusResponse, error) {
 			Components:  make([]publicComponent, 0, len(application.Components)),
 		}
 		componentStates := make([]string, 0, len(application.Components))
+		applicationTotals := make([]uptime.Result, len(windows))
 
 		for _, component := range application.Components {
 			results := computeWindows(samples[component.ID], windows, s.maxGap)
 			for i, result := range results {
+				applicationTotals[i] = uptime.Combine(applicationTotals[i], result)
 				totals[i] = uptime.Combine(totals[i], result)
 			}
 
@@ -176,6 +195,9 @@ func (s *Server) buildStatus(ctx context.Context) (statusResponse, error) {
 		}
 
 		public.State = rollUp(componentStates)
+		public.Uptime24h = applicationTotals[0].Percent()
+		public.Uptime7d = applicationTotals[1].Percent()
+		public.Uptime90d = applicationTotals[2].Percent()
 		applicationStates = append(applicationStates, public.State)
 		response.Applications = append(response.Applications, public)
 	}
@@ -196,28 +218,47 @@ func (s *Server) buildHistory(ctx context.Context, days int) (historyResponse, e
 	}
 
 	windows := uptime.DailyWindows(now, days, s.location)
-	response := historyResponse{Days: days, Timezone: s.location.String(), Components: make([]componentHistory, 0)}
+	response := historyResponse{
+		Days:         days,
+		Timezone:     s.location.String(),
+		Applications: make([]applicationHistory, 0, len(applications)),
+		Components:   make([]componentHistory, 0),
+	}
 	for _, application := range applications {
+		applicationResults := make([]uptime.Result, len(windows))
 		for _, component := range application.Components {
 			results := uptime.Bucketed(samples[component.ID], windows, s.maxGap)
-			buckets := make([]historyBucket, 0, len(windows))
-			for i, window := range windows {
-				percentage := results[i].Percent()
-				buckets = append(buckets, historyBucket{
-					Date:   window.Start.Format("2006-01-02"),
-					Uptime: percentage,
-					State:  bucketState(percentage),
-				})
+			for i, result := range results {
+				applicationResults[i] = uptime.Combine(applicationResults[i], result)
 			}
 			response.Components = append(response.Components, componentHistory{
 				ID:            component.ID,
 				Name:          component.Name,
 				ApplicationID: application.ID,
-				Buckets:       buckets,
+				Buckets:       dailyBuckets(windows, results),
 			})
 		}
+		response.Applications = append(response.Applications, applicationHistory{
+			ID:      application.ID,
+			Name:    application.Name,
+			Buckets: dailyBuckets(windows, applicationResults),
+		})
 	}
 	return response, nil
+}
+
+// dailyBuckets turns one Result per window into the public daily shape.
+func dailyBuckets(windows []uptime.Window, results []uptime.Result) []historyBucket {
+	buckets := make([]historyBucket, 0, len(windows))
+	for i, window := range windows {
+		percentage := results[i].Percent()
+		buckets = append(buckets, historyBucket{
+			Date:   window.Start.Format("2006-01-02"),
+			Uptime: percentage,
+			State:  bucketState(percentage),
+		})
+	}
+	return buckets
 }
 
 // samples fetches, once per cache period, the full ninety days both public

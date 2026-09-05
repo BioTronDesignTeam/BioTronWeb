@@ -156,6 +156,51 @@ func TestStatusReportsTimeWeightedUptimeAndNullWithoutData(t *testing.T) {
 	}
 }
 
+// The page shows one figure and one bar per application until a visitor
+// expands it, so each application must carry its own roll-up. It combines the
+// components' observed durations: one component down for a quarter of the day
+// and another fully up is 87.5% of component-time, not the 75% of the worse one
+// or a guess from percentages that hide how long each was watched.
+func TestStatusRollsComponentUptimeUpToTheApplication(t *testing.T) {
+	dayAgo := statusNow.Add(-24 * time.Hour)
+	sixHoursAgo := statusNow.Add(-6 * time.Hour)
+	store := &fakeStore{history: map[string][]model.HealthPoint{
+		"calendar-api": heartbeats(dayAgo, statusNow, true),
+		"calendar-web": append(heartbeats(dayAgo, sixHoursAgo, true), heartbeats(sixHoursAgo, statusNow, false)...),
+	}}
+	app := statusApp(t, store, deniedAuthorizer{})
+
+	var payload statusResponse
+	getJSON(t, app, "/v1/status", &payload)
+	application := payload.Applications[0]
+	if application.Uptime24h == nil || *application.Uptime24h != 87.5 {
+		t.Fatalf("application uptime_24h = %v, want 87.5 (42 up hours of 48 observed)", application.Uptime24h)
+	}
+	if application.Components[0].Uptime24h == nil || *application.Components[0].Uptime24h != 100 {
+		t.Fatalf("api uptime_24h = %v", application.Components[0].Uptime24h)
+	}
+	if application.Components[1].Uptime24h == nil || *application.Components[1].Uptime24h != 75 {
+		t.Fatalf("web uptime_24h = %v", application.Components[1].Uptime24h)
+	}
+	// One application, so the headline figure is the same roll-up.
+	if payload.Overall.Uptime24h == nil || *payload.Overall.Uptime24h != *application.Uptime24h {
+		t.Fatalf("overall uptime_24h = %v, want the single application's %v", payload.Overall.Uptime24h, *application.Uptime24h)
+	}
+}
+
+// An application with no observed component in a window reports null, exactly
+// as a component does. Unknown time never becomes a reassuring number.
+func TestStatusApplicationWithoutHistoryIsNull(t *testing.T) {
+	app := statusApp(t, &fakeStore{}, deniedAuthorizer{})
+
+	var payload statusResponse
+	getJSON(t, app, "/v1/status", &payload)
+	application := payload.Applications[0]
+	if application.Uptime24h != nil || application.Uptime7d != nil || application.Uptime90d != nil {
+		t.Fatalf("unobserved application reported uptime %v %v %v, want null", application.Uptime24h, application.Uptime7d, application.Uptime90d)
+	}
+}
+
 func TestStatusMarksStaleHealthUnknown(t *testing.T) {
 	store := &fakeStore{health: map[string]model.Health{
 		"calendar-api": {Service: "calendar-api", OK: true, CheckedAt: statusNow.Add(-time.Hour)},
@@ -208,6 +253,42 @@ func TestHistoryReturnsFixedWidthDailyBuckets(t *testing.T) {
 	}
 	if payload.Components[1].Buckets[0].State != stateUnknown {
 		t.Fatalf("component with no history should be unknown throughout")
+	}
+}
+
+// The daily bar drawn for a collapsed application is the same roll-up as the
+// headline figure, computed day by day. A day on which one component was up
+// throughout and the other down throughout is a 50% day for the application,
+// and a day nobody watched either component stays unknown.
+func TestHistoryRollsComponentDaysUpToTheApplication(t *testing.T) {
+	twoDaysAgo := statusNow.Add(-48 * time.Hour)
+	store := &fakeStore{history: map[string][]model.HealthPoint{
+		"calendar-api": heartbeats(twoDaysAgo, statusNow, true),
+		"calendar-web": heartbeats(twoDaysAgo, statusNow, false),
+	}}
+	app := statusApp(t, store, deniedAuthorizer{})
+
+	var payload historyResponse
+	getJSON(t, app, "/v1/status/history?days=90", &payload)
+	if len(payload.Applications) != 1 {
+		t.Fatalf("applications = %d, want one per catalog application", len(payload.Applications))
+	}
+	application := payload.Applications[0]
+	if application.ID != "calendar" || application.Name != "BioTron Calendar" {
+		t.Fatalf("application identity = %q %q", application.ID, application.Name)
+	}
+	if len(application.Buckets) != 90 {
+		t.Fatalf("application has %d buckets, want exactly 90", len(application.Buckets))
+	}
+	if first := application.Buckets[0]; first.State != stateUnknown || first.Uptime != nil {
+		t.Fatalf("oldest application bucket = %#v, want unknown with a null uptime", first)
+	}
+	last := application.Buckets[len(application.Buckets)-1]
+	if last.State != stateDown || last.Uptime == nil || *last.Uptime != 50 {
+		t.Fatalf("newest application bucket = %#v, want a 50%% day marked down", last)
+	}
+	if last.Date != payload.Components[0].Buckets[len(payload.Components[0].Buckets)-1].Date {
+		t.Fatalf("application and component buckets are not aligned on the same days")
 	}
 }
 
