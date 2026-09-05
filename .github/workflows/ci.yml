@@ -40,7 +40,7 @@ jobs:
               - 'package.json'
               - 'package-lock.json'
               - 'tsconfig.base.json'
-              - 'eslint.config.js'
+              - '.oxlintrc.json'
             gowork:
               - 'go.work'
               - 'go.work.sum'
@@ -106,7 +106,9 @@ jobs:
       - run: npm ci --ignore-scripts --include-workspace-root --workspace packages/style --workspace apps/${{ matrix.app }}/frontend
       - run: npm run build -w packages/style
       - run: npm run build -w apps/${{ matrix.app }}/frontend
-      - run: npx eslint apps/${{ matrix.app }}/frontend/src
+      # Oxlint reads .oxlintrc.json at the root; type-aware rules resolve
+      # through the app's own tsconfig.
+      - run: npx oxlint apps/${{ matrix.app }}/frontend/src
 
   backend:
     name: backend ${{ matrix.app }}

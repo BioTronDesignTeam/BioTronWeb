@@ -45,7 +45,8 @@ in exactly one place so it cannot drift:
 | Tool | Version | Declared in |
 |---|---|---|
 | Node | 24 | every Dockerfile, the devcontainer, `.github/workflows` |
-| TypeScript | 6.0 | root `package.json` (the newest typescript-eslint accepts) |
+| TypeScript | 7.0 | root `package.json` |
+| Linter | Oxlint, type-aware | root `package.json` and `.oxlintrc.json` |
 | Vite, React plugin | 8.2, 6.1 | root `package.json` |
 | React, React DOM | 19.2 | each app's `package.json`, same range |
 | Tailwind | 4.3 | root `package.json`; an app opts in by importing it |
@@ -62,7 +63,7 @@ An app's own `package.json` lists only what that app alone needs, such as
 npm ci                                   # every frontend and the library, once
 npm run build                            # builds packages/style, then each app
 npm run build -w apps/logger/frontend    # one app
-npm run lint                             # one configuration for all frontends
+npm run lint                             # Oxlint, type-aware, one configuration for all frontends
 go work sync                             # after changing any go.mod
 docker compose up -d                     # the whole platform (needs each app's .env)
 ```
@@ -100,5 +101,5 @@ run from the separate repositories on the same ports.
 - The OAuthManager permission-check client that Logger, Exo, and Calendar each
   hand-roll belongs in `go/authcheck`. It is not extracted here.
 - The CI workflows under `.github/workflows` are written but have never run.
-- The twelve React hook lint findings are warnings; each app should clear its
-  own and the rules then return to errors.
+- The React hook and effect findings Oxlint reports are warnings; each app
+  should clear its own and the rules then return to errors.

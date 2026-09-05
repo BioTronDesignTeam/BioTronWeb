@@ -1,0 +1,40 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "unicorn", "oxc", "react", "jsx-a11y", "import"],
+  "options": {
+    "typeAware": true
+  },
+  "env": {
+    "browser": true,
+    "es2024": true
+  },
+  "ignorePatterns": [
+    "**/dist/**",
+    "**/node_modules/**",
+    "apps/*/prisma/**",
+    "go/**",
+    "infra/**"
+  ],
+  "categories": {
+    "correctness": "error"
+  },
+  "rules": {
+    "react/hooks": "error",
+    "react/iframe-missing-sandbox": "error",
+    "react/exhaustive-effect-dependencies": "warn",
+    "react/only-export-components": "warn",
+    "react/no-unstable-nested-components": "warn",
+    "react/jsx-no-constructed-context-values": "warn",
+    "react/no-array-index-key": "warn",
+    "react/set-state-in-effect": "warn",
+    "react/immutability": "warn",
+    "react/refs": "warn",
+    "import/no-cycle": "warn"
+  },
+  "overrides": [
+    {
+      "files": ["**/*.config.ts", "packages/style/scripts/**", "packages/style/src/vite.js"],
+      "env": { "node": true }
+    }
+  ]
+}
