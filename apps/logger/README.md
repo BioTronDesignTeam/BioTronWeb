@@ -164,9 +164,39 @@ Auth, Exo, and Calendar send events through the shared Go client in
 `go/logclient`, reporting as `oauth-manager`, `exo-api`, and
 `calendar-api`. The client reads `LOGGER_URL` (default
 `http://logger-api:8080`), `LOGGER_INGEST_TOKEN`, and `LOG_LEVEL`
-(default `info`), and sends nothing when the token is empty. Logger
-writes its own start and stop events straight into the store as
-`logger-api`.
+(default `info`), and sends nothing when the token is empty.
+
+Logger writes its own events straight into the store as `logger-api`.
+Posting them to `/v1/logs` would make the request log record the logging,
+one more event for every event.
+
+| Message | Level | Payload |
+|---------|-------|---------|
+| `Logger API started` | info | `port` |
+| `Read authentication disabled` | warning | — |
+| `HTTP request completed` | info; warning on 4xx; error on 5xx | `method`, `path`, `status`, `duration_ms`, and `error` when the request failed |
+| `Component down` | warning | `component`, and `detail` from the probe |
+| `Component recovered` | info | `component`, `detail`, `down_for_s` |
+| `Authorization service unavailable` | error | `error` from the call to Auth |
+| `Logger API stopping` | info | — |
+
+The request log stays quiet on `/v1/status`, `/v1/status/history`,
+`/v1/session`, and `/v1/logs`. The first three are what the status page
+polls; the last carries every event the platform sends, and a row for the
+request that carried a row says nothing. All four still speak when they
+fail, so a `400` on `/v1/logs` names the service sending what Logger
+cannot store. Requests refused with `429`, and ingest refused with `401`,
+record nothing: both come from the internet, and one row per attempt would
+let an attacker write into the audit trail at the rate limit.
+
+The monitor reports a component only when its state flips, so a poll that
+finds nothing changed is silent, and a component already healthy at
+startup says nothing at all.
+
+A store failure is printed on stdout and nowhere else, because the event
+reporting it would go to the store that just refused one. `docker logs
+logger-api` is where a dead database, a dead cache, and a dropped event
+appear.
 
 ## Storage
 

@@ -9,9 +9,18 @@ import (
 	"sync"
 	"time"
 
+	"github.com/BioTronDesignTeam/biotron/go/logclient"
+
 	"github.com/BioTronDesignTeam/Logger/backend/internal/catalog"
 	"github.com/BioTronDesignTeam/Logger/backend/internal/model"
+	"github.com/BioTronDesignTeam/Logger/backend/internal/selflog"
 )
+
+// Recorder receives the events the monitor raises. *selflog.Recorder satisfies
+// it; the tests pass a collector that keeps them in memory.
+type Recorder interface {
+	LogAsync(level logclient.Level, message string, payload any)
+}
 
 type Store interface {
 	SetLatestHealth(context.Context, model.Health) error
@@ -27,11 +36,13 @@ type Store interface {
 type Monitor struct {
 	store           Store
 	catalog         *catalog.Catalog
+	events          Recorder
 	client          *http.Client
 	timeout         time.Duration
 	interval        time.Duration
 	historyInterval time.Duration
 	last            map[string]persistedState
+	observed        map[string]observation
 }
 
 type persistedState struct {
@@ -39,15 +50,30 @@ type persistedState struct {
 	persistedAt time.Time
 }
 
-func New(store Store, serviceCatalog *catalog.Catalog, interval, historyInterval, timeout time.Duration) *Monitor {
+// observation is what the last poll saw. It is kept apart from persistedState
+// because history takes a row on a change or on a heartbeat, so a state that
+// flips twice between two rows would otherwise pass unreported. downSince
+// holds the time the component was first seen down, which the recovery event
+// turns into a duration.
+type observation struct {
+	ok        bool
+	downSince time.Time
+}
+
+func New(store Store, serviceCatalog *catalog.Catalog, events Recorder, interval, historyInterval, timeout time.Duration) *Monitor {
+	if events == nil {
+		events = selflog.Discard{}
+	}
 	return &Monitor{
 		store:           store,
 		catalog:         serviceCatalog,
+		events:          events,
 		client:          &http.Client{Timeout: timeout},
 		timeout:         timeout,
 		interval:        interval,
 		historyInterval: historyInterval,
 		last:            make(map[string]persistedState),
+		observed:        make(map[string]observation),
 	}
 }
 
@@ -92,6 +118,7 @@ func (m *Monitor) poll(ctx context.Context) {
 		if err := m.store.SetLatestHealth(ctx, health); err != nil {
 			log.Printf("cache health for %s: %v", health.Service, err)
 		}
+		m.note(health)
 
 		previous, exists := m.last[health.Service]
 		shouldPersist := !exists || previous.ok != health.OK || health.CheckedAt.Sub(previous.persistedAt) >= m.historyInterval
@@ -102,6 +129,35 @@ func (m *Monitor) poll(ctx context.Context) {
 			}
 			m.last[health.Service] = persistedState{ok: health.OK, persistedAt: health.CheckedAt}
 		}
+	}
+}
+
+// note reports the poll on which a component's state flipped. A component
+// already down when Logger starts is reported once; one already up says
+// nothing, because a fleet of "everything is fine" rows at boot buries the one
+// line that matters.
+//
+// An event about the database or the cache is written to that same database,
+// so the two components that can least afford to go unreported are the two
+// whose event may not land. Stdout still carries the store failure.
+func (m *Monitor) note(health model.Health) {
+	previous, seen := m.observed[health.Service]
+	switch {
+	case (!seen || previous.ok) && !health.OK:
+		m.observed[health.Service] = observation{downSince: health.CheckedAt}
+		m.events.LogAsync(logclient.Warning, "Component down", map[string]any{
+			"component": health.Service,
+			"detail":    health.Detail,
+		})
+	case seen && !previous.ok && health.OK:
+		payload := map[string]any{"component": health.Service, "detail": health.Detail}
+		if !previous.downSince.IsZero() {
+			payload["down_for_s"] = int64(health.CheckedAt.Sub(previous.downSince) / time.Second)
+		}
+		m.observed[health.Service] = observation{ok: true}
+		m.events.LogAsync(logclient.Info, "Component recovered", payload)
+	default:
+		m.observed[health.Service] = observation{ok: health.OK, downSince: previous.downSince}
 	}
 }
 

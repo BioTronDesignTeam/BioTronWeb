@@ -14,9 +14,13 @@ import (
 	"github.com/gofiber/fiber/v3/middleware/limiter"
 	"github.com/gofiber/fiber/v3/middleware/recover"
 
+	"github.com/BioTronDesignTeam/biotron/go/logclient"
+	"github.com/BioTronDesignTeam/biotron/go/logclient/fiberlog"
+
 	"github.com/BioTronDesignTeam/Logger/backend/internal/auth"
 	"github.com/BioTronDesignTeam/Logger/backend/internal/catalog"
 	"github.com/BioTronDesignTeam/Logger/backend/internal/model"
+	"github.com/BioTronDesignTeam/Logger/backend/internal/selflog"
 )
 
 type Store interface {
@@ -43,6 +47,11 @@ type Options struct {
 	// keyed off that value, so an empty list means all of them collapse into
 	// one bucket holding the edge proxy's own bridge address.
 	TrustedProxies []string
+	// Events receives the request log and the events the API raises itself.
+	// Logger records its own events by writing into its store, not by posting
+	// to its own ingest route, so this is *selflog.Recorder in the service and
+	// a collector in the tests.
+	Events fiberlog.Sink
 	// Now is injectable so tests can pin a window without sleeping.
 	Now func() time.Time
 }
@@ -66,6 +75,9 @@ func (o Options) withDefaults() Options {
 	if o.Now == nil {
 		o.Now = time.Now
 	}
+	if o.Events == nil {
+		o.Events = selflog.Discard{}
+	}
 	return o
 }
 
@@ -73,6 +85,7 @@ type Server struct {
 	store          Store
 	catalog        *catalog.Catalog
 	authorizer     auth.Authorizer
+	events         fiberlog.Sink
 	ingestToken    string
 	healthInterval time.Duration
 	maxGap         time.Duration
@@ -92,6 +105,7 @@ func New(store Store, serviceCatalog *catalog.Catalog, authorizer auth.Authorize
 		store:          store,
 		catalog:        serviceCatalog,
 		authorizer:     authorizer,
+		events:         options.Events,
 		ingestToken:    options.IngestToken,
 		healthInterval: options.HealthInterval,
 		// A stretch longer than three heartbeats means nobody was watching.
@@ -125,6 +139,30 @@ func New(store Store, serviceCatalog *catalog.Catalog, authorizer auth.Authorize
 			return c.Status(code).JSON(fiber.Map{"error": message})
 		},
 	})
+
+	// First, ahead of recover, so a panic is logged as the 500 the caller got.
+	//
+	// Quiet covers the three routes the status page polls on every load and the
+	// ingest route. Ingest is quiet for a reason of its own: an event for every
+	// accepted event would double the warehouse, one row for the event and one
+	// for the request that carried it. A refused ingest still speaks, because a
+	// 400 says one of our own services is sending what this one cannot store.
+	app.Use(fiberlog.New(options.Events, fiberlog.Options{
+		Quiet: []string{"/v1/status", "/v1/status/history", "/v1/session", "/v1/logs"},
+		Skip: func(c fiber.Ctx, status int) bool {
+			// These requests come from the internet. One warning row per refused
+			// attempt would hand an attacker a write into the audit trail at the
+			// rate limit itself: 600 rows a minute per address on ingest alone,
+			// enough to bury a real intrusion in noise. A throttled request is
+			// therefore dropped, and so is an ingest turned away for a bad
+			// token. The limiter already bounds both, and neither tells an
+			// operator anything the limiter has not counted.
+			if status == fiber.StatusTooManyRequests {
+				return true
+			}
+			return status == fiber.StatusUnauthorized && c.Path() == "/v1/logs"
+		},
+	}))
 	app.Use(recover.New())
 
 	app.Get("/health", server.health)
@@ -197,6 +235,10 @@ func (s *Server) requireIngestToken(c fiber.Ctx) error {
 func (s *Server) requireRead(c fiber.Ctx) error {
 	decision, err := s.authorizer.Authorize(c.Context(), c.Get(fiber.HeaderCookie))
 	if err != nil {
+		// Auth is unreachable, so every operator is locked out of the log
+		// explorer. The 503 the caller gets says nothing about why.
+		log.Printf("authorize read: %v", err)
+		s.events.LogAsync(logclient.Error, "Authorization service unavailable", map[string]any{"error": err.Error()})
 		return fiber.NewError(fiber.StatusServiceUnavailable, "authorization service unavailable")
 	}
 	if !decision.Authenticated {
@@ -219,6 +261,11 @@ func (s *Server) session(c fiber.Ctx) error {
 		// is the safe answer: it grants nothing and offers a sign-in button that
 		// will work again once OAuthManager is back.
 		log.Printf("session check: %v", err)
+		// The visitor sees a sign-in button that cannot work. Only a request
+		// carrying a cookie reaches this line -- Authorize answers an empty
+		// cookie header without calling out -- so an anonymous flood cannot
+		// turn this into a write into the warehouse.
+		s.events.LogAsync(logclient.Error, "Authorization service unavailable", map[string]any{"error": err.Error()})
 		decision = auth.Decision{}
 	}
 	return c.JSON(fiber.Map{"authenticated": decision.Authenticated, "allowed": decision.Allowed})

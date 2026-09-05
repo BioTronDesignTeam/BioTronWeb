@@ -29,20 +29,20 @@ type Config struct {
 
 func Load() Config {
 	return Config{
-		Port:                  getenv("PORT", "8080"),
-		DatabaseURL:           os.Getenv("DATABASE_URL"),
-		RedisURL:              getenv("REDIS_URL", "redis://127.0.0.1:6379/0"),
-		IngestToken:           os.Getenv("LOGGER_INGEST_TOKEN"),
-		OAuthManagerURL:       strings.TrimRight(getenv("OAUTH_MANAGER_URL", "http://oauth-manager:8080"), "/"),
-		AuthDisabled:          getbool("AUTH_DISABLED", false),
-		Environment:           strings.TrimSpace(os.Getenv("BIOTRON_ENV")),
-		CatalogJSON:           os.Getenv("LOGGER_CATALOG_JSON"),
+		Port:            getenv("PORT", "8080"),
+		DatabaseURL:     os.Getenv("DATABASE_URL"),
+		RedisURL:        getenv("REDIS_URL", "redis://127.0.0.1:6379/0"),
+		IngestToken:     os.Getenv("LOGGER_INGEST_TOKEN"),
+		OAuthManagerURL: strings.TrimRight(getenv("OAUTH_MANAGER_URL", "http://oauth-manager:8080"), "/"),
+		AuthDisabled:    getbool("AUTH_DISABLED", false),
+		Environment:     strings.TrimSpace(os.Getenv("BIOTRON_ENV")),
+		CatalogJSON:     os.Getenv("LOGGER_CATALOG_JSON"),
 		// Peers whose Cf-Connecting-Ip header may be believed. Only the edge
 		// proxy sets that header (Server/nginx/snippets/proxy-headers.conf
 		// overwrites whatever the client sent), so widening this list past the
 		// edge network would let any client choose its own rate-limit bucket.
-		TrustedProxies: splitCSV(getenv("TRUSTED_PROXIES", "127.0.0.1,::1")),
-		TailSize:       getint("REDIS_TAIL_SIZE", 500),
+		TrustedProxies:        splitCSV(getenv("TRUSTED_PROXIES", "127.0.0.1,::1")),
+		TailSize:              getint("REDIS_TAIL_SIZE", 500),
 		HealthInterval:        getduration("HEALTH_INTERVAL", 15*time.Second),
 		HealthHistoryInterval: getduration("HEALTH_HISTORY_INTERVAL", 5*time.Minute),
 		HealthTimeout:         getduration("HEALTH_TIMEOUT", 3*time.Second),
