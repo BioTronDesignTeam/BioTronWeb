@@ -14,7 +14,8 @@ Public, no authentication:
 - Keeps the latest health state per component in Redis.
 - Records health transitions and periodic snapshots in Postgres.
 - Publishes overall, per-application, and per-component status, uptime over the
-  last 24 hours, 7 days, and 90 days, and a 90-day daily history bar.
+  last 24 hours, 7 days, and 90 days, and a 90-day daily history bar for every
+  application and every component.
 - Exposes only a coarse `operational` / `degraded` / `down` / `unknown` state.
   Health detail strings and catalog health URLs stay internal, because they
   embed hostnames, ports, and raw dial errors.
@@ -26,6 +27,24 @@ Behind `logger/view`:
   durable log warehouse.
 - Provides recent and historical application log views with level, text, and
   time filters.
+
+## The status page
+
+The page follows the layout of a hosted status page: one narrow column, an
+overall banner, and a single **System status** card with one row per
+application. A collapsed row is a name, a 90-day figure, and a 90-day bar. The
+`N components` control unfolds the application's components beneath it, each
+with its own figure and bar, so the whole platform fits on one screen until
+somebody asks for more.
+
+Pointing at a day in any bar, or focusing the bar and using the arrow keys,
+opens a popover naming the day and what happened on it. `/history` lists the
+days that had incidents, grouped by month; it is derived from the same daily
+history the bars draw, because Logger keeps no separate incident record. A day
+nobody was watching is never listed as an incident.
+
+An application's figure and bar are the roll-up of its components' observed
+time, computed server-side by the same maths as the headline figure below.
 
 ## How uptime is computed
 
@@ -124,8 +143,8 @@ without signing in; the API is bound to `http://127.0.0.1:8082`.
 | Method | Route | Authentication | Purpose |
 |---|---|---|---|
 | `GET` | `/health` | public | Postgres + Redis readiness |
-| `GET` | `/v1/status` | public | Overall, per-application, and per-component state with 24h/7d/90d uptime |
-| `GET` | `/v1/status/history?days=90` | public | One uptime bucket per `America/Toronto` day, oldest first |
+| `GET` | `/v1/status` | public | Overall, per-application, and per-component state, each with 24h/7d/90d uptime |
+| `GET` | `/v1/status/history?days=90` | public | One uptime bucket per `America/Toronto` day, oldest first, per application and per component |
 | `GET` | `/v1/session` | public | Always HTTP 200 `{authenticated, allowed}` |
 | `POST` | `/v1/logs` | ingestion bearer token | Store one structured event |
 | `GET` | `/v1/apps` | OAuthManager `logger/view` | Application/component status with health detail |
