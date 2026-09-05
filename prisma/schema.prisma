@@ -20,8 +20,6 @@ model Operator {
   lastLoginAt  DateTime        @default(now()) @map("last_login_at") @db.Timestamptz(6)
   sessions     Session[]
   grants       Grant[]
-  requests     AccessRequest[] @relation("Requester")
-  reviews      AccessRequest[] @relation("Reviewer")
 
   @@map("operators")
 }
@@ -78,7 +76,6 @@ model Permission {
   description String @default("")
 
   grants   Grant[]
-  requests AccessRequest[]
 
   @@id([appId, key])
   @@map("permissions")
@@ -95,23 +92,4 @@ model Grant {
   @@id([operatorId, appId, permissionKey])
   @@index([appId])
   @@map("grants")
-}
-
-model AccessRequest {
-  id            String     @id @default(cuid())
-  requesterId   BigInt     @map("requester_id")
-  requester     Operator   @relation("Requester", fields: [requesterId], references: [githubId], onDelete: Cascade)
-  appId         String     @map("app_id")
-  permissionKey String     @map("permission_key")
-  permission    Permission @relation(fields: [appId, permissionKey], references: [appId, key], onDelete: Cascade)
-  status        String     @default("pending") // pending | approved | denied
-  reviewedBy    BigInt?    @map("reviewed_by")
-  reviewer      Operator?  @relation("Reviewer", fields: [reviewedBy], references: [githubId], onDelete: SetNull)
-  createdAt     DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
-  reviewedAt    DateTime?  @map("reviewed_at") @db.Timestamptz(6)
-
-  @@index([status])
-  @@index([requesterId])
-  @@index([appId])
-  @@map("access_requests")
 }

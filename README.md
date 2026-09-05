@@ -2,7 +2,9 @@
 
 Central GitHub OAuth + per-app permissions for BioTron tools. Operators sign in
 with GitHub (org membership); each product defines its own named capability
-catalog. Privileged users approve or deny access requests in the UI.
+catalog. There is no request queue: an operator asks for access in a meeting or
+on Discord, and a manager grants it from the Org tab. My access shows each
+operator what they currently hold.
 
 Products can opt into independently generated daily guest keys that rotate at
 Eastern midnight. Managers and superusers reveal or copy them from the Keys
@@ -55,7 +57,7 @@ credentials.
 
 Register a GitHub OAuth App under BioTronDesignTeam with callback
 `http://localhost:8080/auth/github/callback`. Put your GitHub numeric user id in
-`SUPERUSER_GITHUB_IDS` so the first login can approve requests.
+`SUPERUSER_GITHUB_IDS` so the first login can grant permissions.
 
 Default host ports: API **8080** and UI **5173**. The GitHub OAuth callback is
 registered against `8080`, so this API port is fixed while the other BioTron

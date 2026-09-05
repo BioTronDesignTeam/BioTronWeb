@@ -13,7 +13,6 @@ import (
 )
 
 var ErrNotFound = errors.New("not found")
-var ErrConflict = errors.New("conflict")
 var ErrBanned = errors.New("banned")
 
 // GuestGitHubID is the sentinel operator for daily-key guest sessions.
@@ -85,20 +84,6 @@ type Grant struct {
 	AppID         string    `json:"app_id"`
 	PermissionKey string    `json:"permission_key"`
 	CreatedAt     time.Time `json:"created_at"`
-}
-
-type AccessRequest struct {
-	ID              string     `json:"id"`
-	RequesterID     int64      `json:"requester_id"`
-	RequesterLogin  string     `json:"requester_login"`
-	AppID           string     `json:"app_id"`
-	AppName         string     `json:"app_name"`
-	PermissionKey   string     `json:"permission_key"`
-	PermissionLabel string     `json:"permission_label"`
-	Status          string     `json:"status"`
-	ReviewedBy      *int64     `json:"reviewed_by,omitempty"`
-	CreatedAt       time.Time  `json:"created_at"`
-	ReviewedAt      *time.Time `json:"reviewed_at,omitempty"`
 }
 
 type OrgMember struct {
@@ -381,178 +366,6 @@ func (s *Store) DeleteGrant(ctx context.Context, operatorID int64, appID, permis
 func (s *Store) DeleteAllGrants(ctx context.Context, operatorID int64) error {
 	_, err := s.pool.Exec(ctx, `DELETE FROM grants WHERE operator_id = $1`, operatorID)
 	return err
-}
-
-func (s *Store) CreateAccessRequest(ctx context.Context, id string, requesterID int64, appID, permissionKey string) error {
-	if _, err := s.GetPermission(ctx, appID, permissionKey); err != nil {
-		return err
-	}
-	has, err := s.HasGrant(ctx, requesterID, appID, permissionKey)
-	if err != nil {
-		return err
-	}
-	if has {
-		return fmt.Errorf("%w: already granted", ErrConflict)
-	}
-	row := s.pool.QueryRow(ctx, `
-		SELECT 1 FROM access_requests
-		WHERE requester_id = $1 AND app_id = $2 AND permission_key = $3 AND status = 'pending'
-	`, requesterID, appID, permissionKey)
-	var one int
-	if err := row.Scan(&one); err == nil {
-		return fmt.Errorf("%w: pending request exists", ErrConflict)
-	} else if !errors.Is(err, pgx.ErrNoRows) {
-		return err
-	}
-	_, err = s.pool.Exec(ctx, `
-		INSERT INTO access_requests (id, requester_id, app_id, permission_key, status)
-		VALUES ($1, $2, $3, $4, 'pending')
-	`, id, requesterID, appID, permissionKey)
-	return err
-}
-
-func (s *Store) ListRequestsForOperator(ctx context.Context, operatorID int64) ([]AccessRequest, error) {
-	rows, err := s.pool.Query(ctx, `
-		SELECT r.id, r.requester_id, o.login, r.app_id, a.name, r.permission_key, p.label,
-		       r.status, r.reviewed_by, r.created_at, r.reviewed_at
-		FROM access_requests r
-		JOIN operators o ON o.github_id = r.requester_id
-		JOIN apps a ON a.id = r.app_id
-		JOIN permissions p ON p.app_id = r.app_id AND p.key = r.permission_key
-		WHERE r.requester_id = $1
-		ORDER BY r.created_at DESC
-	`, operatorID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	return scanRequests(rows)
-}
-
-func (s *Store) ListPendingRequests(ctx context.Context) ([]AccessRequest, error) {
-	rows, err := s.pool.Query(ctx, `
-		SELECT r.id, r.requester_id, o.login, r.app_id, a.name, r.permission_key, p.label,
-		       r.status, r.reviewed_by, r.created_at, r.reviewed_at
-		FROM access_requests r
-		JOIN operators o ON o.github_id = r.requester_id
-		JOIN apps a ON a.id = r.app_id
-		JOIN permissions p ON p.app_id = r.app_id AND p.key = r.permission_key
-		WHERE r.status = 'pending'
-		ORDER BY r.created_at ASC
-	`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	return scanRequests(rows)
-}
-
-func scanRequests(rows pgx.Rows) ([]AccessRequest, error) {
-	var out []AccessRequest
-	for rows.Next() {
-		var r AccessRequest
-		var reviewedBy *int64
-		var reviewedAt *time.Time
-		if err := rows.Scan(
-			&r.ID, &r.RequesterID, &r.RequesterLogin, &r.AppID, &r.AppName,
-			&r.PermissionKey, &r.PermissionLabel, &r.Status, &reviewedBy, &r.CreatedAt, &reviewedAt,
-		); err != nil {
-			return nil, err
-		}
-		r.ReviewedBy = reviewedBy
-		r.ReviewedAt = reviewedAt
-		out = append(out, r)
-	}
-	return out, rows.Err()
-}
-
-func (s *Store) GetAccessRequest(ctx context.Context, id string) (*AccessRequest, error) {
-	row := s.pool.QueryRow(ctx, `
-		SELECT r.id, r.requester_id, o.login, r.app_id, a.name, r.permission_key, p.label,
-		       r.status, r.reviewed_by, r.created_at, r.reviewed_at
-		FROM access_requests r
-		JOIN operators o ON o.github_id = r.requester_id
-		JOIN apps a ON a.id = r.app_id
-		JOIN permissions p ON p.app_id = r.app_id AND p.key = r.permission_key
-		WHERE r.id = $1
-	`, id)
-	var r AccessRequest
-	var reviewedBy *int64
-	var reviewedAt *time.Time
-	if err := row.Scan(
-		&r.ID, &r.RequesterID, &r.RequesterLogin, &r.AppID, &r.AppName,
-		&r.PermissionKey, &r.PermissionLabel, &r.Status, &reviewedBy, &r.CreatedAt, &reviewedAt,
-	); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, ErrNotFound
-		}
-		return nil, err
-	}
-	r.ReviewedBy = reviewedBy
-	r.ReviewedAt = reviewedAt
-	return &r, nil
-}
-
-func (s *Store) ApproveRequest(ctx context.Context, requestID string, reviewerID int64) (*AccessRequest, error) {
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback(ctx)
-
-	row := tx.QueryRow(ctx, `
-		SELECT id, requester_id, app_id, permission_key, status
-		FROM access_requests WHERE id = $1 FOR UPDATE
-	`, requestID)
-	var id string
-	var requesterID int64
-	var appID, permissionKey, status string
-	if err := row.Scan(&id, &requesterID, &appID, &permissionKey, &status); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, ErrNotFound
-		}
-		return nil, err
-	}
-	if status != "pending" {
-		return nil, fmt.Errorf("%w: not pending", ErrConflict)
-	}
-	if _, err := tx.Exec(ctx, `
-		UPDATE access_requests
-		SET status = 'approved', reviewed_by = $2, reviewed_at = now()
-		WHERE id = $1
-	`, requestID, reviewerID); err != nil {
-		return nil, err
-	}
-	if _, err := tx.Exec(ctx, `
-		INSERT INTO grants (operator_id, app_id, permission_key)
-		VALUES ($1, $2, $3)
-		ON CONFLICT DO NOTHING
-	`, requesterID, appID, permissionKey); err != nil {
-		return nil, err
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return nil, err
-	}
-	return s.GetAccessRequest(ctx, requestID)
-}
-
-func (s *Store) DenyRequest(ctx context.Context, requestID string, reviewerID int64) (*AccessRequest, error) {
-	tag, err := s.pool.Exec(ctx, `
-		UPDATE access_requests
-		SET status = 'denied', reviewed_by = $2, reviewed_at = now()
-		WHERE id = $1 AND status = 'pending'
-	`, requestID, reviewerID)
-	if err != nil {
-		return nil, err
-	}
-	if tag.RowsAffected() == 0 {
-		_, gerr := s.GetAccessRequest(ctx, requestID)
-		if errors.Is(gerr, ErrNotFound) {
-			return nil, ErrNotFound
-		}
-		return nil, fmt.Errorf("%w: not pending", ErrConflict)
-	}
-	return s.GetAccessRequest(ctx, requestID)
 }
 
 type ProductDailyKey struct {

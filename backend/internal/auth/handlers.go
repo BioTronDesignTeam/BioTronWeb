@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v3"
-	"github.com/google/uuid"
 
 	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/cache"
 	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/store"
@@ -214,108 +213,6 @@ func (h *Handler) MyGrants(c fiber.Ctx) error {
 		"grants":      grants,
 		"full_access": op.IsStaff(),
 	})
-}
-
-func (h *Handler) MyRequests(c fiber.Ctx) error {
-	op := OperatorFrom(c)
-	reqs, err := h.Store.ListRequestsForOperator(c.Context(), op.GitHubID)
-	if err != nil {
-		log.Printf("requests: mine: %v", err)
-		return fiber.ErrInternalServerError
-	}
-	if reqs == nil {
-		reqs = []store.AccessRequest{}
-	}
-	return c.JSON(reqs)
-}
-
-func (h *Handler) CreateRequest(c fiber.Ctx) error {
-	op := OperatorFrom(c)
-	var body struct {
-		AppID         string `json:"app_id"`
-		PermissionKey string `json:"permission_key"`
-	}
-	if err := c.Bind().Body(&body); err != nil || body.AppID == "" || body.PermissionKey == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "app_id and permission_key required"})
-	}
-	if op.IsGuest() {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "guests cannot request access"})
-	}
-	if op.IsStaff() {
-		return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "staff already have full access"})
-	}
-	id := uuid.NewString()
-	if err := h.Store.CreateAccessRequest(c.Context(), id, op.GitHubID, body.AppID, body.PermissionKey); err != nil {
-		if errors.Is(err, store.ErrNotFound) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "permission not found"})
-		}
-		if errors.Is(err, store.ErrConflict) {
-			return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": err.Error()})
-		}
-		log.Printf("requests: create: %v", err)
-		return fiber.ErrInternalServerError
-	}
-	req, err := h.Store.GetAccessRequest(c.Context(), id)
-	if err != nil {
-		return c.Status(fiber.StatusCreated).JSON(fiber.Map{"id": id, "status": "pending"})
-	}
-	return c.Status(fiber.StatusCreated).JSON(req)
-}
-
-func (h *Handler) PendingRequests(c fiber.Ctx) error {
-	reqs, err := h.Store.ListPendingRequests(c.Context())
-	if err != nil {
-		log.Printf("requests: pending: %v", err)
-		return fiber.ErrInternalServerError
-	}
-	if reqs == nil {
-		reqs = []store.AccessRequest{}
-	}
-	return c.JSON(reqs)
-}
-
-func (h *Handler) ApproveRequest(c fiber.Ctx) error {
-	return h.reviewRequest(c, true)
-}
-
-func (h *Handler) DenyRequest(c fiber.Ctx) error {
-	return h.reviewRequest(c, false)
-}
-
-func (h *Handler) reviewRequest(c fiber.Ctx, approve bool) error {
-	op := OperatorFrom(c)
-	id := c.Params("id")
-	if id == "" {
-		return fiber.ErrBadRequest
-	}
-	req, err := h.Store.GetAccessRequest(c.Context(), id)
-	if err != nil {
-		if errors.Is(err, store.ErrNotFound) {
-			return fiber.ErrNotFound
-		}
-		return fiber.ErrInternalServerError
-	}
-
-	var out *store.AccessRequest
-	if approve {
-		out, err = h.Store.ApproveRequest(c.Context(), id, op.GitHubID)
-	} else {
-		out, err = h.Store.DenyRequest(c.Context(), id, op.GitHubID)
-	}
-	if err != nil {
-		if errors.Is(err, store.ErrNotFound) {
-			return fiber.ErrNotFound
-		}
-		if errors.Is(err, store.ErrConflict) {
-			return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": err.Error()})
-		}
-		log.Printf("requests: review: %v", err)
-		return fiber.ErrInternalServerError
-	}
-	if approve && h.Cache != nil {
-		_ = h.Cache.InvalidateGrants(c.Context(), req.RequesterID)
-	}
-	return c.JSON(out)
 }
 
 func (h *Handler) CreateGrant(c fiber.Ctx) error {

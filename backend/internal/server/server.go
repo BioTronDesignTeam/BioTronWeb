@@ -65,13 +65,7 @@ func New(h *auth.Handler, allowedOrigins []string, trustedProxies []string, even
 	app.Post("/apps", h.RequireXHR, h.RequireSession, h.RequireSuperuser, h.CreateApp)
 
 	app.Get("/me/grants", h.RequireSession, h.MyGrants)
-	app.Get("/me/requests", h.RequireSession, h.MyRequests)
 	app.Get("/v1/check", h.RequireSession, h.Check)
-
-	app.Post("/requests", h.RequireXHR, h.RequireSession, h.CreateRequest)
-	app.Get("/requests/pending", h.RequireSession, h.RequireStaff, h.PendingRequests)
-	app.Post("/requests/:id/approve", h.RequireXHR, h.RequireSession, h.RequireStaff, h.ApproveRequest)
-	app.Post("/requests/:id/deny", h.RequireXHR, h.RequireSession, h.RequireStaff, h.DenyRequest)
 
 	app.Post("/grants", h.RequireXHR, h.RequireSession, h.RequireStaff, h.CreateGrant)
 	app.Delete("/grants", h.RequireXHR, h.RequireSession, h.RequireStaff, h.DeleteGrant)

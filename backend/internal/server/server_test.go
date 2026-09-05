@@ -66,9 +66,6 @@ func TestMutatingRoutesRefuseRequestsWithoutTheXHRHeader(t *testing.T) {
 	}{
 		{http.MethodPost, "/auth/logout"},
 		{http.MethodPost, "/apps"},
-		{http.MethodPost, "/requests"},
-		{http.MethodPost, "/requests/abc/approve"},
-		{http.MethodPost, "/requests/abc/deny"},
 		{http.MethodPost, "/grants"},
 		{http.MethodDelete, "/grants"},
 	} {
