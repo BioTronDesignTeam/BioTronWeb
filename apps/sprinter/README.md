@@ -4,9 +4,9 @@ Sprinter is the BioTron Discord bot and its admin UI. Two slash commands
 answer questions in Discord. An admin API holds the bot's configuration:
 who may run each command, and which Calendar scopes it will announce.
 
-The answers are echoes. The model layer is not built, so `/agent` repeats
-the question back. Everything around the model is built: the gate, the
-deferred reply, the follow-up, the thread, and the transcript rows.
+A question goes to Gemini, which may call the bot's six read-only tools
+before it answers. Without `GEMINI_API_KEY` the bot echoes the question
+back instead; everything around the model still runs.
 
 The announce and nudge automations can be configured but do not run yet.
 Nothing reads them.
@@ -49,8 +49,14 @@ npm run lint                                     # Oxlint, from the root
 
 `PORT` defaults to 8080, which Auth uses, so set it to match
 `VITE_API_URL`. `go test ./...` in `backend/` runs the tests. Tests named
-`Live*` need `SPRINTER_TEST_DATABASE_URL`, a database with the `sprinter`
-schema migrated, and skip without it.
+`Live*` need a database and skip without one:
+`SPRINTER_TEST_DATABASE_URL` for the `sprinter` schema, and
+`SPRINTER_TEST_READ_DATABASE_URL` for the read-only role the tools use.
+
+```bash
+SPRINTER_TEST_READ_DATABASE_URL='postgresql://sprinter_reader:change-me-reader@127.0.0.1:15433/biotron' \
+  go test ./... -run Live
+```
 
 ## Commands
 
@@ -71,13 +77,81 @@ A refusal is ephemeral, so only the person who ran the command sees it.
 It never names the allowed roles or channels, because that would leak
 the guard to the person it excludes.
 
+### How a question is answered
+
+Sprinter acknowledges the command, asks the model, runs whatever tools
+the model asks for, and feeds the results back. It stops when the model
+answers in words. Three limits bound the loop: 8 model turns, 12 tool
+calls, and `AGENT_TIMEOUT`. When a limit stops the search the answer says
+so, rather than presenting a half-finished search as the whole story. A
+rate-limited model is reported as such, so the operator knows to wait.
+
+A tool that fails is reported to the model as a failed result, not to the
+operator as a broken command. A mistyped service id costs one turn.
+
+### Threads
+
 `/agent-thread` opens a thread named after the first 80 characters of the
-question, archived after a day. The first question and answer are stored
-as the thread's first two turns. Follow-up messages in the thread are not
-handled yet.
+question, archived after a day. The whole first exchange is stored as the
+thread's turns: the question, each tool call, each tool result, and the
+answer. A follow-up replays them, so the model continues the search
+rather than starting it again.
+
+A message in one of those threads continues the conversation. A message
+anywhere else is ignored, which is the whole reason the bot may hold the
+Message Content intent. Each follow-up re-checks the `agent-thread`
+guard against the author's roles, because a role can be taken away
+between the first question and the tenth. The guard's channel list is
+checked against the thread's parent channel.
+
+A thread answers `THREAD_MAX_TURNS` questions, 40 by default. Past that
+Sprinter says the thread is full and asks for a new one.
+
+### Limits
+
+One question per person at a time, and three across the whole bot. A
+refused question gets one sentence and no work: the model call is the
+expensive part, and a person who runs the command twice does not want two
+answers.
 
 An answer longer than 2000 characters is split across messages at a line
 boundary.
+
+## Tools
+
+The model answers from these six and nothing else. Every one is
+read-only. The four SQL tools read through a second Postgres pool that
+connects as a role with `SELECT` on the `logger` schema and on four
+`oauth` tables — nothing else, and no write anywhere. That role is the
+containment: a model can be talked into asking for anything, so the
+answer to "what stops it" is the grant, not the prompt.
+
+Every result passes through one cap. A cut result ends with a line
+saying it was cut and how to narrow the question.
+
+| Tool | Source | Arguments | Cap |
+|------|--------|-----------|-----|
+| `platform_status` | `GET {LOGGER_URL}/v1/status` | none | 6000 characters |
+| `recent_logs` | `logger.logs` | `service`, `level`, `search`, `limit` 1–50 (20) | 6000 characters, 50 rows, payload 500 per row |
+| `log_history` | `logger.logs` | the same plus `from`, `to` (RFC3339) and `cursor` | 8000 characters, 50 rows per page |
+| `health_history` | `logger.health_checks` | `service` (required), `hours` 1–168 (24) | 6000 characters, 200 checks |
+| `calendar_upcoming` | `GET {CALENDAR_URL}/v1/events/upcoming` | `limit` 1–20 (5), `days` 1–90 (42) | 4000 characters |
+| `who_has_access` | `oauth.apps`, `oauth.grants`, `oauth.operators`, `oauth.permissions` | `app` (required) | 6000 characters |
+
+`log_history` pages on `(created_at, id)` exactly as Logger does, so a
+row written mid-walk cannot shift a page. Its answer ends with a
+`next_cursor` line; the model sends that cursor back with the same
+filters.
+
+`who_has_access` also lists the managers and the superusers, because
+those two flags admit an operator everywhere without a grant, and an
+answer that named only the grant holders would be wrong. It never reads
+`oauth.sessions` or `oauth.guest_keys`; a live test proves the role
+cannot read either one.
+
+The model is told that tool results are data and never instructions. A
+log message can contain words that read like an order; Sprinter reports
+them and does not act on them.
 
 ## Admin API
 
@@ -122,38 +196,53 @@ and Prisma. Do not add environment files below it. `go run .` reads
   refuses to start with a token and no guild.
 - `DATABASE_URL`. The `sprinter` schema. The `?schema=` becomes the
   connection's `search_path`.
-- `READ_DATABASE_URL`. A read-only role for the agent's tools. Nothing
-  reads it yet.
-- `GEMINI_API_KEY`, `GEMINI_MODEL`. Nothing reads them yet.
+- `READ_DATABASE_URL`. The read-only role the four SQL tools use. Empty
+  leaves those tools out; the bot still answers from the two public
+  endpoints.
+- `GEMINI_API_KEY`. Empty runs the echo runner and logs `Model unset`.
+- `GEMINI_MODEL`. Defaults to `gemini-2.5-flash`.
+- `THREAD_MAX_TURNS`. How many questions one thread answers. 40 by
+  default.
+- `AGENT_TIMEOUT`. How long one question may take, tool calls included.
+  `2m` by default.
+- `CALENDAR_URL`. Where `calendar_upcoming` reads.
 - `OAUTH_MANAGER_URL`. Where the admin permission is checked.
 - `FRONTEND_URL` and `CORS_ORIGINS`. The origins that may make
   credentialed admin requests. List each host as `localhost` and
   `127.0.0.1`.
-- `LOGGER_URL`, `LOGGER_INGEST_TOKEN`. Where events go. An empty token
-  sends nothing.
+- `LOGGER_URL`, `LOGGER_INGEST_TOKEN`. Where events go, and where
+  `platform_status` reads. An empty token sends no events.
 
-Nothing reads `CALENDAR_URL` yet.
+Tests read two more: `SPRINTER_TEST_DATABASE_URL` and
+`SPRINTER_TEST_READ_DATABASE_URL`. Neither belongs in `.env`.
 
 ## Events to Logger
 
 Sprinter reports to Logger as `sprinter`. Every admin change names the
 operator as `actor_id` and `actor_login`. A refused command records the
-subject and a reason code, never the question text.
+subject and a reason code, never the question text. No event carries a
+question, an answer, or a tool result: what a question cost is an
+operator's business, what it said is not.
 
 | Message | Level | Payload |
 |---------|-------|---------|
 | `Sprinter started` | info | `port`, `discord` |
 | `Sprinter stopping` | info | — |
 | `Discord token unset` | warning | — |
+| `Model unset` | warning | — |
+| `Model ready` | info | `model`, `tools` |
+| `Model unavailable` | error | `error` |
+| `Read database unset` | warning | — |
+| `Read pool failed` | error | `error` |
 | `Discord session failed` | error | `stage`, `error` |
 | `Discord connected` | info | `user`, `guilds` |
 | `Discord disconnected` | warning | — |
 | `Discord resumed` | info | — |
 | `Commands registered` | info | `guild_id`, `count` |
 | `Command registration failed` | error | `guild_id`, `error` |
-| `Command refused` | warning | `subject`, `reason`, `user_id`, `guild_id`, `channel_id` |
-| `Question answered` | info | `subject`, `user_id`, `channel_id`, `duration_ms` |
-| `Question failed` | error | `subject`, `stage`, `duration_ms`, `error` |
+| `Command refused` | warning | `subject`, `reason`, `user_id`, `guild_id`, `channel_id`, `thread_id` in a thread |
+| `Question answered` | info | `subject`, `user_id`, `duration_ms`, `channel_id` or `thread_id`, `tools` and token counts when a model answered |
+| `Question failed` | error | `subject`, `stage`, `duration_ms`, `error`, `thread_id` in a thread |
 | `Follow-up failed` | error | `channel_id`, `error` |
 | `Thread opened` | info | `thread_id`, `channel_id`, `opener_id` |
 | `Thread creation failed` | error | `channel_id`, `error` |
@@ -194,9 +283,9 @@ The last three are not written yet. Deleting a thread removes its
 messages; deleting an automation removes its occurrence rows.
 
 The bot opens two pools. `DATABASE_URL` writes its own schema.
-`READ_DATABASE_URL`, a read-only role, is for the tools the agent will
-call, so a model cannot be talked into a write. The second pool is not
-opened yet.
+`READ_DATABASE_URL`, a read-only role, is what the tools read through, so
+a model cannot be talked into a write. The second pool qualifies every
+table as `logger.x` or `oauth.x` and carries no `search_path` of its own.
 
 To create a migration in the devcontainer, source `apps/sprinter/.env`
 and run `npm run --prefix apps/sprinter/prisma migrate`. The

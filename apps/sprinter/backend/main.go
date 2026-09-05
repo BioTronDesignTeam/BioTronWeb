@@ -12,11 +12,15 @@ import (
 	"github.com/joho/godotenv"
 
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
+	"github.com/BioTronDesignTeam/Sprinter/backend/internal/agent"
 	"github.com/BioTronDesignTeam/Sprinter/backend/internal/auth"
 	"github.com/BioTronDesignTeam/Sprinter/backend/internal/config"
 	"github.com/BioTronDesignTeam/Sprinter/backend/internal/discord"
+	"github.com/BioTronDesignTeam/Sprinter/backend/internal/model/gemini"
+	"github.com/BioTronDesignTeam/Sprinter/backend/internal/readstore"
 	"github.com/BioTronDesignTeam/Sprinter/backend/internal/server"
 	"github.com/BioTronDesignTeam/Sprinter/backend/internal/store"
+	"github.com/BioTronDesignTeam/Sprinter/backend/internal/tools"
 )
 
 func main() {
@@ -39,16 +43,32 @@ func main() {
 	}
 	defer sprinterStore.Close()
 
+	// The read pool is optional. Without it the four SQL tools are left out and
+	// the bot answers from the two public endpoints, which is better than
+	// refusing to start over a tool nobody may have asked for yet.
+	var reader *readstore.Store
+	if cfg.ReadEnabled() {
+		reader, err = readstore.New(context.Background(), cfg.ReadDatabaseURL)
+		if err != nil {
+			events.LogAsync(logclient.Error, "Read pool failed", map[string]any{"error": err.Error()})
+			log.Fatalf("connect read database: %v", err)
+		}
+		defer reader.Close()
+	} else {
+		events.LogAsync(logclient.Warning, "Read database unset", nil)
+	}
+
+	modelName, runner := buildRunner(cfg, reader, events)
+
 	var bot *discord.Bot
 	if !cfg.DiscordEnabled() {
 		events.LogAsync(logclient.Warning, "Discord token unset", nil)
 	} else {
 		bot, err = discord.New(cfg.DiscordToken, sprinterStore, events, discord.Options{
-			GuildID: cfg.DiscordGuildID,
-			// Until the model layer lands, every answer is an echo, and the
-			// agent_threads row says so rather than naming a model nothing ran.
-			Model:  "echo",
-			Runner: discord.EchoRunner{},
+			GuildID:        cfg.DiscordGuildID,
+			Model:          modelName,
+			Runner:         runner,
+			MaxThreadTurns: cfg.ThreadMaxTurns,
 		})
 		if err != nil {
 			events.LogAsync(logclient.Error, "Discord session failed", map[string]any{
@@ -91,6 +111,39 @@ func main() {
 	if err := app.ShutdownWithTimeout(10 * time.Second); err != nil {
 		log.Printf("shutdown: %v", err)
 	}
+}
+
+// buildRunner picks what answers questions, and names it for the
+// agent_threads row. Without a key the echo runner stands in, and the warning
+// says so: an operator reading the log must be able to tell "the model is
+// broken" from "there is no model".
+func buildRunner(cfg config.Config, reader *readstore.Store, events *logclient.Client) (string, discord.Runner) {
+	if !cfg.ModelEnabled() {
+		events.LogAsync(logclient.Warning, "Model unset", nil)
+		log.Println("warning: GEMINI_API_KEY unset — every answer is an echo")
+		return "echo", discord.EchoRunner{}
+	}
+	answering, err := gemini.New(context.Background(), cfg.GeminiAPIKey, cfg.GeminiModel)
+	if err != nil {
+		events.LogAsync(logclient.Error, "Model unavailable", map[string]any{"error": err.Error()})
+		log.Fatalf("build model: %v", err)
+	}
+	// A nil reader is passed on purpose: tools.All leaves out the SQL tools
+	// rather than building tools with nothing to read.
+	var source tools.Reader
+	if reader != nil {
+		source = reader
+	}
+	available := tools.All(source, cfg.LoggerURL, cfg.CalendarURL)
+	loop := agent.New(answering, available, agent.Options{Timeout: cfg.AgentTimeout})
+	names := make([]string, 0, len(available))
+	for _, tool := range available {
+		names = append(names, tool.Spec().Name)
+	}
+	events.LogAsync(logclient.Info, "Model ready", map[string]any{
+		"model": loop.Model(), "tools": names,
+	})
+	return loop.Model(), agent.NewRunner(loop)
 }
 
 func connectStore(databaseURL string) (*store.Store, error) {

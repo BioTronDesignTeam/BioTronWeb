@@ -3,6 +3,8 @@ package discord
 import (
 	"context"
 	"strings"
+
+	"github.com/BioTronDesignTeam/Sprinter/backend/internal/model"
 )
 
 // messageLimit is Discord's per-message character cap.
@@ -14,24 +16,52 @@ type Request struct {
 	Subject   string
 	GuildID   string
 	ChannelID string
-	UserID    string
-	Question  string
+	// ThreadID is set on a follow-up inside a thread and empty on a command.
+	ThreadID string
+	UserID   string
+	Question string
 }
 
-// Runner answers a question. The agent loop will implement it; until then
-// EchoRunner does, so the command path can be finished and tested without a
+// Reply is one answered question. Messages is the transcript the answer built,
+// which the bot stores as the thread's turns: the loop knows how many turns it
+// took and what each tool returned, and the bot must not guess at that.
+type Reply struct {
+	Text         string
+	Messages     []model.Message
+	Tools        []string
+	InputTokens  int
+	OutputTokens int
+}
+
+// Runner answers a question. The agent loop implements it; EchoRunner does too,
+// so the command path, the thread, and the transcript can be tested without a
 // model key.
 type Runner interface {
-	Answer(ctx context.Context, req Request) (string, error)
+	Answer(ctx context.Context, req Request) (Reply, error)
+	Continue(ctx context.Context, req Request, history []model.Message) (Reply, error)
 }
 
-// EchoRunner repeats the question back. It exists so that every step around
-// the model — the gate, the deferred reply, the follow-up, the thread, the
-// transcript row — is exercised before the model lands.
+// EchoRunner repeats the question back. It is what runs when GEMINI_API_KEY is
+// unset, so a missing key costs the answers and nothing else.
 type EchoRunner struct{}
 
-func (EchoRunner) Answer(_ context.Context, req Request) (string, error) {
-	return "Echo: " + req.Question, nil
+func (EchoRunner) Answer(_ context.Context, req Request) (Reply, error) {
+	return echo(req), nil
+}
+
+func (EchoRunner) Continue(_ context.Context, req Request, _ []model.Message) (Reply, error) {
+	return echo(req), nil
+}
+
+func echo(req Request) Reply {
+	text := "Echo: " + req.Question
+	return Reply{
+		Text: text,
+		Messages: []model.Message{
+			{Role: model.RoleUser, Text: req.Question},
+			{Role: model.RoleAssistant, Text: text},
+		},
+	}
 }
 
 // splitMessage cuts an answer into messages Discord will accept, preferring a

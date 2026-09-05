@@ -3,7 +3,8 @@
 // Two commands exist: `/agent` answers once in the channel, `/agent-thread`
 // answers and then opens a thread to carry the conversation. Their names are
 // the guard subjects, so a command and the guard that admits it cannot drift
-// apart.
+// apart. A message in one of those threads continues it; a message anywhere
+// else is ignored, which is what keeps the Message Content intent contained.
 package discord
 
 import (
@@ -11,6 +12,8 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
+	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -26,6 +29,19 @@ import (
 // ran the command sees nothing, so every call gets a deadline.
 const discordTimeout = 15 * time.Second
 
+// answerTimeout bounds one whole question, above whatever deadline the runner
+// keeps for itself. It is the last thing that frees a concurrency slot.
+const answerTimeout = 5 * time.Minute
+
+// DefaultMaxThreadTurns is how many questions one thread answers. Every turn
+// is replayed to the model, so an old thread costs more per answer than a new
+// one; forty is where a conversation is better restarted than continued.
+const DefaultMaxThreadTurns = 40
+
+// typingInterval refreshes the typing indicator, which Discord clears after
+// about ten seconds.
+const typingInterval = 8 * time.Second
+
 // The command names, which are also the guard subjects.
 const (
 	commandAgent       = store.SubjectAgent
@@ -36,7 +52,10 @@ const (
 type Store interface {
 	GetGuard(ctx context.Context, subject string) (store.Guard, error)
 	CreateThread(ctx context.Context, thread store.Thread) (store.Thread, error)
+	GetThread(ctx context.Context, threadID string) (store.Thread, error)
+	TouchThread(ctx context.Context, threadID string) (store.Thread, error)
 	AppendMessage(ctx context.Context, threadID string, sequence int, role string, content json.RawMessage) (store.Message, error)
+	ListMessages(ctx context.Context, threadID string) ([]store.Message, error)
 }
 
 type Options struct {
@@ -46,6 +65,8 @@ type Options struct {
 	// Model names the answering model on the agent_threads row.
 	Model  string
 	Runner Runner
+	// MaxThreadTurns caps one thread's conversation.
+	MaxThreadTurns int
 }
 
 type Bot struct {
@@ -53,6 +74,7 @@ type Bot struct {
 	store   Store
 	events  *logclient.Client
 	options Options
+	limits  *limiter
 	// connected is read by /health from another goroutine, and the gateway
 	// drops and resumes while the process stays up.
 	connected atomic.Bool
@@ -69,6 +91,9 @@ func New(token string, sprinterStore Store, events *logclient.Client, options Op
 	if options.Model == "" {
 		options.Model = "echo"
 	}
+	if options.MaxThreadTurns <= 0 {
+		options.MaxThreadTurns = DefaultMaxThreadTurns
+	}
 	// Guilds and GuildMessages are the baseline. MessageContent is privileged
 	// and deliberate: a thread follow-up is a plain message, not a command, so
 	// without it the bot would read empty strings. Only messages in threads the
@@ -77,7 +102,10 @@ func New(token string, sprinterStore Store, events *logclient.Client, options Op
 		discordgo.IntentsGuildMessages |
 		discordgo.IntentsMessageContent
 
-	bot := &Bot{session: session, store: sprinterStore, events: events, options: options}
+	bot := &Bot{
+		session: session, store: sprinterStore, events: events,
+		options: options, limits: newLimiter(maxConcurrent),
+	}
 
 	// Handlers are registered before Open so the gateway's first Ready cannot
 	// arrive before anyone is listening for it.
@@ -120,11 +148,6 @@ func (b *Bot) onResumed(_ *discordgo.Session, _ *discordgo.Resumed) {
 	b.connected.Store(true)
 	b.events.LogAsync(logclient.Info, "Discord resumed", nil)
 }
-
-// onMessage is deliberately empty. The Message Content intent is on so that a
-// thread follow-up can be a plain message; the handler that reads those, and
-// only in threads the bot opened, is the agent loop's, not this file's.
-func (b *Bot) onMessage(_ *discordgo.Session, _ *discordgo.MessageCreate) {}
 
 // registerCommands replaces the guild's commands with exactly these two. Bulk
 // overwrite is the only call that also removes a command we no longer publish,
@@ -182,6 +205,7 @@ func (b *Bot) onInteraction(session *discordgo.Session, interaction *discordgo.I
 func (b *Bot) handleCommand(session *discordgo.Session, interaction *discordgo.InteractionCreate, data discordgo.ApplicationCommandInteractionData) {
 	subject := data.Name
 	question := optionString(data.Options, "question")
+	asker := userID(interaction)
 
 	storeCtx, cancelStore := context.WithTimeout(context.Background(), store.Timeout)
 	guard, err := b.store.GetGuard(storeCtx, subject)
@@ -202,6 +226,16 @@ func (b *Bot) handleCommand(session *discordgo.Session, interaction *discordgo.I
 		return
 	}
 
+	// The concurrency check comes after the gate and before the deferred
+	// reply, so a refused person gets one ephemeral sentence rather than a
+	// "thinking" message that never resolves.
+	release, busy := b.limits.acquire(asker)
+	if release == nil {
+		b.ephemeral(session, interaction, busy)
+		return
+	}
+	defer release()
+
 	if err := b.acknowledge(session, interaction); err != nil {
 		log.Printf("acknowledge %q: %v", subject, err)
 		b.events.LogAsync(logclient.Error, "Question failed", map[string]any{
@@ -211,36 +245,199 @@ func (b *Bot) handleCommand(session *discordgo.Session, interaction *discordgo.I
 	}
 
 	started := time.Now()
-	answerCtx, cancelAnswer := context.WithTimeout(context.Background(), 5*time.Minute)
+	answerCtx, cancelAnswer := context.WithTimeout(context.Background(), answerTimeout)
 	defer cancelAnswer()
-	answer, err := b.options.Runner.Answer(answerCtx, Request{
+	reply, err := b.options.Runner.Answer(answerCtx, Request{
 		Subject:   subject,
 		GuildID:   interaction.GuildID,
 		ChannelID: interaction.ChannelID,
-		UserID:    userID(interaction),
+		UserID:    asker,
 		Question:  question,
 	})
 	if err != nil {
 		log.Printf("answer %q: %v", subject, err)
 		b.events.LogAsync(logclient.Error, "Question failed", map[string]any{
 			"subject": subject, "stage": "answer",
-			"user_id": userID(interaction), "channel_id": interaction.ChannelID,
+			"user_id": asker, "channel_id": interaction.ChannelID,
 			"duration_ms": time.Since(started).Milliseconds(), "error": err.Error(),
 		})
 		b.followup(session, interaction, "Sprinter could not answer that. Try again shortly.")
 		return
 	}
 
-	first := b.post(session, interaction, answer)
+	first := b.post(session, interaction, reply.Text)
 	if first != nil && subject == commandAgentThread {
-		b.openThread(session, interaction, first, question, answer)
+		b.openThread(session, interaction, first, question, reply)
 	}
-	b.events.LogAsync(logclient.Info, "Question answered", map[string]any{
+	payload := map[string]any{
 		"subject":     subject,
-		"user_id":     userID(interaction),
+		"user_id":     asker,
 		"channel_id":  interaction.ChannelID,
 		"duration_ms": time.Since(started).Milliseconds(),
+	}
+	addCost(payload, reply)
+	b.events.LogAsync(logclient.Info, "Question answered", payload)
+}
+
+// onMessage carries thread follow-ups. Everything that is not a person typing
+// in a thread the bot opened is dropped here, before any work: that is the
+// whole justification for holding the Message Content intent.
+func (b *Bot) onMessage(session *discordgo.Session, message *discordgo.MessageCreate) {
+	if message.Author == nil || message.Author.Bot || message.GuildID == "" {
+		return
+	}
+	if strings.TrimSpace(message.Content) == "" {
+		return
+	}
+	// A plain message is the only kind that can be a question. A join notice
+	// or a pin has a type of its own and is not one.
+	if message.Type != discordgo.MessageTypeDefault && message.Type != discordgo.MessageTypeReply {
+		return
+	}
+	go b.handleThreadMessage(session, message)
+}
+
+func (b *Bot) handleThreadMessage(session *discordgo.Session, message *discordgo.MessageCreate) {
+	storeCtx, cancelStore := context.WithTimeout(context.Background(), store.Timeout)
+	thread, err := b.store.GetThread(storeCtx, message.ChannelID)
+	cancelStore()
+	switch {
+	case errors.Is(err, store.ErrNotFound):
+		// Not one of our threads. This is the common case for every message in
+		// the guild, so it is silent.
+		return
+	case err != nil:
+		log.Printf("read thread %q: %v", message.ChannelID, err)
+		return
+	}
+
+	asker := message.Author.ID
+	if !b.threadAllowed(session, message, thread) {
+		return
+	}
+	if thread.TurnCount >= b.options.MaxThreadTurns {
+		b.say(session, message.ChannelID,
+			"This thread has reached its limit. Start a new one with /agent-thread.")
+		return
+	}
+
+	release, busy := b.limits.acquire(asker)
+	if release == nil {
+		b.say(session, message.ChannelID, busy)
+		return
+	}
+	defer release()
+
+	// A thread answer has no deferred reply to stand in for it, so the typing
+	// indicator is the only sign the bot is working.
+	stopTyping := b.typing(session, message.ChannelID)
+	defer stopTyping()
+
+	started := time.Now()
+	historyCtx, cancelHistory := context.WithTimeout(context.Background(), store.Timeout)
+	rows, err := b.store.ListMessages(historyCtx, thread.ThreadID)
+	cancelHistory()
+	if err != nil {
+		log.Printf("read transcript %q: %v", thread.ThreadID, err)
+		b.threadFailed(session, message, thread, "history", started, err)
+		return
+	}
+	history, next := decodeTranscript(rows)
+
+	answerCtx, cancelAnswer := context.WithTimeout(context.Background(), answerTimeout)
+	reply, err := b.options.Runner.Continue(answerCtx, Request{
+		Subject:   commandAgentThread,
+		GuildID:   message.GuildID,
+		ChannelID: thread.ChannelID,
+		ThreadID:  thread.ThreadID,
+		UserID:    asker,
+		Question:  message.Content,
+	}, history)
+	cancelAnswer()
+	if err != nil {
+		log.Printf("continue thread %q: %v", thread.ThreadID, err)
+		b.threadFailed(session, message, thread, "answer", started, err)
+		return
+	}
+
+	// A runner that answered nothing — a rate-limited model, say — leaves no
+	// turns. The person still reads the sentence, but the thread must not spend
+	// a turn or store half an exchange it could never replay.
+	if len(reply.Messages) > 0 {
+		writeCtx, cancelWrite := context.WithTimeout(context.Background(), store.Timeout)
+		for _, turn := range reply.Messages {
+			b.appendTurn(writeCtx, thread.ThreadID, next, turn)
+			next++
+		}
+		if _, err := b.store.TouchThread(writeCtx, thread.ThreadID); err != nil {
+			log.Printf("touch thread %q: %v", thread.ThreadID, err)
+		}
+		cancelWrite()
+	}
+
+	stopTyping()
+	for _, part := range splitMessage(reply.Text, messageLimit) {
+		b.say(session, message.ChannelID, part)
+	}
+	payload := map[string]any{
+		"subject":     commandAgentThread,
+		"thread_id":   thread.ThreadID,
+		"user_id":     asker,
+		"duration_ms": time.Since(started).Milliseconds(),
+	}
+	addCost(payload, reply)
+	b.events.LogAsync(logclient.Info, "Question answered", payload)
+}
+
+// threadAllowed re-runs the `agent-thread` guard for a follow-up. The guard
+// can change, and a role can be taken away, between the first question and the
+// tenth; a thread must not be a way to keep an access somebody has lost.
+func (b *Bot) threadAllowed(session *discordgo.Session, message *discordgo.MessageCreate, thread store.Thread) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), store.Timeout)
+	guard, err := b.store.GetGuard(ctx, commandAgentThread)
+	cancel()
+	if err != nil {
+		why := reasonUnavailable
+		if errors.Is(err, store.ErrNotFound) {
+			why = reasonNoGuard
+		} else {
+			log.Printf("read guard %q: %v", commandAgentThread, err)
+		}
+		b.refuseInThread(session, message, thread, why)
+		return false
+	}
+	var roles []string
+	if message.Member != nil {
+		roles = message.Member.Roles
+	}
+	// The guard's channel list names channels, not threads, so the thread's
+	// parent is what gets checked.
+	ok, why := allowedIn(guard, message.GuildID, thread.ChannelID, roles, message.Member != nil)
+	if !ok {
+		b.refuseInThread(session, message, thread, why)
+	}
+	return ok
+}
+
+func (b *Bot) refuseInThread(session *discordgo.Session, message *discordgo.MessageCreate, thread store.Thread, why reason) {
+	b.events.LogAsync(logclient.Warning, "Command refused", map[string]any{
+		"subject":    commandAgentThread,
+		"reason":     string(why),
+		"user_id":    message.Author.ID,
+		"guild_id":   message.GuildID,
+		"channel_id": thread.ChannelID,
+		"thread_id":  thread.ThreadID,
 	})
+	b.say(session, message.ChannelID, refusals[why])
+}
+
+func (b *Bot) threadFailed(session *discordgo.Session, message *discordgo.MessageCreate, thread store.Thread, stage string, started time.Time, err error) {
+	b.events.LogAsync(logclient.Error, "Question failed", map[string]any{
+		"subject": commandAgentThread, "stage": stage,
+		"thread_id": thread.ThreadID, "user_id": message.Author.ID,
+		"duration_ms": time.Since(started).Milliseconds(), "error": err.Error(),
+	})
+	b.say(session, message.ChannelID, "Sprinter could not answer that. Try again shortly.")
 }
 
 // post sends the answer as one or more follow-ups and returns the first
@@ -263,10 +460,12 @@ func (b *Bot) post(session *discordgo.Session, interaction *discordgo.Interactio
 	return first
 }
 
-// openThread hangs a thread off the answer and stores the first two turns, so
-// the agent loop can later replay the conversation from the database rather
-// than from Discord's history.
-func (b *Bot) openThread(session *discordgo.Session, interaction *discordgo.InteractionCreate, message *discordgo.Message, question, answer string) {
+// openThread hangs a thread off the answer and stores the turns the runner
+// built, so a follow-up replays the conversation from the database rather than
+// from Discord's history. The runner's transcript is stored rather than a
+// question-and-answer pair, because the tool calls in between are what let the
+// model continue the search instead of starting it again.
+func (b *Bot) openThread(session *discordgo.Session, interaction *discordgo.InteractionCreate, message *discordgo.Message, question string, reply Reply) {
 	ctx, cancel := context.WithTimeout(context.Background(), discordTimeout)
 	// 1440 minutes is a day: long enough for a conversation to resume the next
 	// morning, short enough that the channel list does not fill with threads.
@@ -297,8 +496,18 @@ func (b *Bot) openThread(session *discordgo.Session, interaction *discordgo.Inte
 		})
 		return
 	}
-	b.appendTurn(storeCtx, thread.ID, 1, model.Message{Role: model.RoleUser, Text: question})
-	b.appendTurn(storeCtx, thread.ID, 2, model.Message{Role: model.RoleAssistant, Text: answer})
+	turns := reply.Messages
+	if len(turns) == 0 {
+		// A runner that returned no transcript still leaves a usable thread:
+		// the question and the answer are what a follow-up needs at minimum.
+		turns = []model.Message{
+			{Role: model.RoleUser, Text: question},
+			{Role: model.RoleAssistant, Text: reply.Text},
+		}
+	}
+	for i, turn := range turns {
+		b.appendTurn(storeCtx, thread.ID, i+1, turn)
+	}
 	b.events.LogAsync(logclient.Info, "Thread opened", map[string]any{
 		"thread_id": thread.ID, "channel_id": message.ChannelID,
 		"opener_id": userID(interaction),
@@ -317,6 +526,64 @@ func (b *Bot) appendTurn(ctx context.Context, threadID string, sequence int, mes
 		log.Printf("append transcript turn: %v", err)
 		b.events.LogAsync(logclient.Error, "Transcript write failed", map[string]any{
 			"thread_id": threadID, "sequence": sequence, "error": err.Error(),
+		})
+	}
+}
+
+// decodeTranscript turns stored rows back into model turns and reports the
+// next free sequence number. A row that will not decode is skipped rather than
+// fatal: one corrupt turn must not close a conversation.
+func decodeTranscript(rows []store.Message) ([]model.Message, int) {
+	history := make([]model.Message, 0, len(rows))
+	next := 1
+	for _, row := range rows {
+		if row.Sequence >= next {
+			next = row.Sequence + 1
+		}
+		var turn model.Message
+		if err := json.Unmarshal(row.Content, &turn); err != nil {
+			log.Printf("decode transcript turn %d of %s: %v", row.Sequence, row.ThreadID, err)
+			continue
+		}
+		history = append(history, turn)
+	}
+	return history, next
+}
+
+// typing keeps the "Sprinter is typing" indicator alive until the returned
+// function is called. Discord clears it after about ten seconds, so it has to
+// be refreshed rather than set once.
+func (b *Bot) typing(session *discordgo.Session, channelID string) func() {
+	done := make(chan struct{})
+	var once sync.Once
+	go func() {
+		ticker := time.NewTicker(typingInterval)
+		defer ticker.Stop()
+		for {
+			ctx, cancel := context.WithTimeout(context.Background(), discordTimeout)
+			// A failed indicator is cosmetic. The answer still arrives.
+			_ = session.ChannelTyping(channelID, discordgo.WithContext(ctx))
+			cancel()
+			select {
+			case <-done:
+				return
+			case <-ticker.C:
+			}
+		}
+	}()
+	return func() { once.Do(func() { close(done) }) }
+}
+
+func (b *Bot) say(session *discordgo.Session, channelID, content string) {
+	if content == "" {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), discordTimeout)
+	defer cancel()
+	if _, err := session.ChannelMessageSend(channelID, content, discordgo.WithContext(ctx)); err != nil {
+		log.Printf("send message: %v", err)
+		b.events.LogAsync(logclient.Error, "Follow-up failed", map[string]any{
+			"channel_id": channelID, "error": err.Error(),
 		})
 	}
 }
@@ -355,17 +622,35 @@ func (b *Bot) refuse(session *discordgo.Session, interaction *discordgo.Interact
 		"guild_id":   interaction.GuildID,
 		"channel_id": interaction.ChannelID,
 	})
+	b.ephemeral(session, interaction, refusals[why])
+}
+
+// ephemeral answers the person who ran the command and nobody else.
+func (b *Bot) ephemeral(session *discordgo.Session, interaction *discordgo.InteractionCreate, content string) {
 	ctx, cancel := context.WithTimeout(context.Background(), discordTimeout)
 	defer cancel()
 	err := session.InteractionRespond(interaction.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
-			Content: refusals[why],
+			Content: content,
 			Flags:   discordgo.MessageFlagsEphemeral,
 		},
 	}, discordgo.WithContext(ctx))
 	if err != nil {
-		log.Printf("refuse %q: %v", subject, err)
+		log.Printf("ephemeral reply: %v", err)
+	}
+}
+
+// addCost records what a question spent. The question and the answer are never
+// logged; what it cost and which tools ran are, because that is what an
+// operator needs to see a runaway.
+func addCost(payload map[string]any, reply Reply) {
+	if len(reply.Tools) > 0 {
+		payload["tools"] = reply.Tools
+	}
+	if reply.InputTokens > 0 || reply.OutputTokens > 0 {
+		payload["input_tokens"] = reply.InputTokens
+		payload["output_tokens"] = reply.OutputTokens
 	}
 }
 

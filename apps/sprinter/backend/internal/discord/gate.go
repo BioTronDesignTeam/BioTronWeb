@@ -35,24 +35,38 @@ var refusals = map[reason]string{
 
 // allowed is the whole gate for one command, kept pure so every branch is a
 // table row in the test rather than a Discord session.
-//
-// Three things must hold: the command ran in the guild the guard names, in a
-// channel the guard lists or in any channel when it lists none, and by a
-// member holding at least one role the guard names.
 func allowed(guard store.Guard, interaction *discordgo.InteractionCreate) (bool, reason) {
-	if interaction.GuildID == "" {
+	if interaction.Member == nil {
+		return allowedIn(guard, interaction.GuildID, interaction.ChannelID, nil, false)
+	}
+	return allowedIn(guard, interaction.GuildID, interaction.ChannelID, interaction.Member.Roles, true)
+}
+
+// allowedIn is the gate itself, over ids rather than over a Discord type. A
+// thread follow-up is a message, not an interaction, and it has to pass the
+// same gate; sharing this function is what stops the two paths from drifting.
+//
+// Three things must hold: the question came from the guild the guard names,
+// from a channel the guard lists or from any channel when it lists none, and
+// from a member holding at least one role the guard names.
+//
+// For a thread, channelID is the thread's parent channel. A thread has an id
+// of its own that no guard could ever list, so checking the thread's id would
+// refuse every follow-up in a guard that names channels.
+func allowedIn(guard store.Guard, guildID, channelID string, roles []string, hasMember bool) (bool, reason) {
+	if guildID == "" {
 		return false, reasonNoGuild
 	}
-	if interaction.GuildID != guard.GuildID {
+	if guildID != guard.GuildID {
 		return false, reasonWrongGuild
 	}
-	if len(guard.ChannelIDs) > 0 && !contains(guard.ChannelIDs, interaction.ChannelID) {
+	if len(guard.ChannelIDs) > 0 && !contains(guard.ChannelIDs, channelID) {
 		return false, reasonWrongChanel
 	}
-	if interaction.Member == nil {
+	if !hasMember {
 		return false, reasonNoMember
 	}
-	for _, role := range interaction.Member.Roles {
+	for _, role := range roles {
 		if contains(guard.RoleIDs, role) {
 			return true, ""
 		}
