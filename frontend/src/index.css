@@ -4,6 +4,22 @@
    (set on <html> by the inline script in index.html), not the OS preference. */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* The BioTron public site's dark palette, named so components can say
+   `dark:bg-surface` instead of carrying an arbitrary hex. Every colour here is
+   a dark-mode value and is only ever used behind a `dark:` variant; light mode
+   keeps Tailwind's own palette. */
+@theme {
+  --color-page: #070b0e;
+  --color-surface: #0e151b;
+  --color-surface-2: #131c24;
+  --color-surface-deep: #04070a;
+  --color-muted: #9fb0ba;
+  --color-faint: #6b7d87;
+  --color-link: #7f9cf5;
+  --color-highlight: #160b6c;
+  --color-brand: #3050b0;
+}
+
 @layer base {
   body {
     background: #ffffff;
@@ -11,7 +27,7 @@
   }
 
   .dark body {
-    background: #16033c;
+    background: #070b0e;
     color: #ffffff;
   }
 
