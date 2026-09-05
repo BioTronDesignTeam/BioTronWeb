@@ -17,7 +17,8 @@ export type AuthAction = {
   label: string;
   href?: string;
   onClick?: () => void;
-  icon?: 'github' | ReactNode;
+  /** A named icon the screen draws itself, or any custom node. */
+  icon?: 'github' | Exclude<ReactNode, string>;
 };
 
 export type GuestAccess = {

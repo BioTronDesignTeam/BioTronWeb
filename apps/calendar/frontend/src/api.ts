@@ -6,14 +6,15 @@ export const SITE_URL = (import.meta.env.VITE_SITE_URL || 'http://localhost:5177
 
 async function request<T>(path: string, init: RequestInit = {}, authenticated = false): Promise<T> {
   const mutating = init.method && init.method !== 'GET';
+  // init.headers may be a Headers instance, a list of pairs, or a record;
+  // Headers accepts all three, where spreading would not.
+  const headers = new Headers(init.headers);
+  if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
+  if (mutating) headers.set('X-Requested-With', 'XMLHttpRequest');
   const response = await fetch(`${API_URL}${path}`, {
     ...init,
     credentials: authenticated ? 'include' : 'omit',
-    headers: {
-      ...(init.body ? { 'Content-Type': 'application/json' } : {}),
-      ...(mutating ? { 'X-Requested-With': 'XMLHttpRequest' } : {}),
-      ...init.headers,
-    },
+    headers,
   });
   if (!response.ok) {
     let message = `Request failed (${response.status})`;
