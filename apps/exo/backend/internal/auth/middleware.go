@@ -5,6 +5,9 @@ import (
 	"log"
 
 	"github.com/gofiber/fiber/v3"
+
+	"github.com/BioTronDesignTeam/biotron/go/logclient"
+	"github.com/BioTronDesignTeam/biotron/go/logclient/fiberlog"
 )
 
 // decisionLocal is where Require stashes the decision it made, so a handler
@@ -38,6 +41,11 @@ func (c *Client) Require(permission string) fiber.Handler {
 			} else {
 				log.Printf("authorization check for %q failed: %v", permission, err)
 			}
+			c.Events.LogAsync(logclient.Error, "Authorization service unavailable", map[string]any{
+				"permission": permission,
+				"error":      err.Error(),
+			})
+			fiberlog.SetError(ctx, err)
 			return ctx.Status(fiber.StatusServiceUnavailable).
 				JSON(fiber.Map{"error": "authorization service unavailable"})
 		}

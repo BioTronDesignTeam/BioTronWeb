@@ -104,10 +104,15 @@ Go Fiber v3. Exo issues no sessions; Auth does. CORS allows `FRONTEND_URL`
 only, with `GET`, `POST`, and `OPTIONS`. One route exists: `GET /health`
 answers `{"status":"ok"}` to anyone. Logger's monitor polls it.
 
-Exo reports to Logger as `exo-api`: start and stop, and each completed
-request as method, path, status, and duration. `/health` is never sent.
-`backend/internal/eventlog` is a copy of `go/logclient`; it should import
-the shared module instead.
+Exo reports to Logger as `exo-api`. `/health` is never sent.
+
+| Message | Level | Payload |
+|---|---|---|
+| Exo API started | Info | `port` |
+| HTTP request completed | Info; Warning on 4xx; Error on 5xx | `method`, `path`, `status`, `duration_ms`, and `error` when it failed |
+| Authorization service unavailable | Error | `permission`, `error` |
+| Authorization not configured | Warning | |
+| Exo API stopping | Info | |
 
 ## Frontend
 

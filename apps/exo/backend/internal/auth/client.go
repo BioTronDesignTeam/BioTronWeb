@@ -22,6 +22,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/BioTronDesignTeam/biotron/go/logclient"
 )
 
 // AppID is Exo's application id in OAuthManager. It must match the row in
@@ -51,6 +53,7 @@ type Decision struct {
 type Client struct {
 	baseURL string
 	http    *http.Client
+	Events  *logclient.Client
 }
 
 func NewClient(baseURL string) *Client {

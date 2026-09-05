@@ -1,8 +1,6 @@
 package server
 
 import (
-	"errors"
-	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v3"
@@ -11,6 +9,7 @@ import (
 	"github.com/gofiber/fiber/v3/middleware/recover"
 
 	"github.com/BioTronDesignTeam/biotron/go/logclient"
+	"github.com/BioTronDesignTeam/biotron/go/logclient/fiberlog"
 	"github.com/BioTronDesignTeam/exo-gui/backend/internal/auth"
 )
 
@@ -29,7 +28,7 @@ func New(frontendURL string, trustedProxies []string, events *logclient.Client, 
 		ProxyHeader:      "Cf-Connecting-Ip",
 	})
 
-	app.Use(logRequests(events))
+	app.Use(fiberlog.New(events, fiberlog.Options{}))
 	app.Use(recover.New(recover.Config{EnableStackTrace: true}))
 	app.Use(logger.New())
 	// v3 takes these as slices rather than comma-separated strings.
@@ -66,44 +65,4 @@ func New(frontendURL string, trustedProxies []string, events *logclient.Client, 
 	// soon as the call exists.
 
 	return app
-}
-
-func logRequests(events *logclient.Client) fiber.Handler {
-	return func(c fiber.Ctx) error {
-		started := time.Now()
-		err := c.Next()
-		if c.Path() == "/health" {
-			return err
-		}
-
-		status := c.Response().StatusCode()
-		if err != nil {
-			status = fiber.StatusInternalServerError
-			var fiberError *fiber.Error
-			if errors.As(err, &fiberError) {
-				status = fiberError.Code
-			}
-		}
-		if status < 400 && c.Method() == fiber.MethodOptions {
-			return err
-		}
-		level := logclient.Info
-		if status >= 500 {
-			level = logclient.Error
-		} else if status >= 400 {
-			level = logclient.Warning
-		}
-		// Clone both: fasthttp hands these back as views into a pooled request
-		// buffer, and LogAsync marshals the payload on another goroutine. By
-		// then the buffer can already be refilled from an unrelated request, so
-		// an uncloned path can name a route this request never touched — and
-		// AGENTS.md is deliberate about what is allowed into these events.
-		events.LogAsync(level, "HTTP request completed", map[string]any{
-			"method":      strings.Clone(c.Method()),
-			"path":        strings.Clone(c.Path()),
-			"status":      status,
-			"duration_ms": time.Since(started).Milliseconds(),
-		})
-		return err
-	}
 }

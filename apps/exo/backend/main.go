@@ -32,10 +32,12 @@ func main() {
 		log.Println("warning: LOGGER_INGEST_TOKEN unset — structured logging is disabled")
 	}
 	authz := auth.NewClient(cfg.OAuthManagerURL)
+	authz.Events = events
 	if !authz.Configured() {
 		// Not fatal: /health and the frontend still work. Gated routes fail
 		// closed with 503 rather than opening up.
 		log.Println("warning: OAUTH_MANAGER_URL unset — every permission-gated route will refuse")
+		events.LogAsync(logclient.Warning, "Authorization not configured", nil)
 	}
 	app := server.New(cfg.FrontendURL, cfg.TrustedProxies, events, authz)
 	addr := ":" + cfg.Port
