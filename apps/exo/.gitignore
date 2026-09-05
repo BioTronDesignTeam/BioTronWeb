@@ -1,0 +1,15 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# Folder-specific ignores live in frontend/, backend/, prisma/.
+# Keep this file to cross-cutting concerns only.
+
+# OS / editor (any directory)
+.DS_Store
+*.swp
+.vscode/
+.idea/
+
+# Secrets / certs (the only committed environment template is /.env.example)
+*.pem
+.env
+.env.*
+!/.env.example

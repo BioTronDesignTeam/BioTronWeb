@@ -1,0 +1,29 @@
+{
+  "name": "exo-gui",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+  "forwardPorts": [5174, 8081],
+  "portsAttributes": {
+    "5174": { "label": "Frontend (Vite dev)", "onAutoForward": "openBrowserOnce" },
+    "8081": { "label": "Backend API", "onAutoForward": "notify" }
+  },
+  "runArgs": [
+    "--add-host=host.docker.internal:host-gateway"
+  ],
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  "remoteUser": "node",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "bradlc.vscode-tailwindcss",
+        "golang.go",
+        "Prisma.prisma"
+      ]
+    }
+  }
+}

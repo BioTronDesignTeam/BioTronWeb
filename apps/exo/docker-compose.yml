@@ -1,0 +1,58 @@
+name: biotron-exo-gui
+
+services:
+  migrate:
+    build:
+      context: ./prisma
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL in .env}
+    networks:
+      - biotron
+    restart: "no"
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL in .env}
+      OAUTH_MANAGER_URL: ${OAUTH_MANAGER_URL:-http://oauth-manager:8080}
+      PORT: "8080"
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5174}
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-127.0.0.1,::1,172.16.0.0/12}
+      LOGGER_URL: ${LOGGER_URL:-http://logger-api:8080}
+      LOGGER_INGEST_TOKEN: ${LOGGER_INGEST_TOKEN:-}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    ports:
+      - "127.0.0.1:${API_PORT:-8081}:8080"
+    networks:
+      biotron:
+        aliases:
+          - exo-api
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8081}
+        VITE_AUTH_URL: ${VITE_AUTH_URL:-http://localhost:8080}
+    ports:
+      - "127.0.0.1:${WEB_PORT:-5174}:80"
+    networks:
+      biotron:
+        aliases:
+          - exo-web
+    depends_on:
+      - api
+    restart: unless-stopped
+
+networks:
+  biotron:
+    external: true
+    name: biotron

@@ -1,0 +1,11 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Telemetry models land with the ingest pipeline. Operator/session/guest_key
+// tables were a local auth copy and are dropped — OAuthManager owns that.
