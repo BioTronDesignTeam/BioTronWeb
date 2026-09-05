@@ -1,0 +1,19 @@
+# Findings Trivy reports on every change that are accepted for now, each with
+# the reason and what would retire it.
+misconfigurations:
+  - id: DS-0002
+    statement: >-
+      The frontend images run the stock nginx:alpine as root so it can bind
+      port 80. Moving them to nginxinc/nginx-unprivileged means listening on
+      8080, which changes six compose port maps, six nginx.conf files, the
+      Logger health catalog, and the edge upstreams together. Planned as one
+      change; not blocking merges until then. The edge Nginx runs read-only
+      with no-new-privileges and is the only container on the public network.
+    paths:
+      - apps/site/frontend/Dockerfile
+      - apps/calendar/frontend/Dockerfile
+      - apps/logger/frontend/Dockerfile
+      - apps/auth/frontend/Dockerfile
+      - apps/exo/frontend/Dockerfile
+      - apps/sprinter/frontend/Dockerfile
+      - infra/nginx/Dockerfile

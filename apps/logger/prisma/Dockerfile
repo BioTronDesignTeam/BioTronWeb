@@ -13,4 +13,7 @@ RUN npm ci
 
 COPY . .
 
+# Applying migrations needs no root; the image's built-in node user does it.
+USER node
+
 CMD ["npm", "run", "deploy"]
