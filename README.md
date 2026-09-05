@@ -37,6 +37,25 @@ Each app keeps its own `README.md`, `.env.example`, `docker-compose.yml`, and
 Ports do not change: Auth 5173/8080, Exo 5174/8081, Logger 5175/8082,
 Calendar 5176/8083, Site 5177, Sprinter 5178/8084.
 
+## One baseline
+
+Every app builds and runs on the same versions, and each version is declared
+in exactly one place so it cannot drift:
+
+| Tool | Version | Declared in |
+|---|---|---|
+| Node | 24 | every Dockerfile, the devcontainer, `.github/workflows` |
+| TypeScript | 6.0 | root `package.json` (the newest typescript-eslint accepts) |
+| Vite, React plugin | 8.2, 6.1 | root `package.json` |
+| React, React DOM | 19.2 | each app's `package.json`, same range |
+| Tailwind | 4.3 | root `package.json`; an app opts in by importing it |
+| Type packages | React 19.2, Node 24 | root `package.json` |
+| Prisma | 6.19.3 | each `apps/*/prisma/package.json`, exact |
+| Go | 1.27.0 | every `go.mod`, `go.work`, every backend Dockerfile |
+
+An app's own `package.json` lists only what that app alone needs, such as
+`three` for the site. Build and lint tooling never goes there.
+
 ## Working in it
 
 ```bash
