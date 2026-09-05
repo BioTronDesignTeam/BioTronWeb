@@ -16,7 +16,7 @@ export function App() {
   const [scopes, setScopes] = useState<Scope[]>([]);
   const [occurrences, setOccurrences] = useState<Occurrence[]>([]);
   const [month, setMonth] = useState(() => startOfMonth());
-  const [selectedScope, setSelectedScope] = useState('');
+  const [selectedScopes, setSelectedScopes] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [managing, setManaging] = useState(false);
@@ -44,6 +44,15 @@ export function App() {
   }, []);
 
   const range = useMemo(() => calendarRange(month), [month]);
+
+  // No selection means every calendar, which is the resting state of the
+  // filter and what its Clear button returns to.
+  const visibleOccurrences = useMemo(
+    () => (selectedScopes.length === 0
+      ? occurrences
+      : occurrences.filter((occurrence) => selectedScopes.includes(occurrence.scope_id))),
+    [occurrences, selectedScopes],
+  );
 
   const loadAuth = useCallback(async () => {
     try {
@@ -74,12 +83,12 @@ export function App() {
     setLoading(true);
     setError('');
     try {
-      const next = await calendarApi.occurrences(range.from, range.to, selectedScope || undefined, controller.signal);
+      const next = await calendarApi.occurrences(range.from, range.to, undefined, controller.signal);
       if (request === occurrenceRequest.current) setOccurrences(next);
     } catch (caught) {
       if (request !== occurrenceRequest.current || controller.signal.aborted) return;
-      // Leaving the previous month's or previous scope's events on screen under
-      // an error banner reads as if they belong to the selection that failed.
+      // Leaving the previous month's events on screen under an error banner
+      // reads as if they belong to the month that failed.
       setOccurrences([]);
       setError(caught instanceof Error ? caught.message : 'Could not load the calendar.');
     } finally {
@@ -88,7 +97,7 @@ export function App() {
       // one to settle, so it stays up while a superseded fetch unwinds.
       setLoading(occurrencesInFlight.current > 0);
     }
-  }, [range.from, range.to, selectedScope]);
+  }, [range.from, range.to]);
 
   const loadAdmin = useCallback(async () => {
     if (!auth.can_write) return;
@@ -198,7 +207,7 @@ export function App() {
           onDeleteScope={async (scope) => { await mutate(() => calendarApi.deleteScope(scope.id)); }}
         />
       ) : (
-        <PublicCalendar month={month} scopes={scopes} occurrences={occurrences} selectedScope={selectedScope} loading={loading} error={error} onMonthChange={setMonth} onScopeChange={setSelectedScope} onSubscribe={() => setShowSubscribe(true)} onSelectEvent={(occurrence) => { setEventActionError(''); setSelectedOccurrence(occurrence); }} />
+        <PublicCalendar month={month} scopes={scopes} occurrences={visibleOccurrences} selectedScopes={selectedScopes} loading={loading} error={error} onMonthChange={setMonth} onScopeChange={setSelectedScopes} onSubscribe={() => setShowSubscribe(true)} onSelectEvent={(occurrence) => { setEventActionError(''); setSelectedOccurrence(occurrence); }} />
       )}
       <footer className="border-t border-ink/10 px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] pt-6 text-center text-xs text-ink/50 dark:border-white/10 dark:text-white/45">Times use America/Toronto · Calendar subscriptions update on each calendar app’s schedule</footer>
 

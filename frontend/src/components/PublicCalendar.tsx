@@ -1,16 +1,17 @@
 import { useMemo } from 'react';
 import { addMonths, calendarDays, dateKey, dayLabel, monthLabel, occurrenceDateKey, timeLabel } from '../date';
 import type { Occurrence, Scope } from '../types';
+import { ScopeFilter } from './ScopeFilter';
 
 interface PublicCalendarProps {
   month: Date;
   scopes: Scope[];
   occurrences: Occurrence[];
-  selectedScope: string;
+  selectedScopes: string[];
   loading: boolean;
   error: string;
   onMonthChange: (month: Date) => void;
-  onScopeChange: (scopeId: string) => void;
+  onScopeChange: (scopeIds: string[]) => void;
   onSubscribe: () => void;
   onSelectEvent: (occurrence: Occurrence) => void;
 }
@@ -82,16 +83,10 @@ export function PublicCalendar(props: PublicCalendarProps) {
             <button type="button" className="grid size-11 shrink-0 place-items-center rounded-full border border-ink/15 hover:bg-soft/25 dark:border-white/15 dark:hover:bg-white/10" onClick={() => props.onMonthChange(addMonths(props.month, 1))} aria-label="Next month">→</button>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-2 lg:ml-auto">
-            <label>
-              <span className="sr-only">Filter calendar</span>
-              <select value={props.selectedScope} onChange={(event) => props.onScopeChange(event.target.value)} className="min-h-11 w-full rounded-full border border-ink/15 bg-transparent px-4 text-sm font-medium outline-none focus:border-brand sm:w-auto dark:border-white/20">
-                <option value="">All BioTron events</option>
-                {props.scopes.map((scope) => <option key={scope.id} value={scope.id}>{scope.kind === 'TEAM' ? 'Teamwide' : scope.path}</option>)}
-              </select>
-            </label>
             <button type="button" onClick={props.onSubscribe} className="min-h-11 whitespace-nowrap rounded-full bg-deep px-5 text-sm font-semibold text-white hover:bg-brand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand">
               Subscribe to a calendar
             </button>
+            <ScopeFilter scopes={props.scopes} selected={props.selectedScopes} onChange={props.onScopeChange} />
           </div>
         </div>
 
