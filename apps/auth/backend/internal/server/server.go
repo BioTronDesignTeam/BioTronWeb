@@ -28,12 +28,15 @@ func New(h *auth.Handler, allowedOrigins []string, trustedProxies []string, even
 		ProxyHeader:      "Cf-Connecting-Ip",
 	})
 
+	// Fiber's console logger first: it runs the error handler itself and
+	// returns nil, so fiberlog must sit inside it to see a returned error,
+	// and recover inside fiberlog so a panic is logged as the 500 it became.
+	app.Use(logger.New())
 	// The two quiet paths are polled by every tool on every page load. They are
 	// logged only when they fail, so the log stays a record of what happened
 	// rather than a tally of who is still signed in.
 	app.Use(fiberlog.New(events, fiberlog.Options{Quiet: []string{"/v1/check", "/auth/me"}}))
 	app.Use(recover.New(recover.Config{EnableStackTrace: true}))
-	app.Use(logger.New())
 	// v3 takes slices where v2 took comma-joined strings; the allow-list is
 	// still exact-match, still credentialed, and the middleware still sets
 	// Vary: Origin on every non-wildcard response.

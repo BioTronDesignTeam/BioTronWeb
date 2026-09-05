@@ -28,9 +28,12 @@ func New(frontendURL string, trustedProxies []string, events *logclient.Client, 
 		ProxyHeader:      "Cf-Connecting-Ip",
 	})
 
+	// Fiber's console logger first: it runs the error handler itself and
+	// returns nil, so fiberlog must sit inside it to see a returned error,
+	// and recover inside fiberlog so a panic is logged as the 500 it became.
+	app.Use(logger.New())
 	app.Use(fiberlog.New(events, fiberlog.Options{}))
 	app.Use(recover.New(recover.Config{EnableStackTrace: true}))
-	app.Use(logger.New())
 	// v3 takes these as slices rather than comma-separated strings.
 	app.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{frontendURL},
