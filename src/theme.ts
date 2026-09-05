@@ -48,6 +48,8 @@ export function applyTheme(theme: Theme, persist = true) {
   const root = document.documentElement;
   root.classList.toggle('dark', dark);
   root.style.colorScheme = theme;
-  root.style.backgroundColor = dark ? '#16033c' : '#ffffff';
+  // Must match --biotron-page in styles.css, and the literal each consumer's
+  // index.html bootstrap paints before this module loads.
+  root.style.backgroundColor = dark ? '#070b0e' : '#ffffff';
   if (persist) persistTheme(theme);
 }
