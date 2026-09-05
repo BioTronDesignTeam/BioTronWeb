@@ -29,7 +29,7 @@ jobs:
           - { name: calendar-api,     context: .,                    dockerfile: apps/calendar/backend/Dockerfile }
           - { name: calendar-migrate, context: apps/calendar/prisma,  dockerfile: apps/calendar/prisma/Dockerfile }
           - { name: logger-web,       context: .,                    dockerfile: apps/logger/frontend/Dockerfile }
-          - { name: logger-api,       context: apps/logger/backend,   dockerfile: apps/logger/backend/Dockerfile }
+          - { name: logger-api,       context: .,                    dockerfile: apps/logger/backend/Dockerfile }
           - { name: logger-migrate,   context: apps/logger/prisma,    dockerfile: apps/logger/prisma/Dockerfile }
           - { name: auth-web,         context: .,                    dockerfile: apps/auth/frontend/Dockerfile }
           - { name: auth-api,         context: .,                    dockerfile: apps/auth/backend/Dockerfile }
@@ -38,7 +38,7 @@ jobs:
           - { name: exo-api,          context: .,                    dockerfile: apps/exo/backend/Dockerfile }
           - { name: exo-migrate,      context: apps/exo/prisma,       dockerfile: apps/exo/prisma/Dockerfile }
           - { name: sprinter-web,     context: .,                    dockerfile: apps/sprinter/frontend/Dockerfile }
-          - { name: sprinter-bot,     context: apps/sprinter/backend, dockerfile: apps/sprinter/backend/Dockerfile }
+          - { name: sprinter-bot,     context: .,                    dockerfile: apps/sprinter/backend/Dockerfile }
           - { name: sprinter-migrate, context: apps/sprinter/prisma,  dockerfile: apps/sprinter/prisma/Dockerfile }
           - { name: edge-nginx,       context: infra/nginx,           dockerfile: infra/nginx/Dockerfile }
     steps:
