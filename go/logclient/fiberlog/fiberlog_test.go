@@ -10,7 +10,7 @@ import (
 	"github.com/gofiber/fiber/v3/middleware/logger"
 	"github.com/gofiber/fiber/v3/middleware/recover"
 
-	"github.com/BioTronDesignTeam/biotron/go/logclient"
+	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
 )
 
 type event struct {

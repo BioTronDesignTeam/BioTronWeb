@@ -11,7 +11,7 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 
-	"github.com/BioTronDesignTeam/biotron/go/logclient"
+	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
 	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/store"
 )
 

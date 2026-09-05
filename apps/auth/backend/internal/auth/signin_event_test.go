@@ -9,7 +9,7 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 
-	"github.com/BioTronDesignTeam/biotron/go/logclient"
+	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
 )
 
 // event is one delivery to Logger's ingest route, decoded as Logger receives it.

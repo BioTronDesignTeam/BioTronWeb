@@ -6,8 +6,8 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 
-	"github.com/BioTronDesignTeam/biotron/go/logclient"
-	"github.com/BioTronDesignTeam/biotron/go/logclient/fiberlog"
+	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
+	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient/fiberlog"
 )
 
 // decisionLocal is where Require stashes the decision it made, so a handler

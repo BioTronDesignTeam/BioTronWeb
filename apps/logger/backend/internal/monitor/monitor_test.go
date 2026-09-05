@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/BioTronDesignTeam/biotron/go/logclient"
+	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
 
 	"github.com/BioTronDesignTeam/Logger/backend/internal/catalog"
 	"github.com/BioTronDesignTeam/Logger/backend/internal/model"

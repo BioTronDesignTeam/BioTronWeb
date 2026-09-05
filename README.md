@@ -117,7 +117,7 @@ run from the separate repositories on the same ports.
 
 - Go module paths still carry their old names
   (`github.com/BioTronDesignTeam/Logger/backend` and so on). Renaming them
-  to `github.com/BioTronDesignTeam/biotron/apps/<app>/backend` is a
+  to `github.com/BioTronDesignTeam/BioTronWeb/apps/<app>/backend` is a
   find-and-replace plus `go work sync`.
 - The OAuthManager permission-check client that Logger, Exo, and Calendar each
   hand-roll belongs in `go/authcheck`. It is not extracted here.

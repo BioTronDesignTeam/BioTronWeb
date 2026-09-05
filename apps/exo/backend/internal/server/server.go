@@ -8,8 +8,8 @@ import (
 	"github.com/gofiber/fiber/v3/middleware/logger"
 	"github.com/gofiber/fiber/v3/middleware/recover"
 
-	"github.com/BioTronDesignTeam/biotron/go/logclient"
-	"github.com/BioTronDesignTeam/biotron/go/logclient/fiberlog"
+	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
+	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient/fiberlog"
 	"github.com/BioTronDesignTeam/exo-gui/backend/internal/auth"
 )
 

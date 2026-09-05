@@ -8,7 +8,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/BioTronDesignTeam/biotron/go/logclient"
+	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
 
 	"github.com/BioTronDesignTeam/Logger/backend/internal/api"
 	"github.com/BioTronDesignTeam/Logger/backend/internal/auth"

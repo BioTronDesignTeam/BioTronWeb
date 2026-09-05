@@ -14,8 +14,8 @@ import (
 	"github.com/gofiber/fiber/v3/middleware/limiter"
 	"github.com/gofiber/fiber/v3/middleware/recover"
 
-	"github.com/BioTronDesignTeam/biotron/go/logclient"
-	"github.com/BioTronDesignTeam/biotron/go/logclient/fiberlog"
+	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
+	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient/fiberlog"
 
 	"github.com/BioTronDesignTeam/Logger/backend/internal/auth"
 	"github.com/BioTronDesignTeam/Logger/backend/internal/catalog"

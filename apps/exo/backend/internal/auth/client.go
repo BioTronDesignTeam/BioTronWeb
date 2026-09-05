@@ -23,7 +23,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/BioTronDesignTeam/biotron/go/logclient"
+	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
 )
 
 // AppID is Exo's application id in OAuthManager. It must match the row in

@@ -1,7 +1,7 @@
 # logclient
 
 The Go client BioTron services use to send events to Logger. Import
-`github.com/BioTronDesignTeam/biotron/go/logclient`. Each backend's `go.mod`
+`github.com/BioTronDesignTeam/BioTronWeb/go/logclient`. Each backend's `go.mod`
 replaces that path with `../../../go/logclient`, and `go.work` lists it, so
 one copy serves every service and a change needs no version bump.
 

@@ -5,7 +5,7 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 
-	"github.com/BioTronDesignTeam/biotron/go/logclient/fiberlog"
+	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient/fiberlog"
 	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/store"
 )
 

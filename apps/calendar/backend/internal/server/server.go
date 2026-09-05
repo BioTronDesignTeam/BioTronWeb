@@ -16,8 +16,8 @@ import (
 	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/config"
 	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/model"
 	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/store"
-	"github.com/BioTronDesignTeam/biotron/go/logclient"
-	"github.com/BioTronDesignTeam/biotron/go/logclient/fiberlog"
+	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
+	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient/fiberlog"
 )
 
 type Handler struct {
