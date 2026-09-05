@@ -61,7 +61,8 @@
 .biotron-button:disabled { cursor: not-allowed; opacity: 0.5; transform: none; }
 .biotron-button--primary { background: var(--biotron-accent); color: var(--biotron-white); }
 .biotron-button--primary:hover { background: var(--biotron-deep); }
-.dark .biotron-button--primary { background: var(--biotron-soft); color: var(--biotron-ink); }
+.dark .biotron-button--primary { background: var(--biotron-accent); color: var(--biotron-white); }
+.dark .biotron-button--primary:hover { background: color-mix(in srgb, var(--biotron-white) 18%, var(--biotron-accent)); }
 .biotron-button--neutral { border-color: var(--biotron-border); background: var(--biotron-surface-muted); color: var(--biotron-text); }
 .biotron-button--danger { border-color: #ef9a9a; background: #fff3f3; color: #9f1239; }
 .dark .biotron-button--danger { border-color: #9f4564; background: #40142c; color: #ffc1d1; }
@@ -112,8 +113,13 @@
 .biotron-theme-toggle--dark .biotron-theme-toggle__thumb { transform: translateX(2.5rem); }
 .biotron-theme-toggle__option { position: relative; z-index: 1; display: grid; place-items: center; }
 .biotron-theme-toggle__option svg { width: 1.1rem; height: 1.1rem; }
+/* The active icon sits on the white thumb, so it needs the darkest colour of
+   the theme it is drawn in: brand ink in light, the graphite page in dark. */
 .biotron-theme-toggle:not(.biotron-theme-toggle--dark) .biotron-theme-toggle__option:nth-of-type(2),
 .biotron-theme-toggle--dark .biotron-theme-toggle__option:last-of-type { color: var(--biotron-ink); }
+.dark .biotron-theme-toggle { border-color: var(--biotron-border-strong); }
+.dark .biotron-theme-toggle:not(.biotron-theme-toggle--dark) .biotron-theme-toggle__option:nth-of-type(2),
+.dark .biotron-theme-toggle--dark .biotron-theme-toggle__option:last-of-type { color: var(--biotron-page); }
 
 .biotron-user-menu { position: relative; display: inline-flex; }
 .biotron-user-menu__trigger {
@@ -134,7 +140,8 @@
 .biotron-user-menu__trigger:hover { transform: translateY(-1px); border-color: var(--biotron-accent); }
 .biotron-user-menu__trigger img { width: 100%; height: 100%; border-radius: 999px; object-fit: cover; }
 .biotron-user-menu__trigger svg { width: 1.15rem; height: 1.15rem; }
-.dark .biotron-user-menu__trigger { color: var(--biotron-soft); }
+.dark .biotron-user-menu__trigger { border-color: var(--biotron-border-strong); color: var(--biotron-text); }
+.dark .biotron-user-menu__trigger:hover { border-color: var(--biotron-link); }
 .biotron-user-menu__popover {
   position: absolute;
   z-index: 50;
@@ -181,10 +188,12 @@
   color: var(--biotron-text);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
+/* Dark: the graphite page carries one purple and one blue glow, the same two
+   highlights the public site uses behind its hero. */
 .dark .biotron-auth-screen {
   background:
-    radial-gradient(circle at 15% 10%, color-mix(in srgb, var(--biotron-accent) 42%, transparent), transparent 34rem),
-    radial-gradient(circle at 85% 92%, color-mix(in srgb, var(--biotron-soft) 12%, transparent), transparent 38rem),
+    radial-gradient(circle at 15% 10%, rgba(22, 11, 108, 0.52), transparent 34rem),
+    radial-gradient(circle at 85% 92%, rgba(48, 80, 176, 0.4), transparent 38rem),
     var(--biotron-page);
 }
 .biotron-auth-screen *, .biotron-auth-screen *::before, .biotron-auth-screen *::after { box-sizing: border-box; }
@@ -228,7 +237,8 @@
 }
 .biotron-auth-action { margin-top: 1.4rem; background: var(--biotron-accent); color: var(--biotron-white); }
 .biotron-auth-action:hover { transform: translateY(-1px); background: var(--biotron-deep); }
-.dark .biotron-auth-action { background: var(--biotron-soft); color: var(--biotron-ink); }
+.dark .biotron-auth-action { background: var(--biotron-accent); color: var(--biotron-white); }
+.dark .biotron-auth-action:hover { background: color-mix(in srgb, var(--biotron-white) 18%, var(--biotron-accent)); }
 .biotron-auth-action svg { width: 1.2rem; height: 1.2rem; }
 .biotron-auth-divider { display: flex; align-items: center; gap: 0.75rem; margin: 1.2rem 0; color: var(--biotron-text-muted); font-size: 0.7rem; }
 .biotron-auth-divider span { height: 1px; flex: 1; background: var(--biotron-border); }
@@ -245,11 +255,15 @@
   font: inherit;
   font-size: 0.86rem;
 }
+/* Dark: an input is an inset well, one shade below the card it sits in. */
+.dark .biotron-guest-form input { border-color: var(--biotron-border-strong); background: var(--biotron-surface-deep); }
 .biotron-guest-form input::placeholder { color: var(--biotron-text-muted); opacity: 0.72; }
+.dark .biotron-guest-form input::placeholder { color: var(--biotron-text-faint); opacity: 1; }
 .biotron-guest-form__error { margin: 0.45rem 0 0; color: #b42347; font-size: 0.72rem; }
 .dark .biotron-guest-form__error { color: #ff9bb6; }
 .biotron-guest-form button { margin-top: 0.65rem; border-color: var(--biotron-border); background: var(--biotron-surface-muted); color: var(--biotron-text); }
 .biotron-guest-form button:hover:not(:disabled) { transform: translateY(-1px); border-color: var(--biotron-accent); }
+.dark .biotron-guest-form button:hover:not(:disabled) { border-color: var(--biotron-link); }
 .biotron-guest-form button:disabled { cursor: not-allowed; opacity: 0.45; }
 .biotron-auth-card__footer { margin-top: 1.25rem; color: var(--biotron-text-muted); font-size: 0.72rem; }
 .biotron-auth-loading { overflow: hidden; height: 0.22rem; margin-top: 1.5rem; border-radius: 999px; background: var(--biotron-surface-muted); }
@@ -271,7 +285,9 @@
 .biotron-preview__toolbar { display: flex; align-items: center; gap: 0.7rem; }
 .biotron-preview__toolbar .biotron-user-menu__popover { right: auto; left: 0; }
 .biotron-preview__actions { display: flex; flex-wrap: wrap; gap: 0.75rem; }
-.biotron-eyebrow { color: var(--biotron-accent); font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; }
+/* Accent text, so it uses --biotron-link: brand blue in light, lifted blue in
+   dark, where #3050b0 would be unreadable on graphite. */
+.biotron-eyebrow { color: var(--biotron-link); font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; }
 
 /* Touch and small-viewport hit areas.
 
