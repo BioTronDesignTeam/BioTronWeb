@@ -13,11 +13,11 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 
+	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
 	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/auth"
 	calendarlogic "github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/calendar"
 	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/config"
 	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/model"
-	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
 )
 
 func TestClampQueryClampsInsteadOfRejecting(t *testing.T) {

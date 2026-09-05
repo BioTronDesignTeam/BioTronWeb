@@ -12,12 +12,12 @@ import (
 	"github.com/gofiber/fiber/v3/middleware/logger"
 	"github.com/gofiber/fiber/v3/middleware/recover"
 
+	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
+	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient/fiberlog"
 	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/auth"
 	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/config"
 	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/model"
 	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/store"
-	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
-	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient/fiberlog"
 )
 
 type Handler struct {

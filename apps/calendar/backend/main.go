@@ -11,11 +11,11 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/joho/godotenv"
 
+	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
 	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/auth"
 	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/config"
 	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/server"
 	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/store"
-	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
 )
 
 func main() {
