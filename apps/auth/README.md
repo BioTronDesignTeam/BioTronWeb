@@ -182,6 +182,7 @@ non-staff operator answers `false`.
 | `exo-gui` | `live`, `historical`, `commands` |
 | `logger` | `view` |
 | `calendar` | `write` |
+| `sprinter` | `admin` |
 
 A guest session from Exo's key holds `exo-gui/live` and `exo-gui/historical`
 and nothing else.
