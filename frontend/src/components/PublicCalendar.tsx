@@ -72,8 +72,7 @@ export function PublicCalendar(props: PublicCalendarProps) {
     <main className="mx-auto w-full max-w-[1500px] px-4 pb-16 pt-8 sm:px-6 lg:px-8">
       <section className="mb-8 grid gap-5 lg:grid-cols-[1fr_auto] lg:items-end">
         <div>
-          <p className="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-brand dark:text-soft">Public calendar</p>
-          <h1 className="max-w-3xl text-3xl font-semibold tracking-[-0.04em] sm:text-5xl">Find the room where BioTron is building.</h1>
+          <h1 className="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-brand dark:text-soft">Public calendar</h1>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-ink/65 sm:text-base dark:text-white/65">Team meetings, project sessions, and subteam work blocks. Times are shown in Waterloo time.</p>
         </div>
         <button type="button" onClick={props.onSubscribe} className="min-h-12 rounded-full bg-deep px-6 text-sm font-semibold text-white hover:bg-brand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand">
