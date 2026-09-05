@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { addMonths, calendarDays, dateKey, dayLabel, monthLabel, occurrenceDateKey, startOfMonth, timeLabel } from '../date';
+import { addMonths, calendarDays, dateKey, dayLabel, monthLabel, occurrenceDateKey, timeLabel } from '../date';
 import type { Occurrence, Scope } from '../types';
 
 interface PublicCalendarProps {
@@ -73,15 +73,13 @@ export function PublicCalendar(props: PublicCalendarProps) {
       <h1 className="sr-only">BioTron public calendar</h1>
       <section className="overflow-hidden rounded-3xl border border-ink/10 bg-white dark:border-white/10 dark:bg-white/[0.04]">
         <div className="flex flex-col gap-4 border-b border-ink/10 p-4 sm:p-5 dark:border-white/10 lg:flex-row lg:items-center">
-          {/* The month name goes above the controls on a phone. Beside four
-              44px targets at 375px it had to truncate to "September 2...". */}
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-2">
-            <h2 className="text-xl font-semibold sm:order-last sm:ml-2">{monthLabel(props.month)}</h2>
-            <div className="flex items-center justify-between gap-2 sm:justify-start">
-              <button type="button" className="grid size-11 place-items-center rounded-full border border-ink/15 hover:bg-soft/25 dark:border-white/15 dark:hover:bg-white/10" onClick={() => props.onMonthChange(addMonths(props.month, -1))} aria-label="Previous month">←</button>
-              <button type="button" className="min-h-11 rounded-full px-3 text-sm font-semibold hover:bg-soft/25 dark:hover:bg-white/10" onClick={() => props.onMonthChange(startOfMonth())}>Today</button>
-              <button type="button" className="grid size-11 place-items-center rounded-full border border-ink/15 hover:bg-soft/25 dark:border-white/15 dark:hover:bg-white/10" onClick={() => props.onMonthChange(addMonths(props.month, 1))} aria-label="Next month">→</button>
-            </div>
+          {/* The month sits between the arrows. Its box has a fixed width so
+              that a shorter month name does not slide the next-month button
+              out from under the pointer. */}
+          <div className="flex items-center justify-between gap-2 sm:justify-start sm:gap-3">
+            <button type="button" className="grid size-11 shrink-0 place-items-center rounded-full border border-ink/15 hover:bg-soft/25 dark:border-white/15 dark:hover:bg-white/10" onClick={() => props.onMonthChange(addMonths(props.month, -1))} aria-label="Previous month">←</button>
+            <h2 className="min-w-[10.5rem] text-center text-xl font-semibold">{monthLabel(props.month)}</h2>
+            <button type="button" className="grid size-11 shrink-0 place-items-center rounded-full border border-ink/15 hover:bg-soft/25 dark:border-white/15 dark:hover:bg-white/10" onClick={() => props.onMonthChange(addMonths(props.month, 1))} aria-label="Next month">→</button>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-2 lg:ml-auto">
             <label>
