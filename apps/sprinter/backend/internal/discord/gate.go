@@ -1,8 +1,6 @@
 package discord
 
 import (
-	"github.com/bwmarrin/discordgo"
-
 	"github.com/BioTronDesignTeam/Sprinter/backend/internal/store"
 )
 
@@ -33,15 +31,6 @@ var refusals = map[reason]string{
 	reasonUnavailable: "Sprinter cannot check permissions right now. Try again shortly.",
 }
 
-// allowed is the whole gate for one command, kept pure so every branch is a
-// table row in the test rather than a Discord session.
-func allowed(guard store.Guard, interaction *discordgo.InteractionCreate) (bool, reason) {
-	if interaction.Member == nil {
-		return allowedIn(guard, interaction.GuildID, interaction.ChannelID, nil, false)
-	}
-	return allowedIn(guard, interaction.GuildID, interaction.ChannelID, interaction.Member.Roles, true)
-}
-
 // allowedIn is the gate itself, over ids rather than over a Discord type. A
 // thread follow-up is a message, not an interaction, and it has to pass the
 // same gate; sharing this function is what stops the two paths from drifting.
@@ -50,17 +39,19 @@ func allowed(guard store.Guard, interaction *discordgo.InteractionCreate) (bool,
 // from a channel the guard lists or from any channel when it lists none, and
 // from a member holding at least one role the guard names.
 //
-// For a thread, channelID is the thread's parent channel. A thread has an id
-// of its own that no guard could ever list, so checking the thread's id would
-// refuse every follow-up in a guard that names channels.
-func allowedIn(guard store.Guard, guildID, channelID string, roles []string, hasMember bool) (bool, reason) {
+// channelIDs is every id the guard's channel list may match for this
+// question: the channel it came from, and, when that is a thread, the
+// thread's parent. A guard names channels, and Discord gives a thread an id
+// of its own that no guard could list, so matching the thread id alone would
+// refuse every question asked inside one.
+func allowedIn(guard store.Guard, guildID string, channelIDs, roles []string, hasMember bool) (bool, reason) {
 	if guildID == "" {
 		return false, reasonNoGuild
 	}
 	if guildID != guard.GuildID {
 		return false, reasonWrongGuild
 	}
-	if len(guard.ChannelIDs) > 0 && !contains(guard.ChannelIDs, channelID) {
+	if len(guard.ChannelIDs) > 0 && !containsAny(guard.ChannelIDs, channelIDs) {
 		return false, reasonWrongChanel
 	}
 	if !hasMember {
@@ -72,6 +63,16 @@ func allowedIn(guard store.Guard, guildID, channelID string, roles []string, has
 		}
 	}
 	return false, reasonWrongRole
+}
+
+// containsAny reports whether any of wanted is in values.
+func containsAny(values, wanted []string) bool {
+	for _, candidate := range wanted {
+		if contains(values, candidate) {
+			return true
+		}
+	}
+	return false
 }
 
 func contains(values []string, wanted string) bool {

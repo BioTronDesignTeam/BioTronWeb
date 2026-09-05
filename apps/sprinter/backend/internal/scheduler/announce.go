@@ -47,7 +47,9 @@ func (s *Scheduler) postOrEditAnnouncement(ctx context.Context, automation store
 	posted, err := s.store.GetPosted(ctx, automation.ID, occ.UID, occ.RecurrenceID)
 	switch {
 	case errors.Is(err, store.ErrNotFound):
-		messageID, sendErr := s.discord.SendMessage(automation.ChannelID, content)
+		// An announcement pings nobody: its text is an event title and a
+		// location, both written by whoever put the event on the calendar.
+		messageID, sendErr := s.discord.SendMessage(automation.ChannelID, content, nil)
 		if sendErr != nil {
 			return fmt.Errorf("post announcement for %s: %w", occ.UID, sendErr)
 		}

@@ -74,9 +74,16 @@ roles that may run it, and the channels it may run in. An empty channel
 list means any channel in that guild. A command with no guard row is
 refused: adding a command without configuring it fails closed.
 
-A refusal is ephemeral, so only the person who ran the command sees it.
-It never names the allowed roles or channels, because that would leak
-the guard to the person it excludes.
+The guard's channel list names channels. A question asked inside a
+thread is checked against the thread's parent channel as well, because a
+thread has an id of its own that no guard could list.
+
+The bot acknowledges a command before it reads the guard. Discord closes
+an interaction three seconds after it arrives, and the guard is a
+database read; a slow database must not cost the person their answer. A
+refusal therefore replaces the "thinking" reply and is visible in the
+channel. It never names the allowed roles or channels, because that
+would leak the guard to the person it excludes.
 
 ### How a question is answered
 
@@ -152,14 +159,22 @@ cannot read either one.
 
 The model is told that tool results are data and never instructions. A
 log message can contain words that read like an order; Sprinter reports
-them and does not act on them.
+them and does not act on them. Each result is wrapped in a
+`<tool_result nonce="...">` fence, with one random nonce per answer, so
+the model can see exactly which text the rule covers and no log line can
+close the fence and speak in its place.
 
 ## Automations
 
 The scheduler ticks on `POLL_INTERVAL` (default five minutes). Each tick
-reads Calendar's `/v1/events` for every enabled automation, in the window
-from now to `lead_hours` ahead. It runs only beside a live Discord
-session, because it posts through the bot.
+reads Calendar's `/v1/events` for every enabled automation, in a fixed
+window of now to 169 hours ahead. The window does not follow
+`lead_hours`, because the cancellation check below compares this fetch
+against what the automation last saw: a window that shrank when somebody
+lowered `lead_hours` would read as a week of cancellations. Announcing
+and nudging filter that fetch by `lead_hours` themselves. The scheduler
+runs only beside a live Discord session, because it posts through the
+bot.
 
 An **ANNOUNCE** automation posts each occurrence to `channel_id` once it
 falls inside `lead_hours`. It edits the post if the occurrence changes
@@ -177,7 +192,15 @@ model the nudge still goes out, without the draft.
 Calendar's public feed drops a cancelled occurrence instead of flagging
 it. Sprinter remembers what it last saw, so a future occurrence that
 stops coming back is treated as cancelled: a NUDGE automation tells the
-lead, and an ANNOUNCE automation's post is edited to say so.
+lead, and an ANNOUNCE automation's post is edited to say so. Only an
+occurrence starting inside the fetch window counts; one starting past it
+was never asked for, so its absence means nothing. A cancellation nudge
+ignores the lookback check, because the announcement that would satisfy
+it is the message now being corrected.
+
+No message Sprinter sends parses mentions. An event title or a model's
+draft cannot ping the server. The one exception is a channel nudge,
+which names the lead's own id and nothing else.
 
 One automation's failure never stops the others. A Calendar outage skips
 that automation for the tick; it is never read as "nothing is scheduled".

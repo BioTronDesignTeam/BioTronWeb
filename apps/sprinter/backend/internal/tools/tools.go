@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/BioTronDesignTeam/Sprinter/backend/internal/model"
 	"github.com/BioTronDesignTeam/Sprinter/backend/internal/readstore"
@@ -64,7 +65,7 @@ func capResult(text string, limit int, narrow string) string {
 	}
 	cut := strings.LastIndex(text[:limit], "\n")
 	if cut <= 0 {
-		cut = limit
+		cut = runeSafeCut(text, limit)
 	}
 	return strings.TrimRight(text[:cut], "\n") +
 		fmt.Sprintf("\n[Cut here. This result was longer than %d characters. %s]", limit, narrow)
@@ -76,7 +77,18 @@ func truncate(text string, limit int) string {
 	if len(text) <= limit {
 		return text
 	}
-	return text[:limit] + "…"
+	return text[:runeSafeCut(text, limit)] + "…"
+}
+
+// runeSafeCut moves a byte index back to the start of a character. Every
+// limit here counts bytes, and a log line holding an accent or an emoji puts
+// a character across the limit; cutting mid-character leaves the model a
+// replacement glyph, and Discord a message that is not valid UTF-8.
+func runeSafeCut(text string, cut int) int {
+	for cut > 0 && cut < len(text) && !utf8.RuneStart(text[cut]) {
+		cut--
+	}
+	return cut
 }
 
 // decode reads a tool's arguments. Unknown fields are ignored on purpose: a

@@ -273,11 +273,18 @@ func (s *Store) Access(ctx context.Context, appID string) (AccessReport, error) 
 	return report, nil
 }
 
+// accessRowLimit bounds each of the three access queries. An app with more
+// than five hundred grants, or a guild with more than five hundred managers,
+// is not a report anybody reads; without the cap one such row set would be
+// pulled into memory in full and then cut in the tool's formatter anyway.
+const accessRowLimit = 500
+
 func (s *Store) permissions(ctx context.Context, appID string) ([]PermissionRow, error) {
 	found, err := s.pool.Query(ctx, `
 		SELECT key, label, description
 		FROM oauth.permissions WHERE app_id = $1 ORDER BY key
-	`, appID)
+		LIMIT $2
+	`, appID, accessRowLimit)
 	if err != nil {
 		return nil, fmt.Errorf("query permissions: %w", err)
 	}
@@ -306,7 +313,8 @@ func (s *Store) grants(ctx context.Context, appID string) ([]GrantRow, error) {
 		       ON p.app_id = g.app_id AND p.key = g.permission_key
 		WHERE g.app_id = $1
 		ORDER BY lower(o.login), g.permission_key
-	`, appID)
+		LIMIT $2
+	`, appID, accessRowLimit)
 	if err != nil {
 		return nil, fmt.Errorf("query grants: %w", err)
 	}
@@ -329,7 +337,8 @@ func (s *Store) privilegedOperators(ctx context.Context) ([]OperatorRow, []Opera
 		FROM oauth.operators
 		WHERE is_manager OR is_superuser
 		ORDER BY lower(login)
-	`)
+		LIMIT $1
+	`, accessRowLimit)
 	if err != nil {
 		return nil, nil, fmt.Errorf("query privileged operators: %w", err)
 	}

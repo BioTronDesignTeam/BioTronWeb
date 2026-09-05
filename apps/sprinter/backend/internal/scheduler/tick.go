@@ -19,6 +19,17 @@ type occurrenceKey struct {
 	recurrenceIDLocal string
 }
 
+// fetchWindow is how far ahead every tick asks Calendar, whatever an
+// automation's lead_hours says. It is the largest lead an automation may
+// carry — 168 hours, checked in the admin API — plus an hour of slack.
+//
+// The window is fixed on purpose. Cancellation is inferred by comparing what
+// the automation last saw against what Calendar now returns, so the two have
+// to cover the same span. A window that moved with lead_hours would read
+// "somebody lowered lead_hours" as "everything was cancelled", and so would
+// a scope_id edit or an occurrence drifting past the window's edge.
+const fetchWindow = 169 * time.Hour
+
 // Tick is the unit of work: one pass over every enabled automation. Each
 // automation's failure is caught here so that one broken automation — a bad
 // scope id, a Discord channel the bot was removed from — can never stop the
@@ -51,8 +62,10 @@ func (s *Scheduler) runAutomation(ctx context.Context, automation store.Automati
 
 func (s *Scheduler) processAutomation(ctx context.Context, automation store.Automation) error {
 	now := s.now()
-	window := time.Duration(automation.LeadHours)*time.Hour + time.Hour
-	occurrences, err := s.calendar.Occurrences(ctx, automation.ScopeID, now, now.Add(window))
+	// One fetch over the fixed window serves both jobs. Announcing and
+	// nudging then filter it by lead_hours in Go, which they already do.
+	windowEnd := now.Add(fetchWindow)
+	occurrences, err := s.calendar.Occurrences(ctx, automation.ScopeID, now, windowEnd)
 	if err != nil {
 		// A fetch failure means "unknown", never "empty": skip this
 		// automation entirely rather than treat a Calendar outage as
@@ -68,7 +81,7 @@ func (s *Scheduler) processAutomation(ctx context.Context, automation store.Auto
 		fetched[occurrenceKey{uid: occ.UID, recurrenceIDLocal: occ.RecurrenceID}] = occ
 	}
 
-	if err := s.detectCancellations(ctx, automation, now, fetched); err != nil {
+	if err := s.detectCancellations(ctx, automation, now, windowEnd, fetched); err != nil {
 		return err
 	}
 
@@ -96,13 +109,20 @@ func (s *Scheduler) processAutomation(ctx context.Context, automation store.Auto
 // still-future start that the fresh fetch no longer contains. Calendar's
 // public JSON drops a cancelled occurrence rather than flagging it, so
 // "expected to still be coming, and is not" is the only signal there is.
-func (s *Scheduler) detectCancellations(ctx context.Context, automation store.Automation, now time.Time, fetched map[occurrenceKey]calendar.Occurrence) error {
+//
+// windowEnd is where the fetch stopped. A seen occurrence starting past it
+// was never in this fetch to begin with, so its absence says nothing about
+// whether it still exists, and it is left alone.
+func (s *Scheduler) detectCancellations(ctx context.Context, automation store.Automation, now, windowEnd time.Time, fetched map[occurrenceKey]calendar.Occurrence) error {
 	seenFuture, err := s.store.ListSeenFuture(ctx, automation.ID, now)
 	if err != nil {
 		return fmt.Errorf("list seen future occurrences: %w", err)
 	}
 	for _, seen := range seenFuture {
 		if _, ok := fetched[occurrenceKey{uid: seen.UID, recurrenceIDLocal: seen.RecurrenceIDLocal}]; ok {
+			continue
+		}
+		if seen.StartsAt.After(windowEnd) {
 			continue
 		}
 		s.emit(logclient.Info, "Occurrence vanished", map[string]any{

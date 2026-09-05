@@ -23,7 +23,12 @@ type DiscordAPI interface {
 	// Discord's own API does; either may be empty.
 	ChannelMessages(channelID string, limit int, beforeID, afterID string) ([]Message, error)
 	// SendMessage posts content to channelID and returns the new message id.
-	SendMessage(channelID, content string) (string, error)
+	// mentionUsers names the only users the message may ping; everything
+	// else in the text — @everyone, a role, another member — is sent as
+	// plain characters. An event title comes from Calendar and a draft comes
+	// from a model, so no outgoing message may be trusted to ping nobody by
+	// accident.
+	SendMessage(channelID, content string, mentionUsers []string) (string, error)
 	// EditMessage replaces messageID's content in channelID.
 	EditMessage(channelID, messageID, content string) error
 	// DirectMessage opens (or reuses) a DM with userID and sends content,

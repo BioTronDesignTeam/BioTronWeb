@@ -118,10 +118,14 @@ type fakeCalendar struct {
 	occurrences []calendar.Occurrence
 	err         error
 	calls       int
+	// from and to record the last window asked for, so a test can pin the
+	// span the cancellation check compares over.
+	from, to time.Time
 }
 
-func (f *fakeCalendar) Occurrences(context.Context, string, time.Time, time.Time) ([]calendar.Occurrence, error) {
+func (f *fakeCalendar) Occurrences(_ context.Context, _ string, from, to time.Time) ([]calendar.Occurrence, error) {
 	f.calls++
+	f.from, f.to = from, to
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -144,6 +148,7 @@ type sentMessage struct {
 	channelOrUser string
 	content       string
 	messageID     string
+	mentionUsers  []string
 }
 
 type editedMessage struct {
@@ -186,10 +191,12 @@ func snowflakeAt(t time.Time, n int) string {
 	return strconv.FormatUint(uint64(millis)<<22|uint64(n), 10)
 }
 
-func (f *fakeDiscord) SendMessage(channelID, content string) (string, error) {
+func (f *fakeDiscord) SendMessage(channelID, content string, mentionUsers []string) (string, error) {
 	f.nextID++
 	id := fmt.Sprintf("msg-%d", f.nextID)
-	f.sentMessages = append(f.sentMessages, sentMessage{channelOrUser: channelID, content: content, messageID: id})
+	f.sentMessages = append(f.sentMessages, sentMessage{
+		channelOrUser: channelID, content: content, messageID: id, mentionUsers: mentionUsers,
+	})
 	return id, nil
 }
 

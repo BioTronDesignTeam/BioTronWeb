@@ -3,6 +3,7 @@ package discord
 import (
 	"context"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/BioTronDesignTeam/Sprinter/backend/internal/model"
 )
@@ -76,7 +77,20 @@ func splitMessage(text string, limit int) []string {
 	for len(text) > limit {
 		cut := strings.LastIndex(text[:limit+1], "\n")
 		if cut <= 0 {
+			// Discord's limit counts characters, but this cut counts bytes.
+			// An answer holding an accent or an emoji puts a character across
+			// the limit, and splitting one leaves both messages holding half
+			// a character, which is not valid UTF-8.
 			cut = limit
+			for cut > 0 && !utf8.RuneStart(text[cut]) {
+				cut--
+			}
+			if cut == 0 {
+				// One character wider than the whole limit. Take it whole:
+				// a cut of zero would remove nothing and loop forever.
+				_, size := utf8.DecodeRuneInString(text)
+				cut = size
+			}
 		}
 		parts = append(parts, strings.TrimRight(text[:cut], "\n"))
 		text = strings.TrimLeft(text[cut:], "\n")

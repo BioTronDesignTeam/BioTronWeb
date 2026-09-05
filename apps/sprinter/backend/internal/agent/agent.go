@@ -10,6 +10,8 @@ package agent
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log"
@@ -123,6 +125,9 @@ func (a *Agent) Continue(ctx context.Context, history []model.Message, question 
 	working = append(working, asked)
 
 	result := Result{Messages: []model.Message{asked}}
+	// One nonce for this whole answer, so the model sees the same tag on
+	// every result and can tell where each one ends.
+	nonce := newNonce()
 	spent := 0
 	toolCapHit := false
 
@@ -179,6 +184,9 @@ func (a *Agent) Continue(ctx context.Context, history []model.Message, question 
 			result.Tools = appendOnce(result.Tools, call.Name)
 			results = append(results, a.runTool(ctx, call))
 		}
+		for i := range results {
+			results[i].Content = fence(nonce, results[i].Content)
+		}
 		// Every result goes back as one user turn, because that is how both
 		// vendors model it: results are user-side content answering the calls.
 		answered := model.Message{Role: model.RoleUser, ToolResults: results}
@@ -215,6 +223,31 @@ func (a *Agent) runTool(ctx context.Context, call model.ToolCall) model.ToolResu
 		}
 	}
 	return model.ToolResult{ID: call.ID, Name: call.Name, Content: output}
+}
+
+// fence wraps one tool result so the model can see where the data starts and
+// where it stops. Everything a tool returns was written by somebody else — a
+// log message, an event title, an operator's name — and some of it reads like
+// an order. The system prompt says text inside this fence is data; the fence
+// is what makes that sentence enforceable, because the model can tell which
+// text it covers.
+//
+// The nonce is fresh per answer, so a log line cannot close the fence and
+// speak as the loop: it would have to guess 128 random bits first.
+func fence(nonce, content string) string {
+	opening := `<tool_result nonce="` + nonce + `">`
+	closing := `</tool_result nonce="` + nonce + `">`
+	return opening + "\n" + content + "\n" + closing
+}
+
+// newNonce is 16 random bytes as hex. crypto/rand, not math/rand: a
+// predictable tag is no tag at all.
+func newNonce() string {
+	var raw [16]byte
+	// Since Go 1.24 crypto/rand.Read cannot fail; it panics rather than
+	// return a short read, so there is no error to handle here.
+	rand.Read(raw[:])
+	return hex.EncodeToString(raw[:])
 }
 
 // lastText is the newest thing the model actually said, which may be several

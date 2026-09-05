@@ -14,19 +14,19 @@ func TestAllowedInChecksTheThreadsParentChannel(t *testing.T) {
 		RoleIDs: []string{leads}, ChannelIDs: []string{general},
 	}
 	// A thread's own id is never in a guard's channel list, so the parent is
-	// what gets checked. Passing the thread id here would refuse everybody.
-	if ok, why := allowedIn(guard, guild, general, []string{leads}, true); !ok {
+	// offered with it. Offering the thread id alone would refuse everybody.
+	if ok, why := allowedIn(guard, guild, []string{thread, general}, []string{leads}, true); !ok {
 		t.Fatalf("a lead in the guarded channel must pass, got %q", why)
 	}
-	if ok, why := allowedIn(guard, guild, offtop, []string{leads}, true); ok || why != reasonWrongChanel {
+	if ok, why := allowedIn(guard, guild, []string{thread, offtop}, []string{leads}, true); ok || why != reasonWrongChanel {
 		t.Fatalf("a thread under an unguarded channel must be refused, got (%t, %q)", ok, why)
 	}
 	// A role taken away between the first question and the tenth must close
 	// the thread to that person.
-	if ok, why := allowedIn(guard, guild, general, []string{guests}, true); ok || why != reasonWrongRole {
+	if ok, why := allowedIn(guard, guild, []string{thread, general}, []string{guests}, true); ok || why != reasonWrongRole {
 		t.Fatalf("a member without the role must be refused, got (%t, %q)", ok, why)
 	}
-	if ok, why := allowedIn(guard, guild, general, nil, false); ok || why != reasonNoMember {
+	if ok, why := allowedIn(guard, guild, []string{thread, general}, nil, false); ok || why != reasonNoMember {
 		t.Fatalf("no member means no roles to read, got (%t, %q)", ok, why)
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/BioTronDesignTeam/Sprinter/backend/internal/readstore"
 )
@@ -76,6 +77,43 @@ func TestTruncateMarksWhatItDropped(t *testing.T) {
 	}
 	if got := truncate("0123456789abc", 10); got != "0123456789…" {
 		t.Fatalf("got %q", got)
+	}
+}
+
+// Both limits count bytes. A log line or a payload holding an accent or an
+// emoji puts a character across the limit, and cutting through one leaves the
+// model a replacement glyph instead of the text.
+func TestCutsNeverSplitACharacter(t *testing.T) {
+	// "é" is two bytes, so a character straddles every odd byte index.
+	accents := strings.Repeat("é", 40)
+	for limit := 9; limit <= 12; limit++ {
+		got := truncate(accents, limit)
+		if !utf8.ValidString(got) {
+			t.Fatalf("truncate at %d is not valid UTF-8: %q", limit, got)
+		}
+		if !strings.HasSuffix(got, "…") {
+			t.Fatalf("truncate at %d dropped its marker: %q", limit, got)
+		}
+	}
+
+	// A four-byte emoji, and a body with no line to cut on, so capResult
+	// falls back to cutting at the limit itself.
+	rockets := strings.Repeat("🚀", 40)
+	for limit := 9; limit <= 12; limit++ {
+		got := capResult(rockets, limit, "Ask for fewer rows.")
+		if !utf8.ValidString(got) {
+			t.Fatalf("capResult at %d is not valid UTF-8: %q", limit, got)
+		}
+		if !strings.Contains(got, "Cut here") {
+			t.Fatalf("capResult at %d did not say it cut: %q", limit, got)
+		}
+	}
+
+	// The line-boundary path has to stay valid too.
+	lines := strings.Repeat("🚀🚀🚀\n", 20)
+	got := capResult(lines, 50, "Ask for fewer rows.")
+	if !utf8.ValidString(got) {
+		t.Fatalf("capResult on lines is not valid UTF-8: %q", got)
 	}
 }
 

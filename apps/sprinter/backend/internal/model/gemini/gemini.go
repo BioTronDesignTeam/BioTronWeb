@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync/atomic"
 
 	"google.golang.org/genai"
 
@@ -88,10 +89,19 @@ func (m *Model) Generate(ctx context.Context, system string, history []model.Mes
 // mapError turns Gemini's quota refusal into the sentinel the loop knows, and
 // leaves every other failure alone. 429 is the only status the operator can do
 // something about by waiting.
+//
+// An API error is reported as its status code and status name and nothing
+// else. Message and Details are the server's own body: Gemini quotes the
+// prompt back in them, and this error reaches the process log, so repeating
+// them would write the question — and anything a tool put in front of the
+// model — into the logs.
 func mapError(err error) error {
 	var apiErr genai.APIError
-	if errors.As(err, &apiErr) && apiErr.Code == http.StatusTooManyRequests {
-		return fmt.Errorf("%w: %s", model.ErrRateLimited, apiErr.Message)
+	if errors.As(err, &apiErr) {
+		if apiErr.Code == http.StatusTooManyRequests {
+			return fmt.Errorf("%w: gemini: status %d %s", model.ErrRateLimited, apiErr.Code, apiErr.Status)
+		}
+		return fmt.Errorf("gemini: status %d %s", apiErr.Code, apiErr.Status)
 	}
 	return fmt.Errorf("gemini: generate: %w", err)
 }
@@ -118,8 +128,15 @@ func toDeclarations(tools []model.ToolSpec) ([]*genai.FunctionDeclaration, error
 // invented id must not travel back to Gemini as if the model had issued it.
 const syntheticPrefix = "gemini-call-"
 
-func syntheticID(name string, index int) string {
-	return syntheticPrefix + name + "-" + strconv.Itoa(index)
+// responseSeq numbers each response this process maps. Without it, two turns
+// that both call recent_logs first would each invent
+// "gemini-call-recent_logs-0", and a transcript replayed later could not say
+// which result answered which call.
+var responseSeq atomic.Uint64
+
+func syntheticID(name string, response uint64, index int) string {
+	return syntheticPrefix + name + "-" +
+		strconv.FormatUint(response, 10) + "-" + strconv.Itoa(index)
 }
 
 func toContents(history []model.Message) ([]*genai.Content, error) {
@@ -204,10 +221,14 @@ func fromResponse(response *genai.GenerateContentResponse) model.Response {
 		// leaving them out would under-report what the question cost.
 		out.OutputTokens = int(usage.CandidatesTokenCount + usage.ThoughtsTokenCount)
 	}
-	if len(response.Candidates) == 0 || response.Candidates[0].Content == nil {
+	// A candidate can come back as a null in the JSON array, so the pointer
+	// is checked before its content is read.
+	if len(response.Candidates) == 0 || response.Candidates[0] == nil ||
+		response.Candidates[0].Content == nil {
 		return out
 	}
 
+	sequence := responseSeq.Add(1)
 	var text strings.Builder
 	index := 0
 	for _, part := range response.Candidates[0].Content.Parts {
@@ -229,7 +250,7 @@ func fromResponse(response *genai.GenerateContentResponse) model.Response {
 		}
 		id := part.FunctionCall.ID
 		if id == "" {
-			id = syntheticID(part.FunctionCall.Name, index)
+			id = syntheticID(part.FunctionCall.Name, sequence, index)
 		}
 		out.ToolCalls = append(out.ToolCalls, model.ToolCall{
 			ID:   id,

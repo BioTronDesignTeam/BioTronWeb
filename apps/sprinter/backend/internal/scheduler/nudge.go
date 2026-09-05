@@ -61,20 +61,27 @@ func (s *Scheduler) runNudge(ctx context.Context, automation store.Automation, u
 	if automation.LeadUserID == nil {
 		return errors.New("nudge automation has no lead_user_id")
 	}
-	since := s.now().Add(-time.Duration(automation.LookbackHours) * time.Hour)
-	satisfied, err := s.channelSatisfied(automation, since)
-	if err != nil {
-		return fmt.Errorf("scan announcement channel: %w", err)
-	}
-	if satisfied {
-		if _, err := s.store.InsertNudge(ctx, automation.ID, uid, recurrenceIDLocal, sequence, trigger, store.NudgeSatisfied, nil); err != nil &&
-			!errors.Is(err, store.ErrConflict) {
-			return fmt.Errorf("record satisfied nudge %s: %w", uid, err)
+	// The channel scan asks "has the lead already announced this?", which
+	// only answers an UPCOMING nudge. A cancellation is the opposite case:
+	// the announcement inside the lookback window is the very message that
+	// now needs correcting, so letting it satisfy the nudge would silence
+	// the one nudge nobody else can send.
+	if trigger != store.TriggerCancelled {
+		since := s.now().Add(-time.Duration(automation.LookbackHours) * time.Hour)
+		satisfied, err := s.channelSatisfied(automation, since)
+		if err != nil {
+			return fmt.Errorf("scan announcement channel: %w", err)
 		}
-		s.emit(logclient.Info, "Nudge satisfied", map[string]any{
-			"automation_id": automation.ID, "uid": uid, "trigger": trigger,
-		})
-		return nil
+		if satisfied {
+			if _, err := s.store.InsertNudge(ctx, automation.ID, uid, recurrenceIDLocal, sequence, trigger, store.NudgeSatisfied, nil); err != nil &&
+				!errors.Is(err, store.ErrConflict) {
+				return fmt.Errorf("record satisfied nudge %s: %w", uid, err)
+			}
+			s.emit(logclient.Info, "Nudge satisfied", map[string]any{
+				"automation_id": automation.ID, "uid": uid, "trigger": trigger,
+			})
+			return nil
+		}
 	}
 
 	draft, draftErr := s.draftAnnouncement(ctx, title, startsAt, trigger)
@@ -87,7 +94,11 @@ func (s *Scheduler) runNudge(ctx context.Context, automation store.Automation, u
 	)
 	if automation.Deliver == store.DeliverChannel {
 		delivered = "channel"
-		messageID, sendErr = s.discord.SendMessage(automation.ChannelID, "<@"+*automation.LeadUserID+"> "+body)
+		// The lead is the one id this message may ping. The rest of the body
+		// carries an event title and a model's draft, and neither is allowed
+		// to reach @everyone.
+		messageID, sendErr = s.discord.SendMessage(automation.ChannelID,
+			"<@"+*automation.LeadUserID+"> "+body, []string{*automation.LeadUserID})
 	} else {
 		delivered = "dm"
 		messageID, sendErr = s.discord.DirectMessage(*automation.LeadUserID, body)

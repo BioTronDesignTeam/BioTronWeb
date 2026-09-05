@@ -14,7 +14,7 @@ set -euo pipefail
 : "${SPRINTER_READER_PASSWORD:?SPRINTER_READER_PASSWORD is not set. Add it to infra/.env and pass it to this container.}"
 
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" \
-  -v pw="$SPRINTER_READER_PASSWORD" <<'SQL'
+  -v pw="$SPRINTER_READER_PASSWORD" -v owner="$POSTGRES_USER" <<'SQL'
 -- Idempotent: safe to run again on an existing cluster (the README's
 -- one-shot command does exactly that after Auth's first migration).
 --
@@ -42,7 +42,12 @@ GRANT USAGE ON SCHEMA logger, oauth TO sprinter_reader;
 -- the whole schema is open, and the default-privileges rule covers tables
 -- Logger's own migrations add later without this script needing to change.
 GRANT SELECT ON ALL TABLES IN SCHEMA logger TO sprinter_reader;
-ALTER DEFAULT PRIVILEGES FOR ROLE biotron IN SCHEMA logger GRANT SELECT ON TABLES TO sprinter_reader;
+--
+-- The rule names the role that will own the future tables, which is the role
+-- Logger migrates as: this cluster's superuser. It is passed in as :"owner"
+-- rather than written out, so a cluster whose POSTGRES_USER is not "biotron"
+-- still gets the grant instead of an error.
+ALTER DEFAULT PRIVILEGES FOR ROLE :"owner" IN SCHEMA logger GRANT SELECT ON TABLES TO sprinter_reader;
 
 -- Auth: named tables only, no default privileges. sessions and guest_keys
 -- must never be granted here or later; guest_keys holds the daily Exo guest

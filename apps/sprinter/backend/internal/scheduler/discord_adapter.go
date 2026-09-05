@@ -32,8 +32,22 @@ func (d DiscordSession) ChannelMessages(channelID string, limit int, beforeID, a
 	return messages, nil
 }
 
-func (d DiscordSession) SendMessage(channelID, content string) (string, error) {
-	message, err := d.Session.ChannelMessageSend(channelID, content)
+// mentions builds the allow-list Discord applies to one message. An empty
+// Parse slice is not the same as no field at all: sent, it means "parse no
+// mentions"; omitted, Discord parses every @ in the text. Only the ids in
+// users may ping.
+func mentions(users []string) *discordgo.MessageAllowedMentions {
+	return &discordgo.MessageAllowedMentions{
+		Parse: []discordgo.AllowedMentionType{},
+		Users: users,
+	}
+}
+
+func (d DiscordSession) SendMessage(channelID, content string, mentionUsers []string) (string, error) {
+	message, err := d.Session.ChannelMessageSendComplex(channelID, &discordgo.MessageSend{
+		Content:         content,
+		AllowedMentions: mentions(mentionUsers),
+	})
 	if err != nil {
 		return "", err
 	}
@@ -41,7 +55,12 @@ func (d DiscordSession) SendMessage(channelID, content string) (string, error) {
 }
 
 func (d DiscordSession) EditMessage(channelID, messageID, content string) error {
-	_, err := d.Session.ChannelMessageEdit(channelID, messageID, content)
+	_, err := d.Session.ChannelMessageEditComplex(&discordgo.MessageEdit{
+		Channel:         channelID,
+		ID:              messageID,
+		Content:         &content,
+		AllowedMentions: mentions(nil),
+	})
 	return err
 }
 
@@ -50,7 +69,11 @@ func (d DiscordSession) DirectMessage(userID, content string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	message, err := d.Session.ChannelMessageSend(channel.ID, content)
+	// A DM already reaches the one person it is for, so it needs no ping.
+	message, err := d.Session.ChannelMessageSendComplex(channel.ID, &discordgo.MessageSend{
+		Content:         content,
+		AllowedMentions: mentions(nil),
+	})
 	if err != nil {
 		return "", err
 	}

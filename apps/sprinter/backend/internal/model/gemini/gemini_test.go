@@ -3,7 +3,9 @@ package gemini
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 
 	"google.golang.org/genai"
@@ -95,11 +97,11 @@ func TestToContentsMapsRolesAndToolTurns(t *testing.T) {
 	history := []model.Message{
 		{Role: model.RoleUser, Text: "which services logged errors?"},
 		{Role: model.RoleAssistant, Text: "checking", ToolCalls: []model.ToolCall{{
-			ID: syntheticID("recent_logs", 0), Name: "recent_logs",
+			ID: syntheticID("recent_logs", 1, 0), Name: "recent_logs",
 			Args: json.RawMessage(`{"level":"error","limit":5}`),
 		}}},
 		{Role: model.RoleUser, ToolResults: []model.ToolResult{{
-			ID: syntheticID("recent_logs", 0), Name: "recent_logs", Content: "two rows",
+			ID: syntheticID("recent_logs", 1, 0), Name: "recent_logs", Content: "two rows",
 		}}},
 		{Role: model.RoleAssistant, Text: "two services did"},
 	}
@@ -207,16 +209,90 @@ func TestFromResponseSynthesisesCallIDsAndCountsTokens(t *testing.T) {
 }
 
 func TestMapErrorNamesTheRateLimit(t *testing.T) {
-	limited := mapError(genai.APIError{Code: http.StatusTooManyRequests, Message: "quota"})
+	limited := mapError(genai.APIError{
+		Code: http.StatusTooManyRequests, Status: "RESOURCE_EXHAUSTED", Message: "quota",
+	})
 	if !errors.Is(limited, model.ErrRateLimited) {
 		t.Fatalf("429 must map to ErrRateLimited, got %v", limited)
 	}
-	other := mapError(genai.APIError{Code: http.StatusInternalServerError, Message: "boom"})
+	other := mapError(genai.APIError{
+		Code: http.StatusInternalServerError, Status: "INTERNAL", Message: "boom",
+	})
 	if errors.Is(other, model.ErrRateLimited) {
 		t.Fatalf("500 must not map to ErrRateLimited, got %v", other)
 	}
 	if mapError(errors.New("dial failed")) == nil {
 		t.Fatal("a transport error must stay an error")
+	}
+}
+
+// Gemini echoes the prompt back inside Message and Details. This error is
+// written to the process log, so only the status code and the status name may
+// come out of it.
+func TestMapErrorNeverRepeatsTheResponseBody(t *testing.T) {
+	secret := "the operator asked about token sk-live-4242"
+	cases := map[string]genai.APIError{
+		"rate limited": {
+			Code: http.StatusTooManyRequests, Status: "RESOURCE_EXHAUSTED", Message: secret,
+			Details: []map[string]any{{"reason": secret}},
+		},
+		"any other status": {
+			Code: http.StatusBadRequest, Status: "INVALID_ARGUMENT", Message: secret,
+			Details: []map[string]any{{"reason": secret}},
+		},
+	}
+	for name, apiErr := range cases {
+		t.Run(name, func(t *testing.T) {
+			got := mapError(apiErr).Error()
+			if strings.Contains(got, secret) || strings.Contains(got, "sk-live-4242") {
+				t.Fatalf("the response body reached the error: %q", got)
+			}
+			want := fmt.Sprintf("gemini: status %d %s", apiErr.Code, apiErr.Status)
+			if !strings.Contains(got, want) {
+				t.Fatalf("error = %q, want it to contain %q", got, want)
+			}
+		})
+	}
+}
+
+// A candidate can arrive as a null in the JSON array. Reading its content
+// without checking the pointer panics the whole answer.
+func TestFromResponseSurvivesANilCandidate(t *testing.T) {
+	got := fromResponse(&genai.GenerateContentResponse{
+		Candidates: []*genai.Candidate{nil},
+		UsageMetadata: &genai.GenerateContentResponseUsageMetadata{
+			PromptTokenCount: 11, CandidatesTokenCount: 0,
+		},
+	})
+	if got.Text != "" || got.ToolCalls != nil {
+		t.Fatalf("a nil candidate must map to an empty turn: %+v", got)
+	}
+	// The usage is still real and still billed, so it is still counted.
+	if got.InputTokens != 11 {
+		t.Fatalf("input tokens = %d, want 11", got.InputTokens)
+	}
+}
+
+// The loop pairs a result to its call by id. Two turns that each start with
+// the same tool used to invent the same id, so a replayed transcript could
+// not say which result answered which call.
+func TestSyntheticCallIDsAreUniqueAcrossResponses(t *testing.T) {
+	one := func() *genai.GenerateContentResponse {
+		return &genai.GenerateContentResponse{
+			Candidates: []*genai.Candidate{{Content: &genai.Content{Parts: []*genai.Part{
+				{FunctionCall: &genai.FunctionCall{Name: "recent_logs"}},
+			}}}},
+		}
+	}
+	first := fromResponse(one())
+	second := fromResponse(one())
+	if first.ToolCalls[0].ID == second.ToolCalls[0].ID {
+		t.Fatalf("two turns share the call id %q", first.ToolCalls[0].ID)
+	}
+	// It must still be recognisable as this adapter's own invention, or it
+	// would travel back to Gemini as an id the model never issued.
+	if !strings.HasPrefix(second.ToolCalls[0].ID, syntheticPrefix) {
+		t.Fatalf("id = %q, want the synthetic prefix", second.ToolCalls[0].ID)
 	}
 }
 
