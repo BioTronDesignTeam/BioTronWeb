@@ -4,8 +4,7 @@
   "description": "The BioTron platform: six web tools, the shared component library, and the edge that serves them.",
   "workspaces": [
     "packages/*",
-    "apps/*/frontend",
-    "apps/*/prisma"
+    "apps/*/frontend"
   ],
   "scripts": {
     "build": "npm run build --workspaces --if-present",

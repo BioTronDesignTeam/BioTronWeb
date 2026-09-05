@@ -20,5 +20,13 @@ export default defineConfig([
     languageOptions: {
       globals: globals.browser,
     },
+    // These React 19 hook rules flag patterns that exo already silences
+    // inline and that the other five frontends were never linted against.
+    // They stay on so the findings are visible, but as warnings until each
+    // app clears its own, so a new finding cannot hide among old ones.
+    rules: {
+      'react-hooks/immutability': 'warn',
+      'react-hooks/set-state-in-effect': 'warn',
+    },
   },
 ])

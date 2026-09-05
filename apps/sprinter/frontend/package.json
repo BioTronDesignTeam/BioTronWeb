@@ -1,5 +1,5 @@
 {
-  "name": "biotron-sprinter-frontend",
+  "name": "@biotron/sprinter-frontend",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -10,7 +10,8 @@
   },
   "dependencies": {
     "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "react-dom": "^19.2.8",
+    "@biotron/style": "*"
   },
   "devDependencies": {
     "@types/react": "^19.2.18",

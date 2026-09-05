@@ -1,5 +1,5 @@
 {
-  "name": "biotron-calendar-frontend",
+  "name": "@biotron/calendar-frontend",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -9,7 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@biotron/style": "git+https://github.com/BioTronDesignTeam/BioTronStyle.git#f159241ad11fe0904fbbdbd2a8c533482216eea3",
+    "@biotron/style": "*",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },
