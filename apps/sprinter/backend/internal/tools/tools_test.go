@@ -316,3 +316,29 @@ func TestCalendarUpcomingValidatesItsArguments(t *testing.T) {
 		t.Fatal("an unconfigured Logger URL must be an error")
 	}
 }
+
+// A page big enough to be cut is exactly the page whose next_cursor the
+// model needs, so the cursor line must survive the cap.
+func TestLogHistoryKeepsItsCursorWhenCut(t *testing.T) {
+	var rows []readstore.LogRow
+	for i := 0; i < 50; i++ {
+		rows = append(rows, readstore.LogRow{
+			ID: int64(i), Service: "exo-api", Level: "info",
+			Message: strings.Repeat("x", 400),
+		})
+	}
+	reader := &stubReader{logs: rows, next: "cursor-token"}
+	out, err := run(t, LogHistory{Reader: reader}, `{}`)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	if !strings.Contains(out, "[Cut here.") {
+		t.Fatalf("this page was meant to be cut:\n%d chars", len(out))
+	}
+	if !strings.HasSuffix(out, "next_cursor: cursor-token") {
+		t.Fatalf("the cursor must end a cut page:\n%s", out[len(out)-200:])
+	}
+	if len(out) > logHistoryCap+len("[Cut here. This result was longer than 8000 characters. Lower limit, narrow the window, or filter by service or level.]")+64 {
+		t.Fatalf("result is %d chars, far over the cap", len(out))
+	}
+}

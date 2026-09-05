@@ -3,6 +3,8 @@ package scheduler
 import (
 	"context"
 	"fmt"
+	"sort"
+	"strconv"
 	"time"
 
 	"github.com/BioTronDesignTeam/Sprinter/backend/internal/calendar"
@@ -131,6 +133,7 @@ func (f *fakeCalendar) Occurrences(context.Context, string, time.Time, time.Time
 type fakeDiscord struct {
 	channelMessages map[string][]Message
 	nextID          int
+	historyCalls    int
 
 	sentMessages   []sentMessage
 	editedMessages []editedMessage
@@ -151,8 +154,36 @@ func newFakeDiscord() *fakeDiscord {
 	return &fakeDiscord{channelMessages: map[string][]Message{}}
 }
 
+// ChannelMessages pages the way Discord does: with afterID set it returns the
+// limit messages just after that id, newest first. beforeID is refused, so a
+// call that combines the two, which Discord treats as mutually exclusive,
+// fails a test instead of passing by accident.
 func (f *fakeDiscord) ChannelMessages(channelID string, limit int, beforeID, afterID string) ([]Message, error) {
-	return f.channelMessages[channelID], nil
+	f.historyCalls++
+	if beforeID != "" {
+		return nil, fmt.Errorf("fake ChannelMessages: beforeID is not supported")
+	}
+	var window []Message
+	for _, message := range f.channelMessages[channelID] {
+		if afterID == "" || snowflakeLess(afterID, message.ID) {
+			window = append(window, message)
+		}
+	}
+	sort.Slice(window, func(i, j int) bool { return snowflakeLess(window[i].ID, window[j].ID) })
+	if len(window) > limit {
+		window = window[:limit]
+	}
+	for i, j := 0, len(window)-1; i < j; i, j = i+1, j-1 {
+		window[i], window[j] = window[j], window[i]
+	}
+	return window, nil
+}
+
+// snowflakeAt builds a plausible message id for a message sent at t, so the
+// fake can page by id the way Discord does.
+func snowflakeAt(t time.Time, n int) string {
+	millis := t.UnixMilli() - discordEpochMillis
+	return strconv.FormatUint(uint64(millis)<<22|uint64(n), 10)
 }
 
 func (f *fakeDiscord) SendMessage(channelID, content string) (string, error) {

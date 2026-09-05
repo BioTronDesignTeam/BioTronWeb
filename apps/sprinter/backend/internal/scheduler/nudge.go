@@ -111,24 +111,26 @@ func (s *Scheduler) runNudge(ctx context.Context, automation store.Automation, u
 // a message, sent since since, from the lead (or from anyone, when the
 // automation allows any author).
 //
-// Discord always returns a channel's messages newest-first, so passing only
-// afterID would silently skip the older messages in the window once there
-// are more than one page of them. To walk the whole window, each further
-// page keeps afterID fixed at the since boundary and narrows beforeID down
-// to the oldest id seen so far, until a page comes back under the limit.
+// Discord's before, after, and around parameters are mutually exclusive, so
+// the walk uses after alone. A query with after returns the messages just
+// after that id, the oldest end of the window, so each further page moves
+// afterID up to the newest id seen. The walk stops when a page comes back
+// short, which means the window is exhausted.
 func (s *Scheduler) channelSatisfied(automation store.Automation, since time.Time) (bool, error) {
 	afterID := snowflakeAfter(since)
-	beforeID := ""
 	for page := 0; page < channelHistoryMaxPages; page++ {
-		messages, err := s.discord.ChannelMessages(automation.ChannelID, channelHistoryPageLimit, beforeID, afterID)
+		messages, err := s.discord.ChannelMessages(automation.ChannelID, channelHistoryPageLimit, "", afterID)
 		if err != nil {
 			return false, err
 		}
 		if len(messages) == 0 {
 			return false, nil
 		}
-		oldestID := messages[0].ID
+		newestID := messages[0].ID
 		for _, message := range messages {
+			if snowflakeLess(newestID, message.ID) {
+				newestID = message.ID
+			}
 			if message.Timestamp.Before(since) {
 				continue
 			}
@@ -138,14 +140,11 @@ func (s *Scheduler) channelSatisfied(automation store.Automation, since time.Tim
 			if automation.LeadUserID != nil && message.AuthorID == *automation.LeadUserID {
 				return true, nil
 			}
-			if snowflakeLess(message.ID, oldestID) {
-				oldestID = message.ID
-			}
 		}
 		if len(messages) < channelHistoryPageLimit {
 			return false, nil
 		}
-		beforeID = oldestID
+		afterID = newestID
 	}
 	return false, nil
 }

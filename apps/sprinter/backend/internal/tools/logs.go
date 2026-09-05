@@ -188,14 +188,15 @@ func (t LogHistory) Run(ctx context.Context, args json.RawMessage) (string, erro
 	if len(rows) == 0 {
 		return "No log rows match that filter in that window.", nil
 	}
-	text := formatLogs(rows)
+	// The cursor line is appended after the cap, never before it: a page big
+	// enough to be cut is exactly the page whose next_cursor the model needs.
+	cursorLine := "\nnext_cursor: none. This is the last page."
 	if next != "" {
-		text += "\nnext_cursor: " + next
-	} else {
-		text += "\nnext_cursor: none. This is the last page."
+		cursorLine = "\nnext_cursor: " + next
 	}
-	return capResult(text, logHistoryCap,
-		"Lower limit, narrow the window, or filter by service or level."), nil
+	text := capResult(formatLogs(rows), logHistoryCap-len(cursorLine),
+		"Lower limit, narrow the window, or filter by service or level.")
+	return text + cursorLine, nil
 }
 
 // formatLogs writes one row per line. Plain lines rather than JSON: the model

@@ -91,7 +91,7 @@ func TestTickNudgeSatisfiedWhenLeadAlreadyPosted(t *testing.T) {
 	fc := &fakeCalendar{occurrences: []calendar.Occurrence{occ}}
 	fd := newFakeDiscord()
 	fd.channelMessages[automation.ChannelID] = []Message{
-		{ID: "1", AuthorID: "lead-user", Timestamp: now.Add(-time.Hour)},
+		{ID: snowflakeAt(now.Add(-time.Hour), 1), AuthorID: "lead-user", Timestamp: now.Add(-time.Hour)},
 	}
 	fm := &fakeModel{text: "unused"}
 
@@ -308,5 +308,43 @@ func TestSnowflakeAfterClampsBeforeTheDiscordEpoch(t *testing.T) {
 	got := snowflakeAfter(time.Unix(0, 0))
 	if got != "0" {
 		t.Fatalf("snowflakeAfter(pre-epoch) = %s, want 0", got)
+	}
+}
+
+// The lead's message sits behind two full pages of other people's chatter.
+// A walk that only read the first page, or that combined before and after,
+// would miss it and nudge a lead who had already announced.
+func TestNudgeFindsTheLeadBehindTwoPagesOfChatter(t *testing.T) {
+	now := time.Date(2026, 9, 5, 12, 0, 0, 0, toronto)
+	automation := nudgeAutomation(now)
+	occ := calendar.Occurrence{
+		UID: "uid-page", RecurrenceID: "2026-09-10T18:00:00", SeriesSequence: 1,
+		Title: "Kickoff", StartsAt: now.Add(6 * time.Hour), EndsAt: now.Add(7 * time.Hour),
+	}
+	fs := newFakeStore(automation)
+	fc := &fakeCalendar{occurrences: []calendar.Occurrence{occ}}
+	fd := newFakeDiscord()
+	var history []Message
+	// Oldest first: a message from the lead before the window that must not
+	// count, then two full pages of chatter, then the lead's announcement as
+	// the newest message, which a forward walk reaches only on page three.
+	history = append(history, Message{ID: snowflakeAt(now.Add(-30*time.Hour), 1), AuthorID: "lead-user", Timestamp: now.Add(-30 * time.Hour)})
+	for i := 0; i < 2*channelHistoryPageLimit; i++ {
+		at := now.Add(-20*time.Hour + time.Duration(i)*time.Minute)
+		history = append(history, Message{ID: snowflakeAt(at, i+2), AuthorID: "someone-else", Timestamp: at})
+	}
+	history = append(history, Message{ID: snowflakeAt(now.Add(-time.Hour), 1), AuthorID: "lead-user", Timestamp: now.Add(-time.Hour)})
+	fd.channelMessages[automation.ChannelID] = history
+	fm := &fakeModel{text: "unused"}
+
+	scheduler := New(Deps{Store: fs, Calendar: fc, Discord: fd, Model: fm, Location: toronto, Now: fixedNow(now)})
+	if err := scheduler.Tick(context.Background()); err != nil {
+		t.Fatalf("Tick: %v", err)
+	}
+	if len(fd.dms) != 0 || len(fd.sentMessages) != 0 {
+		t.Fatalf("dms = %d, sent = %d, want 0 and 0: the lead's message was missed", len(fd.dms), len(fd.sentMessages))
+	}
+	if fd.historyCalls < 3 {
+		t.Fatalf("historyCalls = %d, want at least 3 pages", fd.historyCalls)
 	}
 }
