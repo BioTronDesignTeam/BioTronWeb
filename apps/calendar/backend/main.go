@@ -13,9 +13,9 @@ import (
 
 	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/auth"
 	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/config"
-	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/eventlog"
 	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/server"
 	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/store"
+	"github.com/BioTronDesignTeam/biotron/go/logclient"
 )
 
 func main() {
@@ -37,14 +37,14 @@ func main() {
 	}
 	defer calendarStore.Close()
 
-	events := eventlog.NewFromEnv("calendar-api")
+	events := logclient.NewFromEnv("calendar-api")
 	if !events.Enabled() {
 		log.Println("warning: LOGGER_INGEST_TOKEN unset — structured logging is disabled")
 	}
 	authClient := auth.NewClient(cfg.OAuthManagerURL)
 	app := server.New(cfg, calendarStore, authClient, events, location)
 	address := ":" + cfg.Port
-	events.LogAsync(eventlog.Info, "BiotronCalendar started", map[string]any{"port": cfg.Port})
+	events.LogAsync(logclient.Info, "BiotronCalendar started", map[string]any{"port": cfg.Port})
 
 	go func() {
 		log.Printf("calendar API listening on %s", address)
@@ -58,7 +58,7 @@ func main() {
 	<-ctx.Done()
 	log.Println("shutting down")
 	shutdownLogCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	if err := events.Log(shutdownLogCtx, eventlog.Info, "BiotronCalendar stopping", nil); err != nil {
+	if err := events.Log(shutdownLogCtx, logclient.Info, "BiotronCalendar stopping", nil); err != nil {
 		log.Printf("structured shutdown log: %v", err)
 	}
 	cancel()

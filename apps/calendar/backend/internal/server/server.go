@@ -14,8 +14,8 @@ import (
 
 	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/auth"
 	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/config"
-	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/eventlog"
 	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/store"
+	"github.com/BioTronDesignTeam/biotron/go/logclient"
 )
 
 type Handler struct {
@@ -28,7 +28,7 @@ type Handler struct {
 	now func() time.Time
 }
 
-func New(cfg config.Config, calendarStore *store.Store, authClient *auth.Client, events *eventlog.Client, location *time.Location) *fiber.App {
+func New(cfg config.Config, calendarStore *store.Store, authClient *auth.Client, events *logclient.Client, location *time.Location) *fiber.App {
 	handler := &Handler{store: calendarStore, auth: authClient, config: cfg, location: location, now: time.Now}
 	app := fiber.New(fiber.Config{
 		BodyLimit:   256 * 1024,
@@ -165,7 +165,7 @@ func jsonErrorHandler(c fiber.Ctx, err error) error {
 	return c.Status(status).JSON(fiber.Map{"error": message})
 }
 
-func logRequests(events *eventlog.Client) fiber.Handler {
+func logRequests(events *logclient.Client) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		started := time.Now()
 		err := c.Next()
@@ -183,11 +183,11 @@ func logRequests(events *eventlog.Client) fiber.Handler {
 		if status < 400 && c.Method() == fiber.MethodOptions {
 			return err
 		}
-		level := eventlog.Info
+		level := logclient.Info
 		if status >= 500 {
-			level = eventlog.Error
+			level = logclient.Error
 		} else if status >= 400 {
-			level = eventlog.Warning
+			level = logclient.Warning
 		}
 		// Method and Path point into fasthttp's pooled request buffer, and
 		// LogAsync marshals the payload on another goroutine. Without a copy

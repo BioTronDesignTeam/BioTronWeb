@@ -13,8 +13,8 @@ services:
 
   calendar-api:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: ../..
+      dockerfile: apps/calendar/backend/Dockerfile
     environment:
       DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL in .env}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5176}

@@ -2,12 +2,15 @@
 
 FROM golang:1.27-bookworm AS build
 
+# Builds from the repository root so the shared go/logclient module is in
+# the context. apps/calendar/docker-compose.yml sets context: ../..
 WORKDIR /src
-
-COPY go.mod go.sum ./
+COPY go/logclient/ go/logclient/
+COPY apps/calendar/backend/go.mod apps/calendar/backend/go.sum apps/calendar/backend/
+WORKDIR /src/apps/calendar/backend
 RUN go mod download
 
-COPY . .
+COPY apps/calendar/backend/ .
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/calendar-api .
 
 FROM debian:bookworm-slim
