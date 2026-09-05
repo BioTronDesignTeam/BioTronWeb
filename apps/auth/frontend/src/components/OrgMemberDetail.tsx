@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { AppInfo, Grant, OrgMember, Permission } from '../api';
 import type { OrgSelection } from '../hooks/useOrgSelection';
 import {
@@ -60,43 +60,25 @@ function MemberActions({
   onSetManager: (id: number, manager: boolean) => void;
 }) {
   const [pending, setPending] = useState<PendingAction | null>(null);
+  const dialogRef = useRef<HTMLDialogElement>(null);
 
-  if (pending) {
-    const text = consequence(pending, member);
-    const run = () => {
-      setPending(null);
-      if (pending === 'ban') onBan(member.github_id);
-      else onSetManager(member.github_id, pending === 'make-manager');
-    };
-    return (
-      <div
-        role="alertdialog"
-        aria-labelledby={`confirm-${member.github_id}-title`}
-        aria-describedby={`confirm-${member.github_id}-detail`}
-        className="w-full max-w-md rounded-xl border border-slate-300 bg-slate-50 p-4 dark:border-white/15 dark:bg-surface-2"
-      >
-        <p id={`confirm-${member.github_id}-title`} className="text-sm font-semibold text-slate-900 dark:text-white">
-          {text.title}
-        </p>
-        <p id={`confirm-${member.github_id}-detail`} className={`mt-1 ${mutedText}`}>
-          {text.detail}
-        </p>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={run}
-            className={pending === 'ban' ? dangerButton : compactPrimaryButton}
-            autoFocus
-          >
-            {text.confirm}
-          </button>
-          <button type="button" onClick={() => setPending(null)} className={compactSecondaryButton}>
-            Cancel
-          </button>
-        </div>
-      </div>
-    );
-  }
+  // A native dialog: showModal() moves focus into it, Escape closes it, and the
+  // page behind it is inert, none of which the old inline box did for free.
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    if (pending && !dialog.open) dialog.showModal();
+    else if (!pending && dialog.open) dialog.close();
+  }, [pending]);
+
+  const text = pending ? consequence(pending, member) : null;
+  const run = () => {
+    if (!pending) return;
+    const action = pending;
+    setPending(null);
+    if (action === 'ban') onBan(member.github_id);
+    else onSetManager(member.github_id, action === 'make-manager');
+  };
 
   return (
     <div className="flex flex-wrap gap-2">
@@ -122,6 +104,36 @@ function MemberActions({
           {member.is_manager ? 'Remove manager…' : 'Make manager…'}
         </button>
       )}
+      <dialog
+        ref={dialogRef}
+        onClose={() => setPending(null)}
+        aria-labelledby={`confirm-${member.github_id}-title`}
+        aria-describedby={`confirm-${member.github_id}-detail`}
+        className="w-full max-w-md rounded-xl border border-slate-300 bg-slate-50 p-4 text-left backdrop:bg-black/40 dark:border-white/15 dark:bg-surface-2"
+      >
+        {text && (
+          <>
+            <p id={`confirm-${member.github_id}-title`} className="text-sm font-semibold text-slate-900 dark:text-white">
+              {text.title}
+            </p>
+            <p id={`confirm-${member.github_id}-detail`} className={`mt-1 ${mutedText}`}>
+              {text.detail}
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={run}
+                className={pending === 'ban' ? dangerButton : compactPrimaryButton}
+              >
+                {text.confirm}
+              </button>
+              <button type="button" onClick={() => setPending(null)} className={compactSecondaryButton}>
+                Cancel
+              </button>
+            </div>
+          </>
+        )}
+      </dialog>
     </div>
   );
 }
