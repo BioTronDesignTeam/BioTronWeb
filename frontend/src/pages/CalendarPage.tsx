@@ -134,7 +134,7 @@ export default function CalendarPage() {
           </div>
           <span className="eyebrow mono-label">Public calendar</span>
           <h1>Find the next place we are building.</h1>
-          <p>See the next six weeks here, or open the full calendar to browse by month and team.</p>
+          <p>See upcoming events here or open the full calendar.</p>
           <div className="calendarpage__actions">
             <a href={CALENDAR_URL} className="calendarpage__primary">
               Open full calendar <ArrowUpRight size={16} />
@@ -158,7 +158,7 @@ export default function CalendarPage() {
             </div>
           )}
           {!loading && !error && events.length === 0 && (
-            <div className="calendarpage__status">Nothing public is scheduled in the next six weeks.</div>
+            <div className="calendarpage__status">Nothing public is scheduled right now.</div>
           )}
           {!loading && !error && events.length > 0 && (
             <ol className="calendarpage__events">
