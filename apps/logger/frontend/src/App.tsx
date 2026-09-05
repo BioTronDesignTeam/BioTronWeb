@@ -238,12 +238,13 @@ function dayDetail(bucket: HistoryBucket) {
 /**
  * One pill per day. Pointing at a pill, or focusing the bar and using the
  * arrow keys, opens a popover naming the day and what happened on it, so the
- * bar is more than a decorative stripe.
+ * bar is more than a decorative stripe. Enter and Space do nothing on
+ * purpose: the strip is explored, not activated.
  */
 function UptimeBar({ buckets, days, label }: { buckets: HistoryBucket[]; days: number; label: string }) {
   const shown = buckets.slice(-days);
   const [active, setActive] = useState<number | null>(null);
-  const trackRef = useRef<HTMLDivElement>(null);
+  const trackRef = useRef<HTMLButtonElement>(null);
   const summary = `${label}, ${shown.length}-day history: ` +
     `${shown.filter((bucket) => bucket.state === 'operational').length} fully operational days, ` +
     `${shown.filter((bucket) => bucket.state === 'degraded' || bucket.state === 'down').length} with incidents, ` +
@@ -258,7 +259,7 @@ function UptimeBar({ buckets, days, label }: { buckets: HistoryBucket[]; days: n
     return Math.min(shown.length - 1, Math.max(0, Math.floor(ratio * shown.length)));
   };
 
-  function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+  function onKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
     if (shown.length === 0) return;
     const current = active ?? shown.length - 1;
     const moves: Record<string, number> = {
@@ -279,14 +280,15 @@ function UptimeBar({ buckets, days, label }: { buckets: HistoryBucket[]; days: n
 
   return (
     <div className="uptime-bar">
-      <div
+      {/* A button, because the strip is operated: focus it and the arrow keys
+          walk the days. That gives it a real tab stop and a real role without
+          pretending to be an image or a form group. */}
+      <button
+        type="button"
         ref={trackRef}
         className="uptime-bar__track"
-        // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- a keyboard-explorable strip of day pills; no element says that
-        role="img"
         aria-roledescription="uptime history"
         aria-label={summary}
-        tabIndex={0}
         onPointerMove={(event) => setActive(indexAt(event.clientX))}
         onPointerLeave={() => setActive(null)}
         onFocus={() => setActive((current) => current ?? shown.length - 1)}
@@ -299,7 +301,7 @@ function UptimeBar({ buckets, days, label }: { buckets: HistoryBucket[]; days: n
             key={day.date}
           />
         ))}
-      </div>
+      </button>
       <div className="uptime-bar__live" aria-live="polite">
         {bucket && active !== null && (
           <div

@@ -288,8 +288,14 @@ h1, h2, h3, h4, p { margin-top: 0; }
   display: flex;
   gap: 2px;
   align-items: stretch;
+  width: 100%;
   height: 16px;
+  margin: 0;
+  padding: 0;
+  border: 0;
   border-radius: 3px;
+  background: transparent;
+  appearance: none;
   cursor: crosshair;
   /* A thumb dragged sideways reads the days; a thumb dragged up or down still
      scrolls the page, so the bars never trap a phone user. */
