@@ -1,0 +1,7 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Persona, lead, and announcement configuration models will be added with the
+// first bot behavior that persists them.

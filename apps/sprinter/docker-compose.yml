@@ -1,0 +1,54 @@
+name: biotron-sprinter
+
+services:
+  migrate:
+    build:
+      context: ./prisma
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL in .env}
+    networks:
+      - biotron
+    restart: "no"
+
+  bot:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL in .env}
+      DISCORD_TOKEN: ${DISCORD_TOKEN:-}
+      CALENDAR_URL: ${CALENDAR_URL:-http://calendar-api:8080}
+      OAUTH_MANAGER_URL: ${OAUTH_MANAGER_URL:-http://oauth-manager:8080}
+      PORT: "8080"
+    ports:
+      - "127.0.0.1:${API_PORT:-8084}:8080"
+    networks:
+      biotron:
+        aliases:
+          - sprinter
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8084}
+    ports:
+      - "127.0.0.1:${WEB_PORT:-5178}:80"
+    networks:
+      biotron:
+        aliases:
+          - sprinter-web
+    depends_on:
+      - bot
+    restart: unless-stopped
+
+networks:
+  biotron:
+    external: true
+    name: biotron
