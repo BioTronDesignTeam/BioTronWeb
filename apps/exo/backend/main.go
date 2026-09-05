@@ -11,9 +11,9 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/joho/godotenv"
 
+	"github.com/BioTronDesignTeam/biotron/go/logclient"
 	"github.com/BioTronDesignTeam/exo-gui/backend/internal/auth"
 	"github.com/BioTronDesignTeam/exo-gui/backend/internal/config"
-	"github.com/BioTronDesignTeam/exo-gui/backend/internal/eventlog"
 	"github.com/BioTronDesignTeam/exo-gui/backend/internal/server"
 )
 
@@ -27,7 +27,7 @@ func main() {
 	_ = godotenv.Load("../.env")
 
 	cfg := config.Load()
-	events := eventlog.NewFromEnv("exo-api")
+	events := logclient.NewFromEnv("exo-api")
 	if !events.Enabled() {
 		log.Println("warning: LOGGER_INGEST_TOKEN unset — structured logging is disabled")
 	}
@@ -39,7 +39,7 @@ func main() {
 	}
 	app := server.New(cfg.FrontendURL, cfg.TrustedProxies, events, authz)
 	addr := ":" + cfg.Port
-	events.LogAsync(eventlog.Info, "Exo API started", map[string]any{"port": cfg.Port})
+	events.LogAsync(logclient.Info, "Exo API started", map[string]any{"port": cfg.Port})
 
 	go func() {
 		log.Printf("backend listening on %s", addr)
@@ -54,7 +54,7 @@ func main() {
 	<-ctx.Done()
 	log.Println("shutting down")
 	shutdownLogCtx, cancelShutdownLog := context.WithTimeout(context.Background(), 2*time.Second)
-	if err := events.Log(shutdownLogCtx, eventlog.Info, "Exo API stopping", nil); err != nil {
+	if err := events.Log(shutdownLogCtx, logclient.Info, "Exo API stopping", nil); err != nil {
 		log.Printf("structured shutdown log: %v", err)
 	}
 	cancelShutdownLog()

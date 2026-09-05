@@ -13,8 +13,8 @@ services:
 
   exo-api:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: ../..
+      dockerfile: apps/exo/backend/Dockerfile
     environment:
       DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL in .env}
       OAUTH_MANAGER_URL: ${OAUTH_MANAGER_URL:-http://oauth-manager:8080}

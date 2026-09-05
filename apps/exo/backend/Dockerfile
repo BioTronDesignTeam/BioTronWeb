@@ -2,12 +2,15 @@
 
 FROM golang:1.27-bookworm AS build
 
+# Builds from the repository root so the shared go/logclient module is in
+# the context. apps/exo/docker-compose.yml sets context: ../..
 WORKDIR /src
-
-COPY go.mod go.sum ./
+COPY go/logclient/ go/logclient/
+COPY apps/exo/backend/go.mod apps/exo/backend/go.sum apps/exo/backend/
+WORKDIR /src/apps/exo/backend
 RUN go mod download
 
-COPY . .
+COPY apps/exo/backend/ .
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/exo-api .
 
 FROM debian:bookworm-slim

@@ -10,13 +10,13 @@ import (
 	"github.com/gofiber/fiber/v3/middleware/logger"
 	"github.com/gofiber/fiber/v3/middleware/recover"
 
+	"github.com/BioTronDesignTeam/biotron/go/logclient"
 	"github.com/BioTronDesignTeam/exo-gui/backend/internal/auth"
-	"github.com/BioTronDesignTeam/exo-gui/backend/internal/eventlog"
 )
 
 // New builds Exo's HTTP app. authz is the permission gate every data or command
 // route must sit behind; see the route table below.
-func New(frontendURL string, trustedProxies []string, events *eventlog.Client, authz *auth.Client) *fiber.App {
+func New(frontendURL string, trustedProxies []string, events *logclient.Client, authz *auth.Client) *fiber.App {
 	app := fiber.New(fiber.Config{
 		ReadTimeout: 15 * time.Second,
 		IdleTimeout: 60 * time.Second,
@@ -68,7 +68,7 @@ func New(frontendURL string, trustedProxies []string, events *eventlog.Client, a
 	return app
 }
 
-func logRequests(events *eventlog.Client) fiber.Handler {
+func logRequests(events *logclient.Client) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		started := time.Now()
 		err := c.Next()
@@ -87,11 +87,11 @@ func logRequests(events *eventlog.Client) fiber.Handler {
 		if status < 400 && c.Method() == fiber.MethodOptions {
 			return err
 		}
-		level := eventlog.Info
+		level := logclient.Info
 		if status >= 500 {
-			level = eventlog.Error
+			level = logclient.Error
 		} else if status >= 400 {
-			level = eventlog.Warning
+			level = logclient.Warning
 		}
 		// Clone both: fasthttp hands these back as views into a pooled request
 		// buffer, and LogAsync marshals the payload on another goroutine. By
