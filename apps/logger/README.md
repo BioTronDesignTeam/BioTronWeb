@@ -180,23 +180,17 @@ one more event for every event.
 | `Authorization service unavailable` | error | `error` from the call to Auth |
 | `Logger API stopping` | info | — |
 
-The request log stays quiet on `/v1/status`, `/v1/status/history`,
-`/v1/session`, and `/v1/logs`. The first three are what the status page
-polls; the last carries every event the platform sends, and a row for the
-request that carried a row says nothing. All four still speak when they
-fail, so a `400` on `/v1/logs` names the service sending what Logger
-cannot store. Requests refused with `429`, and ingest refused with `401`,
-record nothing: both come from the internet, and one row per attempt would
-let an attacker write into the audit trail at the rate limit.
+The request log is quiet on the three routes the status page polls and on
+`/v1/logs`, where a row per carried row would double the warehouse. All
+four still speak when they fail, so a `400` on `/v1/logs` names the
+service sending what Logger cannot store. A `429`, or a `401` on ingest,
+records nothing: both come from the internet, and one row per attempt
+would let an attacker write into the audit trail at the rate limit.
 
-The monitor reports a component only when its state flips, so a poll that
-finds nothing changed is silent, and a component already healthy at
-startup says nothing at all.
-
-A store failure is printed on stdout and nowhere else, because the event
-reporting it would go to the store that just refused one. `docker logs
-logger-api` is where a dead database, a dead cache, and a dropped event
-appear.
+The monitor speaks only when a component's state flips. A store failure
+goes to stdout and nowhere else, because the event would go to the store
+that just refused one; `docker logs logger-api` is where a dead database
+appears.
 
 ## Storage
 
