@@ -65,8 +65,7 @@ export function ScopeFilter({ scopes, selected, onChange }: ScopeFilterProps) {
     };
   }, [open]);
 
-  function toggle(node: ScopeNode, checked: boolean) {
-    const ids = subtreeIds(node);
+  function toggle(ids: string[], checked: boolean) {
     const next = new Set(chosen);
     for (const id of ids) {
       if (checked) next.add(id);
@@ -75,28 +74,25 @@ export function ScopeFilter({ scopes, selected, onChange }: ScopeFilterProps) {
     onChange([...next]);
   }
 
-  const label = selected.length === 0
-    ? 'All events'
-    : `${selected.length} calendar${selected.length === 1 ? '' : 's'}`;
-
   return (
-    <div ref={container} className="relative">
+    <div ref={container} className="relative self-start sm:self-auto">
       <button
         type="button"
         onClick={() => setOpen(!open)}
         aria-expanded={open}
-        className={`flex min-h-11 w-full items-center justify-center gap-2 rounded-full border px-4 text-sm font-medium sm:w-auto ${
-          selected.length > 0
-            ? 'border-brand text-brand dark:border-soft dark:text-soft'
-            : 'border-ink/15 dark:border-white/20'
-        }`}
+        aria-label={selected.length === 0 ? 'Filter calendars' : `Filter calendars, ${selected.length} selected`}
+        className="relative grid size-11 place-items-center rounded-full text-ink hover:bg-soft/25 dark:text-white dark:hover:bg-white/10"
       >
-        <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round">
-          <line x1="2" y1="4" x2="14" y2="4" />
-          <line x1="4" y1="8" x2="12" y2="8" />
-          <line x1="6" y1="12" x2="10" y2="12" />
+        <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round">
+          <line x1="3" y1="6" x2="17" y2="6" />
+          <line x1="3" y1="10" x2="17" y2="10" />
+          <line x1="3" y1="14" x2="17" y2="14" />
         </svg>
-        {label}
+        {selected.length > 0 && (
+          <span className="absolute right-0 top-0 grid h-5 min-w-5 place-items-center rounded-full bg-brand px-1 text-[11px] font-bold leading-none text-white dark:bg-soft dark:text-ink">
+            {selected.length}
+          </span>
+        )}
       </button>
 
       {open && (
@@ -125,7 +121,7 @@ interface ScopeBranchProps {
   node: ScopeNode;
   depth: number;
   chosen: Set<string>;
-  onToggle: (node: ScopeNode, checked: boolean) => void;
+  onToggle: (scopeIds: string[], checked: boolean) => void;
 }
 
 function ScopeBranch({ node, depth, chosen, onToggle }: ScopeBranchProps) {
@@ -135,33 +131,66 @@ function ScopeBranch({ node, depth, chosen, onToggle }: ScopeBranchProps) {
   // A half-filled parent has to say so, or a project with one subteam ticked
   // looks exactly like a project with none.
   const partial = checkedCount > 0 && !checked;
-  const box = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    if (box.current) box.current.indeterminate = partial;
-  }, [partial]);
 
   return (
     <li>
-      <label
-        className="flex min-h-10 cursor-pointer items-center gap-2 rounded-xl px-2 text-sm hover:bg-soft/25 dark:hover:bg-white/10"
-        style={{ paddingLeft: `${0.5 + depth * 1.1}rem` }}
-      >
-        <input
-          ref={box}
-          type="checkbox"
-          checked={checked}
-          onChange={(event) => onToggle(node, event.target.checked)}
-          className="size-4 accent-brand"
-        />
-        <span className={`truncate ${depth === 0 ? 'font-semibold' : ''}`}>{node.scope.name}</span>
-      </label>
+      <ScopeRow
+        label={node.scope.name}
+        depth={depth}
+        bold={depth === 0}
+        checked={checked}
+        partial={partial}
+        onChange={(next) => onToggle(ids, next)}
+      />
       {node.children.length > 0 && (
         <ul>
+          {/* A scope that has children can still own events of its own: the
+              ones for everybody in it rather than for one subteam. "General"
+              is that row, so Exo's all-hands meetings can be chosen without
+              its subteams coming along. */}
+          <ScopeRow
+            label="General"
+            depth={depth + 1}
+            checked={chosen.has(node.scope.id)}
+            partial={false}
+            onChange={(next) => onToggle([node.scope.id], next)}
+          />
           {node.children.map((child) => (
             <ScopeBranch key={child.scope.id} node={child} depth={depth + 1} chosen={chosen} onToggle={onToggle} />
           ))}
         </ul>
       )}
     </li>
+  );
+}
+
+interface ScopeRowProps {
+  label: string;
+  depth: number;
+  bold?: boolean;
+  checked: boolean;
+  partial: boolean;
+  onChange: (checked: boolean) => void;
+}
+
+function ScopeRow({ label, depth, bold = false, checked, partial, onChange }: ScopeRowProps) {
+  const box = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (box.current) box.current.indeterminate = partial;
+  }, [partial]);
+  return (
+    <label
+      className="flex min-h-10 cursor-pointer items-center gap-2 rounded-xl px-2 text-sm hover:bg-soft/25 dark:hover:bg-white/10"
+      style={{ paddingLeft: `${0.5 + depth * 1.1}rem` }}
+    >
+      <input
+        ref={box}
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+        className="size-4 accent-brand"
+      />
+      <span className={`truncate ${bold ? 'font-semibold' : ''}`}>{label}</span>
+    </label>
   );
 }
