@@ -1,0 +1,16 @@
+# One configuration for every Go module; golangci-lint finds it by walking up
+# from the module it runs in. The default linter set stays. The only tuning
+# is errcheck: `defer x.Close()` and `defer tx.Rollback(ctx)` are the idiom
+# for releasing a resource whose close error has nowhere useful to go, so
+# those calls are not reported. Everything else unchecked still is.
+version: "2"
+
+linters:
+  settings:
+    errcheck:
+      exclude-functions:
+        - (io.Closer).Close
+        - (io.ReadCloser).Close
+        - (github.com/jackc/pgx/v5.Tx).Rollback
+        - (*github.com/bwmarrin/discordgo.Session).Close
+        - (*github.com/BioTronDesignTeam/oauth-manager/backend/internal/cache.Cache).Close

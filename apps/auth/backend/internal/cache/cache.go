@@ -3,7 +3,6 @@ package cache
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"time"
 
@@ -66,9 +65,9 @@ func (c *Cache) ListGrantsForOperator(ctx context.Context, operatorID int64) ([]
 			return grants, nil
 		}
 		_ = c.rdb.Del(ctx, grantsKey(operatorID)).Err()
-	} else if !errors.Is(err, redis.Nil) {
-		// degrade to Postgres
 	}
+	// A miss, an unreadable value, or any other Redis error all degrade to
+	// Postgres, which is authoritative.
 
 	grants, err := c.st.ListGrantsForOperator(ctx, operatorID)
 	if err != nil {
