@@ -11,8 +11,8 @@ import {
   selectControl,
 } from './ui';
 
-const sectionHeading = 'text-sm font-semibold text-slate-900 dark:text-slate-100';
-const fieldLabel = 'text-xs font-medium text-slate-500 dark:text-slate-400';
+const sectionHeading = 'text-sm font-semibold text-slate-900 dark:text-white';
+const fieldLabel = 'text-xs font-medium text-slate-500 dark:text-muted';
 
 type PendingAction = 'ban' | 'make-manager' | 'remove-manager';
 
@@ -73,9 +73,9 @@ function MemberActions({
         role="alertdialog"
         aria-labelledby={`confirm-${member.github_id}-title`}
         aria-describedby={`confirm-${member.github_id}-detail`}
-        className="w-full max-w-md rounded-xl border border-slate-300 bg-slate-50 p-4 dark:border-white/15 dark:bg-slate-800"
+        className="w-full max-w-md rounded-xl border border-slate-300 bg-slate-50 p-4 dark:border-white/15 dark:bg-surface-2"
       >
-        <p id={`confirm-${member.github_id}-title`} className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+        <p id={`confirm-${member.github_id}-title`} className="text-sm font-semibold text-slate-900 dark:text-white">
           {text.title}
         </p>
         <p id={`confirm-${member.github_id}-detail`} className={`mt-1 ${mutedText}`}>
@@ -147,8 +147,8 @@ function GrantList({
             key={`${grant.app_id}:${grant.permission_key}`}
             className="flex flex-wrap items-center justify-between gap-3 py-3"
           >
-            <div className="min-w-0 text-sm break-words text-slate-700 dark:text-slate-300">
-              <span className="font-medium text-slate-900 dark:text-slate-100">{label.app}</span>
+            <div className="min-w-0 text-sm break-words text-slate-700 dark:text-muted">
+              <span className="font-medium text-slate-900 dark:text-white">{label.app}</span>
               {' / '}
               {label.permission}
             </div>
@@ -277,12 +277,12 @@ export default function OrgMemberDetail({
       <div className="border-b border-slate-200 px-4 py-4 sm:px-6 dark:border-white/10">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0">
-            <h3 className="text-base font-semibold break-words text-slate-900 dark:text-slate-100">
+            <h3 className="text-base font-semibold break-words text-slate-900 dark:text-white">
               {member.name || member.login}
             </h3>
             <p className={`mt-0.5 break-words ${mutedText}`}>@{member.login}</p>
             {member.last_login_at && (
-              <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
+              <p className="mt-1 text-xs text-slate-400 dark:text-faint">
                 Last login {new Date(member.last_login_at).toLocaleString()}
               </p>
             )}

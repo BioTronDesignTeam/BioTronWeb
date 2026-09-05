@@ -61,7 +61,7 @@ export default function OrgTab({
         />
         <div ref={detailRef} className="min-w-0 scroll-mt-20">
           {!selectedMember ? (
-            <div className="flex h-full items-center justify-center px-6 py-16 text-sm text-slate-500 dark:text-slate-400">
+            <div className="flex h-full items-center justify-center px-6 py-16 text-sm text-slate-500 dark:text-muted">
               Select a member to manage access.
             </div>
           ) : (

@@ -19,7 +19,7 @@ function PermissionChip({ label, granted }: { label: string; granted: boolean })
     );
   }
   return (
-    <span className="inline-flex items-center rounded-full border border-dashed border-slate-300 px-3 py-1.5 text-sm text-slate-500 dark:border-white/15 dark:text-slate-400">
+    <span className="inline-flex items-center rounded-full border border-dashed border-slate-300 px-3 py-1.5 text-sm text-slate-500 dark:border-white/15 dark:text-muted">
       {label}
       <span className="sr-only"> not granted</span>
     </span>
@@ -77,13 +77,13 @@ export default function AccessTab({
           return (
             <li key={app.id} className="px-4 py-5 sm:px-6">
               <div className="min-w-0">
-                <div className="text-base font-medium break-words text-slate-900 dark:text-slate-100">
+                <div className="text-base font-medium break-words text-slate-900 dark:text-white">
                   {app.name}
                 </div>
                 <div className={`mt-1 break-words ${mutedText}`}>{app.description || app.id}</div>
               </div>
               {perms.length === 0 ? (
-                <p className="mt-3 text-sm text-slate-400 dark:text-slate-500">No permissions defined.</p>
+                <p className="mt-3 text-sm text-slate-400 dark:text-faint">No permissions defined.</p>
               ) : (
                 <div className="mt-4 flex flex-wrap gap-2">
                   {perms.map((perm) => (

@@ -47,14 +47,14 @@ export default function KeysTab({
                 className="flex flex-col gap-4 px-4 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6"
               >
                 <div className="min-w-0">
-                  <h3 className="text-base font-medium text-slate-900 dark:text-slate-100">
+                  <h3 className="text-base font-medium text-slate-900 dark:text-white">
                     {key.app_name}
                   </h3>
                   <p className={`mt-1 ${mutedText}`}>Valid for {key.day} in America/Toronto</p>
                   <p
                     // The key is 14 characters of wide monospace; it only fits a
                     // 375px column once the tracking and size come down.
-                    className="mt-3 font-mono text-base tracking-[0.12em] break-all text-slate-900 sm:text-lg sm:tracking-[0.16em] dark:text-slate-100"
+                    className="mt-3 font-mono text-base tracking-[0.12em] break-all text-slate-900 sm:text-lg sm:tracking-[0.16em] dark:text-white"
                     aria-label={
                       revealed ? `${key.app_name} daily key ${key.key}` : `${key.app_name} daily key hidden`
                     }

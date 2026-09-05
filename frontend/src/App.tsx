@@ -94,7 +94,7 @@ export default function App() {
 
   if (directory.loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center text-sm text-slate-500 dark:text-slate-400">
+      <div className="flex min-h-screen items-center justify-center text-sm text-slate-500 dark:text-muted">
         Loading…
       </div>
     );
