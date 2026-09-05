@@ -2,12 +2,15 @@
 
 FROM golang:1.27-bookworm AS build
 
+# Builds from the repository root so the shared go/logclient module is in
+# the context. apps/sprinter/docker-compose.yml sets context: ../..
 WORKDIR /src
-
-COPY go.mod ./
+COPY go/logclient/ go/logclient/
+COPY apps/sprinter/backend/go.mod apps/sprinter/backend/go.sum apps/sprinter/backend/
+WORKDIR /src/apps/sprinter/backend
 RUN go mod download
 
-COPY . .
+COPY apps/sprinter/backend/ .
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/sprinter .
 
 FROM debian:bookworm-slim

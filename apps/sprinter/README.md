@@ -50,8 +50,25 @@ reads no file; export what it needs in the shell. The code reads:
 - `DISCORD_TOKEN`. Empty means no Discord session.
 - `PORT`. Compose sets `8080`; `go run .` defaults to it.
 - `DATABASE_URL`. Prisma's connection, in the `sprinter` schema.
+- `LOGGER_URL`, `LOGGER_INGEST_TOKEN`. Where events go. An empty token
+  disables them.
 
 Nothing reads `CALENDAR_URL`, `OAUTH_MANAGER_URL`, or `VITE_API_URL` yet.
+
+## Events to Logger
+
+Sprinter reports to Logger as `sprinter`. `/health` is never sent.
+
+| Message | Level | Payload |
+|---|---|---|
+| Sprinter started | Info | `port`, `discord` |
+| Sprinter stopping | Info | |
+| Discord token unset | Warning | |
+| Discord session failed | Error | `stage`, `error` |
+| Discord connected | Info | `user`, `guilds` |
+| Discord disconnected | Warning | |
+| Discord resumed | Info | |
+| HTTP request completed | Info; Warning on 4xx; Error on 5xx | `method`, `path`, `status`, `duration_ms`, and `error` when it failed |
 
 ## Database
 

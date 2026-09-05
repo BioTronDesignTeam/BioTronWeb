@@ -3,6 +3,7 @@ module github.com/BioTronDesignTeam/Sprinter/backend
 go 1.27.0
 
 require (
+	github.com/BioTronDesignTeam/biotron/go/logclient v0.0.0
 	github.com/bwmarrin/discordgo v0.29.0
 	github.com/gofiber/fiber/v3 v3.5.0
 )
@@ -25,3 +26,5 @@ require (
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/text v0.41.0 // indirect
 )
+
+replace github.com/BioTronDesignTeam/biotron/go/logclient => ../../../go/logclient
