@@ -26,16 +26,16 @@ jobs:
         image:
           - { name: site-web,         context: .,                    dockerfile: apps/site/frontend/Dockerfile }
           - { name: calendar-web,     context: .,                    dockerfile: apps/calendar/frontend/Dockerfile }
-          - { name: calendar-api,     context: apps/calendar/backend, dockerfile: apps/calendar/backend/Dockerfile }
+          - { name: calendar-api,     context: .,                    dockerfile: apps/calendar/backend/Dockerfile }
           - { name: calendar-migrate, context: apps/calendar/prisma,  dockerfile: apps/calendar/prisma/Dockerfile }
           - { name: logger-web,       context: .,                    dockerfile: apps/logger/frontend/Dockerfile }
           - { name: logger-api,       context: apps/logger/backend,   dockerfile: apps/logger/backend/Dockerfile }
           - { name: logger-migrate,   context: apps/logger/prisma,    dockerfile: apps/logger/prisma/Dockerfile }
           - { name: auth-web,         context: .,                    dockerfile: apps/auth/frontend/Dockerfile }
-          - { name: auth-api,         context: apps/auth/backend,     dockerfile: apps/auth/backend/Dockerfile }
+          - { name: auth-api,         context: .,                    dockerfile: apps/auth/backend/Dockerfile }
           - { name: auth-migrate,     context: apps/auth/prisma,      dockerfile: apps/auth/prisma/Dockerfile }
           - { name: exo-web,          context: .,                    dockerfile: apps/exo/frontend/Dockerfile }
-          - { name: exo-api,          context: apps/exo/backend,      dockerfile: apps/exo/backend/Dockerfile }
+          - { name: exo-api,          context: .,                    dockerfile: apps/exo/backend/Dockerfile }
           - { name: exo-migrate,      context: apps/exo/prisma,       dockerfile: apps/exo/prisma/Dockerfile }
           - { name: sprinter-web,     context: .,                    dockerfile: apps/sprinter/frontend/Dockerfile }
           - { name: sprinter-bot,     context: apps/sprinter/backend, dockerfile: apps/sprinter/backend/Dockerfile }
