@@ -110,7 +110,7 @@ container installs its own binaries and never touches the host's.
 
 Verified at assembly: every frontend builds from the workspace, the root lint
 runs, every Go module builds under `go.work`, and the root compose
-configuration parses with the includes. Since then every image has been built
+configuration parses with the includes. Since then, every image has been built
 from here and every container on the host runs from this repository, on the
 same ports as before.
 
