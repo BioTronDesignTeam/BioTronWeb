@@ -5,13 +5,13 @@ import (
 	"crypto/subtle"
 	"encoding/base32"
 	"errors"
-	"log"
 	"strings"
 	"time"
 	_ "time/tzdata"
 
 	"github.com/gofiber/fiber/v3"
 
+	"github.com/BioTronDesignTeam/biotron/go/logclient"
 	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/store"
 )
 
@@ -72,7 +72,7 @@ func normalizeGuestKey(s string) string {
 func (h *Handler) StaffProductDailyKeys(c fiber.Ctx) error {
 	apps, err := h.Store.ListDailyKeyApps(c.Context())
 	if err != nil {
-		log.Printf("auth: list daily-key products: %v", err)
+		fail(c, err, "auth: list daily-key products")
 		return fiber.ErrInternalServerError
 	}
 	keys := make([]store.ProductDailyKey, 0, len(apps))
@@ -80,12 +80,12 @@ func (h *Handler) StaffProductDailyKeys(c fiber.Ctx) error {
 	for _, app := range apps {
 		candidate, err := newGuestKey()
 		if err != nil {
-			log.Printf("auth: generate product daily key: %v", err)
+			fail(c, err, "auth: generate product daily key")
 			return fiber.ErrInternalServerError
 		}
 		key, err := h.Store.EnsureProductDailyKey(c.Context(), app.ID, day, candidate)
 		if err != nil {
-			log.Printf("auth: ensure product daily key for %s: %v", app.ID, err)
+			fail(c, err, "auth: ensure product daily key for "+app.ID)
 			return fiber.ErrInternalServerError
 		}
 		key.AppName = app.Name
@@ -107,20 +107,25 @@ func (h *Handler) GuestLogin(c fiber.Ctx) error {
 	}
 
 	now := time.Now()
+	// body.AppID came out of the JSON decoder, not the pooled request buffer,
+	// so it is safe to keep and to hand to an event.
+	appID := strings.TrimSpace(body.AppID)
 	candidate, err := newGuestKey()
 	if err != nil {
-		log.Printf("auth: generate guest key: %v", err)
+		fail(c, err, "auth: generate guest key")
 		return fiber.ErrInternalServerError
 	}
-	gk, err := h.Store.EnsureProductDailyKey(c.Context(), strings.TrimSpace(body.AppID), easternDay(now), candidate)
+	gk, err := h.Store.EnsureProductDailyKey(c.Context(), appID, easternDay(now), candidate)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
+			h.Events.LogAsync(logclient.Warning, "Guest key refused", map[string]any{"app_id": appID})
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "invalid or expired key"})
 		}
-		log.Printf("auth: ensure product daily key: %v", err)
+		fail(c, err, "auth: ensure product daily key")
 		return fiber.ErrInternalServerError
 	}
 	if subtle.ConstantTimeCompare([]byte(normalizeGuestKey(body.Key)), []byte(gk.Key)) != 1 {
+		h.Events.LogAsync(logclient.Warning, "Guest key refused", map[string]any{"app_id": gk.AppID})
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "invalid or expired key"})
 	}
 
@@ -129,7 +134,7 @@ func (h *Handler) GuestLogin(c fiber.Ctx) error {
 		Login:    store.GuestLogin,
 		Name:     "Guest",
 	}, false); err != nil {
-		log.Printf("auth: upsert guest operator: %v", err)
+		fail(c, err, "auth: upsert guest operator")
 		return fiber.ErrInternalServerError
 	}
 
@@ -140,10 +145,11 @@ func (h *Handler) GuestLogin(c fiber.Ctx) error {
 	expiry := guestSessionExpiry(now)
 	if err := h.Store.CreateSession(c.Context(), hashToken(token), store.GuestGitHubID, gk.AppID,
 		expiry, c.Get("User-Agent")); err != nil {
-		log.Printf("auth: create guest session: %v", err)
+		fail(c, err, "auth: create guest session")
 		return fiber.ErrInternalServerError
 	}
 
 	setSessionCookie(c, token, h.Cfg.CookieSecure, h.Cfg.CookieSameSite, h.Cfg.CookieDomain, time.Until(expiry))
+	h.Events.LogAsync(logclient.Info, "Guest signed in", map[string]any{"app_id": gk.AppID})
 	return c.SendStatus(fiber.StatusNoContent)
 }

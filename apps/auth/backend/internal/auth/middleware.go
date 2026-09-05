@@ -2,10 +2,10 @@ package auth
 
 import (
 	"errors"
-	"log"
 
 	"github.com/gofiber/fiber/v3"
 
+	"github.com/BioTronDesignTeam/biotron/go/logclient/fiberlog"
 	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/store"
 )
 
@@ -29,10 +29,13 @@ func (h *Handler) RequireSession(c fiber.Ctx) error {
 		if errors.Is(err, store.ErrNotFound) || errors.Is(err, store.ErrBanned) {
 			return fiber.ErrUnauthorized
 		}
-		log.Printf("auth: session lookup: %v", err)
+		fail(c, err, "auth: session lookup")
 		return fiber.ErrServiceUnavailable
 	}
 	c.Locals(OperatorLocal, op)
+	// Every route that reaches a handler passes here first, so naming the
+	// operator once is what puts an actor on each request event.
+	fiberlog.SetActor(c, op.Login)
 	return c.Next()
 }
 

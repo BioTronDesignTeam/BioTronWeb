@@ -10,6 +10,7 @@ import (
 	"github.com/gofiber/fiber/v3"
 
 	"github.com/BioTronDesignTeam/biotron/go/logclient"
+	"github.com/BioTronDesignTeam/biotron/go/logclient/fiberlog"
 	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/cache"
 	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/store"
 )
@@ -51,6 +52,14 @@ func (h *Handler) audit(message string, actor *store.SessionOperator, payload ma
 	h.Events.LogAsync(logclient.Info, message, payload)
 }
 
+// fail records one failure twice: on stdout, which is all `docker logs` has
+// when Logger is unreachable, and on the request's completion event, which
+// then names the cause instead of a bare status.
+func fail(c fiber.Ctx, err error, what string) {
+	log.Printf("%s: %v", what, err)
+	fiberlog.SetError(c, err)
+}
+
 func (h *Handler) LoginRedirect(c fiber.Ctx) error {
 	state, err := newToken()
 	if err != nil {
@@ -88,29 +97,39 @@ func (h *Handler) Callback(c fiber.Ctx) error {
 	ctx := c.Context()
 	tok, err := h.GitHub.Exchange(ctx, code)
 	if err != nil {
-		log.Printf("auth: oauth exchange: %v", err)
+		h.signInFailed(c, err, "exchange", "auth: oauth exchange")
 		return c.Status(fiber.StatusBadGateway).SendString("authentication failed, please try again")
 	}
 
 	member, err := h.GitHub.IsOrgMember(ctx, tok)
 	if err != nil {
-		log.Printf("auth: org membership check: %v", err)
+		h.signInFailed(c, err, "membership", "auth: org membership check")
 		return c.Status(fiber.StatusBadGateway).SendString("authentication failed, please try again")
 	}
 	if !member {
+		// The login is unknown here: refusing before /user is fetched is what
+		// keeps a non-member's name out of the store.
+		h.Events.LogAsync(logclient.Warning, "Sign-in refused", map[string]any{"reason": "not a member"})
 		return c.Redirect().Status(fiber.StatusFound).To(dest + "/?auth=denied")
 	}
 
 	user, err := h.GitHub.FetchUser(ctx, tok)
 	if err != nil {
-		log.Printf("auth: fetch user: %v", err)
+		h.signInFailed(c, err, "user", "auth: fetch user")
 		return c.Status(fiber.StatusBadGateway).SendString("authentication failed, please try again")
 	}
 
-	existing, _ := h.Store.GetOperator(ctx, user.ID)
+	existing, existingErr := h.Store.GetOperator(ctx, user.ID)
 	if existing != nil && existing.IsBanned {
+		h.Events.LogAsync(logclient.Warning, "Sign-in refused", map[string]any{
+			"reason": "banned", "login": user.Login,
+		})
 		return c.Redirect().Status(fiber.StatusFound).To(dest + "/?auth=banned")
 	}
+	// GetOperator answers ErrNotFound only when the row is absent, so a first
+	// sign-in is known exactly. Any other error leaves the flag off rather than
+	// announcing an operator who has been here for months.
+	newOperator := errors.Is(existingErr, store.ErrNotFound)
 
 	forceSuper := h.Cfg.IsSuperuserID != nil && h.Cfg.IsSuperuserID(user.ID)
 	if err := h.Store.UpsertOperator(ctx, store.Operator{
@@ -119,7 +138,7 @@ func (h *Handler) Callback(c fiber.Ctx) error {
 		Name:      user.Name,
 		AvatarURL: user.AvatarURL,
 	}, forceSuper); err != nil {
-		log.Printf("auth: upsert operator: %v", err)
+		fail(c, err, "auth: upsert operator")
 		return fiber.ErrInternalServerError
 	}
 
@@ -129,25 +148,48 @@ func (h *Handler) Callback(c fiber.Ctx) error {
 	}
 	if err := h.Store.CreateSession(ctx, hashToken(token), user.ID, "",
 		time.Now().Add(h.Cfg.SessionTTL), c.Get("User-Agent")); err != nil {
-		log.Printf("auth: create session: %v", err)
+		fail(c, err, "auth: create session")
 		return fiber.ErrInternalServerError
 	}
 
 	setSessionCookie(c, token, h.Cfg.CookieSecure, h.Cfg.CookieSameSite, h.Cfg.CookieDomain, h.Cfg.SessionTTL)
+	h.Events.LogAsync(logclient.Info, "Operator signed in", map[string]any{
+		"operator_id":    user.ID,
+		"operator_login": user.Login,
+		"new_operator":   newOperator,
+	})
 	return c.Redirect().Status(fiber.StatusFound).To(dest)
+}
+
+// signInFailed reports one broken step of the GitHub handshake. The stage says
+// which call failed; the code, the state, and the token never appear.
+func (h *Handler) signInFailed(c fiber.Ctx, err error, stage, what string) {
+	fail(c, err, what)
+	h.Events.LogAsync(logclient.Error, "GitHub sign-in failed", map[string]any{
+		"stage": stage, "error": err.Error(),
+	})
 }
 
 func (h *Handler) Logout(c fiber.Ctx) error {
 	if token := c.Cookies(SessionCookie); token != "" {
 		hash := hashToken(token)
 		if err := h.Store.DeleteSession(c.Context(), hash); err != nil {
+			// The browser loses its cookie either way, so the request answers
+			// 204 and its event stays Info. Only this event says the row
+			// survived and the session still works for whoever holds the token.
 			log.Printf("auth: delete session on logout: %v", err)
+			h.Events.LogAsync(logclient.Error, "Session delete failed", map[string]any{"error": err.Error()})
 		}
 		if h.Cache != nil {
 			_ = h.Cache.InvalidateSession(c.Context(), hash)
 		}
 	}
 	clearSessionCookie(c, h.Cfg.CookieSecure, h.Cfg.CookieSameSite, h.Cfg.CookieDomain)
+	if op := OperatorFrom(c); op != nil {
+		h.Events.LogAsync(logclient.Info, "Operator signed out", map[string]any{
+			"operator_id": op.GitHubID, "operator_login": op.Login,
+		})
+	}
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
@@ -175,7 +217,7 @@ func (h *Handler) Me(c fiber.Ctx) error {
 func (h *Handler) ListApps(c fiber.Ctx) error {
 	apps, err := h.Store.ListApps(c.Context())
 	if err != nil {
-		log.Printf("apps: list: %v", err)
+		fail(c, err, "apps: list")
 		return fiber.ErrInternalServerError
 	}
 	if apps == nil {
@@ -187,7 +229,7 @@ func (h *Handler) ListApps(c fiber.Ctx) error {
 func (h *Handler) ListPermissions(c fiber.Ctx) error {
 	perms, err := h.Store.ListPermissions(c.Context())
 	if err != nil {
-		log.Printf("permissions: list: %v", err)
+		fail(c, err, "permissions: list")
 		return fiber.ErrInternalServerError
 	}
 	if perms == nil {
@@ -206,9 +248,10 @@ func (h *Handler) CreateApp(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "id and name required"})
 	}
 	if err := h.Store.CreateApp(c.Context(), body.ID, body.Name, body.Description); err != nil {
-		log.Printf("apps: create: %v", err)
+		fail(c, err, "apps: create")
 		return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "could not create app"})
 	}
+	h.audit("Tool registered", OperatorFrom(c), map[string]any{"app_id": body.ID})
 	return c.Status(fiber.StatusCreated).JSON(body)
 }
 
@@ -222,7 +265,7 @@ func (h *Handler) MyGrants(c fiber.Ctx) error {
 		grants, err = h.Store.ListGrantsForOperator(c.Context(), op.GitHubID)
 	}
 	if err != nil {
-		log.Printf("grants: list: %v", err)
+		fail(c, err, "grants: list")
 		return fiber.ErrInternalServerError
 	}
 	if grants == nil {
@@ -247,7 +290,7 @@ func (h *Handler) CreateGrant(c fiber.Ctx) error {
 		if errors.Is(err, store.ErrNotFound) {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "permission not found"})
 		}
-		log.Printf("grants: create: %v", err)
+		fail(c, err, "grants: create")
 		return fiber.ErrInternalServerError
 	}
 	if h.Cache != nil {
@@ -303,7 +346,7 @@ func (h *Handler) Check(c fiber.Ctx) error {
 func (h *Handler) ListOrgMembers(c fiber.Ctx) error {
 	members, err := h.Store.ListOrgMembers(c.Context())
 	if err != nil {
-		log.Printf("org: list: %v", err)
+		fail(c, err, "org: list")
 		return fiber.ErrInternalServerError
 	}
 	if members == nil {

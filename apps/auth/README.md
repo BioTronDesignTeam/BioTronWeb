@@ -119,11 +119,38 @@ sessions at once, so the next check refuses.
 
 ### Events to Logger
 
-Auth reports to Logger as `oauth-manager`: start and stop, each completed
-request as method, path, status, and duration, and one audit event for each
-grant, revoke, ban, unban, and manager change. Audit events name the actor by
-id and login and the target by id. Query strings, cookies, and tokens are
-never sent. These audit events are the only record of who changed what.
+Auth reports to Logger as `oauth-manager`. Every completed request is one
+event. `/health` is never logged, and `/v1/check` and `/auth/me` are logged
+only when they fail, because every page polls them. A request made with a
+session names its operator as `actor`.
+
+| Message | Level | Payload |
+|---|---|---|
+| `OAuthManager started` | info | `port` |
+| `OAuthManager stopping` | info | — |
+| `GitHub OAuth not configured` | warning | — |
+| `HTTP request completed` | info, warning on 4xx, error on 5xx | `method`, `path`, `status`, `duration_ms`, `actor`, `error` |
+| `Operator signed in` | info | `operator_id`, `operator_login`, `new_operator` |
+| `Operator signed out` | info | `operator_id`, `operator_login` |
+| `Sign-in refused` | warning | `reason` (`not a member` or `banned`), `login` when known |
+| `GitHub sign-in failed` | error | `stage` (`exchange`, `membership`, `user`), `error` |
+| `Guest signed in` | info | `app_id` |
+| `Guest key refused` | warning | `app_id` |
+| `Permission granted`, `Permission revoked` | info | `target_id`, `app`, `permission` |
+| `Operator banned`, `Operator unbanned` | info | `target_id`, `target_login` |
+| `Manager flag set`, `Manager flag removed` | info | `target_id`, `target_login` |
+| `Tool registered` | info | `app_id` |
+| `Session delete failed` | error | `error` |
+| `Expired sessions pruned`, `Stale guest keys pruned` | info | `count` |
+| `Session prune failed`, `Guest key prune failed` | error | `error` |
+
+The grant, revoke, ban, unban, manager, and tool rows are the audit trail.
+Each also names the actor as `actor_id` and `actor_login`. These events are
+the only record of who changed what. The hourly prune reports only what it
+deleted, so an idle hour sends nothing.
+
+Query strings, cookies, tokens, guest keys, and the OAuth code and state are
+never sent.
 
 ## Frontend
 

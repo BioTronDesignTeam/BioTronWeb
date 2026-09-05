@@ -35,8 +35,16 @@ func main() {
 	if cfg.DatabaseURL == "" {
 		log.Fatal("DATABASE_URL is required")
 	}
+	// The client reads only the environment, so it is built before anything can
+	// fail. A misconfigured sign-in is then reported to Logger as well as to
+	// stdout, instead of being noticed when the first operator cannot get in.
+	events := logclient.NewFromEnv("oauth-manager")
+	if !events.Enabled() {
+		log.Println("warning: LOGGER_INGEST_TOKEN unset — structured logging is disabled")
+	}
 	if cfg.GitHubClientID == "" || cfg.GitHubClientSecret == "" {
 		log.Println("warning: GITHUB_CLIENT_ID/SECRET unset — operator login will fail until configured")
+		events.LogAsync(logclient.Warning, "GitHub OAuth not configured", nil)
 	}
 
 	st, err := connectDB(cfg.DatabaseURL)
@@ -50,12 +58,8 @@ func main() {
 		log.Fatalf("connect redis: %v", err)
 	}
 	defer c.Close()
-	events := logclient.NewFromEnv("oauth-manager")
-	if !events.Enabled() {
-		log.Println("warning: LOGGER_INGEST_TOKEN unset — structured logging is disabled")
-	}
 
-	go prune(st)
+	go prune(st, events)
 
 	gh := auth.NewGitHubClient(auth.GitHubOptions{
 		ClientID:     cfg.GitHubClientID,
@@ -107,17 +111,24 @@ func main() {
 	}
 }
 
-func prune(st *store.Store) {
+// prune runs every hour and reports only what it changed. A sweep that deletes
+// nothing sends nothing, so the log stays a record of events rather than a
+// heartbeat.
+func prune(st *store.Store, events *logclient.Client) {
 	for {
 		if n, err := st.DeleteExpiredSessions(context.Background()); err != nil {
 			log.Printf("prune sessions: %v", err)
+			events.LogAsync(logclient.Error, "Session prune failed", map[string]any{"error": err.Error()})
 		} else if n > 0 {
 			log.Printf("pruned %d expired sessions", n)
+			events.LogAsync(logclient.Info, "Expired sessions pruned", map[string]any{"count": n})
 		}
 		if n, err := st.DeleteOldProductDailyKeys(context.Background()); err != nil {
 			log.Printf("prune product daily keys: %v", err)
+			events.LogAsync(logclient.Error, "Guest key prune failed", map[string]any{"error": err.Error()})
 		} else if n > 0 {
 			log.Printf("pruned %d stale product daily keys", n)
+			events.LogAsync(logclient.Info, "Stale guest keys pruned", map[string]any{"count": n})
 		}
 		time.Sleep(time.Hour)
 	}
