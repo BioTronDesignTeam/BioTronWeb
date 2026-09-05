@@ -282,7 +282,9 @@ function UptimeBar({ buckets, days, label }: { buckets: HistoryBucket[]; days: n
       <div
         ref={trackRef}
         className="uptime-bar__track"
-        role="group"
+        // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- a keyboard-explorable strip of day pills; no element says that
+        role="img"
+        aria-roledescription="uptime history"
         aria-label={summary}
         tabIndex={0}
         onPointerMove={(event) => setActive(indexAt(event.clientX))}
@@ -857,10 +859,11 @@ function ApplicationDetail({ application }: { application: ApplicationStatus }) 
             <p className="eyebrow">Application events</p>
             <h2>Logs</h2>
           </div>
-          <div className="mode-switch" role="group" aria-label="Log source">
-            <button className={mode === 'recent' ? 'active' : ''} onClick={() => setMode('recent')}>Recent</button>
-            <button className={mode === 'history' ? 'active' : ''} onClick={() => setMode('history')}>History</button>
-          </div>
+          <fieldset className="mode-switch">
+            <legend className="visually-hidden">Log source</legend>
+            <button type="button" className={mode === 'recent' ? 'active' : ''} onClick={() => setMode('recent')}>Recent</button>
+            <button type="button" className={mode === 'history' ? 'active' : ''} onClick={() => setMode('history')}>History</button>
+          </fieldset>
         </div>
 
         <form className="filters" onSubmit={applyFilters}>
