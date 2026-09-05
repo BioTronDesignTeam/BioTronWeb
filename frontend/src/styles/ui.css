@@ -730,9 +730,9 @@
 .calendarpage__inner {
   display: grid;
   min-height: 72vh;
-  grid-template-columns: minmax(0, 1.2fr) minmax(22rem, 0.8fr);
+  grid-template-columns: minmax(0, 0.95fr) minmax(24rem, 1.05fr);
   align-items: center;
-  gap: clamp(3rem, 8vw, 8rem);
+  gap: clamp(2.5rem, 5vw, 5rem);
   padding-bottom: 5rem;
 }
 .calendarpage__icon {
@@ -751,7 +751,7 @@
   /* Narrower than --fs-3xl so the headline holds two lines beside the event
      card at every desktop width. The floor matches --fs-3xl, so the stacked
      phone layout is unchanged. */
-  font-size: clamp(2.4rem, 1.4rem + 2.2vw, 3.25rem);
+  font-size: clamp(2.4rem, 1.4rem + 2.2vw, 3rem);
   text-wrap: balance;
 }
 .calendarpage__intro > p {
@@ -877,7 +877,7 @@
   color: var(--text-muted);
   text-align: center;
 }
-@media (max-width: 900px) {
+@media (max-width: 1080px) {
   .calendarpage__inner {
     grid-template-columns: 1fr;
     align-items: start;
