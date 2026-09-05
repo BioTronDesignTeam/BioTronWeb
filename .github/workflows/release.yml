@@ -59,7 +59,7 @@ jobs:
           tags: ghcr.io/biotrondesignteam/${{ matrix.image.name }}:${{ github.ref_name }}
       # The image is already in the registry at this point; a failure here
       # turns the release red so nobody deploys it.
-      - uses: aquasecurity/trivy-action@0.28.0
+      - uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ghcr.io/biotrondesignteam/${{ matrix.image.name }}:${{ github.ref_name }}
           severity: CRITICAL,HIGH

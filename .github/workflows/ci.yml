@@ -164,11 +164,12 @@ jobs:
         with:
           fetch-depth: 0
       # Scans the commits the change adds and fails on any verified live
-      # credential. --results=verified,unknown also reports credentials
-      # TruffleHog could not check against their provider.
+      # credential. Unverified results are not a gate: every one so far is a
+      # Postgres URL on an internal host (postgres:5432, db:5432), which CI
+      # can never resolve, so a placeholder and a real one look the same to
+      # the scanner. The token types that matter (GitHub, Cloudflare,
+      # Discord, AWS) verify against their provider and do gate.
       - uses: trufflesecurity/trufflehog@main
-        with:
-          extra_args: --results=verified,unknown
 
   vulnerabilities:
     name: vulnerabilities (Trivy)
@@ -179,7 +180,7 @@ jobs:
       # fixable HIGH or CRITICAL finding; unfixable ones are reported only.
       # Accepted findings live in .trivyignore.yaml with their reasons; Trivy
       # only reads the YAML form when it is named explicitly.
-      - uses: aquasecurity/trivy-action@0.28.0
+      - uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: fs
           scan-ref: .
