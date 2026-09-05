@@ -3,107 +3,107 @@ package main
 import (
 	"context"
 	"log"
-	"os"
 	"os/signal"
 	"syscall"
 	"time"
+	_ "time/tzdata"
 
-	"github.com/bwmarrin/discordgo"
 	"github.com/gofiber/fiber/v3"
+	"github.com/joho/godotenv"
 
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
-	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient/fiberlog"
+	"github.com/BioTronDesignTeam/Sprinter/backend/internal/auth"
+	"github.com/BioTronDesignTeam/Sprinter/backend/internal/config"
+	"github.com/BioTronDesignTeam/Sprinter/backend/internal/discord"
+	"github.com/BioTronDesignTeam/Sprinter/backend/internal/server"
+	"github.com/BioTronDesignTeam/Sprinter/backend/internal/store"
 )
 
 func main() {
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
-
+	_ = godotenv.Load("../.env")
+	cfg := config.Load()
+	if err := cfg.Validate(); err != nil {
+		log.Fatalf("config: %v", err)
+	}
+	// The event client is built before anything can block, so a warning still
+	// reaches Logger when the database never comes up and the process dies in
+	// connectStore.
 	events := logclient.NewFromEnv("sprinter")
 	if !events.Enabled() {
 		log.Println("warning: LOGGER_INGEST_TOKEN unset — structured logging is disabled")
 	}
 
-	discordConnected := false
-	var discord *discordgo.Session
-	if token := os.Getenv("DISCORD_TOKEN"); token == "" {
+	sprinterStore, err := connectStore(cfg.DatabaseURL)
+	if err != nil {
+		log.Fatalf("connect database: %v", err)
+	}
+	defer sprinterStore.Close()
+
+	var bot *discord.Bot
+	if !cfg.DiscordEnabled() {
 		events.LogAsync(logclient.Warning, "Discord token unset", nil)
 	} else {
-		var err error
-		discord, err = discordgo.New("Bot " + token)
+		bot, err = discord.New(cfg.DiscordToken, sprinterStore, events, discord.Options{
+			GuildID: cfg.DiscordGuildID,
+			// Until the model layer lands, every answer is an echo, and the
+			// agent_threads row says so rather than naming a model nothing ran.
+			Model:  "echo",
+			Runner: discord.EchoRunner{},
+		})
 		if err != nil {
 			events.LogAsync(logclient.Error, "Discord session failed", map[string]any{
-				"stage": "create",
-				"error": err.Error(),
+				"stage": "create", "error": err.Error(),
 			})
 			log.Fatalf("create Discord session: %v", err)
 		}
-
-		// Register handlers before Open so the gateway's first Ready cannot
-		// arrive before anyone is listening for it.
-		discord.AddHandler(func(_ *discordgo.Session, r *discordgo.Ready) {
-			events.LogAsync(logclient.Info, "Discord connected", map[string]any{
-				"user":   r.User.Username,
-				"guilds": len(r.Guilds),
-			})
-		})
-		discord.AddHandler(func(_ *discordgo.Session, _ *discordgo.Disconnect) {
-			events.LogAsync(logclient.Warning, "Discord disconnected", nil)
-		})
-		discord.AddHandler(func(_ *discordgo.Session, _ *discordgo.Resumed) {
-			events.LogAsync(logclient.Info, "Discord resumed", nil)
-		})
-
-		if err := discord.Open(); err != nil {
+		if err := bot.Open(); err != nil {
 			events.LogAsync(logclient.Error, "Discord session failed", map[string]any{
-				"stage": "open",
-				"error": err.Error(),
+				"stage": "open", "error": err.Error(),
 			})
 			log.Fatalf("open Discord session: %v", err)
 		}
-		discordConnected = true
-		defer discord.Close()
+		defer bot.Close()
 	}
 
-	app := fiber.New()
-	app.Use(fiberlog.New(events, fiberlog.Options{}))
-	app.Get("/health", func(c fiber.Ctx) error {
-		return c.JSON(fiber.Map{
-			"discord_connected": discordConnected,
-			"service":           "sprinter",
-			"status":            "ok",
-		})
-	})
-
-	port := getenv("PORT", "8080")
+	authClient := auth.NewClient(cfg.OAuthManagerURL)
+	app := server.New(cfg, sprinterStore, authClient, events, bot.Connected)
+	address := ":" + cfg.Port
 	events.LogAsync(logclient.Info, "Sprinter started", map[string]any{
-		"port":    port,
-		"discord": discordConnected,
+		"port": cfg.Port, "discord": cfg.DiscordEnabled(),
 	})
 
 	go func() {
-		log.Printf("Sprinter admin API listening on :%s", port)
-		if err := app.Listen(":" + port); err != nil {
-			log.Printf("admin API stopped: %v", err)
+		log.Printf("Sprinter admin API listening on %s", address)
+		if err := app.Listen(address, fiber.ListenConfig{DisableStartupMessage: true}); err != nil {
+			log.Fatalf("listen: %v", err)
 		}
 	}()
 
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
 	<-ctx.Done()
 	log.Println("shutting down")
-	shutdownLogCtx, cancelShutdownLog := context.WithTimeout(context.Background(), 2*time.Second)
+	shutdownLogCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	if err := events.Log(shutdownLogCtx, logclient.Info, "Sprinter stopping", nil); err != nil {
 		log.Printf("structured shutdown log: %v", err)
 	}
-	cancelShutdownLog()
-	if err := app.Shutdown(); err != nil {
-		log.Printf("shut down admin API: %v", err)
+	cancel()
+	if err := app.ShutdownWithTimeout(10 * time.Second); err != nil {
+		log.Printf("shutdown: %v", err)
 	}
 }
 
-func getenv(key, fallback string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
+func connectStore(databaseURL string) (*store.Store, error) {
+	deadline := time.Now().Add(2 * time.Minute)
+	for attempt := 1; ; attempt++ {
+		sprinterStore, err := store.New(context.Background(), databaseURL)
+		if err == nil {
+			return sprinterStore, nil
+		}
+		if time.Now().After(deadline) {
+			return nil, err
+		}
+		log.Printf("database not ready (attempt %d): %v; retrying in 3s", attempt, err)
+		time.Sleep(3 * time.Second)
 	}
-
-	return fallback
 }
