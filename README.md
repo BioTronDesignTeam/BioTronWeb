@@ -69,7 +69,9 @@ docker compose up -d                     # the whole platform (needs each app's 
 ```
 
 Frontend images build from the repository root so they can see
-`packages/style`; each app's compose file already sets `context: ../..`.
+`packages/style`, and the Auth, Exo, and Calendar API images build from
+the root so they can see `go/logclient`; each app's compose file already
+sets `context: ../..` for them.
 
 ## The devcontainer
 
@@ -117,8 +119,6 @@ run from the separate repositories on the same ports.
   (`github.com/BioTronDesignTeam/Logger/backend` and so on). Renaming them
   to `github.com/BioTronDesignTeam/biotron/apps/<app>/backend` is a
   find-and-replace plus `go work sync`.
-- `apps/auth/backend/internal/eventlog` is a copy of the Logger client. It
-  should import `go/logclient` instead and be deleted.
 - The OAuthManager permission-check client that Logger, Exo, and Calendar each
   hand-roll belongs in `go/authcheck`. It is not extracted here.
 - The CI workflows under `.github/workflows` are written but have never run.

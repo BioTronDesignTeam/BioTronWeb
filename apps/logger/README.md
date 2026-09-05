@@ -160,14 +160,13 @@ returned row `continuous`, so a collapsed run is never read as a silence.
 
 ## Application logging
 
-The shared Go client is `go/logclient`. It reads `LOGGER_URL` (default
-`http://logger-api:8080`), `LOGGER_INGEST_TOKEN`, `LOGGER_SERVICE` (a
-catalog component id), and `LOG_LEVEL` (default `info`). No service
-imports it yet: Auth, Exo, and Calendar each carry a copy in
-`backend/internal/eventlog` that names the service in code
-(`oauth-manager`, `exo-api`, `calendar-api`) and sends nothing when the
-token is empty. Logger writes its own start and stop events straight into
-the store as `logger-api`.
+Auth, Exo, and Calendar send events through the shared Go client in
+`go/logclient`, reporting as `oauth-manager`, `exo-api`, and
+`calendar-api`. The client reads `LOGGER_URL` (default
+`http://logger-api:8080`), `LOGGER_INGEST_TOKEN`, and `LOG_LEVEL`
+(default `info`), and sends nothing when the token is empty. Logger
+writes its own start and stop events straight into the store as
+`logger-api`.
 
 ## Storage
 
