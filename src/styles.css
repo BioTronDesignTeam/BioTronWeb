@@ -1,3 +1,10 @@
+/* The five brand colours are constants in both themes. Everything a component
+   paints with comes from the semantic tokens below, so light and dark can hold
+   completely different palettes without a component rule knowing which is on.
+
+   Dark mode is the public site's look: a graphite page, white text, and purple
+   or blue only as a highlight. Pale blue (--biotron-soft) is a light-mode
+   colour and must never be text, a border, or a button fill in dark mode. */
 :root {
   --biotron-ink: #16033c;
   --biotron-deep: #160b6c;
@@ -7,23 +14,35 @@
   --biotron-page: var(--biotron-white);
   --biotron-surface: var(--biotron-white);
   --biotron-surface-muted: color-mix(in srgb, var(--biotron-soft) 20%, var(--biotron-white));
+  --biotron-surface-deep: color-mix(in srgb, var(--biotron-ink) 5%, var(--biotron-white));
   --biotron-text: var(--biotron-ink);
   --biotron-text-muted: color-mix(in srgb, var(--biotron-deep) 62%, var(--biotron-white));
+  --biotron-text-faint: color-mix(in srgb, var(--biotron-ink) 45%, var(--biotron-white));
   --biotron-border: color-mix(in srgb, var(--biotron-soft) 70%, var(--biotron-white));
+  --biotron-border-strong: var(--biotron-soft);
+  --biotron-link: var(--biotron-accent);
+  --biotron-highlight: color-mix(in srgb, var(--biotron-accent) 10%, var(--biotron-white));
   --biotron-focus: var(--biotron-accent);
   --biotron-shadow: color-mix(in srgb, var(--biotron-ink) 15%, transparent);
   color-scheme: light;
 }
 
 :root.dark {
-  --biotron-page: var(--biotron-ink);
-  --biotron-surface: var(--biotron-deep);
-  --biotron-surface-muted: color-mix(in srgb, var(--biotron-accent) 34%, var(--biotron-ink));
+  --biotron-page: #070b0e;
+  --biotron-surface: #0e151b;
+  --biotron-surface-muted: #131c24;
+  --biotron-surface-deep: #04070a;
   --biotron-text: var(--biotron-white);
-  --biotron-text-muted: var(--biotron-soft);
-  --biotron-border: color-mix(in srgb, var(--biotron-soft) 24%, transparent);
-  --biotron-focus: var(--biotron-soft);
-  --biotron-shadow: color-mix(in srgb, #000000 42%, transparent);
+  --biotron-text-muted: #9fb0ba;
+  --biotron-text-faint: #6b7d87;
+  --biotron-border: rgba(255, 255, 255, 0.08);
+  --biotron-border-strong: rgba(255, 255, 255, 0.14);
+  /* Accent TEXT is lifted to #7f9cf5 because #3050b0 is too dark to read on
+     graphite. Accent FILLS keep the brand #3050b0 and carry white text. */
+  --biotron-link: #7f9cf5;
+  --biotron-highlight: var(--biotron-deep);
+  --biotron-focus: var(--biotron-link);
+  --biotron-shadow: rgba(0, 0, 0, 0.6);
   color-scheme: dark;
 }
 
