@@ -31,6 +31,8 @@ export default function KeysTab({
         <h2 className={panelHeading}>Daily product keys</h2>
         <p className={`mt-1 ${mutedText}`}>
           Each enabled product receives its own key. Keys rotate independently at Eastern midnight.
+          A guest who signs in with a product&apos;s key gets that product&apos;s Live and
+          Historical permissions until the key rotates, and nothing else.
         </p>
       </div>
       {dailyKeys.length === 0 ? (
