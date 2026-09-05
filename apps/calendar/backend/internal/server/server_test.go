@@ -2,13 +2,22 @@ package server
 
 import (
 	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/gofiber/fiber/v3"
+
+	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/auth"
 	calendarlogic "github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/calendar"
+	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/config"
 	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/model"
+	"github.com/BioTronDesignTeam/biotron/go/logclient"
 )
 
 func TestClampQueryClampsInsteadOfRejecting(t *testing.T) {
@@ -216,5 +225,255 @@ func TestRequiresRequestHeader(t *testing.T) {
 		if got := requiresRequestHeader(test.method); got != test.want {
 			t.Fatalf("requiresRequestHeader(%q) = %v, want %v", test.method, got, test.want)
 		}
+	}
+}
+
+// authAnswer is what the stand-in Auth returns for the two calls Status makes.
+type authAnswer struct {
+	meStatus    int
+	meBody      string
+	checkStatus int
+	checkBody   string
+}
+
+// signedInEditor is the answer for an operator who may write.
+var signedInEditor = authAnswer{
+	meStatus:    http.StatusOK,
+	meBody:      `{"github_id":4242,"login":"ada","name":"Ada Lovelace"}`,
+	checkStatus: http.StatusOK,
+	checkBody:   `{"allowed":true}`,
+}
+
+func fakeAuth(t *testing.T, answer authAnswer) *auth.Client {
+	t.Helper()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasPrefix(r.URL.Path, "/auth/me"):
+			w.WriteHeader(answer.meStatus)
+			_, _ = io.WriteString(w, answer.meBody)
+		case strings.HasPrefix(r.URL.Path, "/v1/check"):
+			w.WriteHeader(answer.checkStatus)
+			_, _ = io.WriteString(w, answer.checkBody)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	t.Cleanup(server.Close)
+	return auth.NewClient(server.URL)
+}
+
+type sentEvent struct {
+	Level   string         `json:"level"`
+	Message string         `json:"message"`
+	Payload map[string]any `json:"payload"`
+}
+
+// captureEvents stands a Logger in front of the real client, so the assertions
+// below run over the JSON that would reach the ingest route rather than over an
+// interface the production code does not use.
+func captureEvents(t *testing.T) chan sentEvent {
+	t.Helper()
+	sent := make(chan sentEvent, 32)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var event sentEvent
+		if err := json.NewDecoder(r.Body).Decode(&event); err == nil {
+			select {
+			case sent <- event:
+			default:
+			}
+		}
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	t.Cleanup(server.Close)
+	t.Setenv("LOGGER_URL", server.URL)
+	t.Setenv("LOGGER_INGEST_TOKEN", "test-token")
+	return sent
+}
+
+// waitForEvent picks one message out of the stream, because every request also
+// produces the middleware's completion event.
+func waitForEvent(t *testing.T, sent chan sentEvent, message string) sentEvent {
+	t.Helper()
+	deadline := time.After(5 * time.Second)
+	for {
+		select {
+		case event := <-sent:
+			if event.Message == message {
+				return event
+			}
+		case <-deadline:
+			t.Fatalf("no %q event arrived", message)
+		}
+	}
+}
+
+// An admin event is only useful if it names who caused it, so this drives the
+// whole chain: requireWrite resolves the operator from Auth, parks it on the
+// request, and adminEvent puts it in the payload.
+func TestAdminEventNamesTheOperator(t *testing.T) {
+	sent := captureEvents(t)
+	handler := &Handler{auth: fakeAuth(t, signedInEditor), events: logclient.NewFromEnv("calendar-api")}
+
+	app := fiber.New(fiber.Config{ErrorHandler: jsonErrorHandler})
+	admin := app.Group("/v1/admin", handler.requireWrite)
+	admin.Post("/scopes", func(c fiber.Ctx) error {
+		handler.adminEvent(c, "Scope created", map[string]any{
+			"scope_id": "scope-1", "kind": model.ScopeProject, "name": "Drivetrain", "parent_id": "root",
+		})
+		return c.SendStatus(fiber.StatusCreated)
+	})
+
+	response, err := app.Test(editorRequest(fiber.MethodPost, "/v1/admin/scopes"), fiber.TestConfig{Timeout: 10 * time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != fiber.StatusCreated {
+		t.Fatalf("editor request returned %d", response.StatusCode)
+	}
+
+	event := waitForEvent(t, sent, "Scope created")
+	if event.Level != string(logclient.Info) {
+		t.Fatalf("Scope created was sent at %q", event.Level)
+	}
+	if got := event.Payload["actor_login"]; got != "ada" {
+		t.Fatalf("actor_login = %v", got)
+	}
+	if got := event.Payload["actor_id"]; got != float64(4242) {
+		t.Fatalf("actor_id = %v", got)
+	}
+	if got := event.Payload["scope_id"]; got != "scope-1" {
+		t.Fatalf("scope_id = %v", got)
+	}
+}
+
+// Learning the operator must not change who is let in, so every branch of the
+// old CanWrite mapping is pinned here.
+func TestRequireWriteKeepsItsStatusMapping(t *testing.T) {
+	sent := captureEvents(t)
+	tests := []struct {
+		name    string
+		answer  authAnswer
+		cookie  string
+		omitXHR bool
+		want    int
+	}{
+		{name: "editor", answer: signedInEditor, cookie: "session=abc", want: fiber.StatusCreated},
+		{name: "no cookie", answer: signedInEditor, want: fiber.StatusUnauthorized},
+		{
+			name:   "session rejected",
+			answer: authAnswer{meStatus: http.StatusUnauthorized, checkStatus: http.StatusUnauthorized},
+			cookie: "session=abc", want: fiber.StatusUnauthorized,
+		},
+		{
+			name: "permission missing",
+			answer: authAnswer{
+				meStatus: http.StatusOK, meBody: signedInEditor.meBody,
+				checkStatus: http.StatusOK, checkBody: `{"allowed":false}`,
+			},
+			cookie: "session=abc", want: fiber.StatusForbidden,
+		},
+		{
+			name: "permission forbidden",
+			answer: authAnswer{
+				meStatus: http.StatusOK, meBody: signedInEditor.meBody,
+				checkStatus: http.StatusForbidden,
+			},
+			cookie: "session=abc", want: fiber.StatusForbidden,
+		},
+		{
+			name: "session expired between the two calls",
+			answer: authAnswer{
+				meStatus: http.StatusOK, meBody: signedInEditor.meBody,
+				checkStatus: http.StatusUnauthorized,
+			},
+			cookie: "session=abc", want: fiber.StatusUnauthorized,
+		},
+		{
+			name: "auth broken",
+			answer: authAnswer{
+				meStatus: http.StatusOK, meBody: signedInEditor.meBody,
+				checkStatus: http.StatusInternalServerError,
+			},
+			cookie: "session=abc", want: fiber.StatusServiceUnavailable,
+		},
+		{
+			name: "no X-Requested-With", answer: signedInEditor, cookie: "session=abc",
+			omitXHR: true, want: fiber.StatusForbidden,
+		},
+	}
+
+	for _, test := range tests {
+		handler := &Handler{auth: fakeAuth(t, test.answer), events: logclient.NewFromEnv("calendar-api")}
+		app := fiber.New(fiber.Config{ErrorHandler: jsonErrorHandler})
+		admin := app.Group("/v1/admin", handler.requireWrite)
+		admin.Post("/scopes", func(c fiber.Ctx) error { return c.SendStatus(fiber.StatusCreated) })
+
+		request := editorRequest(fiber.MethodPost, "/v1/admin/scopes")
+		request.Header.Del("Cookie")
+		if test.cookie != "" {
+			request.Header.Set("Cookie", test.cookie)
+		}
+		if test.omitXHR {
+			request.Header.Del("X-Requested-With")
+		}
+		response, err := app.Test(request, fiber.TestConfig{Timeout: 10 * time.Second})
+		if err != nil {
+			t.Fatalf("%s: %v", test.name, err)
+		}
+		response.Body.Close()
+		if response.StatusCode != test.want {
+			t.Fatalf("%s returned %d, want %d", test.name, response.StatusCode, test.want)
+		}
+	}
+
+	// An unreachable Auth is the one refusal an operator cannot diagnose from
+	// the response, so it has to reach Logger as well as stdout.
+	event := waitForEvent(t, sent, "Authorization service unavailable")
+	if event.Level != string(logclient.Error) {
+		t.Fatalf("Authorization service unavailable was sent at %q", event.Level)
+	}
+	if _, ok := event.Payload["error"]; !ok {
+		t.Fatalf("Authorization service unavailable carried no error: %v", event.Payload)
+	}
+}
+
+func editorRequest(method, target string) *http.Request {
+	request := httptest.NewRequest(method, target, nil)
+	request.Header.Set("X-Requested-With", "XMLHttpRequest")
+	request.Header.Set("Cookie", "session=abc")
+	return request
+}
+
+// A refused request must reach Logger as the status the client got. The
+// middleware runs the app's error handler itself, so store.ErrNotFound and
+// store.ErrConflict are logged as 404 and 409 rather than guessed at from the
+// error's type. This drives the real app so the middleware order is part of
+// what is pinned.
+func TestRefusedRequestIsLoggedWithTheStatusTheClientGot(t *testing.T) {
+	sent := captureEvents(t)
+	app := New(
+		config.Config{FrontendURL: "http://localhost:5176"},
+		nil, nil, logclient.NewFromEnv("calendar-api"), time.UTC,
+	)
+
+	response, err := app.Test(httptest.NewRequest(fiber.MethodGet, "/v1/nope", nil), fiber.TestConfig{Timeout: 10 * time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != fiber.StatusNotFound {
+		t.Fatalf("unknown route returned %d", response.StatusCode)
+	}
+
+	event := waitForEvent(t, sent, "HTTP request completed")
+	if event.Level != string(logclient.Warning) {
+		t.Fatalf("a 404 was logged at %q", event.Level)
+	}
+	if got := event.Payload["status"]; got != float64(fiber.StatusNotFound) {
+		t.Fatalf("status = %v, want 404", got)
+	}
+	if got := event.Payload["path"]; got != "/v1/nope" {
+		t.Fatalf("path = %v", got)
 	}
 }

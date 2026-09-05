@@ -24,8 +24,16 @@ func main() {
 	if err := cfg.Validate(); err != nil {
 		log.Fatalf("config: %v", err)
 	}
+	// The event client is built before anything can block, so a warning about
+	// configuration that will break a browser reaches Logger even when the
+	// database never comes up and the process dies in connectStore.
+	events := logclient.NewFromEnv("calendar-api")
+	if !events.Enabled() {
+		log.Println("warning: LOGGER_INGEST_TOKEN unset — structured logging is disabled")
+	}
 	for _, warning := range cfg.Warnings() {
 		log.Printf("warning: %s", warning)
+		events.LogAsync(logclient.Warning, "Configuration warning", map[string]any{"warning": warning})
 	}
 	location, err := time.LoadLocation(cfg.DefaultTimezone)
 	if err != nil {
@@ -37,10 +45,6 @@ func main() {
 	}
 	defer calendarStore.Close()
 
-	events := logclient.NewFromEnv("calendar-api")
-	if !events.Enabled() {
-		log.Println("warning: LOGGER_INGEST_TOKEN unset — structured logging is disabled")
-	}
 	authClient := auth.NewClient(cfg.OAuthManagerURL)
 	app := server.New(cfg, calendarStore, authClient, events, location)
 	address := ":" + cfg.Port

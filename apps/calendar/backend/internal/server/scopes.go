@@ -67,6 +67,9 @@ func (h *Handler) createScope(c fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
+	h.adminEvent(c, "Scope created", map[string]any{
+		"scope_id": scope.ID, "kind": scope.Kind, "name": scope.Name, "parent_id": parentID,
+	})
 	return c.Status(fiber.StatusCreated).JSON(scope)
 }
 
@@ -85,6 +88,7 @@ func (h *Handler) renameScope(c fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
+	h.adminEvent(c, "Scope renamed", map[string]any{"scope_id": scope.ID, "name": scope.Name})
 	return c.JSON(scope)
 }
 
@@ -93,6 +97,7 @@ func (h *Handler) archiveScope(c fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
+	h.adminEvent(c, "Scope archived", map[string]any{"scope_id": scope.ID})
 	return c.JSON(scope)
 }
 
@@ -114,13 +119,20 @@ func (h *Handler) restoreScope(c fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
+	h.adminEvent(c, "Scope restored", map[string]any{"scope_id": scope.ID})
 	return c.JSON(scope)
 }
 
 func (h *Handler) deleteScope(c fiber.Ctx) error {
-	if err := h.store.DeleteScope(c.Context(), c.Params("id")); err != nil {
+	// The row is gone once the delete returns, so its id has to be read from
+	// the path. Params points into fasthttp's pooled buffer and the event is
+	// marshalled on another goroutine, so the copy is what keeps the event
+	// from naming whatever scope the next request happens to carry.
+	scopeID := strings.Clone(c.Params("id"))
+	if err := h.store.DeleteScope(c.Context(), scopeID); err != nil {
 		return err
 	}
+	h.adminEvent(c, "Scope deleted", map[string]any{"scope_id": scopeID})
 	return c.SendStatus(fiber.StatusNoContent)
 }
 

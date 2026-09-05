@@ -194,6 +194,9 @@ func (h *Handler) createEvent(c fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
+	h.adminEvent(c, "Event created", map[string]any{
+		"series_id": event.ID, "scope_id": event.ScopeID, "title": event.Title,
+	})
 	return c.Status(fiber.StatusCreated).JSON(event)
 }
 
@@ -252,6 +255,9 @@ func (h *Handler) updateEvent(c fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
+	h.adminEvent(c, "Event updated", map[string]any{
+		"series_id": updated.ID, "sequence": updated.Sequence,
+	})
 	return c.JSON(updated)
 }
 
@@ -275,6 +281,9 @@ func (h *Handler) publishEvent(c fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
+	h.adminEvent(c, "Event published", map[string]any{
+		"series_id": event.ID, "scope_id": event.ScopeID, "title": event.Title,
+	})
 	return c.JSON(event)
 }
 
@@ -287,13 +296,20 @@ func (h *Handler) cancelEvent(c fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
+	h.adminEvent(c, "Event cancelled", map[string]any{"series_id": event.ID})
 	return c.JSON(event)
 }
 
 func (h *Handler) deleteEvent(c fiber.Ctx) error {
-	if err := h.store.DeleteDraftSeries(c.Context(), c.Params("id")); err != nil {
+	// The row is gone once the delete returns, so its id has to be read from
+	// the path. Params points into fasthttp's pooled buffer and the event is
+	// marshalled on another goroutine, so the copy is what keeps the event
+	// from naming whatever series the next request happens to carry.
+	seriesID := strings.Clone(c.Params("id"))
+	if err := h.store.DeleteDraftSeries(c.Context(), seriesID); err != nil {
 		return err
 	}
+	h.adminEvent(c, "Event deleted", map[string]any{"series_id": seriesID})
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
@@ -364,6 +380,11 @@ func (h *Handler) upsertOccurrence(c fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
+	h.adminEvent(c, "Occurrence changed", map[string]any{
+		"series_id":           override.SeriesID,
+		"recurrence_id_local": calendarlogic.FormatLocal(override.RecurrenceIDLocal),
+		"cancelled":           override.State == model.OverrideCancelled,
+	})
 	return c.JSON(override)
 }
 
@@ -376,9 +397,18 @@ func (h *Handler) deleteOccurrenceOverride(c fiber.Ctx) error {
 	if err != nil || expected < 1 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "expected_sequence is required"})
 	}
-	if err := h.store.ResetOverride(c.Context(), c.Params("id"), recurrenceID, expected); err != nil {
+	// The override is gone once the reset returns, so the series id has to be
+	// read from the path. Params points into fasthttp's pooled buffer and the
+	// event is marshalled on another goroutine, so the copy is what keeps the
+	// event from naming whatever series the next request happens to carry.
+	seriesID := strings.Clone(c.Params("id"))
+	if err := h.store.ResetOverride(c.Context(), seriesID, recurrenceID, expected); err != nil {
 		return err
 	}
+	h.adminEvent(c, "Occurrence reset", map[string]any{
+		"series_id":           seriesID,
+		"recurrence_id_local": calendarlogic.FormatLocal(recurrenceID),
+	})
 	return c.SendStatus(fiber.StatusNoContent)
 }
 

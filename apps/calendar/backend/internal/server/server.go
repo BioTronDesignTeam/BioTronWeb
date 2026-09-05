@@ -14,14 +14,19 @@ import (
 
 	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/auth"
 	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/config"
+	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/model"
 	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/store"
 	"github.com/BioTronDesignTeam/biotron/go/logclient"
+	"github.com/BioTronDesignTeam/biotron/go/logclient/fiberlog"
 )
 
 type Handler struct {
-	store    *store.Store
-	auth     *auth.Client
-	config   config.Config
+	store  *store.Store
+	auth   *auth.Client
+	config config.Config
+	// events carries the domain events an operator's edit produces. A nil or
+	// token-less client is a no-op, so the handlers call it unconditionally.
+	events   *logclient.Client
 	location *time.Location
 	// now is injectable so the reads whose answer depends on the clock can be
 	// pinned against a fixture instead of whatever today happens to be.
@@ -29,7 +34,10 @@ type Handler struct {
 }
 
 func New(cfg config.Config, calendarStore *store.Store, authClient *auth.Client, events *logclient.Client, location *time.Location) *fiber.App {
-	handler := &Handler{store: calendarStore, auth: authClient, config: cfg, location: location, now: time.Now}
+	handler := &Handler{
+		store: calendarStore, auth: authClient, config: cfg,
+		events: events, location: location, now: time.Now,
+	}
 	app := fiber.New(fiber.Config{
 		BodyLimit:   256 * 1024,
 		ReadTimeout: 15 * time.Second,
@@ -45,9 +53,12 @@ func New(cfg config.Config, calendarStore *store.Store, authClient *auth.Client,
 		ErrorHandler:     jsonErrorHandler,
 	})
 
-	app.Use(logRequests(events))
-	app.Use(recover.New(recover.Config{EnableStackTrace: true}))
+	// Fiber's console logger first: it runs the error handler itself and
+	// returns nil, so fiberlog must sit inside it to see a returned error,
+	// and recover inside fiberlog so a panic is logged as the 500 it became.
 	app.Use(logger.New())
+	app.Use(fiberlog.New(events, fiberlog.Options{}))
+	app.Use(recover.New(recover.Config{EnableStackTrace: true}))
 	publicCORS := cors.New(cors.Config{
 		AllowOrigins: cfg.PublicAllowedOrigins(),
 		AllowMethods: []string{fiber.MethodGet, fiber.MethodHead, fiber.MethodOptions},
@@ -111,16 +122,21 @@ func (h *Handler) authStatus(c fiber.Ctx) error {
 	status, err := h.auth.Status(c.Context(), c.Get("Cookie"))
 	if err != nil {
 		log.Printf("auth status: %v", err)
+		h.events.LogAsync(logclient.Error, "Authorization service unavailable", map[string]any{"error": err.Error()})
 		return fiber.ErrServiceUnavailable
 	}
 	return c.JSON(status)
 }
 
+// requireWrite asks Auth for the whole session rather than the permission
+// alone, so every admin event that follows can name the operator who caused
+// it. That is one more call to Auth per admin request, which admin traffic can
+// afford; the public routes still call nothing.
 func (h *Handler) requireWrite(c fiber.Ctx) error {
 	if requiresRequestHeader(c.Method()) && c.Get("X-Requested-With") != "XMLHttpRequest" {
 		return fiber.ErrForbidden
 	}
-	allowed, err := h.auth.CanWrite(c.Context(), c.Get("Cookie"))
+	status, err := h.auth.Status(c.Context(), c.Get("Cookie"))
 	if err != nil {
 		switch {
 		case errors.Is(err, auth.ErrUnauthenticated):
@@ -129,13 +145,45 @@ func (h *Handler) requireWrite(c fiber.Ctx) error {
 			return fiber.ErrForbidden
 		default:
 			log.Printf("authorization check: %v", err)
+			h.events.LogAsync(logclient.Error, "Authorization service unavailable", map[string]any{"error": err.Error()})
 			return fiber.ErrServiceUnavailable
 		}
 	}
-	if !allowed {
+	// Status answers an absent or rejected session with an empty operator and
+	// no error, which is the 401 CanWrite used to raise itself.
+	if status.Operator == nil {
+		return fiber.ErrUnauthorized
+	}
+	if !status.CanWrite {
 		return fiber.ErrForbidden
 	}
+	c.Locals(operatorKey, status.Operator)
+	fiberlog.SetActor(c, status.Operator.Login)
 	return c.Next()
+}
+
+type localKey string
+
+// operatorKey holds the operator requireWrite resolved. The key has its own
+// type so nothing else in the request can collide with it.
+const operatorKey localKey = "calendar.operator"
+
+// operatorFrom returns the operator requireWrite put on the request, or nil on
+// a route that does not require one.
+func operatorFrom(c fiber.Ctx) *model.Operator {
+	operator, _ := c.Locals(operatorKey).(*model.Operator)
+	return operator
+}
+
+// adminEvent reports one admin change at Info, naming the operator behind it.
+// Call it only after the store call succeeded, so the log holds what happened
+// rather than what was attempted.
+func (h *Handler) adminEvent(c fiber.Ctx, message string, payload map[string]any) {
+	if operator := operatorFrom(c); operator != nil {
+		payload["actor_id"] = operator.GitHubID
+		payload["actor_login"] = operator.Login
+	}
+	h.events.LogAsync(logclient.Info, message, payload)
 }
 
 func requiresRequestHeader(method string) bool {
@@ -163,42 +211,4 @@ func jsonErrorHandler(c fiber.Ctx, err error) error {
 		log.Printf("request failed: %v", err)
 	}
 	return c.Status(status).JSON(fiber.Map{"error": message})
-}
-
-func logRequests(events *logclient.Client) fiber.Handler {
-	return func(c fiber.Ctx) error {
-		started := time.Now()
-		err := c.Next()
-		if c.Path() == "/health" {
-			return err
-		}
-		status := c.Response().StatusCode()
-		if err != nil {
-			status = fiber.StatusInternalServerError
-			var fiberError *fiber.Error
-			if errors.As(err, &fiberError) {
-				status = fiberError.Code
-			}
-		}
-		if status < 400 && c.Method() == fiber.MethodOptions {
-			return err
-		}
-		level := logclient.Info
-		if status >= 500 {
-			level = logclient.Error
-		} else if status >= 400 {
-			level = logclient.Warning
-		}
-		// Method and Path point into fasthttp's pooled request buffer, and
-		// LogAsync marshals the payload on another goroutine. Without a copy
-		// the buffer can be refilled from a different request first, and the
-		// line then names a path nobody chose to log — wrong during an
-		// incident, and a way for an unlogged path to leak into the event.
-		events.LogAsync(level, "HTTP request completed", map[string]any{
-			"method": strings.Clone(c.Method()), "path": strings.Clone(c.Path()),
-			"status":      status,
-			"duration_ms": time.Since(started).Milliseconds(),
-		})
-		return err
-	}
 }

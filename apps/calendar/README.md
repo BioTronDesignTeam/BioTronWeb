@@ -97,8 +97,9 @@ frontend, and Prisma. Do not add environment files below it.
 | DELETE | `/v1/admin/events/:id/occurrences?recurrence_id_local=&expected_sequence=` | editor | resets one occurrence to the series |
 
 Editor means an operator whose Auth session holds `calendar/write`. On
-every editor request the API forwards the cookie to Auth's
-`/v1/check?app=calendar&permission=write`. No cookie answers `401`, a
+every editor request the API forwards the cookie to Auth's `/auth/me`
+and `/v1/check?app=calendar&permission=write`. It reads both so the log
+can name the operator behind the change. No cookie answers `401`, a
 session without the permission `403`, an unreachable Auth `503`. Every
 mutating request must carry `X-Requested-With: XMLHttpRequest`, which
 blocks cross-site form posts.
@@ -114,9 +115,34 @@ follows later series-wide edits. Cancelling a series cancels every
 occurrence, changed ones included. A new term gets a new series; there
 is no "this and future" edit.
 
-Calendar reports to Logger as `calendar-api`: start and stop, and each
-completed request as method, path, status, and duration. `/health` and
-successful preflights are skipped.
+### Logging
+
+Calendar reports to Logger as `calendar-api`. Every admin event names the
+operator as `actor_id` and `actor_login`, so a change can be traced to the
+person who made it.
+
+| Message | Level | Payload |
+|---------|-------|---------|
+| `BiotronCalendar started` | info | `port` |
+| `BiotronCalendar stopping` | info | — |
+| `Configuration warning` | warning | `warning` |
+| `HTTP request completed` | info, warning on 4xx, error on 5xx | `method`, `path`, `status`, `duration_ms`, `actor` and `error` when known |
+| `Authorization service unavailable` | error | `error` |
+| `Scope created` | info | `scope_id`, `kind`, `name`, `parent_id` |
+| `Scope renamed` | info | `scope_id`, `name` |
+| `Scope archived` | info | `scope_id` |
+| `Scope restored` | info | `scope_id` |
+| `Scope deleted` | info | `scope_id` |
+| `Event created` | info | `series_id`, `scope_id`, `title` |
+| `Event updated` | info | `series_id`, `sequence` |
+| `Event published` | info | `series_id`, `scope_id`, `title` |
+| `Event cancelled` | info | `series_id` |
+| `Event deleted` | info | `series_id` |
+| `Occurrence changed` | info | `series_id`, `recurrence_id_local`, `cancelled` |
+| `Occurrence reset` | info | `series_id`, `recurrence_id_local` |
+
+`/health` and successful preflights are skipped. A domain event fires only
+after the change reached the database.
 
 ### Occurrences
 
