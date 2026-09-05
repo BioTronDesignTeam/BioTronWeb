@@ -22,7 +22,7 @@ export default function TopBar({
   const operator = state.status === 'authed' ? state.operator : undefined
 
   return (
-    <header className="sticky top-0 z-30 border-b border-[#aedbfc] bg-white/90 backdrop-blur dark:border-[#aedbfc]/20 dark:bg-[#160b6c]/90">
+    <header className="sticky top-0 z-30 border-b border-[#aedbfc] bg-white/90 backdrop-blur dark:border-white/[0.14] dark:bg-surface/90">
       <div className="grid grid-cols-3 items-center px-6 py-3">
         {/* Left: machine selector */}
         <div className="flex items-center gap-3 justify-self-start">
