@@ -1,13 +1,13 @@
 // One Go workspace. Every backend keeps its own module, so an image still
 // compiles only its own code, but locally they all resolve together and a
 // change to a shared module is visible everywhere without a version bump.
-go 1.27
+go 1.27.0
 
 use (
-	./go/logclient
 	./apps/auth/backend
 	./apps/calendar/backend
 	./apps/exo/backend
 	./apps/logger/backend
 	./apps/sprinter/backend
+	./go/logclient
 )
