@@ -33,7 +33,7 @@ Behind `logger/view`:
 The page follows the layout of a hosted status page: one narrow column, an
 overall banner, and a single **System status** card with one row per
 application. A collapsed row is a name, a 90-day figure, and a 90-day bar. The
-`N components` control unfolds the application's components beneath it, each
+`N components` control swaps that bar for the application's components, each
 with its own figure and bar, so the whole platform fits on one screen until
 somebody asks for more.
 

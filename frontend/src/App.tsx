@@ -472,8 +472,9 @@ function ComponentRow({
 
 /**
  * One row per application. Collapsed, it is a name, a figure, and a bar. The
- * "N components" control unfolds the parts beneath it, each with its own bar,
- * so the whole platform fits on one screen until someone asks for more.
+ * "N components" control swaps that bar for the parts beneath it, each with a
+ * bar of its own, so the whole platform fits on one screen until someone asks
+ * for more.
  */
 function ApplicationGroup({
   application,
@@ -529,7 +530,9 @@ function ApplicationGroup({
         </div>
       )}
 
-      {applicationBuckets.length > 0 && (
+      {/* Unfolded, the components' bars say everything the roll-up would, so the
+          roll-up leaves rather than repeating them one more time. */}
+      {!open && applicationBuckets.length > 0 && (
         <UptimeBar buckets={applicationBuckets} days={days} label={application.name} />
       )}
     </div>
