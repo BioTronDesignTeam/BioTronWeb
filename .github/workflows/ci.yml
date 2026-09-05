@@ -175,6 +175,8 @@ jobs:
       - uses: actions/checkout@v4
       # Lockfiles, go.sum files, Dockerfiles, and compose files. Fails on a
       # fixable HIGH or CRITICAL finding; unfixable ones are reported only.
+      # Accepted findings live in .trivyignore.yaml with their reasons; Trivy
+      # only reads the YAML form when it is named explicitly.
       - uses: aquasecurity/trivy-action@0.28.0
         with:
           scan-type: fs
@@ -183,3 +185,4 @@ jobs:
           severity: CRITICAL,HIGH
           ignore-unfixed: true
           exit-code: '1'
+          trivyignores: .trivyignore.yaml
