@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { Scope } from '../types';
 
 interface ScopeFilterProps {
@@ -44,8 +45,39 @@ function subtreeIds(node: ScopeNode): string[] {
 export function ScopeFilter({ scopes, selected, onChange }: ScopeFilterProps) {
   const [open, setOpen] = useState(false);
   const container = useRef<HTMLDivElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
+  const [placement, setPlacement] = useState({ top: 0, right: 0, maxHeight: 0 });
   const tree = useMemo(() => buildTree(scopes), [scopes]);
   const chosen = useMemo(() => new Set(selected), [selected]);
+
+  // The calendar card clips its own corners with overflow-hidden, which also
+  // clipped this panel whenever the card was shorter than the panel: on a phone
+  // in a quiet month the list was cut off mid-tree. It renders in a portal
+  // instead, positioned against the button rather than nested inside it.
+  const place = useCallback(() => {
+    const button = container.current?.getBoundingClientRect();
+    if (!button) return;
+    const top = button.bottom + 8;
+    setPlacement({
+      top,
+      right: Math.max(8, window.innerWidth - button.right),
+      maxHeight: Math.max(160, window.innerHeight - top - 16),
+    });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (open) place();
+  }, [open, place]);
+
+  useEffect(() => {
+    if (!open) return;
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', place, true);
+    return () => {
+      window.removeEventListener('resize', place);
+      window.removeEventListener('scroll', place, true);
+    };
+  }, [open, place]);
 
   // The panel closes on Escape and on a click anywhere outside it, so it never
   // sits open over the grid the user went back to reading.
@@ -55,7 +87,9 @@ export function ScopeFilter({ scopes, selected, onChange }: ScopeFilterProps) {
       if (event.key === 'Escape') setOpen(false);
     };
     const onPointer = (event: MouseEvent) => {
-      if (!container.current?.contains(event.target as Node)) setOpen(false);
+      const target = event.target as Node;
+      if (container.current?.contains(target) || panel.current?.contains(target)) return;
+      setOpen(false);
     };
     document.addEventListener('keydown', onKey);
     document.addEventListener('mousedown', onPointer);
@@ -97,8 +131,12 @@ export function ScopeFilter({ scopes, selected, onChange }: ScopeFilterProps) {
         )}
       </button>
 
-      {open && (
-        <div className="absolute right-0 top-full z-30 mt-2 max-h-[22rem] w-72 overflow-y-auto rounded-2xl border border-ink/10 bg-white p-2 shadow-xl dark:border-white/15 dark:bg-ink">
+      {open && createPortal(
+        <div
+          ref={panel}
+          style={{ top: placement.top, right: placement.right, maxHeight: placement.maxHeight }}
+          className="fixed z-50 w-72 max-w-[calc(100vw-1rem)] overflow-y-auto rounded-2xl border border-ink/10 bg-white p-2 shadow-xl dark:border-white/15 dark:bg-ink"
+        >
           <div className="flex items-center justify-between px-2 py-1">
             <span className="text-xs font-bold uppercase tracking-[0.16em] text-ink/50 dark:text-white/50">Calendars</span>
             <button
@@ -113,7 +151,8 @@ export function ScopeFilter({ scopes, selected, onChange }: ScopeFilterProps) {
           <ul>
             {tree.map((node) => <ScopeBranch key={node.scope.id} node={node} depth={0} chosen={chosen} onToggle={toggle} />)}
           </ul>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
