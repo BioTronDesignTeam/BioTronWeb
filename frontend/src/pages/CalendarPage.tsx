@@ -10,7 +10,7 @@ import PageMeta from '../components/PageMeta';
 interface CalendarOccurrence {
   series_id: string;
   recurrence_id_local: string;
-  scope_name: string;
+  scope_path: string;
   title: string;
   description: string;
   location: string;
@@ -72,7 +72,7 @@ function isOccurrence(value: unknown): value is CalendarOccurrence {
   return (
     typeof candidate.series_id === 'string' &&
     typeof candidate.recurrence_id_local === 'string' &&
-    typeof candidate.scope_name === 'string' &&
+    typeof candidate.scope_path === 'string' &&
     typeof candidate.title === 'string' &&
     typeof candidate.description === 'string' &&
     typeof candidate.location === 'string' &&
@@ -179,7 +179,7 @@ export default function CalendarPage() {
                 <li key={`${event.series_id}-${event.recurrence_id_local}`} className="calendarpage__event">
                   <h3 className="calendarpage__title">
                     {event.title}
-                    <span className="calendarpage__scope">{event.scope_name}</span>
+                    <span className="calendarpage__scope">{event.scope_path}</span>
                   </h3>
                   <time dateTime={event.starts_at} className="calendarpage__when">
                     {eventWhen(event)}
