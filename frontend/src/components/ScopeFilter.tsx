@@ -81,15 +81,17 @@ export function ScopeFilter({ scopes, selected, onChange }: ScopeFilterProps) {
         onClick={() => setOpen(!open)}
         aria-expanded={open}
         aria-label={selected.length === 0 ? 'Filter calendars' : `Filter calendars, ${selected.length} selected`}
-        className="relative grid size-11 place-items-center rounded-full text-ink hover:bg-soft/25 dark:text-white dark:hover:bg-white/10"
+        className="relative grid size-12 place-items-center rounded-full text-ink hover:bg-soft/25 dark:text-white dark:hover:bg-white/10"
       >
-        <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round">
-          <line x1="3" y1="6" x2="17" y2="6" />
-          <line x1="3" y1="10" x2="17" y2="10" />
-          <line x1="3" y1="14" x2="17" y2="14" />
+        {/* Döner, not hamburger: three centred lines of decreasing length is
+            the filter mark. Equal lines would read as a navigation menu. */}
+        <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+          <line x1="4" y1="7" x2="22" y2="7" />
+          <line x1="7" y1="13" x2="19" y2="13" />
+          <line x1="10" y1="19" x2="16" y2="19" />
         </svg>
         {selected.length > 0 && (
-          <span className="absolute right-0 top-0 grid h-5 min-w-5 place-items-center rounded-full bg-brand px-1 text-[11px] font-bold leading-none text-white dark:bg-soft dark:text-ink">
+          <span className="absolute right-0.5 top-0.5 grid h-5 min-w-5 place-items-center rounded-full bg-brand px-1 text-[11px] font-bold leading-none text-white dark:bg-soft dark:text-ink">
             {selected.length}
           </span>
         )}
