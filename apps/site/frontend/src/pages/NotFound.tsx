@@ -6,7 +6,7 @@ export default function NotFound() {
   return (
     <main id="main" className="notfound">
       <PageMeta
-        title="Page not found | Biotron"
+        title="Page not found | BioTron"
         description="We could not find the page you requested."
       />
       <div className="container notfound__inner">

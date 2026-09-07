@@ -17,7 +17,7 @@ export default function JoinPage() {
   return (
     <main id="main" className="joinpage">
       <PageMeta
-        title="How to Join Biotron | UW Design Team"
+        title="Join | BioTron"
         description="Check our calendar, come to a meeting, and start building biomechatronic systems with Biotron."
       />
       <section className="container joinpage__head">

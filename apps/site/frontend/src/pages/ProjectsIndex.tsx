@@ -33,7 +33,7 @@ export default function ProjectsIndex() {
   return (
     <main id="main" className="pindex">
       <PageMeta
-        title="Projects | Biotron"
+        title="Projects | BioTron"
         description="See Biotron’s current projects and the work that shaped them."
       />
       <section className="container pindex__head" id="current">

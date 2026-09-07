@@ -137,7 +137,7 @@ export default function CalendarPage() {
   return (
     <main id="main" className="calendarpage">
       <PageMeta
-        title="Calendar | Biotron"
+        title="Calendar | BioTron"
         description="See upcoming Biotron meetings and subscribe to team, project, or subteam calendars."
       />
       <div className="container calendarpage__inner">

@@ -11,7 +11,7 @@ export default function SponsorsPage() {
   return (
     <main id="main" className="sponsorspage">
       <PageMeta
-        title="Sponsors | Biotron"
+        title="Sponsors | BioTron"
         description="Meet the organizations that support Biotron or ask about a partnership."
       />
 
