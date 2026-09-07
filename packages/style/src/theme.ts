@@ -2,7 +2,8 @@ export type Theme = 'light' | 'dark';
 
 const themeCookie = 'biotron-theme';
 const themeCookieMaxAge = 60 * 60 * 24 * 365;
-const sharedCookieDomains = ['biotron.ca', 'biotron-dev.com'];
+const sharedCookieDomains = ['biotron.ca', 'biotron-dev.com', 'uwbiotron.dev'];
+let hostCookieMigrated = false;
 
 function cookieDomain(hostname: string) {
   const domain = sharedCookieDomains.find(
@@ -11,10 +12,36 @@ function cookieDomain(hostname: string) {
   return domain ? `; Domain=${domain}` : '';
 }
 
+function readThemeCookie(): Theme | null {
+  const cookie = document.cookie.match(/(?:^|;\s*)biotron-theme=(dark|light)(?:;|$)/);
+  return cookie ? cookie[1] as Theme : null;
+}
+
+function clearHostThemeCookie() {
+  const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+  document.cookie = `${themeCookie}=; Path=/; Max-Age=0${secure}`;
+}
+
+function writeThemeCookie(theme: Theme) {
+  const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+  document.cookie = `${themeCookie}=${theme}; Path=/; Max-Age=${themeCookieMaxAge}; SameSite=Lax${cookieDomain(window.location.hostname)}${secure}`;
+}
+
 export function storedTheme(): Theme | null {
   if (typeof document === 'undefined') return null;
-  const cookie = document.cookie.match(/(?:^|;\s*)biotron-theme=(dark|light)(?:;|$)/);
-  if (cookie) return cookie[1] as Theme;
+  let theme = readThemeCookie();
+  if (cookieDomain(window.location.hostname) && !hostCookieMigrated) {
+    hostCookieMigrated = true;
+    if (theme) {
+      // A former host-only cookie can shadow a sibling app's shared preference.
+      // Remove it first, preferring the shared value that remains afterward.
+      clearHostThemeCookie();
+      const sharedTheme = readThemeCookie();
+      if (sharedTheme) theme = sharedTheme;
+      else writeThemeCookie(theme);
+    }
+  }
+  if (theme) return theme;
 
   try {
     const legacy = localStorage.getItem('darkMode');
@@ -33,8 +60,11 @@ function persistTheme(theme: Theme) {
     // Storage can be unavailable in private or hardened browser contexts.
   }
 
-  const secure = window.location.protocol === 'https:' ? '; Secure' : '';
-  document.cookie = `${themeCookie}=${theme}; Path=/; Max-Age=${themeCookieMaxAge}; SameSite=Lax${cookieDomain(window.location.hostname)}${secure}`;
+  if (cookieDomain(window.location.hostname) && !hostCookieMigrated) {
+    clearHostThemeCookie();
+    hostCookieMigrated = true;
+  }
+  writeThemeCookie(theme);
 }
 
 export function documentTheme(): Theme {
