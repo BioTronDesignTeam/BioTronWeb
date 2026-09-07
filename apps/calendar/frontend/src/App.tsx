@@ -141,7 +141,13 @@ export function App() {
     let saved: EventSeries;
     if (editingEvent) saved = await calendarApi.updateEvent(editingEvent.id, payload);
     else saved = await calendarApi.createEvent(payload);
-    if (publish) await calendarApi.publishEvent(saved.id, saved.sequence);
+    if (publish) {
+      // Saving and publishing are separate writes. Keep the saved identity and
+      // sequence so a failed publish can be retried without creating a duplicate.
+      setEditingEvent(saved);
+      setCreatingEvent(false);
+      await calendarApi.publishEvent(saved.id, saved.sequence);
+    }
     setEditingEvent(undefined);
     setCreatingEvent(false);
     setSelectedOccurrence(undefined);
