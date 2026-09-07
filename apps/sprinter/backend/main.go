@@ -85,7 +85,11 @@ func main() {
 			})
 			log.Fatalf("open Discord session: %v", err)
 		}
-		defer bot.Close()
+		defer func() {
+			if err := bot.Close(); err != nil {
+				log.Printf("close Discord session: %v", err)
+			}
+		}()
 
 		// The scheduler needs a gateway session to post with, so it runs only
 		// beside a live bot. Automations are read from Postgres on every tick,

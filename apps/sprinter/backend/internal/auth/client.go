@@ -77,7 +77,7 @@ func (c *Client) Status(ctx context.Context, cookie string) (Status, error) {
 		return Status{}, nil
 	}
 	if status != http.StatusOK {
-		return Status{}, fmt.Errorf("Auth /auth/me returned %d", status)
+		return Status{}, fmt.Errorf("auth /auth/me returned %d", status)
 	}
 	allowed, err := c.CanAdmin(ctx, cookie)
 	// A signed-in operator without the permission is a valid answer, not a
@@ -114,7 +114,7 @@ func (c *Client) CanAdmin(ctx context.Context, cookie string) (bool, error) {
 	case http.StatusForbidden:
 		return false, ErrForbidden
 	default:
-		return false, fmt.Errorf("Auth /v1/check returned %d", status)
+		return false, fmt.Errorf("auth /v1/check returned %d", status)
 	}
 }
 

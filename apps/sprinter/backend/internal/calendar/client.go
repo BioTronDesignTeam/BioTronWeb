@@ -120,7 +120,7 @@ func (c *Client) Occurrences(ctx context.Context, scopeID string, from, to time.
 		return nil, fmt.Errorf("read occurrences response: %w", err)
 	}
 	if response.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("Calendar returned HTTP %d: %s", response.StatusCode, truncate(body, 200))
+		return nil, fmt.Errorf("calendar returned HTTP %d: %s", response.StatusCode, truncate(body, 200))
 	}
 	var occurrences []Occurrence
 	if err := json.Unmarshal(body, &occurrences); err != nil {
