@@ -212,5 +212,5 @@ Logger forwards the browser's cookie to Auth's
 `GET /v1/check?app=logger&permission=view`. Auth must hold a `logger` tool
 with a `view` permission, which its migrations seed, and must issue its
 cookie for the parent domain. The edge serves Logger at
-`logs.<BASE_DOMAIN>`, so on staging `COOKIE_DOMAIN` is `biotron-dev.com`.
+`status.<BASE_DOMAIN>`, so `COOKIE_DOMAIN` is `.uwbiotron.dev`.
 Production uses its own domain.

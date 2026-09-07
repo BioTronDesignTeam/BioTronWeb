@@ -32,18 +32,18 @@ stable aliases (`site-web`, `calendar-web`, `oauth-web`, `exo-web`,
 
 ## Hostname routing
 
-For `BASE_DOMAIN=biotron-dev.com`, Nginx routes:
+For `BASE_DOMAIN=uwbiotron.dev`, Nginx routes:
 
 | Hostname | Frontend | `/api/` backend |
 |----------|----------|------------------|
-| `www.biotron-dev.com` | `site-web:80` | none |
-| `calendar.biotron-dev.com` | `calendar-web:80` | `calendar-api:8080` |
-| `auth.biotron-dev.com` | `oauth-web:80` | `oauth-manager:8080` |
-| `exo.biotron-dev.com` | `exo-web:80` | `exo-api:8080` |
-| `logs.biotron-dev.com` | `logger-web:80` | `logger-api:8080` |
-| `sprinter.biotron-dev.com` | `sprinter-web:80` | `sprinter:8080` |
+| `uwbiotron.dev` | `site-web:80` | none |
+| `calendar.uwbiotron.dev` | `calendar-web:80` | `calendar-api:8080` |
+| `auth.uwbiotron.dev` | `oauth-web:80` | `oauth-manager:8080` |
+| `exogui.uwbiotron.dev` | `exo-web:80` | `exo-api:8080` |
+| `status.uwbiotron.dev` | `logger-web:80` | `logger-api:8080` |
+| `sprinter.uwbiotron.dev` | `sprinter-web:80` | `sprinter:8080` |
 
-The apex hostname redirects to `www`. Unknown hostnames return `404`.
+`www` redirects to the apex. Unknown hostnames return `404`.
 `/api/` is removed before forwarding so an external request for `/api/health`
 reaches the Go service as `/health`. Calendar `/feeds/` is forwarded without
 removing the prefix.
@@ -52,7 +52,7 @@ Frontend production builds should use relative API bases such as `/api`.
 OAuthManager's staging callback is therefore:
 
 ```text
-https://auth.biotron-dev.com/api/auth/github/callback
+https://auth.uwbiotron.dev/api/auth/github/callback
 ```
 
 Production uses the same hostname layout under its own `BASE_DOMAIN`.
@@ -66,14 +66,14 @@ cp .env.example .env
 ```
 
 Change at least `POSTGRES_PASSWORD`. Staging uses
-`BASE_DOMAIN=biotron-dev.com`; production uses its production domain.
+`BASE_DOMAIN=uwbiotron.dev`.
 
 ### 2. Create a Cloudflare Tunnel
 
 Create one remotely managed tunnel for each environment in Cloudflare Zero
 Trust. Do not reuse the staging tunnel in production.
 
-Add each public hostname listed above, plus the apex hostname, to the tunnel.
+Add each hostname listed above, plus `www`, to the tunnel.
 Every public hostname uses the same origin service:
 
 ```text

@@ -16,7 +16,9 @@ server {
     include /etc/nginx/snippets/edge-health.conf;
 
     location / {
-        return 308 https://www.${BASE_DOMAIN}$request_uri;
+        set $frontend http://site-web:80;
+        proxy_pass $frontend;
+        include /etc/nginx/snippets/proxy-headers.conf;
     }
 }
 
@@ -27,9 +29,7 @@ server {
     include /etc/nginx/snippets/edge-health.conf;
 
     location / {
-        set $frontend http://site-web:80;
-        proxy_pass $frontend;
-        include /etc/nginx/snippets/proxy-headers.conf;
+        return 308 https://${BASE_DOMAIN}$request_uri;
     }
 }
 
@@ -89,7 +89,7 @@ server {
 
 server {
     listen 8080;
-    server_name exo.${BASE_DOMAIN};
+    server_name exogui.${BASE_DOMAIN};
 
     include /etc/nginx/snippets/edge-health.conf;
 
@@ -113,7 +113,7 @@ server {
 
 server {
     listen 8080;
-    server_name logs.${BASE_DOMAIN};
+    server_name status.${BASE_DOMAIN};
 
     include /etc/nginx/snippets/edge-health.conf;
 
