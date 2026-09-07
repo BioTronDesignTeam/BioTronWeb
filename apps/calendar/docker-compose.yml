@@ -19,7 +19,8 @@ services:
       DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL in .env}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5176}
       SITE_URL: ${SITE_URL:-http://localhost:5177}
-      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:8083}
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:8083}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
       OAUTH_MANAGER_URL: ${OAUTH_MANAGER_URL:-http://oauth-manager:8080}
       CORS_ORIGINS: ${CORS_ORIGINS:-}
       ADMIN_CORS_ORIGINS: ${ADMIN_CORS_ORIGINS:-}
@@ -48,7 +49,6 @@ services:
       args:
         VITE_API_URL: ${VITE_API_URL:-http://localhost:8083}
         VITE_AUTH_URL: ${VITE_AUTH_URL:-http://localhost:8080}
-        VITE_SITE_URL: ${VITE_SITE_URL:-http://localhost:5177}
     ports:
       - "127.0.0.1:${WEB_PORT:-5176}:80"
     networks:

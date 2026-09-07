@@ -74,6 +74,21 @@ Frontend images build from the repository root so they can see
 the root so they can see `go/logclient`; each app's compose file already
 sets `context: ../..` for them.
 
+### Environment settings
+
+Keep one `.env` beside each app's Compose file, copied from its example.
+`VITE_*` URLs go into the public browser bundle; never put secrets there.
+Backend integration URLs such as `OAUTH_MANAGER_URL` use Docker aliases
+instead, so they remain separate even when they reach the same service.
+Database URLs also remain app-specific because each app owns a different
+Postgres schema; Sprinter's read-only connection has different permissions.
+
+Calendar shares `VITE_API_URL` between browser requests and feed metadata.
+Its old `VITE_SITE_URL` is unused and can be deleted. `PUBLIC_BASE_URL` is
+now optional: remove it when it matches `VITE_API_URL`, or retain it for a
+separate subscriber address. CORS lists contain extra origins only; the
+configured frontend (and Calendar's public site) is already included.
+
 ## The devcontainer
 
 Open the repository in its devcontainer and everything is there: Node 24, Go

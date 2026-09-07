@@ -61,16 +61,30 @@ schema migrated, and skip without it.
 One file, `apps/calendar/.env`, feeds Compose, the backend, the
 frontend, and Prisma. Do not add environment files below it.
 
+- `VITE_API_URL` is the public API address for both the browser and feed
+  metadata. Use `http://localhost:8083` locally; behind the production edge,
+  use `/api` and set `FRONTEND_URL=https://calendar.uwbiotron.dev`. Feed
+  metadata resolves that path against `FRONTEND_URL` so subscribers receive
+  an absolute address.
+- `VITE_AUTH_URL` is the browser's Auth address. `OAUTH_MANAGER_URL` is
+  separate because the backend reaches Auth through its Docker network
+  address, which a browser cannot resolve.
+
 - `CORS_ORIGINS` adds origins that may read the public routes.
   `ADMIN_CORS_ORIGINS` adds origins that may make credentialed editor
   requests. `FRONTEND_URL` is in both lists; `SITE_URL` is in the public
-  list only. List each origin as `localhost` and `127.0.0.1`.
-- An empty `SITE_URL` logs a warning at start. The site's Calendar page
-  then fails CORS in the browser, and the server log shows nothing.
+  list only, so do not repeat them in the extras. The example adds the
+  `127.0.0.1` aliases for the default `localhost` origins.
+- `SITE_URL` is the public site's origin, defaulting to
+  `http://localhost:5177`. Set it to the deployed site for public calendar
+  reads there. The frontend does not need a duplicate `VITE_SITE_URL`.
 - `DEFAULT_TIMEZONE` must be `America/Toronto`. The backend refuses to
   start with any other value.
 - `MAX_RANGE_DAYS` caps the `/v1/events` window. Default 370, at most 730.
-- `PUBLIC_BASE_URL` is the origin written into each feed's `URL` line.
+- `PUBLIC_BASE_URL` is an optional override for the API address written into
+  each feed's `URL` line, only needed for a separate subscriber address.
+  Existing overrides continue to work. In an existing `.env`, remove it if
+  it matches `VITE_API_URL`; remove the unused `VITE_SITE_URL` as well.
 - `LOGGER_INGEST_TOKEN` must match Logger's. Leave it empty to send nothing.
 
 ## API
@@ -196,9 +210,9 @@ and back. An editor gets a Manage button.
   draft. Projects & subteams: Rename, Archive, Restore, Delete, Add.
   Destructive actions confirm in a dialog.
 
-`VITE_API_URL`, `VITE_AUTH_URL`, and `VITE_SITE_URL` are compiled into
-the bundle; Compose passes them to `calendar-web` as build arguments.
-Nothing uses `VITE_SITE_URL` yet.
+`VITE_API_URL` and `VITE_AUTH_URL` are compiled into the bundle; Compose
+passes them to `calendar-web` as build arguments. Rebuild the frontend after
+changing them.
 
 ## Database
 

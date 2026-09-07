@@ -2,6 +2,7 @@ package config
 
 import (
 	"errors"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -22,12 +23,13 @@ type Config struct {
 }
 
 func Load() Config {
+	frontendURL := strings.TrimRight(getenv("FRONTEND_URL", "http://localhost:5176"), "/")
 	return Config{
 		Port:             getenv("PORT", "8080"),
 		DatabaseURL:      os.Getenv("DATABASE_URL"),
-		FrontendURL:      strings.TrimRight(getenv("FRONTEND_URL", "http://localhost:5176"), "/"),
+		FrontendURL:      frontendURL,
 		SiteURL:          strings.TrimRight(getenv("SITE_URL", "http://localhost:5177"), "/"),
-		PublicBaseURL:    strings.TrimRight(getenv("PUBLIC_BASE_URL", "http://localhost:8083"), "/"),
+		PublicBaseURL:    publicBaseURL(frontendURL),
 		OAuthManagerURL:  strings.TrimRight(getenv("OAUTH_MANAGER_URL", "http://oauth-manager:8080"), "/"),
 		CORSOrigins:      splitCSV(os.Getenv("CORS_ORIGINS")),
 		AdminCORSOrigins: splitCSV(os.Getenv("ADMIN_CORS_ORIGINS")),
@@ -35,6 +37,23 @@ func Load() Config {
 		MaxRangeDays:     getint("MAX_RANGE_DAYS", 370),
 		DefaultTimezone:  getenv("DEFAULT_TIMEZONE", "America/Toronto"),
 	}
+}
+
+// The browser and feed metadata share one public API address. Relative browser
+// paths need the configured frontend origin here because feed clients do not
+// have a page URL to resolve them against. Keep PUBLIC_BASE_URL as an override
+// for installations with a separate subscriber address.
+func publicBaseURL(frontendURL string) string {
+	base := strings.TrimRight(getenv("PUBLIC_BASE_URL", getenv("VITE_API_URL", "http://localhost:8083")), "/")
+	apiURL, err := url.Parse(base)
+	if err != nil || apiURL.IsAbs() {
+		return base
+	}
+	frontend, err := url.Parse(frontendURL)
+	if err != nil {
+		return base
+	}
+	return strings.TrimRight(frontend.ResolveReference(apiURL).String(), "/")
 }
 
 // Warnings reports configuration that will not fail startup but will silently
@@ -77,6 +96,10 @@ func uniqueOrigins(origins []string) []string {
 func (c Config) Validate() error {
 	if c.DatabaseURL == "" {
 		return errors.New("DATABASE_URL is required")
+	}
+	publicURL, err := url.Parse(c.PublicBaseURL)
+	if err != nil || (publicURL.Scheme != "http" && publicURL.Scheme != "https") || publicURL.Host == "" || publicURL.RawQuery != "" || publicURL.Fragment != "" || publicURL.User != nil {
+		return errors.New("PUBLIC_BASE_URL or VITE_API_URL resolved against FRONTEND_URL must be an absolute HTTP(S) API address without credentials, query, or fragment")
 	}
 	if c.MaxRangeDays < 1 || c.MaxRangeDays > 730 {
 		return errors.New("MAX_RANGE_DAYS must be between 1 and 730")
