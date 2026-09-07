@@ -277,11 +277,26 @@ func (s *Store) listSeries(ctx context.Context, scopeID string, includeDrafts, i
 		  -- occurrence is bounded by the inclusive recurrence end, so that date
 		  -- plus the occurrence duration is what has to be compared, not the
 		  -- first occurrence's end.
-		  AND ($4::timestamp IS NULL OR e.starts_at_local < $5::timestamp)
-		  AND ($4::timestamp IS NULL OR COALESCE(
-		          (e.recurrence_until + 1)::timestamp + (e.ends_at_local - e.starts_at_local),
-		          e.ends_at_local
-		      ) > $4::timestamp)
+		  -- An occurrence can also be moved outside the master's range. Keep
+		  -- its series when the patched boundaries overlap the window, before
+		  -- attachOverrides loads the change and Expand applies exact bounds.
+		  AND ($4::timestamp IS NULL OR (
+		        e.starts_at_local < $5::timestamp
+		        AND COALESCE(
+		            (e.recurrence_until + 1)::timestamp + (e.ends_at_local - e.starts_at_local),
+		            e.ends_at_local
+		        ) > $4::timestamp
+		      ) OR EXISTS (
+		        SELECT 1 FROM event_overrides o
+		        WHERE o.series_id = e.id AND o.state = 'MODIFIED'
+		          AND (o.patch ? 'starts_at_local' OR o.patch ? 'ends_at_local')
+		          AND COALESCE((o.patch ->> 'starts_at_local')::timestamp, o.recurrence_id_local) < $5::timestamp
+		          AND COALESCE(
+		              (o.patch ->> 'ends_at_local')::timestamp,
+		              COALESCE((o.patch ->> 'starts_at_local')::timestamp, o.recurrence_id_local)
+		                  + (e.ends_at_local - e.starts_at_local)
+		          ) > $4::timestamp
+		      ))
 		ORDER BY e.starts_at_local, lower(e.title)
 	`, scopeID, includeDrafts, includeHiddenScopes, windowFrom, windowTo)
 	if err != nil {
