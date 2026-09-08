@@ -32,6 +32,7 @@ RUN apt-get update \
         cpio \
         curl \
         git \
+        jq \
         openssh-client \
         openssl \
         postgresql-client \
@@ -50,6 +51,7 @@ USER node
 # Fail the image build if a copied binary cannot run as the development user.
 RUN go version \
     && node --version \
+    && jq --version \
     && golangci-lint version \
     && trufflehog --version \
     && trivy --version
