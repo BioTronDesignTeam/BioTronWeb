@@ -90,10 +90,8 @@ export const PROJECTS: Project[] = [
     accentHex: '#ffffff',
     status: 'Ongoing · Community',
     specs: [
-      { label: 'Device', value: 'Forearm' },
-      { label: 'Fit', value: 'Custom' },
-      { label: 'Actuation', value: 'Mechanical' },
-      { label: 'Process', value: 'FDM' },
+      { label: 'Cost to recipient', value: 'Free' },
+      { label: 'Fit', value: 'Made to measure' },
     ],
     anchor: [4.2, 0.4, -1.5],
     team: ['CAD', 'Additive Mfg', 'Outreach'],
