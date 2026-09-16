@@ -1,6 +1,6 @@
 export const SPONSORS = [
   'University of Waterloo',
-  'Engineering Society',
+  'Waterloo Engineering Society',
   'WEEF',
   'Sedra Student Design Centre',
 ];
