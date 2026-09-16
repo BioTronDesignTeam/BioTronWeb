@@ -9,7 +9,7 @@ import PageMeta from '../components/PageMeta';
 const PERKS = [
   { t: 'Hands-on hardware', b: 'Build and test working mechatronic systems.' },
   { t: 'Mentorship', b: 'Learn from experienced members across mechanical, electrical, and software.' },
-  { t: 'Competitions', b: 'Represent Waterloo at events such as ACE 2026.' },
+  { t: 'Competitions', b: 'Represent Waterloo at events such as ACE 2027.' },
   { t: 'Community impact', b: 'Build e-NABLE devices for people who need them.' },
 ];
 
