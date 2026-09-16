@@ -30,11 +30,11 @@ export const PROJECTS: Project[] = [
     modelId: 'exo',
     name: 'EXO',
     shortName: 'EXO',
-    tagline: 'Powered lower-body exoskeleton',
+    tagline: 'Mk1, our lower-body exoskeleton',
     blurb:
-      'A powered lower-body exoskeleton that supports human strength and endurance. We are building it for ACE 2027.',
+      'EXO is the team behind Mk1, a lower-body exoskeleton that supports human strength and endurance. We are building it for ACE 2027.',
     description: [
-      'EXO helps wearers handle demanding physical tasks with less fatigue.',
+      'EXO is the team; Mk1 is the exoskeleton we are building now. It helps wearers handle demanding physical tasks with less fatigue.',
       'Actuators at the hips and knees work with a lightweight frame. The control system reads the wearer’s intent and adds torque in step with their gait.',
       'At the 2027 Applied Collegiate Exoskeleton (ACE) International Competition, university teams will test their systems side by side.',
     ],
