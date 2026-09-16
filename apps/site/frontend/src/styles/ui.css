@@ -1265,13 +1265,9 @@
 .joinpage__perk {
   padding: 1.6rem;
 }
-.joinpage__perknum {
-  color: var(--accent-readable);
-  font-size: var(--fs-sm);
-}
 .joinpage__perktitle {
   font-size: var(--fs-xl);
-  margin: 0.6rem 0 0.4rem;
+  margin: 0 0 0.4rem;
 }
 .joinpage__perkbody {
   color: var(--text-muted);

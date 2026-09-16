@@ -75,7 +75,6 @@ export default function JoinPage() {
       <section className="container joinpage__perks">
         {PERKS.map((p, i) => (
           <Reveal key={p.t} delay={i * 0.05} className="joinpage__perk glass">
-            <span className="joinpage__perknum tabular">0{i + 1}</span>
             <h2 className="joinpage__perktitle">{p.t}</h2>
             <p className="joinpage__perkbody">{p.b}</p>
           </Reveal>
