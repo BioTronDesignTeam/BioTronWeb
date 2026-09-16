@@ -1272,6 +1272,10 @@
 .joinpage__perk {
   padding: 1.6rem;
 }
+.joinpage__stepnote {
+  font-size: var(--fs-sm);
+  color: var(--accent-readable);
+}
 .joinpage__steplinks {
   display: flex;
   flex-wrap: wrap;

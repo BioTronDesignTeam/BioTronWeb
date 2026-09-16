@@ -55,15 +55,17 @@ export default function JoinPage() {
             Discord carries the day-to-day conversation and the latest meeting times. Notion holds
             the work, the documents, and the onboarding material for every sub-team.
           </p>
+          <p className="joinpage__stepnote">
+            Use your University of Waterloo email for Notion. The invite turns away every other
+            address.
+          </p>
           <div className="joinpage__steplinks">
             <ActionButton href={CONTACT.discord} variant="ghost">
               Join Discord <ArrowRight size={16} />
             </ActionButton>
-            {CONTACT.notion && (
-              <ActionButton href={CONTACT.notion} variant="ghost">
-                Open Notion <ArrowRight size={16} />
-              </ActionButton>
-            )}
+            <ActionButton href={CONTACT.notion} variant="ghost">
+              Open Notion <ArrowRight size={16} />
+            </ActionButton>
           </div>
         </Reveal>
         <Reveal delay={0.1} className="joinpage__step glass">

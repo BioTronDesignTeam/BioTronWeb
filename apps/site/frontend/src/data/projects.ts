@@ -149,8 +149,8 @@ export const CONTACT = {
   email: 'biotron@uwaterloo.ca',
   instagram: 'https://www.instagram.com/uwaterloo_biotron/',
   discord: 'https://discord.gg/YBNN5ThRAA',
-  /** Public Notion entry point. Empty until the team publishes a share link. */
-  notion: '',
+  /** Notion workspace invite. Accepts uwaterloo.ca addresses only. */
+  notion: 'https://app.notion.com/invite/de474c228f2444794d3423df0273251d71f68307',
   org: 'University of Waterloo Biomechatronics Design Team',
 };
 
