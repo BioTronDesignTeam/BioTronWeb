@@ -43,7 +43,7 @@ export default function StackedExperience() {
       <section className="sabout container" id="about">
         <Reveal>
           <span className="eyebrow mono-label">About</span>
-          <h2 className="sabout__title">We build machines that move people.</h2>
+          <h2 className="sabout__title">Solving biomedical problems with mechatronic solutions.</h2>
         </Reveal>
         <Reveal delay={0.1}>
           <p className="sabout__body">

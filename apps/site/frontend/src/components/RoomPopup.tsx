@@ -42,7 +42,7 @@ export default function RoomPopup() {
       {activeStop === 'about' ? (
         <article className="glass popup-card">
           <span className="mono-label">00 / About</span>
-          <h2 className="popup-title">We build machines that move people.</h2>
+          <h2 className="popup-title">Solving biomedical problems with mechatronic solutions.</h2>
           <p className="popup-body">
             We are a University of Waterloo student team building powered exoskeletons, EMG
             wearables, and 3D-printed assistive devices.
