@@ -78,13 +78,13 @@ export const PROJECTS: Project[] = [
     modelId: 'enable',
     name: 'e-NABLE',
     shortName: 'e-NABLE',
-    tagline: 'Custom 3D-printed forearm prostheses',
+    tagline: 'Pro bono assistive device design and manufacturing',
     blurb:
-      'Students 3D-print and assemble custom forearm prostheses for each recipient. The designs keep assistive technology practical and affordable.',
+      'Students design and manufacture assistive devices free of charge for the people who need them. Each device is built to the recipient’s own measurements and needs.',
     description: [
-      'Through e-NABLE, a global volunteer community, our students build forearm prostheses to each recipient’s measurements.',
-      'Body movement drives the joints and grip. The design is durable, affordable, and needs no electronics.',
-      'We aim to give more people access to assistive devices that fit their needs and budgets.',
+      'e-NABLE is part of a global volunteer community. Our students take on assistive device work pro bono, from the first conversation through design, manufacturing, and fitting.',
+      'The devices are built to each recipient’s measurements. We keep them durable, simple to repair, and affordable to reproduce.',
+      'Our aim is to reach more people who need assistive technology and cannot readily buy it.',
     ],
     accentVar: '--enable',
     accentHex: '#ffffff',
