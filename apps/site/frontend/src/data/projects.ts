@@ -128,7 +128,10 @@ export interface SubTeam {
 
 export const SUBTEAMS: SubTeam[] = [
   { name: 'Mechanical', blurb: 'CAD, structural design, actuation, and rapid prototyping.' },
-  { name: 'Electrical', blurb: 'PCB design, power systems, and embedded hardware.' },
+  {
+    name: 'Electrical',
+    blurb: 'PCB design, power systems, wire harnessing, sensing, and embedded hardware.',
+  },
   {
     name: 'Software',
     blurb: 'Firmware, controls, signal processing, machine learning, and team tooling.',
