@@ -519,11 +519,15 @@
   font-size: var(--fs-lg);
   color: var(--text-muted);
 }
+.join__gridhead {
+  font-size: var(--fs-lg);
+  margin: 3rem 0 0;
+}
 .join__grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
   gap: 1rem;
-  margin: 3rem 0;
+  margin: 1.25rem 0 3rem;
 }
 .join__card {
   padding: 1.5rem;
