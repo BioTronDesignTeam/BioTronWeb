@@ -45,8 +45,7 @@ export default function ProjectsIndex() {
           by="word"
         />
         <p className="pindex__lead">
-          Each project brings several disciplines together throughout the year. Explore the work
-          and its 3D model.
+          Each project brings several disciplines together throughout the year.
         </p>
       </section>
 
