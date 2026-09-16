@@ -144,7 +144,7 @@ export const TEAM_STATS = [
   { value: 40, suffix: '+', label: 'Active members' },
   { value: 3, suffix: '', label: 'Live projects' },
   { value: 4, suffix: '', label: 'Sub-teams' },
-  { value: 2021, suffix: '', label: 'Founded', plain: true },
+  { value: 2014, suffix: '', label: 'Founded', plain: true },
 ];
 
 export const CONTACT = {
