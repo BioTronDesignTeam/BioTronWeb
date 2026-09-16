@@ -35,17 +35,25 @@ export default function Reveal({
   useGSAP(
     () => {
       if (reduced || !ref.current) return;
+
+      // Anything already on screen when the page arrives must play at once. A
+      // scroll trigger would hold it at opacity 0 until the reader scrolls,
+      // which leaves visible cards blank on landing.
+      const onScreenNow = ref.current.getBoundingClientRect().top < window.innerHeight;
+
       gsap.from(ref.current, {
         opacity: 0,
         y,
         duration: 0.8,
         delay,
         ease: 'power3.out',
-        scrollTrigger: {
-          trigger: ref.current,
-          start: 'top 85%',
-          toggleActions: 'play none none none',
-        },
+        scrollTrigger: onScreenNow
+          ? undefined
+          : {
+              trigger: ref.current,
+              start: 'top 85%',
+              toggleActions: 'play none none none',
+            },
       });
     },
     { scope: ref, dependencies: [reduced] },
