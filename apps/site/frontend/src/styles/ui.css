@@ -435,16 +435,13 @@
 }
 
 @media (max-width: 900px) {
+  /* Narrow windows only need the panel widened. Re-anchoring it to the bottom
+     drops it onto the OS taskbar, and the fly-through never runs below 640px
+     anyway, so the vertical position stays as the base rules set it. */
   .room-popup {
     right: 1rem;
     left: 1rem;
     width: auto;
-    top: auto;
-    bottom: 5rem;
-    transform: none;
-  }
-  .room-popup--about {
-    top: auto;
   }
   .popup-specs {
     grid-template-columns: repeat(auto-fit, minmax(5rem, 1fr));
