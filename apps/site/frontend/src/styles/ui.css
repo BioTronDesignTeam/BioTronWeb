@@ -1269,6 +1269,11 @@
 .joinpage__perk {
   padding: 1.6rem;
 }
+.joinpage__steplinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
 .joinpage__perktitle {
   font-size: var(--fs-xl);
   margin: 0 0 0.4rem;
