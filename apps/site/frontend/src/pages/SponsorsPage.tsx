@@ -20,12 +20,12 @@ export default function SponsorsPage() {
         <SplitText
           as="h1"
           className="sponsorspage__title"
-          text="Help us build better biomedical systems."
+          text="Help power our projects."
           by="word"
         />
         <p className="sponsorspage__lead">
-          Partners fund the tools, materials, and opportunities our students need. Their support
-          turns student ideas into working hardware.
+          Partners fund the tools, materials, and shop time our students need. Their support turns
+          student ideas into working hardware and assistive devices people can use.
         </p>
         <a className="sponsorspage__primary" href={sponsorshipEmail}>
           Become a sponsor <ArrowUpRight size={18} />
