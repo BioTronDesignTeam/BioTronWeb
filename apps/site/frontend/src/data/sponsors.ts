@@ -3,6 +3,8 @@ export const SPONSORS = [
   'Waterloo Engineering Society',
   'WEEF',
   'Sedra Student Design Centre',
+  'Notion',
+  'Kenesto',
 ];
 
 export const SPONSORSHIP_AREAS = [
