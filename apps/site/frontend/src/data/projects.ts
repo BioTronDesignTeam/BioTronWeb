@@ -42,10 +42,8 @@ export const PROJECTS: Project[] = [
     accentHex: '#3050b0',
     status: 'In development · ACE 2027',
     specs: [
-      { label: 'Actuated DOF', value: '4' },
-      { label: 'Target assist', value: '40 Nm' },
-      { label: 'Control loop', value: '1 kHz' },
       { label: 'Competition', value: 'ACE 2027' },
+      { label: 'Assisted joints', value: 'Hips + knees' },
     ],
     anchor: [-4.2, 0.4, -1.5],
     team: ['Mechanical', 'Electrical', 'Software'],

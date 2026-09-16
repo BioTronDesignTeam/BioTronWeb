@@ -399,7 +399,7 @@
 }
 .popup-specs {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(6rem, 1fr));
   gap: 0.6rem;
   margin: 1.4rem 0;
 }
@@ -447,7 +447,7 @@
     top: auto;
   }
   .popup-specs {
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(5rem, 1fr));
   }
 }
 
@@ -1323,7 +1323,7 @@
 }
 .detail__specs {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
   gap: 0.75rem;
 }
 .detail__spec {
