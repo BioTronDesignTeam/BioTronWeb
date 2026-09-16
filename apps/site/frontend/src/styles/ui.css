@@ -344,18 +344,24 @@
 }
 
 /* ---------- Room popup ---------- */
+/* Centred with auto block margins, not translateY(-50%): GSAP animates this
+   element's transform on every stop change and would overwrite the offset,
+   leaving the card hanging from the midpoint down onto the viewport bottom. */
 .room-popup {
   position: absolute;
   right: clamp(1.25rem, 4vw, 4rem);
-  top: 50%;
-  transform: translateY(-50%);
+  top: 0;
+  bottom: 0;
+  height: fit-content;
+  margin-block: auto;
   width: min(30rem, 42vw);
   z-index: var(--z-overlay);
   pointer-events: none;
 }
 .room-popup--about {
   top: calc(var(--nav-h) + 1rem);
-  transform: none;
+  bottom: auto;
+  margin-block: 0;
 }
 .popup-card {
   --card-accent: var(--exo);
