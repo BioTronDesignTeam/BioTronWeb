@@ -46,7 +46,7 @@ export const PROJECTS: Project[] = [
       { label: 'Assisted joints', value: 'Hips + knees' },
     ],
     anchor: [-4.2, 0.4, -1.5],
-    team: ['Mechanical', 'Electrical', 'Software'],
+    team: ['Mechanical', 'Electrical', 'Software', 'Operations'],
   },
   {
     slug: 'emg-fabric',
