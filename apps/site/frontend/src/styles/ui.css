@@ -1274,6 +1274,11 @@
 .joinpage__step p {
   color: var(--text-muted);
 }
+/* The button sits at the bottom of the card. In the tallest card nothing
+   else holds it off the text above. */
+.joinpage__step p:last-of-type {
+  margin-bottom: 1.5rem;
+}
 .joinpage__step .actionbtn {
   margin-top: auto;
 }
@@ -1287,13 +1292,9 @@
   padding: 1.6rem;
 }
 .joinpage__stepnote {
+  margin-top: 0.75rem;
   font-size: var(--fs-sm);
   color: var(--accent-readable);
-}
-.joinpage__steplinks {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.6rem;
 }
 .joinpage__perktitle {
   font-size: var(--fs-xl);

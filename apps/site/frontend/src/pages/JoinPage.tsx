@@ -18,7 +18,7 @@ export default function JoinPage() {
     <main id="main" className="joinpage">
       <PageMeta
         title="Join | BioTron"
-        description="Come to any Biotron meeting, join our Discord and Notion, and finish your sub-team onboarding."
+        description="Join the Biotron Discord, come to any meeting, then finish your sub-team onboarding in Notion."
       />
       <section className="container joinpage__head">
         <span className="eyebrow mono-label">How to join</span>
@@ -34,6 +34,20 @@ export default function JoinPage() {
         <Reveal className="joinpage__step glass">
           <div className="joinpage__stephead">
             <span className="joinpage__stepnum tabular">01</span>
+            <MessageCircle size={22} aria-hidden="true" />
+          </div>
+          <h2>Join Discord</h2>
+          <p>
+            Discord carries the day-to-day conversation and the latest meeting times. Join first,
+            so you know when and where we meet.
+          </p>
+          <ActionButton href={CONTACT.discord} variant="ghost">
+            Join Discord <ArrowRight size={16} />
+          </ActionButton>
+        </Reveal>
+        <Reveal delay={0.05} className="joinpage__step glass">
+          <div className="joinpage__stephead">
+            <span className="joinpage__stepnum tabular">02</span>
             <CalendarDays size={22} aria-hidden="true" />
           </div>
           <h2>Come to any meeting</h2>
@@ -45,40 +59,24 @@ export default function JoinPage() {
             Open calendar <ArrowRight size={16} />
           </ActionButton>
         </Reveal>
-        <Reveal delay={0.05} className="joinpage__step glass">
-          <div className="joinpage__stephead">
-            <span className="joinpage__stepnum tabular">02</span>
-            <MessageCircle size={22} aria-hidden="true" />
-          </div>
-          <h2>Join Discord and Notion</h2>
-          <p>
-            Discord carries the day-to-day conversation and the latest meeting times. Notion holds
-            the work, the documents, and the onboarding material for every sub-team.
-          </p>
-          <p className="joinpage__stepnote">
-            Use your University of Waterloo email for Notion. The invite turns away every other
-            address.
-          </p>
-          <div className="joinpage__steplinks">
-            <ActionButton href={CONTACT.discord} variant="ghost">
-              Join Discord <ArrowRight size={16} />
-            </ActionButton>
-            <ActionButton href={CONTACT.notion} variant="ghost">
-              Open Notion <ArrowRight size={16} />
-            </ActionButton>
-          </div>
-        </Reveal>
         <Reveal delay={0.1} className="joinpage__step glass">
           <div className="joinpage__stephead">
             <span className="joinpage__stepnum tabular">03</span>
             <ClipboardCheck size={22} aria-hidden="true" />
           </div>
-          <h2>Finish your onboarding</h2>
+          <h2>Notion and onboarding</h2>
           <p>
-            Each project and sub-team sets its own onboarding, so what you complete depends on
-            where you land. Your lead will point you at the right one in Notion. Finish it and you
-            are ready to pick up work.
+            Notion holds the work, the documents, and the onboarding material for every sub-team.
+            Each sub-team sets its own onboarding, so your lead will point you at the right one.
+            Finish it and you are ready to pick up work.
           </p>
+          <p className="joinpage__stepnote">
+            Use your University of Waterloo email for Notion. The invite turns away every other
+            address.
+          </p>
+          <ActionButton href={CONTACT.notion} variant="ghost">
+            Open Notion <ArrowRight size={16} />
+          </ActionButton>
         </Reveal>
       </section>
 
