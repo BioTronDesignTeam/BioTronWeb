@@ -5,15 +5,19 @@ import { ScopeFilter } from './ScopeFilter';
 
 interface PublicCalendarProps {
   month: Date;
-  scopes: Scope[];
   occurrences: Occurrence[];
-  selectedScopes: string[];
   loading: boolean;
   error: string;
+  onSelectEvent: (occurrence: Occurrence) => void;
+}
+
+interface CalendarToolbarProps {
+  month: Date;
+  scopes: Scope[];
+  selectedScopes: string[];
   onMonthChange: (month: Date) => void;
   onScopeChange: (scopeIds: string[]) => void;
   onSubscribe: () => void;
-  onSelectEvent: (occurrence: Occurrence) => void;
 }
 
 const weekdayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -45,6 +49,33 @@ function EventButton({ occurrence, onClick, compact = false }: { occurrence: Occ
   );
 }
 
+const arrowButton = 'grid size-11 shrink-0 place-items-center rounded-full border border-ink/15 hover:bg-soft/25 dark:border-line-strong dark:hover:bg-white/10';
+
+/** The month arrows, Subscribe, and the filter. The page header renders it. */
+export function CalendarToolbar(props: CalendarToolbarProps) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {/* The month sits between the arrows. Its box has a fixed width so
+          that a shorter month name does not slide the next-month button
+          out from under the pointer. */}
+      <div className="flex items-center gap-1 sm:gap-2">
+        <button type="button" className={arrowButton} onClick={() => props.onMonthChange(addMonths(props.month, -1))} aria-label="Previous month">←</button>
+        <h2 className="min-w-[4.75rem] text-center text-base font-semibold sm:min-w-[10.5rem] sm:text-xl">
+          <span className="sm:hidden">{monthLabel(props.month, true)}</span>
+          <span className="hidden sm:inline">{monthLabel(props.month)}</span>
+        </h2>
+        <button type="button" className={arrowButton} onClick={() => props.onMonthChange(addMonths(props.month, 1))} aria-label="Next month">→</button>
+      </div>
+      <div className="ml-auto flex items-center gap-2">
+        <button type="button" onClick={props.onSubscribe} className="min-h-11 whitespace-nowrap rounded-full bg-deep px-4 text-sm sm:px-5 font-semibold text-white hover:bg-brand dark:bg-brand dark:hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:focus-visible:outline-link">
+          Subscribe<span className="hidden xl:inline"> to a calendar</span>
+        </button>
+        <ScopeFilter scopes={props.scopes} selected={props.selectedScopes} onChange={props.onScopeChange} />
+      </div>
+    </div>
+  );
+}
+
 export function PublicCalendar(props: PublicCalendarProps) {
   const days = calendarDays(props.month);
   const currentMonth = props.month.getUTCMonth();
@@ -70,28 +101,10 @@ export function PublicCalendar(props: PublicCalendarProps) {
   }, [days, grouped]);
 
   return (
-    <main className="mx-auto w-full max-w-[1500px] px-4 pb-16 pt-8 sm:px-6 lg:px-8">
+    <main className="mx-auto w-full max-w-[1500px] pb-16">
       <h1 className="sr-only">BioTron public calendar</h1>
-      <section className="overflow-hidden rounded-3xl border border-ink/10 bg-white dark:border-line dark:bg-surface">
-        <div className="flex flex-col gap-4 border-b border-ink/10 p-4 sm:p-5 dark:border-line lg:flex-row lg:items-center">
-          {/* The month sits between the arrows. Its box has a fixed width so
-              that a shorter month name does not slide the next-month button
-              out from under the pointer. */}
-          <div className="flex items-center justify-between gap-2 sm:justify-start sm:gap-3">
-            <button type="button" className="grid size-11 shrink-0 place-items-center rounded-full border border-ink/15 hover:bg-soft/25 dark:border-line-strong dark:hover:bg-white/10" onClick={() => props.onMonthChange(addMonths(props.month, -1))} aria-label="Previous month">←</button>
-            <h2 className="min-w-[10.5rem] text-center text-xl font-semibold">{monthLabel(props.month)}</h2>
-            <button type="button" className="grid size-11 shrink-0 place-items-center rounded-full border border-ink/15 hover:bg-soft/25 dark:border-line-strong dark:hover:bg-white/10" onClick={() => props.onMonthChange(addMonths(props.month, 1))} aria-label="Next month">→</button>
-          </div>
-          {/* Subscribe and the filter share one row at every width. On a phone
-              the button takes the leftover width beside the filter icon. */}
-          <div className="flex items-center gap-2 lg:ml-auto">
-            <button type="button" onClick={props.onSubscribe} className="min-h-11 flex-1 whitespace-nowrap rounded-full bg-deep px-5 text-sm font-semibold text-white hover:bg-brand dark:bg-brand dark:hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:focus-visible:outline-link sm:flex-none">
-              Subscribe to a calendar
-            </button>
-            <ScopeFilter scopes={props.scopes} selected={props.selectedScopes} onChange={props.onScopeChange} />
-          </div>
-        </div>
-
+      {/* The month controls live in the page header, so the grid starts right under it. */}
+      <section className="overflow-hidden border-b border-ink/10 bg-white dark:border-line dark:bg-surface min-[1500px]:border-x">
         {props.error && <div className="border-b border-red-500/20 bg-red-50 px-5 py-3 text-sm text-red-800 dark:bg-red-950/30 dark:text-red-200">{props.error}</div>}
         {props.loading && <div className="h-1 animate-pulse bg-brand" aria-label="Loading calendar" />}
 

@@ -8,7 +8,7 @@ import { EventDetails } from './components/EventDetails';
 import { EventEditor } from './components/EventEditor';
 import { Header } from './components/Header';
 import { OccurrenceEditor } from './components/OccurrenceEditor';
-import { PublicCalendar } from './components/PublicCalendar';
+import { CalendarToolbar, PublicCalendar } from './components/PublicCalendar';
 import { SubscribePanel } from './components/SubscribePanel';
 
 export function App() {
@@ -195,11 +195,15 @@ export function App() {
   }
 
   const editorScopes = managing ? adminScopes : scopes;
+  const showingAdmin = managing && auth.can_write;
 
   return (
     <div className="min-h-dvh bg-white text-ink dark:bg-page dark:text-white">
-      <Header auth={auth} managing={managing} onManage={() => setManaging(true)} onPublic={() => setManaging(false)} onLoggedOut={() => { setAuth({ can_write: false }); setManaging(false); }} />
-      {managing && auth.can_write ? (
+      <Header
+        auth={auth} managing={managing} onManage={() => setManaging(true)} onPublic={() => setManaging(false)} onLoggedOut={() => { setAuth({ can_write: false }); setManaging(false); }}
+        toolbar={showingAdmin ? undefined : <CalendarToolbar month={month} scopes={scopes} selectedScopes={selectedScopes} onMonthChange={setMonth} onScopeChange={setSelectedScopes} onSubscribe={() => setShowSubscribe(true)} />}
+      />
+      {showingAdmin ? (
         <AdminPanel
           scopes={adminScopes} events={adminEvents} loading={adminLoading} error={adminError}
           onCreateEvent={() => setCreatingEvent(true)} onEditEvent={(event) => setEditingEvent(event)}
@@ -213,7 +217,7 @@ export function App() {
           onDeleteScope={async (scope) => { await mutate(() => calendarApi.deleteScope(scope.id)); }}
         />
       ) : (
-        <PublicCalendar month={month} scopes={scopes} occurrences={visibleOccurrences} selectedScopes={selectedScopes} loading={loading} error={error} onMonthChange={setMonth} onScopeChange={setSelectedScopes} onSubscribe={() => setShowSubscribe(true)} onSelectEvent={(occurrence) => { setEventActionError(''); setSelectedOccurrence(occurrence); }} />
+        <PublicCalendar month={month} occurrences={visibleOccurrences} loading={loading} error={error} onSelectEvent={(occurrence) => { setEventActionError(''); setSelectedOccurrence(occurrence); }} />
       )}
       <footer className="border-t border-ink/10 px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] pt-6 text-center text-xs text-ink/50 dark:border-line dark:text-faint">Times use America/Toronto · Calendar subscriptions update on each calendar app’s schedule</footer>
 
