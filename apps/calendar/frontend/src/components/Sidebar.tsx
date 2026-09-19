@@ -11,7 +11,8 @@ interface SidebarProps {
   onStep: (direction: -1 | 1) => void;
   /** The header has no room for it on a phone, so it shows here below sm. */
   viewSwitch: ReactNode;
-  /** Shown to editors only. */
+  /** Both are shown to editors only. */
+  onCreate?: () => void;
   onManage?: () => void;
   scopes: Scope[];
   selectedScopes: string[];
@@ -25,7 +26,7 @@ interface SidebarProps {
  * pushes it over. Below lg there is no room, so it slides over the page as a
  * drawer with a backdrop, and Escape or a tap outside closes it.
  */
-export function Sidebar({ open, view, anchor, onStep, viewSwitch, onManage, scopes, selectedScopes, onScopeChange, onSubscribe, onClose }: SidebarProps) {
+export function Sidebar({ open, view, anchor, onStep, viewSwitch, onCreate, onManage, scopes, selectedScopes, onScopeChange, onSubscribe, onClose }: SidebarProps) {
   useEffect(() => {
     if (!open) return;
     const onKey = (event: KeyboardEvent) => {
@@ -54,6 +55,12 @@ export function Sidebar({ open, view, anchor, onStep, viewSwitch, onManage, scop
         <button type="button" onClick={onSubscribe} className="min-h-11 shrink-0 whitespace-nowrap rounded-full bg-deep px-5 text-sm font-semibold text-white hover:bg-brand dark:bg-brand dark:hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:focus-visible:outline-link">
           Subscribe to a calendar
         </button>
+        {/* Clicking a slot in the grid also creates an event. This button is the way in from the keyboard and on a phone. */}
+        {onCreate && (
+          <button type="button" onClick={onCreate} className="min-h-11 shrink-0 whitespace-nowrap rounded-full border border-ink/15 px-5 text-sm font-semibold text-brand hover:bg-soft/30 dark:border-line-strong dark:text-link dark:hover:bg-white/10">
+            Create event
+          </button>
+        )}
         {onManage && (
           <button type="button" onClick={onManage} className="min-h-11 shrink-0 whitespace-nowrap rounded-full border border-ink/15 px-5 text-sm font-semibold text-brand hover:bg-soft/30 dark:border-line-strong dark:text-link dark:hover:bg-white/10">
             Manage

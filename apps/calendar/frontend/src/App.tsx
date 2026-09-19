@@ -5,7 +5,7 @@ import type { AuthStatus, EventPayload, EventSeries, Occurrence, Scope } from '.
 import { AdminPanel } from './components/AdminPanel';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { EventDetails } from './components/EventDetails';
-import { EventEditor } from './components/EventEditor';
+import { EventEditor, type EventDraft } from './components/EventEditor';
 import { Header } from './components/Header';
 import { OccurrenceEditor } from './components/OccurrenceEditor';
 import { CalendarToolbar, PublicCalendar } from './components/PublicCalendar';
@@ -36,6 +36,9 @@ export function App() {
   const [selectedOccurrence, setSelectedOccurrence] = useState<Occurrence>();
   const [editingEvent, setEditingEvent] = useState<EventSeries | null>();
   const [creatingEvent, setCreatingEvent] = useState(false);
+  // Set when the new event came from a click on a slot, which fixes where it starts.
+  const [eventDraft, setEventDraft] = useState<EventDraft>();
+  const [cancellingSeries, setCancellingSeries] = useState<Occurrence>();
   const [editingOccurrence, setEditingOccurrence] = useState<{ occurrence: Occurrence; series: EventSeries }>();
   const [cancellingOccurrence, setCancellingOccurrence] = useState<Occurrence>();
   const [eventActionError, setEventActionError] = useState('');
@@ -204,6 +207,12 @@ export function App() {
   const showingAdmin = managing && auth.can_write;
   const step = (direction: -1 | 1) => setAnchor((current) => stepAnchor(view, current, direction));
   const viewSwitch = <ViewSwitch view={view} onChange={setView} />;
+  const startCreating = () => {
+    setEventDraft(undefined);
+    // The drawer would sit open over the editor.
+    if (!window.matchMedia('(min-width: 1024px)').matches) setSidebarOpen(false);
+    setCreatingEvent(true);
+  };
 
   return (
     // The calendar view fills the window and never scrolls as a page. The
@@ -218,7 +227,7 @@ export function App() {
       {showingAdmin ? (
         <AdminPanel
           scopes={adminScopes} events={adminEvents} loading={adminLoading} error={adminError}
-          onCreateEvent={() => setCreatingEvent(true)} onEditEvent={(event) => setEditingEvent(event)}
+          onCreateEvent={startCreating} onEditEvent={(event) => setEditingEvent(event)}
           onPublishEvent={async (event) => { await mutate(() => calendarApi.publishEvent(event.id, event.sequence)); }}
           onCancelEvent={async (event) => { await mutate(() => calendarApi.cancelEvent(event.id, event.sequence)); }}
           onDeleteEvent={async (event) => { await mutate(() => calendarApi.deleteEvent(event.id)); }}
@@ -230,19 +239,19 @@ export function App() {
         />
       ) : (
         <div className="flex min-h-0 flex-1">
-          <Sidebar open={sidebarOpen} view={view} anchor={anchor} onStep={step} viewSwitch={viewSwitch} onManage={auth.can_write ? () => setManaging(true) : undefined} scopes={scopes} selectedScopes={selectedScopes} onScopeChange={setSelectedScopes} onClose={() => setSidebarOpen(false)}
+          <Sidebar open={sidebarOpen} view={view} anchor={anchor} onStep={step} viewSwitch={viewSwitch} onCreate={auth.can_write ? startCreating : undefined} onManage={auth.can_write ? () => setManaging(true) : undefined} scopes={scopes} selectedScopes={selectedScopes} onScopeChange={setSelectedScopes} onClose={() => setSidebarOpen(false)}
             onSubscribe={() => {
               // As a drawer the sidebar would sit open behind the subscribe panel.
               if (!window.matchMedia('(min-width: 1024px)').matches) setSidebarOpen(false);
               setShowSubscribe(true);
             }}
           />
-          <PublicCalendar view={view} anchor={anchor} onOpenDay={(day) => { setAnchor(day); setView('day'); }} occurrences={visibleOccurrences} loading={loading} error={error} onSelectEvent={(occurrence) => { setEventActionError(''); setSelectedOccurrence(occurrence); }} />
+          <PublicCalendar view={view} anchor={anchor} onCreate={auth.can_write ? (draft) => { setEventDraft(draft); setCreatingEvent(true); } : undefined} onOpenDay={(day) => { setAnchor(day); setView('day'); }} occurrences={visibleOccurrences} loading={loading} error={error} onSelectEvent={(occurrence) => { setEventActionError(''); setSelectedOccurrence(occurrence); }} />
         </div>
       )}
 
       {showSubscribe && <SubscribePanel scopes={scopes} onClose={() => setShowSubscribe(false)} />}
-      {selectedOccurrence && <EventDetails occurrence={selectedOccurrence} canWrite={auth.can_write} error={eventActionError} onClose={() => { setEventActionError(''); setSelectedOccurrence(undefined); }} onEditSeries={() => void openEditor(selectedOccurrence, 'series')} onEditOccurrence={() => void openEditor(selectedOccurrence, 'occurrence')} onCancelOccurrence={() => setCancellingOccurrence(selectedOccurrence)} />}
+      {selectedOccurrence && <EventDetails occurrence={selectedOccurrence} canWrite={auth.can_write} error={eventActionError} onClose={() => { setEventActionError(''); setSelectedOccurrence(undefined); }} onEditSeries={() => void openEditor(selectedOccurrence, 'series')} onEditOccurrence={() => void openEditor(selectedOccurrence, 'occurrence')} onCancelOccurrence={() => setCancellingOccurrence(selectedOccurrence)} onCancelSeries={() => setCancellingSeries(selectedOccurrence)} />}
       {cancellingOccurrence && (
         <ConfirmDialog
           title="Cancel this occurrence?"
@@ -258,7 +267,24 @@ export function App() {
           }}
         />
       )}
-      {(creatingEvent || editingEvent) && <EventEditor event={editingEvent || undefined} scopes={editorScopes} onClose={() => { setCreatingEvent(false); setEditingEvent(undefined); }} onSave={saveEvent} />}
+      {cancellingSeries && (
+        <ConfirmDialog
+          title={cancellingSeries.recurring ? 'Cancel this series?' : 'Cancel this event?'}
+          message={cancellingSeries.recurring
+            ? `Every remaining occurrence of "${cancellingSeries.title}" is cancelled and subscribers receive the cancellation. The series stays in the feed so their calendars can reconcile it, and it can be republished later.`
+            : `"${cancellingSeries.title}" is cancelled and subscribers receive the cancellation. It stays in the feed so their calendars can reconcile it, and it can be republished later.`}
+          confirmLabel={cancellingSeries.recurring ? 'Cancel the series' : 'Cancel the event'}
+          destructive
+          onCancel={() => setCancellingSeries(undefined)}
+          onConfirm={async () => {
+            const occurrence = cancellingSeries;
+            const success = await mutate(() => calendarApi.cancelEvent(occurrence.series_id, occurrence.series_sequence), true);
+            setCancellingSeries(undefined);
+            if (success) setSelectedOccurrence(undefined);
+          }}
+        />
+      )}
+      {(creatingEvent || editingEvent) && <EventEditor event={editingEvent || undefined} draft={eventDraft} scopes={editorScopes} onClose={() => { setCreatingEvent(false); setEditingEvent(undefined); }} onSave={saveEvent} />}
       {editingOccurrence && <OccurrenceEditor occurrence={editingOccurrence.occurrence} series={editingOccurrence.series} onClose={() => setEditingOccurrence(undefined)} onSave={async (patch) => {
         const { occurrence } = editingOccurrence;
         await calendarApi.updateOccurrence(occurrence.series_id, { recurrence_id_local: occurrence.recurrence_id_local, state: 'MODIFIED', patch, expected_sequence: occurrence.series_sequence });

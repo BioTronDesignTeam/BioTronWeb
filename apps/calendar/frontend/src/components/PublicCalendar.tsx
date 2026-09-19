@@ -1,7 +1,10 @@
 import { useMemo } from 'react';
-import { dateKey, dayLabel, occurrenceDateKey, timeLabel, viewDays, viewLabel, type CalendarView } from '../date';
+import { addDays, dateKey, dayLabel, occurrenceDateKey, timeLabel, viewDays, viewLabel, type CalendarView } from '../date';
 import { eventTone } from '../eventTone';
 import type { Occurrence } from '../types';
+import type { EventDraft } from './EventEditor';
+import { useEventHover } from '../eventHover';
+import { EventHoverProvider } from './EventHover';
 import { TimeGrid } from './TimeGrid';
 
 interface PublicCalendarProps {
@@ -13,6 +16,8 @@ interface PublicCalendarProps {
   error: string;
   onSelectEvent: (occurrence: Occurrence) => void;
   onOpenDay: (day: Date) => void;
+  /** Set for editors. A click on an empty day or time slot starts an event there. */
+  onCreate?: (draft: EventDraft) => void;
 }
 
 interface CalendarToolbarProps {
@@ -39,8 +44,9 @@ function todayKey() {
 
 function EventButton({ occurrence, onClick, compact = false }: { occurrence: Occurrence; onClick: () => void; compact?: boolean }) {
   const tone = eventTone(occurrence);
+  const hover = useEventHover();
   return (
-    <button type="button" onClick={onClick} className={`w-full border-l-[3px] text-left hover:brightness-95 dark:hover:brightness-110 ${tone} ${compact ? 'rounded-md px-2 py-1.5' : 'min-h-11 rounded-xl px-3 py-3'}`}>
+    <button type="button" onClick={onClick} {...hover(occurrence)} className={`pointer-events-auto w-full border-l-[3px] text-left hover:brightness-95 dark:hover:brightness-110 ${tone} ${compact ? 'rounded-md px-2 py-1.5' : 'min-h-11 rounded-xl px-3 py-3'}`}>
       <span className={`block truncate font-semibold ${compact ? 'text-xs' : 'text-sm'}`}>{occurrence.title}</span>
       <span className={`mt-0.5 block truncate text-ink/65 dark:text-muted ${compact ? 'text-[11px]' : 'text-xs'}`}>
         {timeLabel(occurrence.starts_at, occurrence.all_day)}{compact ? '' : ` · ${occurrence.scope_path}`}
@@ -69,6 +75,10 @@ export function CalendarToolbar({ view, anchor, onStep, inSidebar = false }: Cal
 }
 
 export function PublicCalendar(props: PublicCalendarProps) {
+  return <EventHoverProvider><CalendarViews {...props} /></EventHoverProvider>;
+}
+
+function CalendarViews(props: PublicCalendarProps) {
   const { view, anchor } = props;
   const days = useMemo(() => viewDays(view, anchor), [view, anchor]);
   // The month the agenda takes as read, so it labels only the days outside it.
@@ -108,7 +118,7 @@ export function PublicCalendar(props: PublicCalendarProps) {
             week falls back to the agenda list. One day fits at any width. */}
         {view !== 'month' && (
           <div className={`min-h-0 flex-1 flex-col ${view === 'week' ? 'hidden md:flex' : 'flex'}`}>
-            <TimeGrid days={days} occurrences={props.occurrences} today={today} onSelectEvent={props.onSelectEvent} onOpenDay={view === 'week' ? props.onOpenDay : undefined} />
+            <TimeGrid days={days} occurrences={props.occurrences} today={today} onSelectEvent={props.onSelectEvent} onOpenDay={view === 'week' ? props.onOpenDay : undefined} onCreate={props.onCreate} />
           </div>
         )}
 
@@ -124,9 +134,20 @@ export function PublicCalendar(props: PublicCalendarProps) {
               const events = grouped.get(key) || [];
               const muted = day.getUTCMonth() !== currentMonth;
               return (
-                <div key={key} className={`flex min-h-0 flex-col overflow-hidden border-b border-r border-ink/10 p-2 dark:border-line ${muted ? 'bg-ink/[0.018] text-ink/35 dark:bg-black/10 dark:text-faint' : ''}`}>
-                  <button type="button" onClick={() => props.onOpenDay(day)} aria-label={`Open ${key}`} className={`mb-1 grid size-7 shrink-0 place-items-center rounded-full text-xs font-semibold ${key === today ? 'bg-deep text-white dark:bg-brand' : 'hover:bg-soft/30 dark:hover:bg-white/10'}`}>{day.getUTCDate()}</button>
-                  <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-1">
+                <div key={key} className={`relative flex min-h-0 flex-col overflow-hidden border-b border-r border-ink/10 p-2 dark:border-line ${muted ? 'bg-ink/[0.018] text-ink/35 dark:bg-black/10 dark:text-faint' : ''}`}>
+                  {/* The whole cell is the create target. It lies under the date
+                      and the events, which sit above it and keep their own clicks. */}
+                  {props.onCreate && (
+                    <button
+                      type="button"
+                      aria-label={`Create an event on ${dayLabel(key, true)}`}
+                      onClick={() => props.onCreate?.({ startsAt: `${key}T00:00`, endsAt: `${dateKey(addDays(day, 1))}T00:00`, allDay: true })}
+                      className="absolute inset-0 hover:bg-soft/15 dark:hover:bg-white/[0.03]"
+                    />
+                  )}
+                  <button type="button" onClick={() => props.onOpenDay(day)} aria-label={`Open ${key}`} className={`relative mb-1 grid size-7 shrink-0 place-items-center rounded-full text-xs font-semibold ${key === today ? 'bg-deep text-white dark:bg-brand' : 'hover:bg-soft/30 dark:hover:bg-white/10'}`}>{day.getUTCDate()}</button>
+                  {/* The list lets clicks on its empty space fall through to the create target. */}
+                  <div className="pointer-events-none relative min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-1">
                     {events.map((occurrence) => <EventButton key={`${occurrence.series_id}-${occurrence.recurrence_id_local}`} occurrence={occurrence} compact onClick={() => props.onSelectEvent(occurrence)} />)}
                   </div>
                 </div>

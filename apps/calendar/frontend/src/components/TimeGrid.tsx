@@ -1,7 +1,9 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { dateKey, timeLabel, torontoClock, weekdayLabel } from '../date';
+import { addDays, dateKey, dayLabel, timeLabel, torontoClock, weekdayLabel } from '../date';
 import { eventTone } from '../eventTone';
 import type { Occurrence } from '../types';
+import type { EventDraft } from './EventEditor';
+import { useEventHover } from '../eventHover';
 
 interface TimeGridProps {
   days: Date[];
@@ -10,6 +12,20 @@ interface TimeGridProps {
   onSelectEvent: (occurrence: Occurrence) => void;
   /** Set in the week view, where a date opens its day. */
   onOpenDay?: (day: Date) => void;
+  /** Set for editors. A click on an empty slot starts an event there. */
+  onCreate?: (draft: EventDraft) => void;
+}
+
+/** A click lands on the half hour it falls in, and the new event runs an hour. */
+const SLOT_MINUTES = 30;
+const clock = (minutes: number) => `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+
+function timedDraft(day: Date, minutes: number): EventDraft {
+  const start = Math.min(Math.floor(minutes / SLOT_MINUTES) * SLOT_MINUTES, DAY_MINUTES - SLOT_MINUTES);
+  const end = start + 60;
+  // An event made at 11:30 PM ends on the next day.
+  const endDay = end >= DAY_MINUTES ? addDays(day, 1) : day;
+  return { startsAt: `${dateKey(day)}T${clock(start)}`, endsAt: `${dateKey(endDay)}T${clock(end % DAY_MINUTES)}`, allDay: false };
 }
 
 /** Pixels per hour. The grid is 24 of these tall and scrolls. */
@@ -59,7 +75,8 @@ function pack(segments: Omit<Segment, 'column' | 'columns'>[]): Segment[] {
 }
 
 /** The day and week views: an all-day row over a 24-hour grid, one column per day. */
-export function TimeGrid({ days, occurrences, today, onSelectEvent, onOpenDay }: TimeGridProps) {
+export function TimeGrid({ days, occurrences, today, onSelectEvent, onOpenDay, onCreate }: TimeGridProps) {
+  const hover = useEventHover();
   const keys = useMemo(() => days.map(dateKey), [days]);
   const scroller = useRef<HTMLDivElement>(null);
 
@@ -109,7 +126,8 @@ export function TimeGrid({ days, occurrences, today, onSelectEvent, onOpenDay }:
     return () => window.clearInterval(timer);
   }, []);
 
-  const hasAllDay = [...allDay.values()].some((list) => list.length > 0);
+  // Editors always get the row, because it is where a click makes an all-day event.
+  const hasAllDay = Boolean(onCreate) || [...allDay.values()].some((list) => list.length > 0);
   const columns = { gridTemplateColumns: `3.5rem repeat(${days.length}, minmax(0, 1fr))` };
 
   return (
@@ -133,13 +151,23 @@ export function TimeGrid({ days, occurrences, today, onSelectEvent, onOpenDay }:
         {hasAllDay && (
           <>
             <div className="border-t border-ink/10 px-1 py-2 text-right text-[11px] text-ink/45 dark:border-line dark:text-faint">All day</div>
-            {keys.map((key) => (
-              <div key={key} className="max-h-24 min-w-0 space-y-1 overflow-y-auto border-l border-t border-ink/10 p-1 dark:border-line">
-                {(allDay.get(key) || []).map((occurrence) => (
-                  <button key={`${occurrence.series_id}-${occurrence.recurrence_id_local}`} type="button" onClick={() => onSelectEvent(occurrence)} className={`block w-full truncate rounded-md border-l-[3px] px-2 py-1 text-left text-xs font-semibold hover:brightness-95 dark:hover:brightness-110 ${eventTone(occurrence)}`}>
-                    {occurrence.title}
-                  </button>
-                ))}
+            {keys.map((key, index) => (
+              <div key={key} className="relative max-h-24 min-h-8 min-w-0 border-l border-t border-ink/10 dark:border-line">
+                {onCreate && (
+                  <button
+                    type="button"
+                    aria-label={`Create an all-day event on ${dayLabel(key, true)}`}
+                    onClick={() => onCreate({ startsAt: `${key}T00:00`, endsAt: `${dateKey(addDays(days[index], 1))}T00:00`, allDay: true })}
+                    className="absolute inset-0 hover:bg-soft/15 dark:hover:bg-white/[0.03]"
+                  />
+                )}
+                <div className="pointer-events-none relative max-h-24 space-y-1 overflow-y-auto p-1">
+                  {(allDay.get(key) || []).map((occurrence) => (
+                    <button key={`${occurrence.series_id}-${occurrence.recurrence_id_local}`} type="button" onClick={() => onSelectEvent(occurrence)} {...hover(occurrence)} className={`pointer-events-auto block w-full truncate rounded-md border-l-[3px] px-2 py-1 text-left text-xs font-semibold hover:brightness-95 dark:hover:brightness-110 ${eventTone(occurrence)}`}>
+                      {occurrence.title}
+                    </button>
+                  ))}
+                </div>
               </div>
             ))}
           </>
@@ -153,13 +181,23 @@ export function TimeGrid({ days, occurrences, today, onSelectEvent, onOpenDay }:
               <span key={label} className="absolute right-2 -translate-y-1/2 text-[11px] text-ink/45 dark:text-faint" style={{ top: hour * HOUR }}>{label}</span>
             ))}
           </div>
-          {keys.map((key) => (
+          {keys.map((key, index) => (
             <div
               key={key}
               className="relative border-l border-ink/10 dark:border-line"
               // The hour lines are one repeating background, not 24 elements per day.
               style={{ backgroundImage: 'linear-gradient(to bottom, color-mix(in srgb, currentColor 10%, transparent) 1px, transparent 1px)', backgroundSize: `100% ${HOUR}px` }}
             >
+              {/* One create target under the whole day. The pointer's height
+                  in it is the time. A key press has no height, so it starts at 9 AM. */}
+              {onCreate && (
+                <button
+                  type="button"
+                  aria-label={`Create an event on ${dayLabel(key, true)}`}
+                  onClick={(event) => onCreate(timedDraft(days[index], event.detail === 0 ? 9 * 60 : (event.nativeEvent.offsetY / HOUR) * 60))}
+                  className="absolute inset-0 cursor-cell"
+                />
+              )}
               {(timed.get(key) || []).map((segment) => {
                 const drawn = Math.max(segment.end - segment.start, MIN_DRAWN_MINUTES);
                 return (
@@ -167,6 +205,7 @@ export function TimeGrid({ days, occurrences, today, onSelectEvent, onOpenDay }:
                     key={`${segment.occurrence.series_id}-${segment.occurrence.recurrence_id_local}`}
                     type="button"
                     onClick={() => onSelectEvent(segment.occurrence)}
+                    {...hover(segment.occurrence)}
                     className={`absolute overflow-hidden rounded-md border-l-[3px] px-1.5 py-0.5 text-left hover:brightness-95 dark:hover:brightness-110 ${eventTone(segment.occurrence)}`}
                     style={{
                       top: (segment.start / 60) * HOUR + 1,

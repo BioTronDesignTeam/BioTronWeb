@@ -3,8 +3,17 @@ import { localDate, localInput } from '../date';
 import type { EventPayload, EventSeries, Scope } from '../types';
 import { Modal } from './Modal';
 
+/** Where a new event starts out, when it was made by clicking a slot rather than a button. */
+export interface EventDraft {
+  startsAt: string;
+  endsAt: string;
+  allDay: boolean;
+}
+
 interface EventEditorProps {
   event?: EventSeries;
+  /** Ignored when editing: the event's own times win. */
+  draft?: EventDraft;
   scopes: Scope[];
   onClose: () => void;
   onSave: (payload: EventPayload, publish: boolean) => Promise<void>;
@@ -97,18 +106,18 @@ function ScheduleFields({ schedule, warnDroppingOccurrences, onChange }: {
   );
 }
 
-export function EventEditor({ event, scopes, onClose, onSave }: EventEditorProps) {
+export function EventEditor({ event, draft, scopes, onClose, onSave }: EventEditorProps) {
   const [scopeId, setScopeId] = useState(() => event?.scope_id || scopes.find((scope) => scope.kind === 'TEAM')?.id || scopes[0]?.id || '');
   const [title, setTitle] = useState(event?.title || '');
   const [description, setDescription] = useState(event?.description || '');
   const [location, setLocation] = useState(event?.location || '');
   const [url, setURL] = useState(event?.url || '');
   const [schedule, setSchedule] = useState<Schedule>(() => {
-    const startsAt = event ? localInput(event.starts_at_local) : nextHour();
+    const startsAt = event ? localInput(event.starts_at_local) : draft?.startsAt || nextHour();
     return {
       startsAt,
-      endsAt: event ? localInput(event.ends_at_local) : addWallClockHour(startsAt),
-      allDay: event?.all_day || false,
+      endsAt: event ? localInput(event.ends_at_local) : draft?.endsAt || addWallClockHour(startsAt),
+      allDay: event ? event.all_day : draft?.allDay || false,
       weekly: Boolean(event?.recurrence_until),
       recurrenceUntil: localDate(event?.recurrence_until),
     };
@@ -117,7 +126,7 @@ export function EventEditor({ event, scopes, onClose, onSave }: EventEditorProps
   // because only the checked branch ever touched the times. Remembering them in
   // a ref keeps this out of the render path: it is never displayed, only read
   // back when the checkbox is turned off again.
-  const timedTimes = useRef(event?.all_day ? undefined : { startsAt: schedule.startsAt, endsAt: schedule.endsAt });
+  const timedTimes = useRef(schedule.allDay ? undefined : { startsAt: schedule.startsAt, endsAt: schedule.endsAt });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
