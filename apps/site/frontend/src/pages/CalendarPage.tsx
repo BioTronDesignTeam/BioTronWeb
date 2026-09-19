@@ -118,10 +118,7 @@ export default function CalendarPage() {
 
   return (
     <main id="main" className="calendarpage">
-      <PageMeta
-        title="Calendar | BioTron"
-        description="See upcoming Biotron meetings and subscribe to team, project, or subteam calendars."
-      />
+      <PageMeta path="/calendar" />
       <div className="container calendarpage__inner">
         <section className="calendarpage__intro">
           <div className="calendarpage__icon" aria-hidden="true">

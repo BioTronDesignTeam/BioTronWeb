@@ -10,10 +10,7 @@ const sponsorshipEmail = `mailto:${CONTACT.email}?subject=${encodeURIComponent('
 export default function SponsorsPage() {
   return (
     <main id="main" className="sponsorspage">
-      <PageMeta
-        title="Sponsors | BioTron"
-        description="Meet the organizations that support Biotron or ask about a partnership."
-      />
+      <PageMeta path="/sponsors" />
 
       <section className="container sponsorspage__hero">
         <span className="eyebrow mono-label">Partner with Biotron</span>

@@ -16,10 +16,7 @@ const PERKS = [
 export default function JoinPage() {
   return (
     <main id="main" className="joinpage">
-      <PageMeta
-        title="Join | BioTron"
-        description="Join the Biotron Discord, come to any meeting, then finish your sub-team onboarding in Notion."
-      />
+      <PageMeta path="/join" />
       <section className="container joinpage__head">
         <span className="eyebrow mono-label">How to join</span>
         <SplitText

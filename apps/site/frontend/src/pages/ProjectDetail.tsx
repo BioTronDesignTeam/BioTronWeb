@@ -24,7 +24,7 @@ export default function ProjectDetail() {
 
   return (
     <main id="main" className="detail" style={{ ['--card-accent' as string]: project.accentHex }}>
-      <PageMeta title={`${project.name} | BioTron`} description={project.blurb} />
+      <PageMeta path={`/projects/${project.slug}`} />
       <div className="container detail__top">
         <Link to="/projects" className="detail__back">
           <ArrowLeft size={16} /> All projects
@@ -79,7 +79,7 @@ export default function ProjectDetail() {
 
         <aside className="detail__side">
           <Reveal className="detail__sidecard glass">
-            <h3 className="detail__sidehead">Sub-teams involved</h3>
+            <h2 className="detail__sidehead">Sub-teams involved</h2>
             <ul className="detail__teamlist">
               {project.team.map((t) => (
                 <li key={t}>{t}</li>

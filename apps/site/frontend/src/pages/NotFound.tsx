@@ -5,10 +5,7 @@ import PageMeta from '../components/PageMeta';
 export default function NotFound() {
   return (
     <main id="main" className="notfound">
-      <PageMeta
-        title="Page not found | BioTron"
-        description="We could not find the page you requested."
-      />
+      <PageMeta />
       <div className="container notfound__inner">
         <span className="notfound__code mono-label">Error / 404</span>
         <h1 className="notfound__title">We could not find that page.</h1>
