@@ -21,11 +21,16 @@ export default function Sponsors() {
         <div className="sponsors__track">
           {MARQUEE_ROW.map((s, i) => (
             <span key={i} className="sponsors__item">
-              {s.logo ? (
-                <img className="sponsors__logo" src={s.logo.src} width={s.logo.width} height={s.logo.height} alt="" />
-              ) : (
-                s.name
+              {s.logo && (
+                <img
+                  className={`sponsors__logo sponsors__logo--${s.logo.kind}`}
+                  src={s.logo.src}
+                  width={s.logo.width}
+                  height={s.logo.height}
+                  alt=""
+                />
               )}
+              {s.logo?.kind !== 'wordmark' && s.name}
             </span>
           ))}
         </div>
