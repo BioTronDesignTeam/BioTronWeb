@@ -14,11 +14,13 @@ interface HeaderProps {
    * otherwise be out of sight.
    */
   toolbar?: ReactNode;
+  /** Day, Week, or Month. It sits beside the theme switch from sm up; a phone has no room, so the sidebar shows it there. */
+  viewSwitch?: ReactNode;
   /** Present on the calendar view, where the button opens and closes the sidebar. */
   sidebar?: { open: boolean; filterCount: number; onToggle: () => void };
 }
 
-export function Header({ auth, managing, onPublic, onLoggedOut, toolbar, sidebar }: HeaderProps) {
+export function Header({ auth, managing, onPublic, onLoggedOut, toolbar, viewSwitch, sidebar }: HeaderProps) {
   const operator = auth.operator;
   const [logoutError, setLogoutError] = useState('');
   return (
@@ -62,6 +64,7 @@ export function Header({ auth, managing, onPublic, onLoggedOut, toolbar, sidebar
               <span className="sm:hidden">View</span><span className="hidden sm:inline">View calendar</span>
             </button>
           )}
+          {viewSwitch && <div className="hidden sm:block">{viewSwitch}</div>}
           <ThemeToggle />
           {logoutError && <span className="fixed right-4 top-20 z-50 max-w-xs rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800 shadow-lg dark:bg-red-950 dark:text-red-200" role="alert">{logoutError}</span>}
           {operator ? (

@@ -1,18 +1,25 @@
 import { useMemo } from 'react';
-import { addMonths, calendarDays, dateKey, dayLabel, monthLabel, occurrenceDateKey, timeLabel } from '../date';
+import { dateKey, dayLabel, occurrenceDateKey, timeLabel, viewDays, viewLabel, type CalendarView } from '../date';
+import { eventTone } from '../eventTone';
 import type { Occurrence } from '../types';
+import { TimeGrid } from './TimeGrid';
 
 interface PublicCalendarProps {
-  month: Date;
+  view: CalendarView;
+  /** A day inside the range on screen. The month view draws the month it falls in. */
+  anchor: Date;
   occurrences: Occurrence[];
   loading: boolean;
   error: string;
   onSelectEvent: (occurrence: Occurrence) => void;
+  onOpenDay: (day: Date) => void;
 }
 
 interface CalendarToolbarProps {
-  month: Date;
-  onMonthChange: (month: Date) => void;
+  view: CalendarView;
+  anchor: Date;
+  /** Back or forward by one day, week, or month, whichever the view shows. */
+  onStep: (direction: -1 | 1) => void;
   /** The sidebar is narrow, so its copy is tighter and spans the full width. */
   inSidebar?: boolean;
 }
@@ -31,11 +38,7 @@ function todayKey() {
 }
 
 function EventButton({ occurrence, onClick, compact = false }: { occurrence: Occurrence; onClick: () => void; compact?: boolean }) {
-  const tone = occurrence.scope_kind === 'TEAM'
-    ? 'border-brand bg-brand/10 dark:bg-brand/25'
-    : occurrence.scope_kind === 'PROJECT'
-      ? 'border-deep bg-deep/8 dark:border-link dark:bg-highlight/70'
-      : 'border-soft bg-soft/40 dark:border-line-strong dark:bg-surface-2';
+  const tone = eventTone(occurrence);
   return (
     <button type="button" onClick={onClick} className={`w-full border-l-[3px] text-left hover:brightness-95 dark:hover:brightness-110 ${tone} ${compact ? 'rounded-md px-2 py-1.5' : 'min-h-11 rounded-xl px-3 py-3'}`}>
       <span className={`block truncate font-semibold ${compact ? 'text-xs' : 'text-sm'}`}>{occurrence.title}</span>
@@ -48,24 +51,28 @@ function EventButton({ occurrence, onClick, compact = false }: { occurrence: Occ
 
 const arrowButton = 'grid shrink-0 place-items-center rounded-full border border-ink/15 hover:bg-soft/25 dark:border-line-strong dark:hover:bg-white/10';
 
-/** The month arrows and the month name. The sidebar shows it, or the page header when the sidebar is not docked. */
-export function CalendarToolbar({ month, onMonthChange, inSidebar = false }: CalendarToolbarProps) {
+/** The arrows and the name of the range on screen. The sidebar shows it, or the page header when the sidebar is not docked. */
+export function CalendarToolbar({ view, anchor, onStep, inSidebar = false }: CalendarToolbarProps) {
   const arrow = `${arrowButton} ${inSidebar ? 'size-10' : 'size-11'}`;
+  const label = viewLabel(view, anchor);
+  // A week that straddles two years is the longest label, and the sidebar is narrow.
+  const size = inSidebar ? (label.length > 16 ? 'text-sm' : 'text-base') : 'min-w-[8.75rem] text-base sm:min-w-[10.5rem] sm:text-xl';
   return (
-    // The month sits between the arrows. Its box has a fixed width so that a
-    // shorter month name does not slide the next-month button out from under
-    // the pointer.
+    // The label sits between the arrows. Its box has a fixed width so that a
+    // shorter name does not slide the next button out from under the pointer.
     <div className={`flex items-center ${inSidebar ? 'justify-between' : 'gap-1 sm:gap-2'}`}>
-      <button type="button" className={arrow} onClick={() => onMonthChange(addMonths(month, -1))} aria-label="Previous month">←</button>
-      <h2 className={`text-center font-semibold ${inSidebar ? 'text-base' : 'min-w-[8.75rem] text-base sm:min-w-[10.5rem] sm:text-xl'}`}>{monthLabel(month)}</h2>
-      <button type="button" className={arrow} onClick={() => onMonthChange(addMonths(month, 1))} aria-label="Next month">→</button>
+      <button type="button" className={arrow} onClick={() => onStep(-1)} aria-label={`Previous ${view}`}>←</button>
+      <h2 className={`text-center font-semibold ${size}`}>{label}</h2>
+      <button type="button" className={arrow} onClick={() => onStep(1)} aria-label={`Next ${view}`}>→</button>
     </div>
   );
 }
 
 export function PublicCalendar(props: PublicCalendarProps) {
-  const days = calendarDays(props.month);
-  const currentMonth = props.month.getUTCMonth();
+  const { view, anchor } = props;
+  const days = useMemo(() => viewDays(view, anchor), [view, anchor]);
+  // The month the agenda takes as read, so it labels only the days outside it.
+  const currentMonth = (view === 'month' ? anchor : days[0]).getUTCMonth();
   const today = todayKey();
 
   const grouped = useMemo(() => {
@@ -97,7 +104,15 @@ export function PublicCalendar(props: PublicCalendarProps) {
         {props.error && <div className="border-b border-red-500/20 bg-red-50 px-5 py-3 text-sm text-red-800 dark:bg-red-950/30 dark:text-red-200">{props.error}</div>}
         {props.loading && <div className="h-1 animate-pulse bg-brand" aria-label="Loading calendar" />}
 
-        <div className="hidden min-h-0 flex-1 flex-col overflow-y-auto md:flex">
+        {/* A week needs seven columns, which a phone cannot give: below md the
+            week falls back to the agenda list. One day fits at any width. */}
+        {view !== 'month' && (
+          <div className={`min-h-0 flex-1 flex-col ${view === 'week' ? 'hidden md:flex' : 'flex'}`}>
+            <TimeGrid days={days} occurrences={props.occurrences} today={today} onSelectEvent={props.onSelectEvent} onOpenDay={view === 'week' ? props.onOpenDay : undefined} />
+          </div>
+        )}
+
+        {view === 'month' && <div className="hidden min-h-0 flex-1 flex-col overflow-y-auto md:flex">
           <div className="grid shrink-0 grid-cols-7 border-b border-ink/10 dark:border-line">
             {weekdayLabels.map((weekday) => <div key={weekday} className="px-3 py-2 text-xs font-bold uppercase tracking-wider text-ink/45 dark:text-faint">{weekday}</div>)}
           </div>
@@ -110,7 +125,7 @@ export function PublicCalendar(props: PublicCalendarProps) {
               const muted = day.getUTCMonth() !== currentMonth;
               return (
                 <div key={key} className={`flex min-h-0 flex-col overflow-hidden border-b border-r border-ink/10 p-2 dark:border-line ${muted ? 'bg-ink/[0.018] text-ink/35 dark:bg-black/10 dark:text-faint' : ''}`}>
-                  <div className={`mb-1 grid size-7 shrink-0 place-items-center rounded-full text-xs font-semibold ${key === today ? 'bg-deep text-white' : ''}`}>{day.getUTCDate()}</div>
+                  <button type="button" onClick={() => props.onOpenDay(day)} aria-label={`Open ${key}`} className={`mb-1 grid size-7 shrink-0 place-items-center rounded-full text-xs font-semibold ${key === today ? 'bg-deep text-white dark:bg-brand' : 'hover:bg-soft/30 dark:hover:bg-white/10'}`}>{day.getUTCDate()}</button>
                   <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-1">
                     {events.map((occurrence) => <EventButton key={`${occurrence.series_id}-${occurrence.recurrence_id_local}`} occurrence={occurrence} compact onClick={() => props.onSelectEvent(occurrence)} />)}
                   </div>
@@ -118,13 +133,13 @@ export function PublicCalendar(props: PublicCalendarProps) {
               );
             })}
           </div>
-        </div>
+        </div>}
 
-        <div className="min-h-0 flex-1 divide-y divide-ink/10 overflow-y-auto pb-[env(safe-area-inset-bottom,0px)] dark:divide-line md:hidden">
+        {view !== 'day' && <div className="min-h-0 flex-1 divide-y divide-ink/10 overflow-y-auto pb-[env(safe-area-inset-bottom,0px)] dark:divide-line md:hidden">
           {agendaDays.length === 0 && !props.loading ? (
             <div className="px-5 py-16 text-center">
               <p className="font-semibold">Nothing scheduled here yet.</p>
-              <p className="mt-2 text-sm text-ink/60 dark:text-muted">Try another calendar or check the next month.</p>
+              <p className="mt-2 text-sm text-ink/60 dark:text-muted">Try another calendar or check the next {view}.</p>
             </div>
           ) : agendaDays.map((key, index) => {
             const dayMonth = Number(key.slice(5, 7)) - 1;
@@ -151,7 +166,7 @@ export function PublicCalendar(props: PublicCalendarProps) {
               </div>
             );
           })}
-        </div>
+        </div>}
       </section>
     </main>
   );

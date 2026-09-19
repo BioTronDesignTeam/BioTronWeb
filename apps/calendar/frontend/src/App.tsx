@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { calendarApi } from './api';
-import { calendarRange, fullDateTimeLabel, startOfMonth } from './date';
+import { fullDateTimeLabel, stepAnchor, todayAnchor, viewRange, type CalendarView } from './date';
 import type { AuthStatus, EventPayload, EventSeries, Occurrence, Scope } from './types';
 import { AdminPanel } from './components/AdminPanel';
 import { ConfirmDialog } from './components/ConfirmDialog';
@@ -11,12 +11,15 @@ import { OccurrenceEditor } from './components/OccurrenceEditor';
 import { CalendarToolbar, PublicCalendar } from './components/PublicCalendar';
 import { Sidebar } from './components/Sidebar';
 import { SubscribePanel } from './components/SubscribePanel';
+import { ViewSwitch } from './components/ViewSwitch';
 
 export function App() {
   const [auth, setAuth] = useState<AuthStatus>({ can_write: false });
   const [scopes, setScopes] = useState<Scope[]>([]);
   const [occurrences, setOccurrences] = useState<Occurrence[]>([]);
-  const [month, setMonth] = useState(() => startOfMonth());
+  const [view, setView] = useState<CalendarView>('month');
+  // A day inside the range on screen. The arrows move it by the view's own unit.
+  const [anchor, setAnchor] = useState(() => todayAnchor());
   const [selectedScopes, setSelectedScopes] = useState<string[]>([]);
   // Open beside the grid on a wide screen, closed on a narrow one where it would cover the calendar.
   const [sidebarOpen, setSidebarOpen] = useState(() => window.matchMedia('(min-width: 1024px)').matches);
@@ -46,7 +49,7 @@ export function App() {
     window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
   }, []);
 
-  const range = useMemo(() => calendarRange(month), [month]);
+  const range = useMemo(() => viewRange(view, anchor), [view, anchor]);
 
   // No selection means every calendar, which is the resting state of the
   // filter and what its Clear button returns to.
@@ -199,6 +202,8 @@ export function App() {
 
   const editorScopes = managing ? adminScopes : scopes;
   const showingAdmin = managing && auth.can_write;
+  const step = (direction: -1 | 1) => setAnchor((current) => stepAnchor(view, current, direction));
+  const viewSwitch = <ViewSwitch view={view} onChange={setView} />;
 
   return (
     // The calendar view fills the window and never scrolls as a page. The
@@ -206,7 +211,8 @@ export function App() {
     <div className={`bg-white text-ink dark:bg-page dark:text-white ${showingAdmin ? 'min-h-dvh' : 'flex h-dvh flex-col overflow-hidden'}`}>
       <Header
         auth={auth} managing={managing} onPublic={() => setManaging(false)} onLoggedOut={() => { setAuth({ can_write: false }); setManaging(false); }}
-        toolbar={showingAdmin ? undefined : <CalendarToolbar month={month} onMonthChange={setMonth} />}
+        toolbar={showingAdmin ? undefined : <CalendarToolbar view={view} anchor={anchor} onStep={step} />}
+        viewSwitch={showingAdmin ? undefined : viewSwitch}
         sidebar={showingAdmin ? undefined : { open: sidebarOpen, filterCount: selectedScopes.length, onToggle: () => setSidebarOpen((open) => !open) }}
       />
       {showingAdmin ? (
@@ -224,14 +230,14 @@ export function App() {
         />
       ) : (
         <div className="flex min-h-0 flex-1">
-          <Sidebar open={sidebarOpen} month={month} onMonthChange={setMonth} onManage={auth.can_write ? () => setManaging(true) : undefined} scopes={scopes} selectedScopes={selectedScopes} onScopeChange={setSelectedScopes} onClose={() => setSidebarOpen(false)}
+          <Sidebar open={sidebarOpen} view={view} anchor={anchor} onStep={step} viewSwitch={viewSwitch} onManage={auth.can_write ? () => setManaging(true) : undefined} scopes={scopes} selectedScopes={selectedScopes} onScopeChange={setSelectedScopes} onClose={() => setSidebarOpen(false)}
             onSubscribe={() => {
               // As a drawer the sidebar would sit open behind the subscribe panel.
               if (!window.matchMedia('(min-width: 1024px)').matches) setSidebarOpen(false);
               setShowSubscribe(true);
             }}
           />
-          <PublicCalendar month={month} occurrences={visibleOccurrences} loading={loading} error={error} onSelectEvent={(occurrence) => { setEventActionError(''); setSelectedOccurrence(occurrence); }} />
+          <PublicCalendar view={view} anchor={anchor} onOpenDay={(day) => { setAnchor(day); setView('day'); }} occurrences={visibleOccurrences} loading={loading} error={error} onSelectEvent={(occurrence) => { setEventActionError(''); setSelectedOccurrence(occurrence); }} />
         </div>
       )}
 

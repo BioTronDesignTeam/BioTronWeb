@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Scope } from '../types';
 
 interface ScopeFilterProps {
@@ -83,12 +83,15 @@ interface ScopeBranchProps {
 }
 
 function ScopeBranch({ node, depth, chosen, onToggle }: ScopeBranchProps) {
+  const [expanded, setExpanded] = useState(true);
   const ids = subtreeIds(node);
   const checkedCount = ids.filter((id) => chosen.has(id)).length;
   const checked = checkedCount === ids.length;
   // A half-filled parent has to say so, or a project with one subteam ticked
-  // looks exactly like a project with none.
+  // looks exactly like a project with none. It matters most when the branch
+  // is folded and the parent is all there is to see.
   const partial = checkedCount > 0 && !checked;
+  const hasChildren = node.children.length > 0;
 
   return (
     <li>
@@ -99,8 +102,10 @@ function ScopeBranch({ node, depth, chosen, onToggle }: ScopeBranchProps) {
         checked={checked}
         partial={partial}
         onChange={(next) => onToggle(ids, next)}
+        expanded={hasChildren ? expanded : undefined}
+        onExpand={() => setExpanded(!expanded)}
       />
-      {node.children.length > 0 && (
+      {hasChildren && expanded && (
         <ul>
           {/* A scope that has children can still own events of its own: the
               ones for everybody in it rather than for one subteam. "General"
@@ -129,26 +134,41 @@ interface ScopeRowProps {
   checked: boolean;
   partial: boolean;
   onChange: (checked: boolean) => void;
+  /** Set on a row with children. Leaf rows leave it out and keep the gap, so every checkbox lines up. */
+  expanded?: boolean;
+  onExpand?: () => void;
 }
 
-function ScopeRow({ label, depth, bold = false, checked, partial, onChange }: ScopeRowProps) {
+function ScopeRow({ label, depth, bold = false, checked, partial, onChange, expanded, onExpand }: ScopeRowProps) {
   const box = useRef<HTMLInputElement>(null);
   useEffect(() => {
     if (box.current) box.current.indeterminate = partial;
   }, [partial]);
   return (
-    <label
-      className="flex min-h-10 cursor-pointer items-center gap-2 rounded-xl px-2 text-sm hover:bg-soft/25 dark:hover:bg-white/10"
-      style={{ paddingLeft: `${0.5 + depth * 1.1}rem` }}
-    >
-      <input
-        ref={box}
-        type="checkbox"
-        checked={checked}
-        onChange={(event) => onChange(event.target.checked)}
-        className="size-4 accent-brand"
-      />
-      <span className={`truncate ${bold ? 'font-semibold' : ''}`}>{label}</span>
-    </label>
+    <div className="flex items-center" style={{ paddingLeft: `${depth * 1.1}rem` }}>
+      {expanded === undefined ? <span className="size-7 shrink-0" aria-hidden="true" /> : (
+        <button
+          type="button"
+          onClick={onExpand}
+          aria-expanded={expanded}
+          aria-label={`${expanded ? 'Collapse' : 'Expand'} ${label}`}
+          className="grid size-7 shrink-0 place-items-center rounded-full text-ink/55 hover:bg-soft/30 dark:text-muted dark:hover:bg-white/10"
+        >
+          <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={expanded ? 'rotate-90' : ''}>
+            <polyline points="4,2 8,6 4,10" />
+          </svg>
+        </button>
+      )}
+      <label className="flex min-h-10 min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-xl px-1.5 text-sm hover:bg-soft/25 dark:hover:bg-white/10">
+        <input
+          ref={box}
+          type="checkbox"
+          checked={checked}
+          onChange={(event) => onChange(event.target.checked)}
+          className="size-4 shrink-0 accent-brand"
+        />
+        <span className={`truncate ${bold ? 'font-semibold' : ''}`}>{label}</span>
+      </label>
+    </div>
   );
 }

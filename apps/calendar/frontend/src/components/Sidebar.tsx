@@ -1,12 +1,16 @@
-import { useEffect } from 'react';
+import { useEffect, type ReactNode } from 'react';
+import type { CalendarView } from '../date';
 import type { Scope } from '../types';
 import { CalendarToolbar } from './PublicCalendar';
 import { ScopeFilter } from './ScopeFilter';
 
 interface SidebarProps {
   open: boolean;
-  month: Date;
-  onMonthChange: (month: Date) => void;
+  view: CalendarView;
+  anchor: Date;
+  onStep: (direction: -1 | 1) => void;
+  /** The header has no room for it on a phone, so it shows here below sm. */
+  viewSwitch: ReactNode;
   /** Shown to editors only. */
   onManage?: () => void;
   scopes: Scope[];
@@ -21,7 +25,7 @@ interface SidebarProps {
  * pushes it over. Below lg there is no room, so it slides over the page as a
  * drawer with a backdrop, and Escape or a tap outside closes it.
  */
-export function Sidebar({ open, month, onMonthChange, onManage, scopes, selectedScopes, onScopeChange, onSubscribe, onClose }: SidebarProps) {
+export function Sidebar({ open, view, anchor, onStep, viewSwitch, onManage, scopes, selectedScopes, onScopeChange, onSubscribe, onClose }: SidebarProps) {
   useEffect(() => {
     if (!open) return;
     const onKey = (event: KeyboardEvent) => {
@@ -43,8 +47,9 @@ export function Sidebar({ open, month, onMonthChange, onManage, scopes, selected
       >
         {/* As a drawer it hides the grid, and the header keeps the month in view, so the month shows here only when docked. */}
         <div className="hidden lg:block">
-          <CalendarToolbar month={month} onMonthChange={onMonthChange} inSidebar />
+          <CalendarToolbar view={view} anchor={anchor} onStep={onStep} inSidebar />
         </div>
+        <div className="sm:hidden">{viewSwitch}</div>
         <ScopeFilter scopes={scopes} selected={selectedScopes} onChange={onScopeChange} />
         <button type="button" onClick={onSubscribe} className="min-h-11 shrink-0 whitespace-nowrap rounded-full bg-deep px-5 text-sm font-semibold text-white hover:bg-brand dark:bg-brand dark:hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:focus-visible:outline-link">
           Subscribe to a calendar
