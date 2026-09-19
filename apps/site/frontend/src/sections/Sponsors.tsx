@@ -39,17 +39,9 @@ export default function Sponsors() {
       <div className="sponsors__marquee" aria-hidden="true">
         <div className="sponsors__track" ref={trackRef}>
           {MARQUEE_ROW.map((s, i) => (
+            // Names only. The logos are made for light backgrounds and this strip is dark.
             <span key={i} className="sponsors__item">
-              {s.logo && (
-                <img
-                  className={`sponsors__logo sponsors__logo--${s.logo.kind}`}
-                  src={s.logo.src}
-                  width={s.logo.width}
-                  height={s.logo.height}
-                  alt=""
-                />
-              )}
-              {s.logo?.kind !== 'wordmark' && s.name}
+              {s.name}
             </span>
           ))}
         </div>

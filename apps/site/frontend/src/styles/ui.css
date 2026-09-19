@@ -481,29 +481,11 @@
   animation: marquee 97s linear infinite;
 }
 .sponsors__item {
-  display: inline-flex;
-  align-items: center;
   font-family: var(--font-display);
   font-size: clamp(1.1rem, 2vw, 1.7rem);
   font-weight: 600;
   color: var(--text-faint);
   letter-spacing: -0.01em;
-}
-.sponsors__logo {
-  flex-shrink: 0;
-  width: auto;
-  max-width: none;
-}
-/* A white wordmark, dimmed to sit level with the faint text beside it. */
-.sponsors__logo--wordmark {
-  height: 1.15em;
-  opacity: 0.47;
-}
-/* A colour mark sits before its name. */
-.sponsors__logo--mark {
-  height: 1.9em;
-  margin-right: 0.6em;
-  opacity: 0.8;
 }
 @keyframes marquee {
   to {
@@ -985,31 +967,30 @@
   gap: 1rem;
   margin-top: 2.5rem;
 }
+/* Light tiles: the sponsors' logos are made for a light background. */
 .sponsorspage__supporter {
   display: flex;
   min-height: 9rem;
   align-items: center;
   justify-content: center;
   gap: 1rem;
-  padding: 1.5rem;
-  color: var(--text-muted);
+  padding: 1.5rem 2rem;
+  border-radius: var(--r-lg);
+  background: #f3f5f7;
+  color: #16202a;
   font-family: var(--font-display);
-  font-size: var(--fs-xl);
+  font-size: var(--fs-lg);
   font-weight: 600;
   text-align: center;
 }
 .sponsorspage__logo {
   width: auto;
-  max-width: 100%;
+  height: auto;
+  max-width: min(100%, 13rem);
+  max-height: 3.5rem;
 }
-/* A white wordmark, dimmed to match the muted sponsor names. */
-.sponsorspage__logo--wordmark {
-  height: 2.25rem;
-  opacity: 0.68;
-}
-/* A colour mark keeps its colour and sits before its name. */
 .sponsorspage__logo--mark {
-  height: 4rem;
+  max-height: 4.5rem;
 }
 .sponsorspage__areagrid {
   display: grid;

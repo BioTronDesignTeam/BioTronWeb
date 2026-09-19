@@ -40,17 +40,15 @@ export default function SponsorsPage() {
         <div className="sponsorspage__supportergrid">
           {SPONSORS.map((sponsor, index) => (
             <Reveal key={sponsor.name} delay={index * 0.05}>
-              <div className="sponsorspage__supporter glass">
-                {sponsor.logo && (
-                  <img
-                    className={`sponsorspage__logo sponsorspage__logo--${sponsor.logo.kind}`}
-                    src={sponsor.logo.src}
-                    width={sponsor.logo.width}
-                    height={sponsor.logo.height}
-                    alt={sponsor.logo.kind === 'wordmark' ? sponsor.name : ''}
-                  />
-                )}
-                {sponsor.logo?.kind !== 'wordmark' && <span>{sponsor.name}</span>}
+              <div className="sponsorspage__supporter">
+                <img
+                  className={`sponsorspage__logo sponsorspage__logo--${sponsor.logo.kind}`}
+                  src={sponsor.logo.src}
+                  width={sponsor.logo.width}
+                  height={sponsor.logo.height}
+                  alt={sponsor.logo.kind === 'wordmark' ? sponsor.name : ''}
+                />
+                {sponsor.logo.kind === 'mark' && <span>{sponsor.name}</span>}
               </div>
             </Reveal>
           ))}
