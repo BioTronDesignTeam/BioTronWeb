@@ -306,10 +306,12 @@ func (h *Handler) deleteEvent(c fiber.Ctx) error {
 	// marshalled on another goroutine, so the copy is what keeps the event
 	// from naming whatever series the next request happens to carry.
 	seriesID := strings.Clone(c.Params("id"))
-	if err := h.store.DeleteDraftSeries(c.Context(), seriesID); err != nil {
+	deleted, err := h.store.DeleteSeries(c.Context(), seriesID)
+	if err != nil {
 		return err
 	}
-	h.adminEvent(c, "Event deleted", map[string]any{"series_id": seriesID})
+	// The row is gone, so this log line is the only record of what it was.
+	h.adminEvent(c, "Event deleted", map[string]any{"series_id": seriesID, "title": deleted.Title, "state": deleted.State})
 	return c.SendStatus(fiber.StatusNoContent)
 }
 

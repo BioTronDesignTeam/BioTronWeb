@@ -12,9 +12,11 @@ interface EventDetailsProps {
   onCancelOccurrence: () => void;
   /** Cancels the whole event: the one meeting, or every occurrence of a weekly series. */
   onCancelSeries: () => void;
+  /** Removes the whole event for good, where cancelling keeps it in the feeds marked as off. */
+  onDeleteSeries: () => void;
 }
 
-export function EventDetails({ occurrence, canWrite, error, onClose, onEditSeries, onEditOccurrence, onCancelOccurrence, onCancelSeries }: EventDetailsProps) {
+export function EventDetails({ occurrence, canWrite, error, onClose, onEditSeries, onEditOccurrence, onCancelOccurrence, onCancelSeries, onDeleteSeries }: EventDetailsProps) {
   return (
     <Modal title={occurrence.title} onClose={onClose}>
       <div className="flex flex-wrap gap-2">
@@ -35,6 +37,7 @@ export function EventDetails({ occurrence, canWrite, error, onClose, onEditSerie
             {occurrence.recurring && <button type="button" onClick={onEditOccurrence} className="min-h-11 rounded-full border border-ink/15 px-4 text-sm font-semibold hover:bg-soft/25 dark:border-line-strong dark:hover:bg-white/10">Edit this occurrence</button>}
             {occurrence.recurring && <button type="button" onClick={onCancelOccurrence} className="min-h-11 rounded-full px-4 text-sm font-semibold text-red-700 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950/30">Cancel this occurrence</button>}
             <button type="button" onClick={onCancelSeries} className="min-h-11 rounded-full px-4 text-sm font-semibold text-red-700 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950/30">{occurrence.recurring ? 'Cancel series' : 'Cancel event'}</button>
+            <button type="button" onClick={onDeleteSeries} className="min-h-11 rounded-full px-4 text-sm font-semibold text-red-700 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950/30">{occurrence.recurring ? 'Delete series' : 'Delete event'}</button>
           </div>
         </div>
       )}

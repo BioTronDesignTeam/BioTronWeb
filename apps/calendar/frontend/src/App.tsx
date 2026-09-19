@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { calendarApi } from './api';
+import { deleteConfirmation } from './deleteCopy';
 import { fullDateTimeLabel, stepAnchor, todayAnchor, viewRange, type CalendarView } from './date';
 import type { AuthStatus, EventPayload, EventSeries, Occurrence, Scope } from './types';
 import { AdminPanel } from './components/AdminPanel';
@@ -39,6 +40,7 @@ export function App() {
   // Set when the new event came from a click on a slot, which fixes where it starts.
   const [eventDraft, setEventDraft] = useState<EventDraft>();
   const [cancellingSeries, setCancellingSeries] = useState<Occurrence>();
+  const [deletingSeries, setDeletingSeries] = useState<Occurrence>();
   const [editingOccurrence, setEditingOccurrence] = useState<{ occurrence: Occurrence; series: EventSeries }>();
   const [cancellingOccurrence, setCancellingOccurrence] = useState<Occurrence>();
   const [eventActionError, setEventActionError] = useState('');
@@ -251,7 +253,7 @@ export function App() {
       )}
 
       {showSubscribe && <SubscribePanel scopes={scopes} onClose={() => setShowSubscribe(false)} />}
-      {selectedOccurrence && <EventDetails occurrence={selectedOccurrence} canWrite={auth.can_write} error={eventActionError} onClose={() => { setEventActionError(''); setSelectedOccurrence(undefined); }} onEditSeries={() => void openEditor(selectedOccurrence, 'series')} onEditOccurrence={() => void openEditor(selectedOccurrence, 'occurrence')} onCancelOccurrence={() => setCancellingOccurrence(selectedOccurrence)} onCancelSeries={() => setCancellingSeries(selectedOccurrence)} />}
+      {selectedOccurrence && <EventDetails occurrence={selectedOccurrence} canWrite={auth.can_write} error={eventActionError} onClose={() => { setEventActionError(''); setSelectedOccurrence(undefined); }} onEditSeries={() => void openEditor(selectedOccurrence, 'series')} onEditOccurrence={() => void openEditor(selectedOccurrence, 'occurrence')} onCancelOccurrence={() => setCancellingOccurrence(selectedOccurrence)} onCancelSeries={() => setCancellingSeries(selectedOccurrence)} onDeleteSeries={() => setDeletingSeries(selectedOccurrence)} />}
       {cancellingOccurrence && (
         <ConfirmDialog
           title="Cancel this occurrence?"
@@ -280,6 +282,20 @@ export function App() {
             const occurrence = cancellingSeries;
             const success = await mutate(() => calendarApi.cancelEvent(occurrence.series_id, occurrence.series_sequence), true);
             setCancellingSeries(undefined);
+            if (success) setSelectedOccurrence(undefined);
+          }}
+        />
+      )}
+      {deletingSeries && (
+        <ConfirmDialog
+          // Only a published or cancelled event reaches the calendar grid, so this is never the draft wording.
+          {...deleteConfirmation(deletingSeries.title, true, deletingSeries.recurring)}
+          destructive
+          onCancel={() => setDeletingSeries(undefined)}
+          onConfirm={async () => {
+            const occurrence = deletingSeries;
+            const success = await mutate(() => calendarApi.deleteEvent(occurrence.series_id), true);
+            setDeletingSeries(undefined);
             if (success) setSelectedOccurrence(undefined);
           }}
         />

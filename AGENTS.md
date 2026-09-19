@@ -197,6 +197,11 @@ names, such as `OAuthManager` and `exo-gui`. They mean the paths above.
   A scope can be hard-deleted only when it is an empty leaf with no event
   history. Archiving keeps records and feed contents. An archived parent hides
   its children from the active public JSON views.
+- Cancel and delete are different on purpose. Cancel keeps the event in every
+  feed, marked as off, so subscribers are told. Delete removes it for good and
+  tells nobody; it is for test events and mistakes. An editor can delete an
+  event in any state. A project or subteam can still be deleted only when it
+  has no events and no children, so delete its events first.
 - A weekly series always has an inclusive end date. There is no pause and
   resume; create a new series for the next term. Edit or cancel one occurrence
   by its original local start time, and keep cancellation records so

@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"errors"
 	"os"
 	"reflect"
 	"testing"
@@ -348,5 +349,45 @@ func TestLiveResetOverrideDeletesTheRow(t *testing.T) {
 		if !reflect.DeepEqual(reset, untouched) {
 			t.Fatalf("occurrence %d differs from an untouched series:\nreset:     %+v\nuntouched: %+v", i, reset, untouched)
 		}
+	}
+}
+
+// A published series used to be undeletable: the store only removed drafts, so
+// a test event or a mistake stayed in every feed for good. Deleting has to work
+// in any state, take the series' overrides with it, and leave its neighbours.
+func TestLiveDeleteSeriesRemovesAPublishedSeriesAndItsOverrides(t *testing.T) {
+	store, ctx := liveStore(t)
+	resetFixtures(t, store, ctx)
+
+	const seriesID = "0f0f0f0f-0000-4000-8000-00000000e020"
+	const controlID = "0f0f0f0f-0000-4000-8000-00000000e021"
+	insertSeries(t, store, ctx, seriesID, "Delete subject", "2026-09-07T18:00:00", "2026-09-07T19:00:00", "2026-09-28")
+	insertSeries(t, store, ctx, controlID, "Delete control", "2026-09-07T18:00:00", "2026-09-07T19:00:00", "2026-09-28")
+	insertOverride(t, store, ctx, "0f0f0f0f-0000-4000-8000-00000000e022", seriesID, "2026-09-14T18:00:00", "CANCELLED", `{}`)
+
+	deleted, err := store.DeleteSeries(ctx, seriesID)
+	if err != nil {
+		t.Fatalf("delete a published series: %v", err)
+	}
+	if deleted.Title != "Delete subject" || deleted.State != model.EventPublished {
+		t.Fatalf("delete reported %+v, want the title and the PUBLISHED state of the row it removed", deleted)
+	}
+
+	if _, err := store.GetSeries(ctx, seriesID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("the series is still readable after delete: %v", err)
+	}
+	var overrides int
+	if err := store.pool.QueryRow(ctx, `SELECT count(*) FROM event_overrides WHERE series_id = $1::uuid`, seriesID).Scan(&overrides); err != nil {
+		t.Fatal(err)
+	}
+	if overrides != 0 {
+		t.Fatalf("delete left %d override row(s) behind", overrides)
+	}
+	if _, err := store.GetSeries(ctx, controlID); err != nil {
+		t.Fatalf("delete took the neighbouring series with it: %v", err)
+	}
+
+	if _, err := store.DeleteSeries(ctx, seriesID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("deleting a series that is gone returned %v, want ErrNotFound", err)
 	}
 }
