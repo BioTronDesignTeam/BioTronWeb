@@ -207,10 +207,9 @@ export function App() {
   const showingAdmin = managing && auth.can_write;
   const step = (direction: -1 | 1) => setAnchor((current) => stepAnchor(view, current, direction));
   const viewSwitch = <ViewSwitch view={view} onChange={setView} />;
+  // The Manage screen's button. It must not inherit the slot of an earlier click on the grid.
   const startCreating = () => {
     setEventDraft(undefined);
-    // The drawer would sit open over the editor.
-    if (!window.matchMedia('(min-width: 1024px)').matches) setSidebarOpen(false);
     setCreatingEvent(true);
   };
 
@@ -239,7 +238,7 @@ export function App() {
         />
       ) : (
         <div className="flex min-h-0 flex-1">
-          <Sidebar open={sidebarOpen} view={view} anchor={anchor} onStep={step} viewSwitch={viewSwitch} onCreate={auth.can_write ? startCreating : undefined} onManage={auth.can_write ? () => setManaging(true) : undefined} scopes={scopes} selectedScopes={selectedScopes} onScopeChange={setSelectedScopes} onClose={() => setSidebarOpen(false)}
+          <Sidebar open={sidebarOpen} view={view} anchor={anchor} onStep={step} viewSwitch={viewSwitch} onManage={auth.can_write ? () => setManaging(true) : undefined} scopes={scopes} selectedScopes={selectedScopes} onScopeChange={setSelectedScopes} onClose={() => setSidebarOpen(false)}
             onSubscribe={() => {
               // As a drawer the sidebar would sit open behind the subscribe panel.
               if (!window.matchMedia('(min-width: 1024px)').matches) setSidebarOpen(false);

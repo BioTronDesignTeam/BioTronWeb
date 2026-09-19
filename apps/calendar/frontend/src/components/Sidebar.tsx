@@ -11,8 +11,7 @@ interface SidebarProps {
   onStep: (direction: -1 | 1) => void;
   /** The header has no room for it on a phone, so it shows here below sm. */
   viewSwitch: ReactNode;
-  /** Both are shown to editors only. */
-  onCreate?: () => void;
+  /** Shown to editors only. */
   onManage?: () => void;
   scopes: Scope[];
   selectedScopes: string[];
@@ -26,7 +25,7 @@ interface SidebarProps {
  * pushes it over. Below lg there is no room, so it slides over the page as a
  * drawer with a backdrop, and Escape or a tap outside closes it.
  */
-export function Sidebar({ open, view, anchor, onStep, viewSwitch, onCreate, onManage, scopes, selectedScopes, onScopeChange, onSubscribe, onClose }: SidebarProps) {
+export function Sidebar({ open, view, anchor, onStep, viewSwitch, onManage, scopes, selectedScopes, onScopeChange, onSubscribe, onClose }: SidebarProps) {
   useEffect(() => {
     if (!open) return;
     const onKey = (event: KeyboardEvent) => {
@@ -44,28 +43,27 @@ export function Sidebar({ open, view, anchor, onStep, viewSwitch, onCreate, onMa
       <aside
         id="calendar-sidebar"
         aria-label="Calendars"
-        className="fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col gap-4 overflow-y-auto border-r border-ink/10 bg-white p-4 pt-[calc(1rem+env(safe-area-inset-top,0px))] shadow-xl dark:border-line dark:bg-surface lg:static lg:z-auto lg:w-64 lg:max-w-none lg:shrink-0 lg:pt-4 lg:shadow-none"
+        className="fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col gap-4 overflow-hidden border-r border-ink/10 bg-white p-4 pt-[calc(1rem+env(safe-area-inset-top,0px))] shadow-xl dark:border-line dark:bg-surface lg:static lg:z-auto lg:w-64 lg:max-w-none lg:shrink-0 lg:pt-4 lg:shadow-none pb-[calc(1rem+env(safe-area-inset-bottom,0px))]"
       >
         {/* As a drawer it hides the grid, and the header keeps the month in view, so the month shows here only when docked. */}
         <div className="hidden lg:block">
           <CalendarToolbar view={view} anchor={anchor} onStep={onStep} inSidebar />
         </div>
         <div className="sm:hidden">{viewSwitch}</div>
-        <ScopeFilter scopes={scopes} selected={selectedScopes} onChange={onScopeChange} />
-        <button type="button" onClick={onSubscribe} className="min-h-11 shrink-0 whitespace-nowrap rounded-full bg-deep px-5 text-sm font-semibold text-white hover:bg-brand dark:bg-brand dark:hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:focus-visible:outline-link">
-          Subscribe to a calendar
-        </button>
-        {/* Clicking a slot in the grid also creates an event. This button is the way in from the keyboard and on a phone. */}
-        {onCreate && (
-          <button type="button" onClick={onCreate} className="min-h-11 shrink-0 whitespace-nowrap rounded-full border border-ink/15 px-5 text-sm font-semibold text-brand hover:bg-soft/30 dark:border-line-strong dark:text-link dark:hover:bg-white/10">
-            Create event
+        {/* Only the calendar list scrolls, so a long list never pushes the buttons off the bottom. */}
+        <div className="-mx-2 min-h-0 flex-1 overflow-y-auto px-2">
+          <ScopeFilter scopes={scopes} selected={selectedScopes} onChange={onScopeChange} />
+        </div>
+        <div className="flex shrink-0 flex-col gap-2">
+          <button type="button" onClick={onSubscribe} className="min-h-11 shrink-0 whitespace-nowrap rounded-full bg-deep px-5 text-sm font-semibold text-white hover:bg-brand dark:bg-brand dark:hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:focus-visible:outline-link">
+            Subscribe to a calendar
           </button>
-        )}
-        {onManage && (
-          <button type="button" onClick={onManage} className="min-h-11 shrink-0 whitespace-nowrap rounded-full border border-ink/15 px-5 text-sm font-semibold text-brand hover:bg-soft/30 dark:border-line-strong dark:text-link dark:hover:bg-white/10">
-            Manage
-          </button>
-        )}
+          {onManage && (
+            <button type="button" onClick={onManage} className="min-h-11 shrink-0 whitespace-nowrap rounded-full border border-ink/15 px-5 text-sm font-semibold text-brand hover:bg-soft/30 dark:border-line-strong dark:text-link dark:hover:bg-white/10">
+              Manage
+            </button>
+          )}
+        </div>
       </aside>
     </>
   );
