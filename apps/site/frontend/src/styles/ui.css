@@ -826,73 +826,69 @@
   text-transform: uppercase;
 }
 .calendarpage__events {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
-  gap: 0.75rem;
   margin: 0;
-  padding: 1.25rem;
+  padding: 0;
   list-style: none;
 }
-/* One card for each event: a date block, then the title over the start time and the place. */
+/* One full-width row for each event, split by hairlines. A row fills the
+   panel whether there is one event or five, so nothing sits alone in a corner. */
 .calendarpage__event {
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: 1rem;
-  padding: 0.9rem;
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-  background: var(--glass);
+  gap: 1.5rem;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+.calendarpage__event:last-child {
+  border-bottom: 0;
 }
 .calendarpage__date {
   display: flex;
-  width: 3.75rem;
+  width: 3.5rem;
   flex-shrink: 0;
   flex-direction: column;
   align-items: center;
-  padding: 0.5rem 0;
-  border-radius: var(--r-sm);
-  background: var(--accent);
-  color: var(--accent-readable);
   line-height: 1.1;
 }
 .calendarpage__weekday,
 .calendarpage__month {
+  color: var(--text-faint);
   font-family: var(--font-mono);
-  font-size: 0.68rem;
+  font-size: 0.7rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 .calendarpage__day {
   font-family: var(--font-display);
-  font-size: 1.6rem;
+  font-size: 2rem;
   font-weight: 600;
 }
 .calendarpage__body {
-  display: flex;
   min-width: 0;
-  flex-direction: column;
-  gap: 0.25rem;
+  flex: 1;
 }
 .calendarpage__title {
-  overflow: hidden;
-  font-size: var(--fs-base);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-size: var(--fs-lg);
 }
+/* The time and the place share a line, and the place drops under the time when the row is narrow. */
 .calendarpage__meta {
   display: flex;
-  min-width: 0;
-  /* A long place name wraps, and the icon stays beside its first line. */
-  align-items: flex-start;
-  gap: 0.4rem;
-  margin: 0;
+  flex-wrap: wrap;
+  gap: 0.2rem 1.25rem;
+  margin: 0.3rem 0 0;
   color: var(--text-muted);
   font-size: var(--fs-sm);
 }
-.calendarpage__meta svg {
+.calendarpage__metaitem {
+  display: inline-flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 0.4rem;
+}
+.calendarpage__metaitem svg {
   flex-shrink: 0;
-  margin-top: 0.22rem;
+  margin-top: 0.2rem;
   color: var(--text-faint);
 }
 .calendarpage__status {

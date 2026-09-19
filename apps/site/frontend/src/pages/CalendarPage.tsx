@@ -160,7 +160,7 @@ export default function CalendarPage() {
               {events.map((event) => {
                 const day = eventDay(event);
                 return (
-                  // A card carries four things: the title, the day, the start time, and the place.
+                  // A row carries four things: the day, the title, the start time, and the place.
                   <li key={`${event.series_id}-${event.recurrence_id_local}`} className="calendarpage__event">
                     <time dateTime={event.starts_at} className="calendarpage__date">
                       <span className="calendarpage__weekday">{day.weekday}</span>
@@ -170,15 +170,17 @@ export default function CalendarPage() {
                     <div className="calendarpage__body">
                       <h3 className="calendarpage__title">{event.title}</h3>
                       <p className="calendarpage__meta">
-                        <Clock size={14} aria-hidden="true" />
-                        {eventStart(event)}
+                        <span className="calendarpage__metaitem">
+                          <Clock size={15} aria-hidden="true" />
+                          {eventStart(event)}
+                        </span>
+                        {event.location && (
+                          <span className="calendarpage__metaitem">
+                            <MapPin size={15} aria-hidden="true" />
+                            {event.location}
+                          </span>
+                        )}
                       </p>
-                      {event.location && (
-                        <p className="calendarpage__meta">
-                          <MapPin size={14} aria-hidden="true" />
-                          {event.location}
-                        </p>
-                      )}
                     </div>
                   </li>
                 );
