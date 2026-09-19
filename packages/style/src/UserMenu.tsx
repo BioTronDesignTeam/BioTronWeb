@@ -63,8 +63,9 @@ export function UserMenu({
       {open && (
         <div className="biotron-user-menu__popover" role="menu">
           <div className="biotron-user-menu__identity">
-            <strong>{displayName}</strong>
-            <span>{detail}</span>
+            {/* Both lines are cut with an ellipsis in a fixed-width popover, so the full text goes in a tooltip. */}
+            <strong title={displayName}>{displayName}</strong>
+            <span title={detail}>{detail}</span>
           </div>
           <button
             type="button"

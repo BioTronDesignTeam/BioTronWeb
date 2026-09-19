@@ -213,7 +213,8 @@
 .biotron-auth-card h1 { margin: 0; color: var(--biotron-text); font-size: clamp(1.4rem, 5vw, 1.85rem); letter-spacing: -0.03em; }
 .biotron-auth-card__description { margin-top: 0.8rem; color: var(--biotron-text-muted); font-size: 0.88rem; line-height: 1.65; }
 .biotron-auth-card__description p { margin: 0; }
-.biotron-auth-notice { margin-top: 1rem; border-radius: 0.7rem; padding: 0.7rem 0.8rem; font-size: 0.8rem; line-height: 1.5; }
+/* The screen around it clips, so a notice that carries a URL or an id must be able to break. */
+.biotron-auth-notice { margin-top: 1rem; border-radius: 0.7rem; padding: 0.7rem 0.8rem; font-size: 0.8rem; line-height: 1.5; overflow-wrap: anywhere; }
 .biotron-auth-notice--info { background: var(--biotron-surface-muted); color: var(--biotron-text); }
 .biotron-auth-notice--error { background: #fff0f3; color: #9f1239; }
 .dark .biotron-auth-notice--error { background: #40142c; color: #ffc1d1; }
