@@ -75,7 +75,7 @@ export function CalendarToolbar({ view, anchor, onStep, inSidebar = false }: Cal
   return (
     // The label sits between the arrows. Its box has a fixed width so that a
     // shorter name does not slide the next button out from under the pointer.
-    <div className={`flex items-center ${inSidebar ? 'justify-between' : 'gap-1 sm:gap-2'}`}>
+    <div className={`flex items-center ${inSidebar ? 'justify-between' : 'justify-center gap-1 sm:gap-2'}`}>
       <button type="button" className={arrow} onClick={() => onStep(-1)} aria-label={`Previous ${view}`}><Chevron direction={-1} /></button>
       <h2 className={`text-center font-semibold ${size}`}>{label}</h2>
       <button type="button" className={arrow} onClick={() => onStep(1)} aria-label={`Next ${view}`}><Chevron direction={1} /></button>
