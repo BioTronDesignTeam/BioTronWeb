@@ -173,6 +173,11 @@
   flex-direction: column;
   gap: 0.25rem;
   padding: 1rem clamp(1.25rem, 4vw, 3rem) 1.5rem;
+  /* The page is scroll-locked while this is open, so it has to scroll itself
+     when a short window, such as a phone held sideways, cannot fit the links. */
+  max-height: calc(100dvh - var(--nav-h));
+  overflow-y: auto;
+  overscroll-behavior: contain;
   background: rgba(7, 11, 14, 0.97);
   backdrop-filter: blur(16px);
   border-bottom: 1px solid var(--border);
@@ -202,6 +207,13 @@
   text-align: center;
 }
 
+/* The drawer belongs to the burger, which only exists up to 860px. Nav.tsx
+   closes the menu when the window passes that; this keeps it off screen while it does. */
+@media (min-width: 861px) {
+  .nav__drawer {
+    display: none;
+  }
+}
 @media (max-width: 860px) {
   .nav__inner.container-wide,
   .nav__drawer {
@@ -369,6 +381,17 @@
   padding: 1.75rem;
   pointer-events: auto;
   border-left: 2px solid var(--card-accent);
+  /* The stage around it clips, and page scroll drives the camera, so a card
+     taller than a short window would hide its last lines for good. It scrolls
+     inside itself instead. RoomPopup marks it data-lenis-prevent while it
+     overflows, or Lenis would keep the wheel for the page. No
+     overscroll-behavior here: at the end of the card the wheel must pass on
+     to the page, so the tour can move on. */
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+}
+.room-popup--about .popup-card {
+  max-height: calc(100dvh - var(--nav-h) - 2rem);
 }
 .popup-title {
   font-size: var(--fs-2xl);
@@ -871,6 +894,12 @@
 .calendarpage__title {
   font-size: var(--fs-lg);
 }
+/* Titles and places come from the calendar. A join link or a long room code
+   has no spaces, and the panel clips, so it must be allowed to break. */
+.calendarpage__title,
+.calendarpage__metaitem {
+  overflow-wrap: anywhere;
+}
 /* The time and the place share a line, and the place drops under the time when the row is narrow. */
 .calendarpage__meta {
   display: flex;
@@ -1138,7 +1167,8 @@
 /* ---------- Past projects ---------- */
 .past__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+  /* min() lets a card narrow on a screen under 17rem wide, where it would stick out. */
+  grid-template-columns: repeat(auto-fit, minmax(min(17rem, 100%), 1fr));
   gap: 1.25rem;
   padding-top: 2.5rem;
   padding-bottom: 6rem;

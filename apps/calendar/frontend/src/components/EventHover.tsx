@@ -91,16 +91,17 @@ function HoverCard({ target }: { target: HoverTarget }) {
       id={CARD_ID}
       role="tooltip"
       style={{ top: place?.top ?? 0, left: place?.left ?? 0, visibility: place ? 'visible' : 'hidden' }}
-      className="pointer-events-none fixed z-40 w-72 max-w-[calc(100vw-1rem)] rounded-2xl border border-ink/10 bg-white p-4 text-ink shadow-xl dark:border-line-strong dark:bg-surface dark:text-white"
+      className="pointer-events-none fixed z-40 max-h-[calc(100dvh-1rem)] w-72 max-w-[calc(100vw-1rem)] overflow-hidden rounded-2xl border border-ink/10 bg-white p-4 text-ink shadow-xl dark:border-line-strong dark:bg-surface dark:text-white"
     >
-      <p className="font-semibold leading-snug">{occurrence.title}</p>
+      {/* The card cannot be scrolled, so every field that can run long is cut to fit. The full text is one click away. */}
+      <p className="line-clamp-3 break-words font-semibold leading-snug">{occurrence.title}</p>
       <p className="mt-1 text-sm text-ink/70 dark:text-muted">{fullDateTimeLabel(occurrence)}</p>
       <div className="mt-3 flex flex-wrap gap-1.5">
         <span className="rounded-full bg-brand/10 px-2.5 py-0.5 text-xs font-semibold text-brand dark:bg-brand/25 dark:text-link">{occurrence.scope_path}</span>
         {occurrence.recurring && <span className="rounded-full bg-deep/10 px-2.5 py-0.5 text-xs font-semibold text-deep dark:bg-white/10 dark:text-white">Weekly</span>}
       </div>
-      {occurrence.location && <p className="mt-3 text-sm">{occurrence.location}</p>}
-      {occurrence.description && <p className="mt-2 line-clamp-4 whitespace-pre-wrap text-sm text-ink/70 dark:text-muted">{occurrence.description}</p>}
+      {occurrence.location && <p className="mt-3 line-clamp-3 break-words text-sm">{occurrence.location}</p>}
+      {occurrence.description && <p className="mt-2 line-clamp-4 whitespace-pre-wrap break-words text-sm text-ink/70 dark:text-muted">{occurrence.description}</p>}
     </div>
   );
 }

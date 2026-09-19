@@ -23,6 +23,18 @@ export default function Nav() {
 
   useEffect(() => setOpen(false), [location.pathname]);
 
+  // The drawer and its close button exist only up to 860px (see ui.css). If the
+  // window grows past that while the menu is open, such as a tablet turned to
+  // landscape, the close button vanishes but the scroll lock below would stay,
+  // and the page could never scroll again. So the menu closes itself.
+  useEffect(() => {
+    if (!open) return;
+    const narrow = window.matchMedia('(max-width: 860px)');
+    const onChange = () => { if (!narrow.matches) setOpen(false); };
+    narrow.addEventListener('change', onChange);
+    return () => narrow.removeEventListener('change', onChange);
+  }, [open]);
+
   useEffect(() => {
     if (!open) return;
 
@@ -77,6 +89,8 @@ export default function Nav() {
       {/* Mobile drawer */}
       <div
         id="mobile-navigation"
+        // Lenis takes the wheel and touch for the whole page. This hands them back to the drawer.
+        data-lenis-prevent
         className={`nav__drawer ${open ? 'nav__drawer--open' : ''}`}
         aria-hidden={!open}
       >

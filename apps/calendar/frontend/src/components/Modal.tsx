@@ -8,6 +8,53 @@ interface ModalProps {
   wide?: boolean;
 }
 
+/**
+ * The page lock is shared by every open modal and counted. Each modal used to
+ * save the page's styles when it opened and put them back when it closed. With
+ * two open at once, such as the cancel confirmation over the event details,
+ * the second one saved the *locked* styles. When both closed together it
+ * restored those last, and the page stayed locked for good: invisible on the
+ * calendar, which never scrolls as a page, and fatal on Manage, which does.
+ * Now the first modal to open locks the page and the last to close unlocks it.
+ */
+let openModals = 0;
+let restorePage: (() => void) | undefined;
+
+function lockPage() {
+  if (openModals++ === 0) {
+    const root = document.documentElement.style;
+    const body = document.body.style;
+    const appRoot = document.getElementById('root');
+    const previous = { overflow: root.overflow, position: body.position, top: body.top, width: body.width };
+    // overflow:hidden alone does not hold on iOS Safari, which keeps scrolling
+    // the page behind the sheet. Pinning the body at its current offset does,
+    // as long as that offset is restored on the way out.
+    const scrollY = window.scrollY;
+    root.overflow = 'hidden';
+    body.position = 'fixed';
+    body.top = `-${scrollY}px`;
+    body.width = '100%';
+    appRoot?.setAttribute('inert', '');
+    restorePage = () => {
+      root.overflow = previous.overflow;
+      body.position = previous.position;
+      body.top = previous.top;
+      body.width = previous.width;
+      window.scrollTo(0, scrollY);
+      appRoot?.removeAttribute('inert');
+    };
+  }
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    if (--openModals === 0) {
+      restorePage?.();
+      restorePage = undefined;
+    }
+  };
+}
+
 export function Modal({ title, children, onClose, wide = false }: ModalProps) {
   const dialogRef = useRef<HTMLElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -20,9 +67,7 @@ export function Modal({ title, children, onClose, wide = false }: ModalProps) {
   });
 
   useEffect(() => {
-    const previousOverflow = document.documentElement.style.overflow;
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const appRoot = document.getElementById('root');
     const handleKeys = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         onCloseRef.current();
@@ -43,26 +88,11 @@ export function Modal({ title, children, onClose, wide = false }: ModalProps) {
         first.focus();
       }
     };
-    // overflow:hidden alone does not hold on iOS Safari, which keeps scrolling
-    // the page behind the sheet. Pinning the body at its current offset does,
-    // as long as that offset is restored on the way out.
-    const scrollY = window.scrollY;
-    const body = document.body.style;
-    const previousBody = { position: body.position, top: body.top, width: body.width };
-    document.documentElement.style.overflow = 'hidden';
-    body.position = 'fixed';
-    body.top = `-${scrollY}px`;
-    body.width = '100%';
-    appRoot?.setAttribute('inert', '');
+    const unlockPage = lockPage();
     window.addEventListener('keydown', handleKeys);
     closeRef.current?.focus();
     return () => {
-      document.documentElement.style.overflow = previousOverflow;
-      body.position = previousBody.position;
-      body.top = previousBody.top;
-      body.width = previousBody.width;
-      window.scrollTo(0, scrollY);
-      appRoot?.removeAttribute('inert');
+      unlockPage();
       window.removeEventListener('keydown', handleKeys);
       previousFocus?.focus();
     };
@@ -86,10 +116,10 @@ export function Modal({ title, children, onClose, wide = false }: ModalProps) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"
-        className={`relative max-h-[92dvh] w-full overflow-y-auto overscroll-contain rounded-t-3xl border border-soft/40 bg-white p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] text-ink sm:rounded-3xl sm:p-7 sm:pb-7 dark:border-line-strong dark:bg-surface dark:text-white ${wide ? 'sm:max-w-4xl' : 'sm:max-w-xl'}`}
+        className={`relative max-h-[92dvh] sm:max-h-[calc(100dvh-3rem)] w-full overflow-y-auto overscroll-contain rounded-t-3xl border border-soft/40 bg-white p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] text-ink sm:rounded-3xl sm:p-7 sm:pb-7 dark:border-line-strong dark:bg-surface dark:text-white ${wide ? 'sm:max-w-4xl' : 'sm:max-w-xl'}`}
       >
         <header className="mb-5 flex items-center justify-between gap-4">
-          <h2 id="modal-title" className="text-xl font-semibold tracking-tight">{title}</h2>
+          <h2 id="modal-title" className="min-w-0 break-words text-xl font-semibold tracking-tight">{title}</h2>
           <button ref={closeRef} type="button" onClick={onClose} className="grid size-11 shrink-0 place-items-center rounded-full border border-ink/15 text-xl hover:bg-soft/30 dark:border-line-strong dark:hover:bg-white/10" aria-label="Close">
             ×
           </button>

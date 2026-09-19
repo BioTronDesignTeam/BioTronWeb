@@ -427,15 +427,29 @@ func (s *Store) CancelSeries(ctx context.Context, id string, expectedSequence in
 	return s.GetSeries(ctx, id)
 }
 
-func (s *Store) DeleteDraftSeries(ctx context.Context, id string) error {
-	tag, err := s.pool.Exec(ctx, `DELETE FROM event_series WHERE id = $1 AND state = 'DRAFT'`, id)
-	if err != nil {
-		return err
+// DeletedSeries is what is left to say about a series once its row is gone.
+type DeletedSeries struct {
+	Title string
+	State string
+}
+
+// DeleteSeries removes a series in any state, and its overrides with it (the
+// foreign key cascades). It used to refuse anything but a draft, which left no
+// way to take a test event or a mistake off a live calendar: cancelling keeps
+// the event in every feed, marked cancelled, for good.
+//
+// A deleted event simply stops appearing in the feeds. A subscribed calendar
+// mirrors its feed, so it drops the event on its next refresh. Nobody is told
+// it was called off; an editor who wants that cancels the event instead.
+func (s *Store) DeleteSeries(ctx context.Context, id string) (DeletedSeries, error) {
+	var deleted DeletedSeries
+	err := s.pool.QueryRow(ctx, `
+		DELETE FROM event_series WHERE id = $1 RETURNING title, state::text
+	`, id).Scan(&deleted.Title, &deleted.State)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return DeletedSeries{}, ErrNotFound
 	}
-	if tag.RowsAffected() == 0 {
-		return ErrConflict
-	}
-	return nil
+	return deleted, err
 }
 
 func (s *Store) UpsertOverride(ctx context.Context, override model.EventOverride, expectedSeriesSequence int) (model.EventOverride, error) {

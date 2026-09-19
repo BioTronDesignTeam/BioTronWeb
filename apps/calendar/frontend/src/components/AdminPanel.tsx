@@ -1,5 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { localDate, timeOfDayLabel } from '../date';
+import { deleteConfirmation } from '../deleteCopy';
 import type { EventSeries, Scope } from '../types';
 import { ConfirmDialog, PromptDialog } from './ConfirmDialog';
 
@@ -48,7 +49,7 @@ function stateStyle(state: EventSeries['state']) {
 // anything else guaranteed a 409 and a generic conflict banner.
 function deleteBlockedReason(scope: Scope) {
   if (scope.kind === 'TEAM') return 'the team root cannot be deleted';
-  if (scope.event_count > 0) return 'it still has event history — archive it instead';
+  if (scope.event_count > 0) return 'it still has events. Delete them first, or archive it instead';
   if (scope.child_count > 0) return 'it still has subteams';
   return '';
 }
@@ -112,9 +113,7 @@ export function AdminPanel(props: AdminPanelProps) {
             destructive: true,
           }, () => props.onCancelEvent(event))}
           onDelete={(event) => confirmThen({
-            title: 'Delete this draft?',
-            message: `"${event.title}" has never been published, so nothing has it yet. Deleting it cannot be undone.`,
-            confirmLabel: 'Delete draft',
+            ...deleteConfirmation(event.title, event.state !== 'DRAFT', Boolean(event.recurrence_until)),
             destructive: true,
           }, () => props.onDeleteEvent(event))}
         />
@@ -210,7 +209,7 @@ function EventList({ events, onEdit, onPublish, onCancel, onDelete }: {
                 <h2 className="truncate font-semibold">{event.title}</h2>
                 <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${stateStyle(event.state)}`}>{event.state.toLowerCase()}</span>
               </div>
-              <p className="mt-1 text-sm text-ink/60 dark:text-muted">
+              <p className="mt-1 break-words text-sm text-ink/60 dark:text-muted">
                 {event.scope_path} · {localDate(event.starts_at_local)} at {timeOfDayLabel(event.starts_at_local)}
                 {event.recurrence_until ? ` · weekly through ${localDate(event.recurrence_until)}` : ''}
               </p>
@@ -219,7 +218,8 @@ function EventList({ events, onEdit, onPublish, onCancel, onDelete }: {
               <button type="button" onClick={() => onEdit(event)} className="min-h-11 rounded-full border border-ink/15 px-4 text-sm font-semibold hover:bg-soft/25 dark:border-line-strong dark:hover:bg-white/10">Edit</button>
               {event.state !== 'PUBLISHED' && <button type="button" onClick={() => void onPublish(event)} className="min-h-11 rounded-full bg-deep px-4 text-sm font-semibold text-white hover:bg-brand dark:bg-brand dark:hover:brightness-110">{event.state === 'CANCELLED' ? 'Republish' : 'Publish'}</button>}
               {event.state === 'PUBLISHED' && <button type="button" onClick={() => onCancel(event)} className={destructiveEventClass}>Cancel series</button>}
-              {event.state === 'DRAFT' && <button type="button" onClick={() => onDelete(event)} className={destructiveEventClass}>Delete</button>}
+              {/* Any event can be deleted, not only a draft: a test event or a mistake has to be removable from a live calendar. */}
+              <button type="button" onClick={() => onDelete(event)} className={destructiveEventClass}>Delete</button>
             </div>
           </article>
         ))}

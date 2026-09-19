@@ -46,7 +46,7 @@ function EventButton({ occurrence, onClick, compact = false }: { occurrence: Occ
   const tone = eventTone(occurrence);
   const hover = useEventHover();
   return (
-    <button type="button" onClick={onClick} {...hover(occurrence)} className={`pointer-events-auto w-full border-l-[3px] text-left hover:brightness-95 dark:hover:brightness-110 ${tone} ${compact ? 'rounded-md px-2 py-1.5' : 'min-h-11 rounded-xl px-3 py-3'}`}>
+    <button type="button" onClick={onClick} {...hover(occurrence)} className={`w-full border-l-[3px] text-left hover:brightness-95 dark:hover:brightness-110 ${tone} ${compact ? 'rounded-md px-2 py-1.5' : 'min-h-11 rounded-xl px-3 py-3'}`}>
       <span className={`block truncate font-semibold ${compact ? 'text-xs' : 'text-sm'}`}>{occurrence.title}</span>
       <span className={`mt-0.5 block truncate text-ink/65 dark:text-muted ${compact ? 'text-[11px]' : 'text-xs'}`}>
         {timeLabel(occurrence.starts_at, occurrence.all_day)}{compact ? '' : ` · ${occurrence.scope_path}`}
@@ -93,6 +93,7 @@ function CalendarViews(props: PublicCalendarProps) {
   // The month the agenda takes as read, so it labels only the days outside it.
   const currentMonth = (view === 'month' ? anchor : days[0]).getUTCMonth();
   const today = todayKey();
+  const createAllDay = (day: Date) => props.onCreate?.({ startsAt: `${dateKey(day)}T00:00`, endsAt: `${dateKey(addDays(day, 1))}T00:00`, allDay: true });
 
   const grouped = useMemo(() => {
     const byDay = new Map<string, Occurrence[]>();
@@ -150,13 +151,20 @@ function CalendarViews(props: PublicCalendarProps) {
                     <button
                       type="button"
                       aria-label={`Create an event on ${dayLabel(key, true)}`}
-                      onClick={() => props.onCreate?.({ startsAt: `${key}T00:00`, endsAt: `${dateKey(addDays(day, 1))}T00:00`, allDay: true })}
+                      onClick={() => createAllDay(day)}
                       className="absolute inset-0 hover:bg-soft/15 dark:hover:bg-white/[0.03]"
                     />
                   )}
                   <button type="button" onClick={() => props.onOpenDay(day)} aria-label={`Open ${key}`} className={`relative mb-1 grid size-7 shrink-0 place-items-center rounded-full text-xs font-semibold ${key === today ? 'bg-deep text-white dark:bg-brand' : 'hover:bg-soft/30 dark:hover:bg-white/10'}`}>{day.getUTCDate()}</button>
-                  {/* The list lets clicks on its empty space fall through to the create target. */}
-                  <div className="pointer-events-none relative min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-1">
+                  {/* The list has to take the pointer, or the wheel never reaches it
+                      and a busy day cannot be scrolled. So it cannot let clicks fall
+                      through to the create target; a click on its own empty space
+                      starts the event instead. */}
+                  {/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- the create button above is the keyboard path */}
+                  <div
+                    className="relative min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-1"
+                    onClick={(event) => { if (event.target === event.currentTarget) createAllDay(day); }}
+                  >
                     {events.map((occurrence) => <EventButton key={`${occurrence.series_id}-${occurrence.recurrence_id_local}`} occurrence={occurrence} compact onClick={() => props.onSelectEvent(occurrence)} />)}
                   </div>
                 </div>

@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ArrowUpRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { gsap, useGSAP } from '../lib/gsap';
@@ -15,6 +15,24 @@ export default function RoomPopup() {
   const activeStop = useScene((s) => s.activeStop);
   const ready = useScene((s) => s.ready);
   const wrap = useRef<HTMLDivElement>(null);
+  const card = useRef<HTMLElement>(null);
+  const [overflowing, setOverflowing] = useState(false);
+
+  // The card scrolls inside itself when a short window cannot fit it (see
+  // .popup-card in ui.css). Lenis owns the wheel for the whole page, so a card
+  // that scrolls has to opt out with data-lenis-prevent. But only then: a card
+  // that fits must leave the wheel to Lenis, or scrolling over it would stop
+  // advancing the tour.
+  useEffect(() => {
+    // Each stop draws a different card, so this runs again when the stop changes.
+    const element = ready && activeStop ? card.current : null;
+    if (!element) return;
+    const measure = () => setOverflowing(element.scrollHeight > element.clientHeight + 1);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [activeStop, ready]);
 
   useGSAP(
     () => {
@@ -40,7 +58,7 @@ export default function RoomPopup() {
       aria-live="polite"
     >
       {activeStop === 'about' ? (
-        <article className="glass popup-card">
+        <article className="glass popup-card" ref={card} data-lenis-prevent={overflowing ? '' : undefined}>
           <span className="mono-label">00 / About</span>
           <h2 className="popup-title">Solving biomedical problems with mechatronic solutions.</h2>
           <p className="popup-body">
@@ -59,7 +77,7 @@ export default function RoomPopup() {
           </div>
         </article>
       ) : project ? (
-        <article className="glass popup-card">
+        <article className="glass popup-card" ref={card} data-lenis-prevent={overflowing ? '' : undefined}>
           <span className="mono-label">{project.status}</span>
           <h2 className="popup-title">{project.name}</h2>
           <p className="popup-tagline">

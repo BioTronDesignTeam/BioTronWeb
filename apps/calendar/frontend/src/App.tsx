@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { calendarApi } from './api';
+import { deleteConfirmation } from './deleteCopy';
 import { fullDateTimeLabel, stepAnchor, todayAnchor, viewRange, type CalendarView } from './date';
 import type { AuthStatus, EventPayload, EventSeries, Occurrence, Scope } from './types';
 import { AdminPanel } from './components/AdminPanel';
@@ -39,6 +40,7 @@ export function App() {
   // Set when the new event came from a click on a slot, which fixes where it starts.
   const [eventDraft, setEventDraft] = useState<EventDraft>();
   const [cancellingSeries, setCancellingSeries] = useState<Occurrence>();
+  const [deletingSeries, setDeletingSeries] = useState<Occurrence>();
   const [editingOccurrence, setEditingOccurrence] = useState<{ occurrence: Occurrence; series: EventSeries }>();
   const [cancellingOccurrence, setCancellingOccurrence] = useState<Occurrence>();
   const [eventActionError, setEventActionError] = useState('');
@@ -214,8 +216,9 @@ export function App() {
   };
 
   return (
-    // The calendar view fills the window and never scrolls as a page. The
-    // Manage view is a long document, so it scrolls the usual way.
+    // The calendar view fills the window and never scrolls as a page, so every
+    // region inside it must scroll on its own. The Manage view is a long
+    // document and scrolls the usual way.
     <div className={`bg-white text-ink dark:bg-page dark:text-white ${showingAdmin ? 'min-h-dvh' : 'flex h-dvh flex-col overflow-hidden'}`}>
       <Header
         auth={auth} managing={managing} onPublic={() => setManaging(false)} onLoggedOut={() => { setAuth({ can_write: false }); setManaging(false); }}
@@ -250,7 +253,7 @@ export function App() {
       )}
 
       {showSubscribe && <SubscribePanel scopes={scopes} onClose={() => setShowSubscribe(false)} />}
-      {selectedOccurrence && <EventDetails occurrence={selectedOccurrence} canWrite={auth.can_write} error={eventActionError} onClose={() => { setEventActionError(''); setSelectedOccurrence(undefined); }} onEditSeries={() => void openEditor(selectedOccurrence, 'series')} onEditOccurrence={() => void openEditor(selectedOccurrence, 'occurrence')} onCancelOccurrence={() => setCancellingOccurrence(selectedOccurrence)} onCancelSeries={() => setCancellingSeries(selectedOccurrence)} />}
+      {selectedOccurrence && <EventDetails occurrence={selectedOccurrence} canWrite={auth.can_write} error={eventActionError} onClose={() => { setEventActionError(''); setSelectedOccurrence(undefined); }} onEditSeries={() => void openEditor(selectedOccurrence, 'series')} onEditOccurrence={() => void openEditor(selectedOccurrence, 'occurrence')} onCancelOccurrence={() => setCancellingOccurrence(selectedOccurrence)} onCancelSeries={() => setCancellingSeries(selectedOccurrence)} onDeleteSeries={() => setDeletingSeries(selectedOccurrence)} />}
       {cancellingOccurrence && (
         <ConfirmDialog
           title="Cancel this occurrence?"
@@ -279,6 +282,20 @@ export function App() {
             const occurrence = cancellingSeries;
             const success = await mutate(() => calendarApi.cancelEvent(occurrence.series_id, occurrence.series_sequence), true);
             setCancellingSeries(undefined);
+            if (success) setSelectedOccurrence(undefined);
+          }}
+        />
+      )}
+      {deletingSeries && (
+        <ConfirmDialog
+          // Only a published or cancelled event reaches the calendar grid, so this is never the draft wording.
+          {...deleteConfirmation(deletingSeries.title, true, deletingSeries.recurring)}
+          destructive
+          onCancel={() => setDeletingSeries(undefined)}
+          onConfirm={async () => {
+            const occurrence = deletingSeries;
+            const success = await mutate(() => calendarApi.deleteEvent(occurrence.series_id), true);
+            setDeletingSeries(undefined);
             if (success) setSelectedOccurrence(undefined);
           }}
         />

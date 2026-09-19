@@ -47,7 +47,7 @@ export function SubscribePanel({ scopes, onClose }: SubscribePanelProps) {
       <div className="rounded-2xl border border-ink/10 p-4 dark:border-line">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <div className="min-w-0 flex-1">
-            <p className="font-semibold">{label}</p>
+            <p className="break-words font-semibold">{label}</p>
             <p className="mt-1 text-sm text-ink/60 dark:text-muted">{detail}</p>
           </div>
           <div className="flex gap-2">

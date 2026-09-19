@@ -111,7 +111,7 @@ export function Sidebar({ open, view, anchor, onStep, viewSwitch, onManage, scop
         <div className="-mx-2 min-h-0 flex-1 overflow-y-auto px-2">
           <ScopeFilter scopes={scopes} selected={selectedScopes} onChange={onScopeChange} />
         </div>
-        <div className="flex shrink-0 flex-col gap-2">
+        <div className="flex max-h-full shrink-0 flex-col gap-2 overflow-y-auto">
           <button type="button" onClick={onSubscribe} className="min-h-11 shrink-0 whitespace-nowrap rounded-full bg-deep px-5 text-sm font-semibold text-white hover:bg-brand dark:bg-brand dark:hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:focus-visible:outline-link">
             Subscribe to a calendar
           </button>
