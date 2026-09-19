@@ -210,7 +210,7 @@ h1, h2, h3, h4, p { margin-top: 0; }
   gap: 8px;
   min-height: 28px;
 }
-.group__name, .component__name { margin: 0; font-size: .875rem; font-weight: 500; line-height: 1.45; }
+.group__name, .component__name { min-width: 0; margin: 0; font-size: .875rem; font-weight: 500; line-height: 1.45; overflow-wrap: anywhere; }
 .row__uptime {
   margin-left: auto;
   color: var(--logger-muted-soft);
@@ -267,7 +267,7 @@ h1, h2, h3, h4, p { margin-top: 0; }
 }
 .info-tip__trigger:hover, .info-tip__trigger:focus-visible { color: var(--logger-muted); }
 .info-tip__trigger:focus-visible { outline: 2px solid var(--logger-accent); outline-offset: 1px; }
-.info-tip__bubble { display: none; top: calc(100% + 4px); left: 50%; width: max-content; max-width: min(280px, 70vw); transform: translateX(-50%); padding: 8px 10px; color: var(--logger-text); font-size: .8125rem; line-height: 1.4; }
+.info-tip__bubble { display: none; top: calc(100% + 4px); left: 50%; width: max-content; max-width: min(280px, 70vw); overflow-wrap: anywhere; transform: translateX(-50%); padding: 8px 10px; color: var(--logger-text); font-size: .8125rem; line-height: 1.4; }
 .info-tip:hover .info-tip__bubble, .info-tip:focus-within .info-tip__bubble { display: block; }
 
 /* Popover: the little card the bars and the info tips open. -------------- */
@@ -384,6 +384,7 @@ h1, h2, h3, h4, p { margin-top: 0; }
 .incident--down { --rail-tone: var(--status-down); }
 .incident__body { display: flex; flex: 1; flex-direction: column; gap: 4px; min-width: 0; padding-right: 12px; }
 .incident__title { display: flex; justify-content: space-between; gap: 12px; font-weight: 500; }
+.incident__title span { min-width: 0; overflow-wrap: anywhere; }
 .incident__uptime { flex: 0 0 auto; color: var(--logger-muted-soft); font-size: .75rem; font-weight: 500; font-variant-numeric: tabular-nums; padding-top: 2px; }
 .incident__detail { display: flex; align-items: flex-start; gap: 8px; margin: 0; color: var(--logger-muted); }
 .incident__detail .status-icon { margin-top: 2px; }
@@ -410,7 +411,10 @@ h1, h2, h3, h4, p { margin-top: 0; }
 .component-tile { min-width: 0; padding: 18px; border: 1px solid var(--logger-border); border-radius: 12px; background: var(--logger-surface); }
 .component-tile div { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; margin-bottom: 11px; font-size: .85rem; }
 .component-tile > span, .component-tile small { display: block; }
-.component-tile > span { overflow: hidden; margin-bottom: 5px; color: var(--logger-muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .72rem; text-overflow: ellipsis; white-space: nowrap; }
+/* The detail is why a component is down, such as a failed lookup. It used to
+   sit on one line cut with an ellipsis, with no tooltip and no scroll, so the
+   reason could not be read. It wraps instead. */
+.component-tile > span { margin-bottom: 5px; color: var(--logger-muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .72rem; overflow-wrap: anywhere; }
 .component-tile small { color: var(--logger-muted); font-size: .7rem; }
 
 .logs-panel { border-top: 1px solid var(--logger-border); padding-top: 30px; }
@@ -445,13 +449,13 @@ h1, h2, h3, h4, p { margin-top: 0; }
 .log-level--info { color: var(--logger-info); }
 .log-level--warning { color: var(--logger-warning); }
 .log-level--error { color: var(--logger-danger); }
-.service-name { color: var(--logger-muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .7rem; }
+.service-name { min-width: 0; overflow-wrap: anywhere; color: var(--logger-muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .7rem; }
 .log-row > p { margin: 0; color: var(--logger-text); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; line-height: 1.55; overflow-wrap: anywhere; }
 .log-row details { margin-top: 12px; }
 .log-row summary { min-height: 30px; color: var(--logger-muted); cursor: pointer; font-size: .7rem; }
 .log-row pre { overflow: auto; max-height: 320px; margin: 10px 0 0; padding: 12px; border-radius: 7px; background: var(--logger-surface-deep); color: var(--logger-muted); font-size: .7rem; line-height: 1.5; }
 .stream-loading, .inline-error, .empty-state { padding: 30px; text-align: center; color: var(--logger-muted); font-size: .8rem; }
-.inline-error { padding: 14px 16px; border: 1px solid color-mix(in srgb, var(--logger-danger) 45%, var(--logger-border)); border-radius: 8px; color: var(--logger-danger); }
+.inline-error { overflow-wrap: anywhere; padding: 14px 16px; border: 1px solid color-mix(in srgb, var(--logger-danger) 45%, var(--logger-border)); border-radius: 8px; color: var(--logger-danger); }
 .log-stream .inline-error { border: 0; }
 .empty-state strong, .empty-state span { display: block; }
 .empty-state strong { margin-bottom: 7px; color: var(--logger-text); }
