@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowUpRight, CalendarDays } from 'lucide-react';
+import { ArrowUpRight, CalendarDays, Clock, MapPin } from 'lucide-react';
 import PageMeta from '../components/PageMeta';
 
 /**
@@ -10,12 +10,9 @@ import PageMeta from '../components/PageMeta';
 interface CalendarOccurrence {
   series_id: string;
   recurrence_id_local: string;
-  scope_path: string;
   title: string;
-  description: string;
   location: string;
   starts_at: string;
-  ends_at: string;
   all_day: boolean;
 }
 
@@ -40,26 +37,14 @@ const TIME_FORMAT = new Intl.DateTimeFormat('en-CA', {
   minute: '2-digit',
 });
 
-function eventDate(occurrence: CalendarOccurrence) {
-  return DATE_FORMAT.format(new Date(occurrence.starts_at));
+/** The weekday, the day of the month, and the month, as the card's date block stacks them. */
+function eventDay(occurrence: CalendarOccurrence) {
+  const parts = Object.fromEntries(DATE_FORMAT.formatToParts(new Date(occurrence.starts_at)).map((part) => [part.type, part.value]));
+  return { weekday: parts.weekday, day: parts.day, month: parts.month };
 }
 
-/**
- * Drops the repeated meridiem from a range inside one half of the day, so
- * "6:00 PM to 8:30 PM" reads "6:00 to 8:30 PM". The row puts the date and the
- * time on one line, and the shorter form keeps that line off the title.
- */
-function eventTime(occurrence: CalendarOccurrence) {
-  if (occurrence.all_day) return 'All day';
-  const from = TIME_FORMAT.format(new Date(occurrence.starts_at));
-  const to = TIME_FORMAT.format(new Date(occurrence.ends_at));
-  const meridiem = from.slice(-2);
-  if (meridiem === to.slice(-2)) return `${from.slice(0, -3)} to ${to}`;
-  return `${from} to ${to}`;
-}
-
-function eventWhen(occurrence: CalendarOccurrence) {
-  return `${eventDate(occurrence)} \u00b7 ${eventTime(occurrence)}`;
+function eventStart(occurrence: CalendarOccurrence) {
+  return occurrence.all_day ? 'All day' : TIME_FORMAT.format(new Date(occurrence.starts_at));
 }
 
 function isTimestamp(value: unknown): value is string {
@@ -72,13 +57,10 @@ function isOccurrence(value: unknown): value is CalendarOccurrence {
   return (
     typeof candidate.series_id === 'string' &&
     typeof candidate.recurrence_id_local === 'string' &&
-    typeof candidate.scope_path === 'string' &&
     typeof candidate.title === 'string' &&
-    typeof candidate.description === 'string' &&
     typeof candidate.location === 'string' &&
     typeof candidate.all_day === 'boolean' &&
-    isTimestamp(candidate.starts_at) &&
-    isTimestamp(candidate.ends_at)
+    isTimestamp(candidate.starts_at)
   );
 }
 
@@ -175,19 +157,32 @@ export default function CalendarPage() {
           )}
           {!loading && !error && events.length > 0 && (
             <ol className="calendarpage__events">
-              {events.map((event) => (
-                <li key={`${event.series_id}-${event.recurrence_id_local}`} className="calendarpage__event">
-                  <h3 className="calendarpage__title">
-                    {event.title}
-                    <span className="calendarpage__scope">{event.scope_path}</span>
-                  </h3>
-                  <time dateTime={event.starts_at} className="calendarpage__when">
-                    {eventWhen(event)}
-                  </time>
-                  <p className="calendarpage__desc">{event.description}</p>
-                  <span className="calendarpage__where">{event.location}</span>
-                </li>
-              ))}
+              {events.map((event) => {
+                const day = eventDay(event);
+                return (
+                  // A card carries four things: the title, the day, the start time, and the place.
+                  <li key={`${event.series_id}-${event.recurrence_id_local}`} className="calendarpage__event">
+                    <time dateTime={event.starts_at} className="calendarpage__date">
+                      <span className="calendarpage__weekday">{day.weekday}</span>
+                      <span className="calendarpage__day tabular">{day.day}</span>
+                      <span className="calendarpage__month">{day.month}</span>
+                    </time>
+                    <div className="calendarpage__body">
+                      <h3 className="calendarpage__title">{event.title}</h3>
+                      <p className="calendarpage__meta">
+                        <Clock size={14} aria-hidden="true" />
+                        {eventStart(event)}
+                      </p>
+                      {event.location && (
+                        <p className="calendarpage__meta">
+                          <MapPin size={14} aria-hidden="true" />
+                          {event.location}
+                        </p>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
             </ol>
           )}
         </section>

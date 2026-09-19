@@ -826,62 +826,74 @@
   text-transform: uppercase;
 }
 .calendarpage__events {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+  gap: 0.75rem;
   margin: 0;
-  padding: 0;
+  padding: 1.25rem;
   list-style: none;
 }
-/* Two rows: title and time above, description and location below. The right
-   column sizes to its own text so the title keeps the rest of the width. */
+/* One card for each event: a date block, then the title over the start time and the place. */
 .calendarpage__event {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0.4rem 1.25rem;
-  padding: 1.15rem 1.5rem;
-  border-bottom: 1px solid var(--border);
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--glass);
 }
-.calendarpage__event:last-child {
-  border-bottom: 0;
+.calendarpage__date {
+  display: flex;
+  width: 3.75rem;
+  flex-shrink: 0;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.5rem 0;
+  border-radius: var(--r-sm);
+  background: var(--accent);
+  color: var(--accent-readable);
+  line-height: 1.1;
+}
+.calendarpage__weekday,
+.calendarpage__month {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.calendarpage__day {
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  font-weight: 600;
+}
+.calendarpage__body {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.25rem;
 }
 .calendarpage__title {
-  min-width: 0;
-  font-size: var(--fs-base);
-}
-.calendarpage__scope {
-  display: inline-block;
-  margin-left: 0.65rem;
-  padding: 0.18rem 0.48rem;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--r-pill);
-  color: var(--text-muted);
-  font-size: 0.68rem;
-  vertical-align: 0.08rem;
-  white-space: nowrap;
-}
-.calendarpage__when,
-.calendarpage__where {
-  color: var(--accent-secondary);
-  font-family: var(--font-mono);
-  font-size: 0.72rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-align: right;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-.calendarpage__where {
-  color: var(--text-faint);
-  font-weight: 500;
-}
-/* One line, cut with an ellipsis. min-width:0 lets the grid track shrink,
-   which is what makes the overflow rules take effect at all. */
-.calendarpage__desc {
-  min-width: 0;
   overflow: hidden;
+  font-size: var(--fs-base);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.calendarpage__meta {
+  display: flex;
+  min-width: 0;
+  /* A long place name wraps, and the icon stays beside its first line. */
+  align-items: flex-start;
+  gap: 0.4rem;
   margin: 0;
   color: var(--text-muted);
   font-size: var(--fs-sm);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+}
+.calendarpage__meta svg {
+  flex-shrink: 0;
+  margin-top: 0.22rem;
+  color: var(--text-faint);
 }
 .calendarpage__status {
   padding: 3rem 1.5rem;
@@ -911,14 +923,6 @@
   .calendarpage__upcoming-head {
     align-items: start;
     flex-direction: column;
-  }
-  .calendarpage__event {
-    grid-template-columns: 1fr;
-    gap: 0.35rem;
-  }
-  .calendarpage__when,
-  .calendarpage__where {
-    text-align: left;
   }
 }
 
