@@ -17,6 +17,8 @@ export const SPONSORS: Sponsor[] = [
   { name: 'Notion' },
   { name: 'Kenesto' },
   { name: 'Altium', logo: { src: altiumLogo, width: 743, height: 163, kind: 'wordmark' } },
+  { name: 'ODrive' },
+  { name: 'Ansys' },
 ];
 
 export const SPONSORSHIP_AREAS = [

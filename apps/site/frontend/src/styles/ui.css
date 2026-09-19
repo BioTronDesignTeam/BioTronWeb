@@ -478,7 +478,7 @@
   display: inline-flex;
   gap: 3.5rem;
   white-space: nowrap;
-  animation: marquee 74s linear infinite;
+  animation: marquee 97s linear infinite;
 }
 .sponsors__item {
   display: inline-flex;
