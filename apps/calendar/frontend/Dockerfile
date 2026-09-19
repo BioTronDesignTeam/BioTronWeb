@@ -12,10 +12,8 @@ WORKDIR /repo
 
 ARG VITE_API_URL
 ARG VITE_AUTH_URL
-ARG VITE_SITE_URL
 ENV VITE_API_URL=${VITE_API_URL}
 ENV VITE_AUTH_URL=${VITE_AUTH_URL}
-ENV VITE_SITE_URL=${VITE_SITE_URL}
 
 COPY package.json package-lock.json ./
 COPY packages/style/package.json packages/style/

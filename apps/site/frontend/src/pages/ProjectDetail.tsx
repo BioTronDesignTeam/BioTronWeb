@@ -1,7 +1,7 @@
 import { Suspense, lazy } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, ArrowUpRight, Rotate3d } from 'lucide-react';
-import { getProject, PROJECTS, CONTACT } from '../data/projects';
+import { getProject, PROJECTS } from '../data/projects';
 import Reveal from '../components/Reveal';
 import SplitText from '../components/SplitText';
 import ModelFallback from '../components/ModelFallback';
@@ -24,7 +24,7 @@ export default function ProjectDetail() {
 
   return (
     <main id="main" className="detail" style={{ ['--card-accent' as string]: project.accentHex }}>
-      <PageMeta title={`${project.name} | Biotron`} description={project.blurb} />
+      <PageMeta path={`/projects/${project.slug}`} />
       <div className="container detail__top">
         <Link to="/projects" className="detail__back">
           <ArrowLeft size={16} /> All projects
@@ -79,15 +79,15 @@ export default function ProjectDetail() {
 
         <aside className="detail__side">
           <Reveal className="detail__sidecard glass">
-            <h3 className="detail__sidehead">Sub-teams involved</h3>
+            <h2 className="detail__sidehead">Sub-teams involved</h2>
             <ul className="detail__teamlist">
               {project.team.map((t) => (
                 <li key={t}>{t}</li>
               ))}
             </ul>
-            <a href={`mailto:${CONTACT.email}?subject=${project.name}`} className="detail__sidecta">
+            <Link to="/join" className="detail__sidecta">
               Get involved <ArrowUpRight size={16} />
-            </a>
+            </Link>
           </Reveal>
         </aside>
       </section>

@@ -1,0 +1,197 @@
+#!/usr/bin/env bash
+# Local counterpart to .github/workflows/ci.yml; dependencies live in the devcontainer.
+set -euo pipefail
+
+usage() {
+  cat <<'USAGE'
+Usage: ./pr-precheck [--base REF] [--all] [--plan]
+
+Run CI's build, lint, test, secret, and vulnerability checks locally.
+Includes committed, staged, unstaged, and untracked nonignored changes.
+
+  --base REF  Compare with this local ref (default: origin/main, then main)
+  --all       Check every app and the shared Go client
+  --plan      Show selected checks without running or installing anything
+  --help      Show this help
+
+Use the devcontainer for Node, Go, golangci-lint, TruffleHog, Trivy, and jq.
+Security scans always run and require network access for live verification.
+No fetching, commits, pushes, migrations, or services are started.
+USAGE
+}
+
+base='' all=false plan=false scratch=''
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --help|-h) usage; exit 0 ;;
+    --all) all=true; shift ;;
+    --plan) plan=true; shift ;;
+    --base)
+      if [[ $# -lt 2 || "$2" == -* ]]; then echo '--base needs a local branch or commit' >&2; exit 1; fi
+      base=$2; shift 2 ;;
+    *) echo "Unknown option: $1" >&2; exit 1 ;;
+  esac
+done
+
+root=$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)
+cd "$root"
+root=$(pwd -P)
+if [[ -n $(git ls-files --unmerged) ]]; then
+  echo 'Resolve merge conflicts before running precheck' >&2; exit 1
+fi
+if [[ -z $base ]]; then
+  for ref in origin/main main; do
+    if git rev-parse --verify --quiet "$ref^{commit}" >/dev/null; then base=$ref; break; fi
+  done
+  if [[ -z $base ]]; then echo 'No local origin/main or main found; pass --base REF' >&2; exit 1; fi
+fi
+base_commit=$(git rev-parse --verify --end-of-options "$base^{commit}")
+head_commit=$(git rev-parse HEAD)
+merge_base=$(git merge-base "$base_commit" "$head_commit")
+
+scratch=$(mktemp -d "${TMPDIR:-/tmp}/biotron-pr-precheck.XXXXXX")
+trap 'rm -rf "$scratch"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+# NUL delimiters preserve spaces, newlines, and both sides of renames.
+{
+  git diff --name-only --no-renames -z "$merge_base" --
+  git diff --cached --name-only --no-renames -z --
+  git ls-files --others --exclude-standard -z
+} > "$scratch/changed"
+
+apps='site calendar logger auth exo sprinter'
+frontends='' backends='' touched='' all_frontends=$all all_backends=$all
+while IFS= read -r -d '' file; do
+  case "$file" in
+    pr-precheck|.devcontainer/*|.github/workflows/ci.yml) all_frontends=true; all_backends=true ;;
+    packages/style/*|package.json|package-lock.json|tsconfig.base.json|.oxlintrc.json) all_frontends=true ;;
+    go/*|go.work|go.work.sum|.golangci.yml) all_backends=true ;;
+    apps/*) app=${file#apps/}; touched="$touched ${app%%/*}" ;;
+  esac
+done < "$scratch/changed"
+for app in $apps; do
+  if $all_frontends || [[ " $touched " == *" $app "* ]]; then frontends="${frontends:+$frontends }$app"; fi
+  if [[ $app != site ]] && { $all_backends || [[ " $touched " == *" $app "* ]]; }; then backends="${backends:+$backends }$app"; fi
+done
+logclient=no
+if $all_backends; then logclient=yes; fi
+printf 'Base: %s (merge base %.12s)\nFrontends: %s\nBackends: %s\nLog client: %s\n' "$base" "$merge_base" "${frontends:-none}" "${backends:-none}" "$logclient"
+echo 'Security: commit history, staged and working files, vulnerabilities and misconfigurations'
+if $plan; then exit 0; fi
+
+required='trufflehog trivy jq'
+if [[ -n $frontends ]]; then required="$required npm"; fi
+if [[ -n $backends || $logclient == yes ]]; then required="$required go golangci-lint"; fi
+missing=''
+for tool in $required; do
+  if ! command -v "$tool" >/dev/null 2>&1; then missing="$missing $tool"; fi
+done
+if [[ -n $missing ]]; then
+  echo "Missing tools:$missing. Rebuild/reopen the devcontainer and try again." >&2; exit 1
+fi
+
+# Freeze scan inputs before builds. Never traverse symlinks into ignored files.
+copy_working_file() {
+  local destination=$1 file=$2 parent=$2 source="$root/$2"
+  while [[ $parent == */* ]]; do
+    parent=${parent%/*}
+    if [[ -L "$root/$parent" ]]; then return 0; fi
+  done
+  if [[ -L $source ]]; then
+    mkdir -p "$(dirname "$destination/$file")"
+    readlink "$source" > "$destination/$file"
+  elif [[ -f $source ]]; then
+    mkdir -p "$(dirname "$destination/$file")"
+    cp "$source" "$destination/$file"
+  fi
+}
+visible_files=()
+is_visible() {
+  local candidate
+  for candidate in "${visible_files[@]:-}"; do
+    if [[ $candidate == "$1" ]]; then return 0; fi
+  done
+  return 1
+}
+mkdir "$scratch/working" "$scratch/pending" "$scratch/staged"
+git ls-files --cached --others --exclude-standard -z > "$scratch/visible"
+while IFS= read -r -d '' file; do
+  visible_files+=("$file")
+  copy_working_file "$scratch/working" "$file"
+done < "$scratch/visible"
+while IFS= read -r -d '' file; do
+  # A file removed from the index may now be ignored, even if it still exists.
+  if is_visible "$file"; then copy_working_file "$scratch/pending" "$file"; fi
+done < "$scratch/changed"
+git diff --cached --name-only --no-renames --diff-filter=ACMRT -z -- > "$scratch/index-changes"
+while IFS= read -r -d '' file; do
+  mkdir -p "$(dirname "$scratch/staged/$file")"
+  git show ":$file" > "$scratch/staged/$file"
+done < "$scratch/index-changes"
+
+checks=0 failures=0 failed_checks='' last_passed=true
+run() {
+  local label=$1
+  shift
+  checks=$((checks + 1))
+  printf '\n== %s\n' "$label"
+  if "$@"; then
+    echo "PASS $label"; last_passed=true
+  else
+    echo "FAIL $label"; last_passed=false
+    failures=$((failures + 1)); failed_checks="$failed_checks\n  $label"
+  fi
+}
+in_directory() { local directory=$1; shift; (cd "$directory" && "$@"); }
+scan_secrets() {
+  local scan_status=0 count
+  # Scanner output contains raw credentials. Keep it private and print only
+  # detector/location metadata; EXIT/INT/TERM cleanup removes the raw files.
+  trufflehog "$@" --results=verified,unknown --fail --fail-on-scan-errors \
+    --no-update --json --log-level=-1 > "$scratch/secret-results" 2> "$scratch/secret-errors" || scan_status=$?
+  if ! jq -e -s 'all(.[]; type == "object" and (.DetectorName | type == "string"))' "$scratch/secret-results" >/dev/null 2>&1; then
+    echo 'Secret scan returned invalid output; raw output is withheld.' >&2; return 1
+  fi
+  count=$(jq -s 'length' "$scratch/secret-results")
+  jq -r --arg prefix "$scratch/" '
+    "  \(.DetectorName | @json) (\(if .Verified then "verified" else "verification failed" end)) at \((.SourceMetadata.Data.Git.file // .SourceMetadata.Data.Filesystem.file // "") | ltrimstr($prefix) | @json)"
+  ' "$scratch/secret-results"
+  if [[ $scan_status -ne 0 && $count -eq 0 ]]; then
+    echo 'Secret scan failed. Check repository/network access and scanner installation; raw output is withheld.' >&2
+  fi
+  [[ $scan_status -eq 0 && $count -eq 0 ]]
+}
+
+if [[ -n $frontends ]]; then
+  run 'npm dependencies' npm ci --ignore-scripts
+  if $last_passed; then
+    run 'shared style build' npm run build -w packages/style
+    style_built=$last_passed
+    for app in $frontends; do
+      if $style_built; then run "$app frontend build" npm run build -w "apps/$app/frontend"; fi
+      run "$app frontend lint" npm exec --no -- oxlint "apps/$app/frontend/src"
+    done
+    if ! $style_built; then echo 'SKIP app builds because the shared style build failed'; fi
+  else echo 'SKIP frontend checks because dependency installation failed'
+  fi
+fi
+modules=''
+for app in $backends; do modules="$modules apps/$app/backend"; done
+if [[ $logclient == yes ]]; then modules="$modules go/logclient"; fi
+for module in $modules; do
+  run "$module lint" in_directory "$root/$module" golangci-lint run ./...
+  run "$module vet" in_directory "$root/$module" go vet ./...
+  run "$module tests" in_directory "$root/$module" go test ./...
+done
+
+repo_url=$(jq -nr --arg root "$root" '"file://" + ($root | split("/") | map(@uri) | join("/"))')
+run 'commit secrets' scan_secrets git "$repo_url" --since-commit "$merge_base" --branch "$head_commit"
+run 'staged secrets' scan_secrets filesystem "$scratch/staged"
+run 'working secrets' scan_secrets filesystem "$scratch/pending"
+run 'vulnerabilities and misconfigurations' in_directory "$scratch/working" \
+  trivy fs --scanners vuln,misconfig --severity CRITICAL,HIGH --ignore-unfixed \
+  --exit-code 1 --ignorefile .trivyignore.yaml .
+
+printf '\n%d/%d checks passed.\n' "$((checks - failures))" "$checks"
+if [[ $failures -gt 0 ]]; then printf 'Failed:%b\n' "$failed_checks"; exit 1; fi

@@ -19,17 +19,21 @@ export default function Join({ showGuideLink = true }: JoinProps) {
           <SplitText
             as="h2"
             className="join__title"
-            text="Build biomechatronics with us."
+            text="Build Biotron with us."
             by="word"
             trigger
           />
           <Reveal delay={0.1}>
             <p className="join__lead">
               We welcome every discipline and experience level. Bring curiosity, commitment, and
-              a willingness to learn. Choose a sub-team:
+              a willingness to learn.
             </p>
           </Reveal>
         </div>
+
+        <Reveal delay={0.15}>
+          <h3 className="join__gridhead">The kind of work each sub-team does</h3>
+        </Reveal>
 
         <div className="join__grid">
           {SUBTEAMS.map((t, i) => (

@@ -6,6 +6,48 @@ import (
 	"testing"
 )
 
+func TestPublicBaseURLSharesTheBrowserAPIAddress(t *testing.T) {
+	for _, test := range []struct {
+		name        string
+		frontendURL string
+		apiURL      string
+		override    string
+		want        string
+	}{
+		{name: "local defaults", want: "http://localhost:8083"},
+		{name: "absolute API", apiURL: "https://calendar.example/api/", want: "https://calendar.example/api"},
+		{name: "relative production API", frontendURL: "https://calendar.uwbiotron.dev/", apiURL: "/api/", want: "https://calendar.uwbiotron.dev/api"},
+		{name: "relative local API", apiURL: "/api", want: "http://localhost:5176/api"},
+		{name: "explicit subscriber address", frontendURL: "https://calendar.example", apiURL: "/api", override: "https://feeds.example/calendar/", want: "https://feeds.example/calendar"},
+		{name: "legacy relative override", frontendURL: "https://calendar.example", apiURL: "/ignored", override: "/api", want: "https://calendar.example/api"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Setenv("FRONTEND_URL", test.frontendURL)
+			t.Setenv("VITE_API_URL", test.apiURL)
+			t.Setenv("PUBLIC_BASE_URL", test.override)
+			if got := Load().PublicBaseURL; got != test.want {
+				t.Fatalf("PublicBaseURL = %q, want %q", got, test.want)
+			}
+		})
+	}
+}
+
+func TestValidateRejectsInvalidFeedAddresses(t *testing.T) {
+	for _, address := range []string{"/api", "ftp://calendar.example", "https://", "https://calendar.example/api?token=secret", "https://calendar.example/api#feed", "https://user:pass@calendar.example/api"} { // trufflehog:ignore: made-up addresses the validator must reject
+		t.Run(address, func(t *testing.T) {
+			config := Config{
+				DatabaseURL:     "postgresql://localhost/calendar",
+				PublicBaseURL:   address,
+				MaxRangeDays:    370,
+				DefaultTimezone: "America/Toronto",
+			}
+			if err := config.Validate(); err == nil || !strings.Contains(err.Error(), "API address") {
+				t.Fatalf("Validate() = %v, want an invalid API address error", err)
+			}
+		})
+	}
+}
+
 func TestLoadDefaultsSiteURLToTheConfiguredSitePort(t *testing.T) {
 	t.Setenv("SITE_URL", "")
 	if got := Load().SiteURL; got != "http://localhost:5177" {

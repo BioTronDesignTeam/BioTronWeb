@@ -15,10 +15,15 @@ import (
 // they pin — how much SQL narrowing is safe, and that resetting an occurrence
 // removes its row — cannot be observed from Go alone. Set
 // CALENDAR_TEST_DATABASE_URL to a throwaway database with the calendar schema
-// migrated; without it the suite skips.
+// migrated; without it the suite skips. The address looks like this:
+//
+//	postgresql://user:pass@host:5432/db?schema=calendar (a placeholder; trufflehog:ignore)
+//
+// Export the variable first. `-e NAME` with no value passes it through, which
+// also keeps the password out of the command line.
 //
 //	docker run --rm -v "$PWD/backend:/src" -w /src \
-//	  -e CALENDAR_TEST_DATABASE_URL='postgresql://user:pass@host:5432/db?schema=calendar' \
+//	  -e CALENDAR_TEST_DATABASE_URL \
 //	  golang:1.25-bookworm go test ./internal/store/ -run Live -v
 
 const (
@@ -198,6 +203,67 @@ func TestLiveWindowNarrowsSeriesAndOverrideLoads(t *testing.T) {
 	}
 	if !reflect.DeepEqual(days, []int{7, 21, 21, 28}) {
 		t.Fatalf("unexpected September occurrences: %v", days)
+	}
+}
+
+// Overrides can bring an expired or not-yet-started series into the requested
+// window. Filtering the master first silently discarded those occurrences.
+func TestLiveWindowIncludesOccurrencesMovedBeyondMasterRange(t *testing.T) {
+	store, ctx := liveStore(t)
+	resetFixtures(t, store, ctx)
+
+	const (
+		pastID      = "0f0f0f0f-0000-4000-8000-00000000e020"
+		futureID    = "0f0f0f0f-0000-4000-8000-00000000e021"
+		extendedID  = "0f0f0f0f-0000-4000-8000-00000000e022"
+		outsideID   = "0f0f0f0f-0000-4000-8000-00000000e023"
+		cancelledID = "0f0f0f0f-0000-4000-8000-00000000e024"
+	)
+	insertSeries(t, store, ctx, pastID, "Expired series moved forward", "2026-01-05T18:00:00", "2026-01-05T19:00:00", "2026-01-26")
+	insertOverride(t, store, ctx, "0f0f0f0f-0000-4000-8000-00000000d020", pastID, "2026-01-26T18:00:00", "MODIFIED",
+		`{"starts_at_local":"2026-09-10T18:00:00"}`)
+	insertSeries(t, store, ctx, futureID, "Future series moved backward", "2027-01-04T18:00:00", "2027-01-04T19:00:00", "2027-01-25")
+	insertOverride(t, store, ctx, "0f0f0f0f-0000-4000-8000-00000000d021", futureID, "2027-01-04T18:00:00", "MODIFIED",
+		`{"starts_at_local":"2026-09-11T18:00:00","ends_at_local":"2026-09-11T20:00:00"}`)
+	insertSeries(t, store, ctx, extendedID, "Expired occurrence extended", "2026-08-24T18:00:00", "2026-08-24T19:00:00", "2026-08-24")
+	insertOverride(t, store, ctx, "0f0f0f0f-0000-4000-8000-00000000d022", extendedID, "2026-08-24T18:00:00", "MODIFIED",
+		`{"ends_at_local":"2026-09-02T20:00:00"}`)
+	insertSeries(t, store, ctx, outsideID, "Moved outside requested month", "2026-01-05T18:00:00", "2026-01-05T19:00:00", "2026-01-26")
+	insertOverride(t, store, ctx, "0f0f0f0f-0000-4000-8000-00000000d023", outsideID, "2026-01-26T18:00:00", "MODIFIED",
+		`{"starts_at_local":"2026-11-10T18:00:00"}`)
+	insertSeries(t, store, ctx, cancelledID, "Cancelled occurrence", "2026-01-05T18:00:00", "2026-01-05T19:00:00", "2026-01-26")
+	insertOverride(t, store, ctx, "0f0f0f0f-0000-4000-8000-00000000d024", cancelledID, "2026-01-26T18:00:00", "CANCELLED", `{}`)
+
+	from, _ := calendarlogic.ParseLocalDateTime("2026-09-01T00:00:00")
+	to, _ := calendarlogic.ParseLocalDateTime("2026-10-01T00:00:00")
+	windowed, err := store.ListSeries(ctx, testProjectID, false, &Window{From: from, To: to})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := titlesOf(windowed); !reflect.DeepEqual(got, []string{
+		"Expired series moved forward", "Expired occurrence extended", "Future series moved backward",
+	}) {
+		t.Fatalf("window must load exactly the three series with overlapping overrides, got %v", got)
+	}
+	full, err := store.ListSeries(ctx, testProjectID, false, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	location, err := time.LoadLocation("America/Toronto")
+	if err != nil {
+		t.Fatal(err)
+	}
+	start, end := calendarlogic.InLocation(from, location), calendarlogic.InLocation(to, location)
+	narrowed, err := calendarlogic.Expand(windowed, start, end, location)
+	if err != nil {
+		t.Fatal(err)
+	}
+	complete, err := calendarlogic.Expand(full, start, end, location)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(narrowed) != 3 || !reflect.DeepEqual(narrowed, complete) {
+		t.Fatalf("window lost a moved occurrence.\nwindowed: %+v\nfull: %+v", narrowed, complete)
 	}
 }
 

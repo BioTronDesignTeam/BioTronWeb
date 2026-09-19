@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="color-scheme" content="light dark" />
     <meta name="description" content="Configure the BioTron Discord bot: role and channel guards, calendar announcements, and lead nudges." />
-    <title>Sprinter</title>
+    <title>Sprinter | BioTron</title>
     <style>
       html { background: #ffffff; }
       html.dark { background: #070b0e; }
@@ -16,17 +16,25 @@
       // and prevents a white flash on dark-mode visits.
       (function () {
         try {
+          var hostname = window.location.hostname
+          var domain = ''
+          if (hostname === 'biotron.ca' || hostname.endsWith('.biotron.ca')) domain = '; Domain=biotron.ca'
+          if (hostname === 'biotron-dev.com' || hostname.endsWith('.biotron-dev.com')) domain = '; Domain=biotron-dev.com'
+          if (hostname === 'uwbiotron.dev' || hostname.endsWith('.uwbiotron.dev')) domain = '; Domain=uwbiotron.dev'
+          var secure = window.location.protocol === 'https:' ? '; Secure' : ''
           var match = document.cookie.match(/(?:^|;\s*)biotron-theme=(dark|light)(?:;|$)/)
           var theme = match ? match[1] : null
+          if (domain && theme) {
+            // Prefer the shared preference over a former host-only cookie.
+            document.cookie = 'biotron-theme=; Path=/; Max-Age=0' + secure
+            var shared = document.cookie.match(/(?:^|;\s*)biotron-theme=(dark|light)(?:;|$)/)
+            if (shared) theme = shared[1]
+            else document.cookie = 'biotron-theme=' + theme + '; Path=/; Max-Age=31536000; SameSite=Lax' + domain + secure
+          }
           if (!theme) {
             var legacy = localStorage.getItem('darkMode')
             if (legacy === 'true' || legacy === 'false') {
               theme = legacy === 'true' ? 'dark' : 'light'
-              var hostname = window.location.hostname
-              var domain = ''
-              if (hostname === 'biotron.ca' || hostname.endsWith('.biotron.ca')) domain = '; Domain=biotron.ca'
-              if (hostname === 'biotron-dev.com' || hostname.endsWith('.biotron-dev.com')) domain = '; Domain=biotron-dev.com'
-              var secure = window.location.protocol === 'https:' ? '; Secure' : ''
               document.cookie = 'biotron-theme=' + theme + '; Path=/; Max-Age=31536000; SameSite=Lax' + domain + secure
             }
           }

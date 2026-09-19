@@ -74,6 +74,59 @@ Frontend images build from the repository root so they can see
 the root so they can see `go/logclient`; each app's compose file already
 sets `context: ../..` for them.
 
+### Before opening a pull request
+
+Run `./pr-precheck` inside the devcontainer. It mirrors
+`.github/workflows/ci.yml`: build and lint affected frontends, then run
+golangci-lint, `go vet`, and `go test` for affected backends. Shared tooling
+changes expand the checks to their consumers. Changes to the precheck,
+devcontainer, or CI workflow check every app.
+
+```bash
+./pr-precheck --plan             # inspect the selected checks
+./pr-precheck                    # check this branch and local edits
+./pr-precheck --base main        # choose a different local comparison ref
+./pr-precheck --all              # check every app and the shared Go client
+```
+
+The default comparison is the merge base with local `origin/main`, falling
+back to `main`. The script includes staged, unstaged, and untracked files
+that Git does not ignore. It never fetches; update your comparison ref
+yourself when needed. Frontend checks start with `npm ci --ignore-scripts`
+for all workspaces so the lockfile is checked and other apps retain their
+dependencies. Independent checks continue after failures, and any failure
+makes the command exit nonzero.
+
+Security scans always run. TruffleHog checks new commits and separate
+snapshots of staged and working changes, reporting verified findings and
+verification errors without printing credentials. Trivy checks a snapshot
+of the current Git-visible files for fixable HIGH/CRITICAL vulnerabilities
+and misconfigurations, using `.trivyignore.yaml`. Ignored `.env` files,
+dependencies, and build output stay out of the snapshots; tracked files
+are included even if an ignore rule matches them. Symlink targets are
+scanned as text without following them.
+
+Rebuild an existing devcontainer to install the native scanner and linter
+binaries. The checks need network access for dependencies, vulnerability
+databases, and credential verification, but no Docker daemon. They do not
+start services or run migrations. Database integration tests remain opt-in
+through their existing test-database environment variables.
+
+### Environment settings
+
+Keep one `.env` beside each app's Compose file, copied from its example.
+`VITE_*` URLs go into the public browser bundle; never put secrets there.
+Backend integration URLs such as `OAUTH_MANAGER_URL` use Docker aliases
+instead, so they remain separate even when they reach the same service.
+Database URLs also remain app-specific because each app owns a different
+Postgres schema; Sprinter's read-only connection has different permissions.
+
+Calendar shares `VITE_API_URL` between browser requests and feed metadata.
+Its old `VITE_SITE_URL` is unused and can be deleted. `PUBLIC_BASE_URL` is
+now optional: remove it when it matches `VITE_API_URL`, or retain it for a
+separate subscriber address. CORS lists contain extra origins only; the
+configured frontend (and Calendar's public site) is already included.
+
 ## The devcontainer
 
 Open the repository in its devcontainer and everything is there: Node 24, Go
@@ -110,7 +163,7 @@ container installs its own binaries and never touches the host's.
 
 Verified at assembly: every frontend builds from the workspace, the root lint
 runs, every Go module builds under `go.work`, and the root compose
-configuration parses with the includes. Since then every image has been built
+configuration parses with the includes. Since then, every image has been built
 from here and every container on the host runs from this repository, on the
 same ports as before.
 

@@ -248,6 +248,40 @@ func TestTickAnnouncementPostedOnceThenEditedOnSequenceBump(t *testing.T) {
 	}
 }
 
+func TestAnnouncementEditsOriginalChannelAfterDestinationChanges(t *testing.T) {
+	now := time.Date(2026, 9, 10, 12, 0, 0, 0, time.UTC)
+	automation := announceAutomation()
+	occ := calendar.Occurrence{
+		UID: "uid-channel", RecurrenceID: "2026-09-10T18:00:00", SeriesSequence: 2,
+		Title: "Updated kickoff", StartsAt: now.Add(6 * time.Hour), EndsAt: now.Add(7 * time.Hour),
+	}
+	fs := newFakeStore(automation)
+	key := seenKey(automation.ID, occ.UID, occ.RecurrenceID)
+	fs.posted[key] = store.PostedOccurrence{
+		AutomationID: automation.ID, UID: occ.UID, RecurrenceIDLocal: occ.RecurrenceID,
+		Sequence: 1, ChannelID: "original-channel", MessageID: "original-message",
+	}
+	fd := newFakeDiscord()
+	scheduler := New(Deps{Store: fs, Discord: fd, Location: toronto, Now: fixedNow(now)})
+	if err := scheduler.postOrEditAnnouncement(context.Background(), automation, occ); err != nil {
+		t.Fatalf("edit announcement: %v", err)
+	}
+	if len(fd.editedMessages) != 1 || fd.editedMessages[0].channelID != "original-channel" || fd.editedMessages[0].messageID != "original-message" {
+		t.Fatalf("existing announcement must be edited in its original channel: %+v", fd.editedMessages)
+	}
+	if posted := fs.posted[key]; posted.ChannelID != "original-channel" || posted.Sequence != 2 {
+		t.Fatalf("recorded announcement lost its channel or sequence: %+v", posted)
+	}
+
+	occ.UID, occ.RecurrenceID = "uid-new-channel", "2026-09-11T18:00:00"
+	if err := scheduler.postOrEditAnnouncement(context.Background(), automation, occ); err != nil {
+		t.Fatalf("new announcement: %v", err)
+	}
+	if len(fd.sentMessages) != 1 || fd.sentMessages[0].channelOrUser != automation.ChannelID {
+		t.Fatalf("new announcement must use the configured destination: %+v", fd.sentMessages)
+	}
+}
+
 // 6. A second tick, with nothing having changed since the first, repeats
 // none of the above: no repeated posts, edits, DMs, or nudges.
 func TestTickSecondRunRepeatsNothing(t *testing.T) {

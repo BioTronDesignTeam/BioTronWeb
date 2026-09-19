@@ -1,22 +1,28 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { calendarApi } from './api';
-import { calendarRange, fullDateTimeLabel, startOfMonth } from './date';
+import { fullDateTimeLabel, stepAnchor, todayAnchor, viewRange, type CalendarView } from './date';
 import type { AuthStatus, EventPayload, EventSeries, Occurrence, Scope } from './types';
 import { AdminPanel } from './components/AdminPanel';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { EventDetails } from './components/EventDetails';
-import { EventEditor } from './components/EventEditor';
+import { EventEditor, type EventDraft } from './components/EventEditor';
 import { Header } from './components/Header';
 import { OccurrenceEditor } from './components/OccurrenceEditor';
-import { PublicCalendar } from './components/PublicCalendar';
+import { CalendarToolbar, PublicCalendar } from './components/PublicCalendar';
+import { Sidebar } from './components/Sidebar';
 import { SubscribePanel } from './components/SubscribePanel';
+import { ViewSwitch } from './components/ViewSwitch';
 
 export function App() {
   const [auth, setAuth] = useState<AuthStatus>({ can_write: false });
   const [scopes, setScopes] = useState<Scope[]>([]);
   const [occurrences, setOccurrences] = useState<Occurrence[]>([]);
-  const [month, setMonth] = useState(() => startOfMonth());
+  const [view, setView] = useState<CalendarView>('month');
+  // A day inside the range on screen. The arrows move it by the view's own unit.
+  const [anchor, setAnchor] = useState(() => todayAnchor());
   const [selectedScopes, setSelectedScopes] = useState<string[]>([]);
+  // Open beside the grid on a wide screen, closed on a narrow one where it would cover the calendar.
+  const [sidebarOpen, setSidebarOpen] = useState(() => window.matchMedia('(min-width: 1024px)').matches);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [managing, setManaging] = useState(false);
@@ -30,6 +36,9 @@ export function App() {
   const [selectedOccurrence, setSelectedOccurrence] = useState<Occurrence>();
   const [editingEvent, setEditingEvent] = useState<EventSeries | null>();
   const [creatingEvent, setCreatingEvent] = useState(false);
+  // Set when the new event came from a click on a slot, which fixes where it starts.
+  const [eventDraft, setEventDraft] = useState<EventDraft>();
+  const [cancellingSeries, setCancellingSeries] = useState<Occurrence>();
   const [editingOccurrence, setEditingOccurrence] = useState<{ occurrence: Occurrence; series: EventSeries }>();
   const [cancellingOccurrence, setCancellingOccurrence] = useState<Occurrence>();
   const [eventActionError, setEventActionError] = useState('');
@@ -43,7 +52,7 @@ export function App() {
     window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
   }, []);
 
-  const range = useMemo(() => calendarRange(month), [month]);
+  const range = useMemo(() => viewRange(view, anchor), [view, anchor]);
 
   // No selection means every calendar, which is the resting state of the
   // filter and what its Clear button returns to.
@@ -141,7 +150,13 @@ export function App() {
     let saved: EventSeries;
     if (editingEvent) saved = await calendarApi.updateEvent(editingEvent.id, payload);
     else saved = await calendarApi.createEvent(payload);
-    if (publish) await calendarApi.publishEvent(saved.id, saved.sequence);
+    if (publish) {
+      // Saving and publishing are separate writes. Keep the saved identity and
+      // sequence so a failed publish can be retried without creating a duplicate.
+      setEditingEvent(saved);
+      setCreatingEvent(false);
+      await calendarApi.publishEvent(saved.id, saved.sequence);
+    }
     setEditingEvent(undefined);
     setCreatingEvent(false);
     setSelectedOccurrence(undefined);
@@ -189,14 +204,29 @@ export function App() {
   }
 
   const editorScopes = managing ? adminScopes : scopes;
+  const showingAdmin = managing && auth.can_write;
+  const step = (direction: -1 | 1) => setAnchor((current) => stepAnchor(view, current, direction));
+  const viewSwitch = <ViewSwitch view={view} onChange={setView} />;
+  // The Manage screen's button. It must not inherit the slot of an earlier click on the grid.
+  const startCreating = () => {
+    setEventDraft(undefined);
+    setCreatingEvent(true);
+  };
 
   return (
-    <div className="min-h-dvh bg-white text-ink dark:bg-page dark:text-white">
-      <Header auth={auth} managing={managing} onManage={() => setManaging(true)} onPublic={() => setManaging(false)} onLoggedOut={() => { setAuth({ can_write: false }); setManaging(false); }} />
-      {managing && auth.can_write ? (
+    // The calendar view fills the window and never scrolls as a page. The
+    // Manage view is a long document, so it scrolls the usual way.
+    <div className={`bg-white text-ink dark:bg-page dark:text-white ${showingAdmin ? 'min-h-dvh' : 'flex h-dvh flex-col overflow-hidden'}`}>
+      <Header
+        auth={auth} managing={managing} onPublic={() => setManaging(false)} onLoggedOut={() => { setAuth({ can_write: false }); setManaging(false); }}
+        toolbar={showingAdmin ? undefined : <CalendarToolbar view={view} anchor={anchor} onStep={step} />}
+        viewSwitch={showingAdmin ? undefined : viewSwitch}
+        sidebar={showingAdmin ? undefined : { open: sidebarOpen, filterCount: selectedScopes.length, onToggle: () => setSidebarOpen((open) => !open) }}
+      />
+      {showingAdmin ? (
         <AdminPanel
           scopes={adminScopes} events={adminEvents} loading={adminLoading} error={adminError}
-          onCreateEvent={() => setCreatingEvent(true)} onEditEvent={(event) => setEditingEvent(event)}
+          onCreateEvent={startCreating} onEditEvent={(event) => setEditingEvent(event)}
           onPublishEvent={async (event) => { await mutate(() => calendarApi.publishEvent(event.id, event.sequence)); }}
           onCancelEvent={async (event) => { await mutate(() => calendarApi.cancelEvent(event.id, event.sequence)); }}
           onDeleteEvent={async (event) => { await mutate(() => calendarApi.deleteEvent(event.id)); }}
@@ -207,12 +237,20 @@ export function App() {
           onDeleteScope={async (scope) => { await mutate(() => calendarApi.deleteScope(scope.id)); }}
         />
       ) : (
-        <PublicCalendar month={month} scopes={scopes} occurrences={visibleOccurrences} selectedScopes={selectedScopes} loading={loading} error={error} onMonthChange={setMonth} onScopeChange={setSelectedScopes} onSubscribe={() => setShowSubscribe(true)} onSelectEvent={(occurrence) => { setEventActionError(''); setSelectedOccurrence(occurrence); }} />
+        <div className="flex min-h-0 flex-1">
+          <Sidebar open={sidebarOpen} view={view} anchor={anchor} onStep={step} viewSwitch={viewSwitch} onManage={auth.can_write ? () => setManaging(true) : undefined} scopes={scopes} selectedScopes={selectedScopes} onScopeChange={setSelectedScopes} onClose={() => setSidebarOpen(false)}
+            onSubscribe={() => {
+              // As a drawer the sidebar would sit open behind the subscribe panel.
+              if (!window.matchMedia('(min-width: 1024px)').matches) setSidebarOpen(false);
+              setShowSubscribe(true);
+            }}
+          />
+          <PublicCalendar view={view} anchor={anchor} onCreate={auth.can_write ? (draft) => { setEventDraft(draft); setCreatingEvent(true); } : undefined} onOpenDay={(day) => { setAnchor(day); setView('day'); }} occurrences={visibleOccurrences} loading={loading} error={error} onSelectEvent={(occurrence) => { setEventActionError(''); setSelectedOccurrence(occurrence); }} />
+        </div>
       )}
-      <footer className="border-t border-ink/10 px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] pt-6 text-center text-xs text-ink/50 dark:border-line dark:text-faint">Times use America/Toronto · Calendar subscriptions update on each calendar app’s schedule</footer>
 
       {showSubscribe && <SubscribePanel scopes={scopes} onClose={() => setShowSubscribe(false)} />}
-      {selectedOccurrence && <EventDetails occurrence={selectedOccurrence} canWrite={auth.can_write} error={eventActionError} onClose={() => { setEventActionError(''); setSelectedOccurrence(undefined); }} onEditSeries={() => void openEditor(selectedOccurrence, 'series')} onEditOccurrence={() => void openEditor(selectedOccurrence, 'occurrence')} onCancelOccurrence={() => setCancellingOccurrence(selectedOccurrence)} />}
+      {selectedOccurrence && <EventDetails occurrence={selectedOccurrence} canWrite={auth.can_write} error={eventActionError} onClose={() => { setEventActionError(''); setSelectedOccurrence(undefined); }} onEditSeries={() => void openEditor(selectedOccurrence, 'series')} onEditOccurrence={() => void openEditor(selectedOccurrence, 'occurrence')} onCancelOccurrence={() => setCancellingOccurrence(selectedOccurrence)} onCancelSeries={() => setCancellingSeries(selectedOccurrence)} />}
       {cancellingOccurrence && (
         <ConfirmDialog
           title="Cancel this occurrence?"
@@ -228,7 +266,24 @@ export function App() {
           }}
         />
       )}
-      {(creatingEvent || editingEvent) && <EventEditor event={editingEvent || undefined} scopes={editorScopes} onClose={() => { setCreatingEvent(false); setEditingEvent(undefined); }} onSave={saveEvent} />}
+      {cancellingSeries && (
+        <ConfirmDialog
+          title={cancellingSeries.recurring ? 'Cancel this series?' : 'Cancel this event?'}
+          message={cancellingSeries.recurring
+            ? `Every remaining occurrence of "${cancellingSeries.title}" is cancelled and subscribers receive the cancellation. The series stays in the feed so their calendars can reconcile it, and it can be republished later.`
+            : `"${cancellingSeries.title}" is cancelled and subscribers receive the cancellation. It stays in the feed so their calendars can reconcile it, and it can be republished later.`}
+          confirmLabel={cancellingSeries.recurring ? 'Cancel the series' : 'Cancel the event'}
+          destructive
+          onCancel={() => setCancellingSeries(undefined)}
+          onConfirm={async () => {
+            const occurrence = cancellingSeries;
+            const success = await mutate(() => calendarApi.cancelEvent(occurrence.series_id, occurrence.series_sequence), true);
+            setCancellingSeries(undefined);
+            if (success) setSelectedOccurrence(undefined);
+          }}
+        />
+      )}
+      {(creatingEvent || editingEvent) && <EventEditor event={editingEvent || undefined} draft={eventDraft} scopes={editorScopes} onClose={() => { setCreatingEvent(false); setEditingEvent(undefined); }} onSave={saveEvent} />}
       {editingOccurrence && <OccurrenceEditor occurrence={editingOccurrence.occurrence} series={editingOccurrence.series} onClose={() => setEditingOccurrence(undefined)} onSave={async (patch) => {
         const { occurrence } = editingOccurrence;
         await calendarApi.updateOccurrence(occurrence.series_id, { recurrence_id_local: occurrence.recurrence_id_local, state: 'MODIFIED', patch, expected_sequence: occurrence.series_sequence });

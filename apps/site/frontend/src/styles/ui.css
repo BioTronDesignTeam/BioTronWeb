@@ -344,18 +344,24 @@
 }
 
 /* ---------- Room popup ---------- */
+/* Centred with auto block margins, not translateY(-50%): GSAP animates this
+   element's transform on every stop change and would overwrite the offset,
+   leaving the card hanging from the midpoint down onto the viewport bottom. */
 .room-popup {
   position: absolute;
   right: clamp(1.25rem, 4vw, 4rem);
-  top: 50%;
-  transform: translateY(-50%);
+  top: 0;
+  bottom: 0;
+  height: fit-content;
+  margin-block: auto;
   width: min(30rem, 42vw);
   z-index: var(--z-overlay);
   pointer-events: none;
 }
 .room-popup--about {
   top: calc(var(--nav-h) + 1rem);
-  transform: none;
+  bottom: auto;
+  margin-block: 0;
 }
 .popup-card {
   --card-accent: var(--exo);
@@ -381,7 +387,7 @@
 }
 .popup-stats {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr));
   gap: 1rem;
   margin-top: 1.4rem;
 }
@@ -399,7 +405,7 @@
 }
 .popup-specs {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(6rem, 1fr));
   gap: 0.6rem;
   margin: 1.4rem 0;
 }
@@ -435,19 +441,16 @@
 }
 
 @media (max-width: 900px) {
+  /* Narrow windows only need the panel widened. Re-anchoring it to the bottom
+     drops it onto the OS taskbar, and the fly-through never runs below 640px
+     anyway, so the vertical position stays as the base rules set it. */
   .room-popup {
     right: 1rem;
     left: 1rem;
     width: auto;
-    top: auto;
-    bottom: 5rem;
-    transform: none;
-  }
-  .room-popup--about {
-    top: auto;
   }
   .popup-specs {
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(5rem, 1fr));
   }
 }
 
@@ -475,7 +478,7 @@
   display: inline-flex;
   gap: 3.5rem;
   white-space: nowrap;
-  animation: marquee 32s linear infinite;
+  animation: marquee 97s linear infinite;
 }
 .sponsors__item {
   font-family: var(--font-display);
@@ -519,11 +522,15 @@
   font-size: var(--fs-lg);
   color: var(--text-muted);
 }
+.join__gridhead {
+  font-size: var(--fs-lg);
+  margin: 3rem 0 0;
+}
 .join__grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
   gap: 1rem;
-  margin: 3rem 0;
+  margin: 1.25rem 0 3rem;
 }
 .join__card {
   padding: 1.5rem;
@@ -823,58 +830,66 @@
   padding: 0;
   list-style: none;
 }
-/* Two rows: title and time above, description and location below. The right
-   column sizes to its own text so the title keeps the rest of the width. */
+/* One full-width row for each event, split by hairlines. A row fills the
+   panel whether there is one event or five, so nothing sits alone in a corner. */
 .calendarpage__event {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0.4rem 1.25rem;
-  padding: 1.15rem 1.5rem;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 1.25rem 1.5rem;
   border-bottom: 1px solid var(--border);
 }
 .calendarpage__event:last-child {
   border-bottom: 0;
 }
-.calendarpage__title {
-  min-width: 0;
-  font-size: var(--fs-base);
+.calendarpage__date {
+  display: flex;
+  width: 3.5rem;
+  flex-shrink: 0;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.1;
 }
-.calendarpage__scope {
-  display: inline-block;
-  margin-left: 0.65rem;
-  padding: 0.18rem 0.48rem;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--r-pill);
-  color: var(--text-muted);
-  font-size: 0.68rem;
-  vertical-align: 0.08rem;
-  white-space: nowrap;
-}
-.calendarpage__when,
-.calendarpage__where {
-  color: var(--accent-secondary);
-  font-family: var(--font-mono);
-  font-size: 0.72rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-align: right;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-.calendarpage__where {
+.calendarpage__weekday,
+.calendarpage__month {
   color: var(--text-faint);
-  font-weight: 500;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
-/* One line, cut with an ellipsis. min-width:0 lets the grid track shrink,
-   which is what makes the overflow rules take effect at all. */
-.calendarpage__desc {
+.calendarpage__day {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  font-weight: 600;
+}
+.calendarpage__body {
   min-width: 0;
-  overflow: hidden;
-  margin: 0;
+  flex: 1;
+}
+.calendarpage__title {
+  font-size: var(--fs-lg);
+}
+/* The time and the place share a line, and the place drops under the time when the row is narrow. */
+.calendarpage__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem 1.25rem;
+  margin: 0.3rem 0 0;
   color: var(--text-muted);
   font-size: var(--fs-sm);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+}
+.calendarpage__metaitem {
+  display: inline-flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 0.4rem;
+}
+.calendarpage__metaitem svg {
+  flex-shrink: 0;
+  margin-top: 0.2rem;
+  color: var(--text-faint);
 }
 .calendarpage__status {
   padding: 3rem 1.5rem;
@@ -904,14 +919,6 @@
   .calendarpage__upcoming-head {
     align-items: start;
     flex-direction: column;
-  }
-  .calendarpage__event {
-    grid-template-columns: 1fr;
-    gap: 0.35rem;
-  }
-  .calendarpage__when,
-  .calendarpage__where {
-    text-align: left;
   }
 }
 
@@ -960,16 +967,30 @@
   gap: 1rem;
   margin-top: 2.5rem;
 }
+/* Light tiles: the sponsors' logos are made for a light background. */
 .sponsorspage__supporter {
-  display: grid;
+  display: flex;
   min-height: 9rem;
-  place-items: center;
-  padding: 1.5rem;
-  color: var(--text-muted);
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 1.5rem 2rem;
+  border-radius: var(--r-lg);
+  background: #f3f5f7;
+  color: #16202a;
   font-family: var(--font-display);
-  font-size: var(--fs-xl);
+  font-size: var(--fs-lg);
   font-weight: 600;
   text-align: center;
+}
+.sponsorspage__logo {
+  width: auto;
+  height: auto;
+  max-width: min(100%, 13rem);
+  max-height: 3.5rem;
+}
+.sponsorspage__logo--mark {
+  max-height: 4.5rem;
 }
 .sponsorspage__areagrid {
   display: grid;
@@ -1253,6 +1274,11 @@
 .joinpage__step p {
   color: var(--text-muted);
 }
+/* The button sits at the bottom of the card. In the tallest card nothing
+   else holds it off the text above. */
+.joinpage__step p:last-of-type {
+  margin-bottom: 1.5rem;
+}
 .joinpage__step .actionbtn {
   margin-top: auto;
 }
@@ -1265,13 +1291,9 @@
 .joinpage__perk {
   padding: 1.6rem;
 }
-.joinpage__perknum {
-  color: var(--accent-readable);
-  font-size: var(--fs-sm);
-}
 .joinpage__perktitle {
   font-size: var(--fs-xl);
-  margin: 0.6rem 0 0.4rem;
+  margin: 0 0 0.4rem;
 }
 .joinpage__perkbody {
   color: var(--text-muted);
@@ -1323,7 +1345,7 @@
 }
 .detail__specs {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
   gap: 0.75rem;
 }
 .detail__spec {

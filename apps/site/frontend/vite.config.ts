@@ -2,10 +2,11 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { biotronFavicon } from '@biotron/style/vite';
 import { fileURLToPath, URL } from 'node:url';
+import { seoPages } from './seo-plugin.ts';
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), biotronFavicon()],
+  plugins: [react(), biotronFavicon(), seoPages()],
   envDir: '..',
   resolve: {
     alias: {

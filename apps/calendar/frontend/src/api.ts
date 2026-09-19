@@ -2,7 +2,6 @@ import type { AuthStatus, EventOverride, EventPayload, EventSeries, Occurrence, 
 
 export const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8083').replace(/\/$/, '');
 export const AUTH_URL = (import.meta.env.VITE_AUTH_URL || 'http://localhost:8080').replace(/\/$/, '');
-export const SITE_URL = (import.meta.env.VITE_SITE_URL || 'http://localhost:5177').replace(/\/$/, '');
 
 async function request<T>(path: string, init: RequestInit = {}, authenticated = false): Promise<T> {
   const mutating = init.method && init.method !== 'GET';
@@ -88,7 +87,10 @@ export async function logout() {
 }
 
 export function feedURL(scopeId?: string) {
-  return scopeId ? `${API_URL}/v1/feeds/scopes/${scopeId}.ics` : `${API_URL}/v1/feeds/all.ics`;
+  const path = scopeId ? `${API_URL}/v1/feeds/scopes/${scopeId}.ics` : `${API_URL}/v1/feeds/all.ics`;
+  // Deployed API bases can be relative ("/api"), but a subscription address
+  // must work outside this page, in the clipboard and in calendar apps.
+  return new URL(path, window.location.origin).href;
 }
 
 export function webcalURL(scopeId?: string) {

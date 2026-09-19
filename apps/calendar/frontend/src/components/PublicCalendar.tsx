@@ -1,19 +1,32 @@
 import { useMemo } from 'react';
-import { addMonths, calendarDays, dateKey, dayLabel, monthLabel, occurrenceDateKey, timeLabel } from '../date';
-import type { Occurrence, Scope } from '../types';
-import { ScopeFilter } from './ScopeFilter';
+import { addDays, dateKey, dayLabel, occurrenceDateKey, timeLabel, viewDays, viewLabel, type CalendarView } from '../date';
+import { eventTone } from '../eventTone';
+import type { Occurrence } from '../types';
+import type { EventDraft } from './EventEditor';
+import { useEventHover } from '../eventHover';
+import { EventHoverProvider } from './EventHover';
+import { TimeGrid } from './TimeGrid';
 
 interface PublicCalendarProps {
-  month: Date;
-  scopes: Scope[];
+  view: CalendarView;
+  /** A day inside the range on screen. The month view draws the month it falls in. */
+  anchor: Date;
   occurrences: Occurrence[];
-  selectedScopes: string[];
   loading: boolean;
   error: string;
-  onMonthChange: (month: Date) => void;
-  onScopeChange: (scopeIds: string[]) => void;
-  onSubscribe: () => void;
   onSelectEvent: (occurrence: Occurrence) => void;
+  onOpenDay: (day: Date) => void;
+  /** Set for editors. A click on an empty day or time slot starts an event there. */
+  onCreate?: (draft: EventDraft) => void;
+}
+
+interface CalendarToolbarProps {
+  view: CalendarView;
+  anchor: Date;
+  /** Back or forward by one day, week, or month, whichever the view shows. */
+  onStep: (direction: -1 | 1) => void;
+  /** The sidebar is narrow, so its copy is tighter and spans the full width. */
+  inSidebar?: boolean;
 }
 
 const weekdayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -30,13 +43,10 @@ function todayKey() {
 }
 
 function EventButton({ occurrence, onClick, compact = false }: { occurrence: Occurrence; onClick: () => void; compact?: boolean }) {
-  const tone = occurrence.scope_kind === 'TEAM'
-    ? 'border-brand bg-brand/10 dark:bg-brand/25'
-    : occurrence.scope_kind === 'PROJECT'
-      ? 'border-deep bg-deep/8 dark:border-link dark:bg-highlight/70'
-      : 'border-soft bg-soft/40 dark:border-line-strong dark:bg-surface-2';
+  const tone = eventTone(occurrence);
+  const hover = useEventHover();
   return (
-    <button type="button" onClick={onClick} className={`w-full border-l-[3px] text-left hover:brightness-95 dark:hover:brightness-110 ${tone} ${compact ? 'rounded-md px-2 py-1.5' : 'min-h-11 rounded-xl px-3 py-3'}`}>
+    <button type="button" onClick={onClick} {...hover(occurrence)} className={`pointer-events-auto w-full border-l-[3px] text-left hover:brightness-95 dark:hover:brightness-110 ${tone} ${compact ? 'rounded-md px-2 py-1.5' : 'min-h-11 rounded-xl px-3 py-3'}`}>
       <span className={`block truncate font-semibold ${compact ? 'text-xs' : 'text-sm'}`}>{occurrence.title}</span>
       <span className={`mt-0.5 block truncate text-ink/65 dark:text-muted ${compact ? 'text-[11px]' : 'text-xs'}`}>
         {timeLabel(occurrence.starts_at, occurrence.all_day)}{compact ? '' : ` · ${occurrence.scope_path}`}
@@ -45,9 +55,43 @@ function EventButton({ occurrence, onClick, compact = false }: { occurrence: Occ
   );
 }
 
+const arrowButton = 'grid shrink-0 place-items-center rounded-full hover:bg-soft/30 dark:hover:bg-white/10';
+
+/** A bare angle bracket, pointing back or forward. */
+function Chevron({ direction }: { direction: -1 | 1 }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points={direction === -1 ? '11,3.5 5.5,9 11,14.5' : '7,3.5 12.5,9 7,14.5'} />
+    </svg>
+  );
+}
+
+/** The arrows and the name of the range on screen. The sidebar shows it from lg up, and the page header below that. */
+export function CalendarToolbar({ view, anchor, onStep, inSidebar = false }: CalendarToolbarProps) {
+  const arrow = `${arrowButton} ${inSidebar ? 'size-10' : 'size-11'}`;
+  const label = viewLabel(view, anchor);
+  // A week that straddles two years is the longest label, and the sidebar is narrow.
+  const size = inSidebar ? (label.length > 16 ? 'text-sm' : 'text-base') : 'min-w-[8.75rem] text-base sm:min-w-[10.5rem] sm:text-xl';
+  return (
+    // The label sits between the arrows. Its box has a fixed width so that a
+    // shorter name does not slide the next button out from under the pointer.
+    <div className={`flex items-center ${inSidebar ? 'justify-between' : 'justify-center gap-1 sm:gap-2'}`}>
+      <button type="button" className={arrow} onClick={() => onStep(-1)} aria-label={`Previous ${view}`}><Chevron direction={-1} /></button>
+      <h2 className={`text-center font-semibold ${size}`}>{label}</h2>
+      <button type="button" className={arrow} onClick={() => onStep(1)} aria-label={`Next ${view}`}><Chevron direction={1} /></button>
+    </div>
+  );
+}
+
 export function PublicCalendar(props: PublicCalendarProps) {
-  const days = calendarDays(props.month);
-  const currentMonth = props.month.getUTCMonth();
+  return <EventHoverProvider><CalendarViews {...props} /></EventHoverProvider>;
+}
+
+function CalendarViews(props: PublicCalendarProps) {
+  const { view, anchor } = props;
+  const days = useMemo(() => viewDays(view, anchor), [view, anchor]);
+  // The month the agenda takes as read, so it labels only the days outside it.
+  const currentMonth = (view === 'month' ? anchor : days[0]).getUTCMonth();
   const today = todayKey();
 
   const grouped = useMemo(() => {
@@ -70,57 +114,62 @@ export function PublicCalendar(props: PublicCalendarProps) {
   }, [days, grouped]);
 
   return (
-    <main className="mx-auto w-full max-w-[1500px] px-4 pb-16 pt-8 sm:px-6 lg:px-8">
+    // The page never scrolls: this column takes the height left under the
+    // header, and the month grid divides it between the weeks.
+    <main className="flex min-h-0 min-w-0 flex-1 flex-col">
       <h1 className="sr-only">BioTron public calendar</h1>
-      <section className="overflow-hidden rounded-3xl border border-ink/10 bg-white dark:border-line dark:bg-surface">
-        <div className="flex flex-col gap-4 border-b border-ink/10 p-4 sm:p-5 dark:border-line lg:flex-row lg:items-center">
-          {/* The month sits between the arrows. Its box has a fixed width so
-              that a shorter month name does not slide the next-month button
-              out from under the pointer. */}
-          <div className="flex items-center justify-between gap-2 sm:justify-start sm:gap-3">
-            <button type="button" className="grid size-11 shrink-0 place-items-center rounded-full border border-ink/15 hover:bg-soft/25 dark:border-line-strong dark:hover:bg-white/10" onClick={() => props.onMonthChange(addMonths(props.month, -1))} aria-label="Previous month">←</button>
-            <h2 className="min-w-[10.5rem] text-center text-xl font-semibold">{monthLabel(props.month)}</h2>
-            <button type="button" className="grid size-11 shrink-0 place-items-center rounded-full border border-ink/15 hover:bg-soft/25 dark:border-line-strong dark:hover:bg-white/10" onClick={() => props.onMonthChange(addMonths(props.month, 1))} aria-label="Next month">→</button>
-          </div>
-          {/* Subscribe and the filter share one row at every width. On a phone
-              the button takes the leftover width beside the filter icon. */}
-          <div className="flex items-center gap-2 lg:ml-auto">
-            <button type="button" onClick={props.onSubscribe} className="min-h-11 flex-1 whitespace-nowrap rounded-full bg-deep px-5 text-sm font-semibold text-white hover:bg-brand dark:bg-brand dark:hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:focus-visible:outline-link sm:flex-none">
-              Subscribe to a calendar
-            </button>
-            <ScopeFilter scopes={props.scopes} selected={props.selectedScopes} onChange={props.onScopeChange} />
-          </div>
-        </div>
-
+      {/* The month controls live in the page header, so the grid starts right under it. */}
+      <section className="flex min-h-0 flex-1 flex-col bg-white dark:bg-surface">
         {props.error && <div className="border-b border-red-500/20 bg-red-50 px-5 py-3 text-sm text-red-800 dark:bg-red-950/30 dark:text-red-200">{props.error}</div>}
         {props.loading && <div className="h-1 animate-pulse bg-brand" aria-label="Loading calendar" />}
 
-        <div className="hidden md:block">
-          <div className="grid grid-cols-7 border-b border-ink/10 dark:border-line">
+        {/* A week needs seven columns, which a phone cannot give: below md the
+            week falls back to the agenda list. One day fits at any width. */}
+        {view !== 'month' && (
+          <div className={`min-h-0 flex-1 flex-col ${view === 'week' ? 'hidden md:flex' : 'flex'}`}>
+            <TimeGrid days={days} occurrences={props.occurrences} today={today} onSelectEvent={props.onSelectEvent} onOpenDay={view === 'week' ? props.onOpenDay : undefined} onCreate={props.onCreate} />
+          </div>
+        )}
+
+        {view === 'month' && <div className="hidden min-h-0 flex-1 flex-col overflow-y-auto md:flex">
+          <div className="grid shrink-0 grid-cols-7 border-b border-ink/10 dark:border-line">
             {weekdayLabels.map((weekday) => <div key={weekday} className="px-3 py-2 text-xs font-bold uppercase tracking-wider text-ink/45 dark:text-faint">{weekday}</div>)}
           </div>
-          <div className="grid grid-cols-7">
+          {/* Every week gets an equal share of the height. The floor keeps a
+              day readable in a short window, where this block scrolls instead. */}
+          <div className="grid min-h-0 flex-1 grid-cols-7" style={{ gridTemplateRows: `repeat(${days.length / 7}, minmax(5.5rem, 1fr))` }}>
             {days.map((day) => {
               const key = dateKey(day);
               const events = grouped.get(key) || [];
               const muted = day.getUTCMonth() !== currentMonth;
               return (
-                <div key={key} className={`min-h-32 border-b border-r border-ink/10 p-2 dark:border-line xl:min-h-40 ${muted ? 'bg-ink/[0.018] text-ink/35 dark:bg-black/10 dark:text-faint' : ''}`}>
-                  <div className={`mb-2 grid size-7 place-items-center rounded-full text-xs font-semibold ${key === today ? 'bg-deep text-white' : ''}`}>{day.getUTCDate()}</div>
-                  <div className="max-h-24 space-y-1.5 overflow-y-auto pr-1 xl:max-h-32">
+                <div key={key} className={`relative flex min-h-0 flex-col overflow-hidden border-b border-r border-ink/10 p-2 dark:border-line ${muted ? 'bg-ink/[0.018] text-ink/35 dark:bg-black/10 dark:text-faint' : ''}`}>
+                  {/* The whole cell is the create target. It lies under the date
+                      and the events, which sit above it and keep their own clicks. */}
+                  {props.onCreate && (
+                    <button
+                      type="button"
+                      aria-label={`Create an event on ${dayLabel(key, true)}`}
+                      onClick={() => props.onCreate?.({ startsAt: `${key}T00:00`, endsAt: `${dateKey(addDays(day, 1))}T00:00`, allDay: true })}
+                      className="absolute inset-0 hover:bg-soft/15 dark:hover:bg-white/[0.03]"
+                    />
+                  )}
+                  <button type="button" onClick={() => props.onOpenDay(day)} aria-label={`Open ${key}`} className={`relative mb-1 grid size-7 shrink-0 place-items-center rounded-full text-xs font-semibold ${key === today ? 'bg-deep text-white dark:bg-brand' : 'hover:bg-soft/30 dark:hover:bg-white/10'}`}>{day.getUTCDate()}</button>
+                  {/* The list lets clicks on its empty space fall through to the create target. */}
+                  <div className="pointer-events-none relative min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-1">
                     {events.map((occurrence) => <EventButton key={`${occurrence.series_id}-${occurrence.recurrence_id_local}`} occurrence={occurrence} compact onClick={() => props.onSelectEvent(occurrence)} />)}
                   </div>
                 </div>
               );
             })}
           </div>
-        </div>
+        </div>}
 
-        <div className="divide-y divide-ink/10 dark:divide-line md:hidden">
+        {view !== 'day' && <div className="min-h-0 flex-1 divide-y divide-ink/10 overflow-y-auto pb-[env(safe-area-inset-bottom,0px)] dark:divide-line md:hidden">
           {agendaDays.length === 0 && !props.loading ? (
             <div className="px-5 py-16 text-center">
               <p className="font-semibold">Nothing scheduled here yet.</p>
-              <p className="mt-2 text-sm text-ink/60 dark:text-muted">Try another calendar or check the next month.</p>
+              <p className="mt-2 text-sm text-ink/60 dark:text-muted">Try another calendar or check the next {view}.</p>
             </div>
           ) : agendaDays.map((key, index) => {
             const dayMonth = Number(key.slice(5, 7)) - 1;
@@ -147,7 +196,7 @@ export function PublicCalendar(props: PublicCalendarProps) {
               </div>
             );
           })}
-        </div>
+        </div>}
       </section>
     </main>
   );

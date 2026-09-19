@@ -30,25 +30,23 @@ export const PROJECTS: Project[] = [
     modelId: 'exo',
     name: 'EXO',
     shortName: 'EXO',
-    tagline: 'Powered lower-body exoskeleton',
+    tagline: 'Mk1, our soft lower-body exoskeleton',
     blurb:
-      'A powered lower-body exoskeleton that supports human strength and endurance. We are building it for ACE 2026.',
+      'EXO is the team behind Mk1, a soft lower-body exoskeleton that supports human strength and endurance. We are building it for ACE 2027.',
     description: [
-      'EXO helps wearers handle demanding physical tasks with less fatigue.',
-      'Actuators at the hips and knees work with a lightweight frame. The control system reads the wearer’s intent and adds torque in step with their gait.',
-      'At the 2026 Applied Collegiate Exoskeleton (ACE) International Competition, university teams will test their systems side by side.',
+      'EXO is the team; Mk1 is the exoskeleton we are building now. It helps wearers handle demanding physical tasks with less fatigue.',
+      'Mk1 is a soft exoskeleton, so it never touches the ground. It carries no load itself and instead adds torque at the hips and knees, in step with the wearer’s gait.',
+      'At the 2027 Applied Collegiate Exoskeleton (ACE) International Competition, university teams will test their systems side by side.',
     ],
     accentVar: '--exo',
     accentHex: '#3050b0',
-    status: 'In development · ACE 2026',
+    status: 'In development · ACE 2027',
     specs: [
-      { label: 'Actuated DOF', value: '4' },
-      { label: 'Target assist', value: '40 Nm' },
-      { label: 'Control loop', value: '1 kHz' },
-      { label: 'Competition', value: 'ACE 2026' },
+      { label: 'Competition', value: 'ACE 2027' },
+      { label: 'Assisted joints', value: 'Hips + knees' },
     ],
     anchor: [-4.2, 0.4, -1.5],
-    team: ['Mechanical', 'Electrical', 'Software'],
+    team: ['Mechanical', 'Electrical', 'Software', 'Operations'],
   },
   {
     slug: 'emg-fabric',
@@ -80,22 +78,20 @@ export const PROJECTS: Project[] = [
     modelId: 'enable',
     name: 'e-NABLE',
     shortName: 'e-NABLE',
-    tagline: 'Custom 3D-printed forearm prostheses',
+    tagline: 'Pro bono assistive device design and manufacturing',
     blurb:
-      'Students 3D-print and assemble custom forearm prostheses for each recipient. The designs keep assistive technology practical and affordable.',
+      'Students design and manufacture assistive devices free of charge for the people who need them. Each device is built to the recipient’s own measurements and needs.',
     description: [
-      'Through e-NABLE, a global volunteer community, our students build forearm prostheses to each recipient’s measurements.',
-      'Body movement drives the joints and grip. The design is durable, affordable, and needs no electronics.',
-      'We aim to give more people access to assistive devices that fit their needs and budgets.',
+      'e-NABLE is part of a global volunteer community. Our students take on assistive device work pro bono, from the first conversation through design, manufacturing, and fitting.',
+      'The devices are built to each recipient’s measurements. We keep them durable, simple to repair, and affordable to reproduce.',
+      'Our aim is to reach more people who need assistive technology and cannot readily buy it.',
     ],
     accentVar: '--enable',
     accentHex: '#ffffff',
     status: 'Ongoing · Community',
     specs: [
-      { label: 'Device', value: 'Forearm' },
-      { label: 'Fit', value: 'Custom' },
-      { label: 'Actuation', value: 'Mechanical' },
-      { label: 'Process', value: 'FDM' },
+      { label: 'Cost to recipient', value: 'Free' },
+      { label: 'Fit', value: 'Made to measure' },
     ],
     anchor: [4.2, 0.4, -1.5],
     team: ['CAD', 'Additive Mfg', 'Outreach'],
@@ -132,7 +128,10 @@ export interface SubTeam {
 
 export const SUBTEAMS: SubTeam[] = [
   { name: 'Mechanical', blurb: 'CAD, structural design, actuation, and rapid prototyping.' },
-  { name: 'Electrical', blurb: 'PCB design, power systems, and embedded hardware.' },
+  {
+    name: 'Electrical',
+    blurb: 'PCB design, power systems, wire harnessing, sensing, and embedded hardware.',
+  },
   {
     name: 'Software',
     blurb: 'Firmware, controls, signal processing, machine learning, and team tooling.',
@@ -143,14 +142,15 @@ export const SUBTEAMS: SubTeam[] = [
 export const TEAM_STATS = [
   { value: 40, suffix: '+', label: 'Active members' },
   { value: 3, suffix: '', label: 'Live projects' },
-  { value: 4, suffix: '', label: 'Sub-teams' },
-  { value: 2021, suffix: '', label: 'Founded', plain: true },
+  { value: 2014, suffix: '', label: 'Founded', plain: true },
 ];
 
 export const CONTACT = {
   email: 'biotron@uwaterloo.ca',
   instagram: 'https://www.instagram.com/uwaterloo_biotron/',
   discord: 'https://discord.gg/YBNN5ThRAA',
+  /** Notion workspace invite. Accepts uwaterloo.ca addresses only. */
+  notion: 'https://app.notion.com/invite/de474c228f2444794d3423df0273251d71f68307',
   org: 'University of Waterloo Biomechatronics Design Team',
 };
 

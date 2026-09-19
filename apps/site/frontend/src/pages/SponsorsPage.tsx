@@ -10,22 +10,19 @@ const sponsorshipEmail = `mailto:${CONTACT.email}?subject=${encodeURIComponent('
 export default function SponsorsPage() {
   return (
     <main id="main" className="sponsorspage">
-      <PageMeta
-        title="Sponsors | Biotron"
-        description="Meet the organizations that support Biotron or ask about a partnership."
-      />
+      <PageMeta path="/sponsors" />
 
       <section className="container sponsorspage__hero">
         <span className="eyebrow mono-label">Partner with Biotron</span>
         <SplitText
           as="h1"
           className="sponsorspage__title"
-          text="Help us build better biomedical systems."
+          text="Help power our projects."
           by="word"
         />
         <p className="sponsorspage__lead">
-          Partners fund the tools, materials, and opportunities our students need. Their support
-          turns student ideas into working hardware.
+          Partners fund the tools, materials, and shop time our students need. Their support turns
+          student ideas into working hardware and assistive devices people can use.
         </p>
         <a className="sponsorspage__primary" href={sponsorshipEmail}>
           Become a sponsor <ArrowUpRight size={18} />
@@ -39,8 +36,17 @@ export default function SponsorsPage() {
         </Reveal>
         <div className="sponsorspage__supportergrid">
           {SPONSORS.map((sponsor, index) => (
-            <Reveal key={sponsor} delay={index * 0.05}>
-              <div className="sponsorspage__supporter glass">{sponsor}</div>
+            <Reveal key={sponsor.name} delay={index * 0.05}>
+              <div className="sponsorspage__supporter">
+                <img
+                  className={`sponsorspage__logo sponsorspage__logo--${sponsor.logo.kind}`}
+                  src={sponsor.logo.src}
+                  width={sponsor.logo.width}
+                  height={sponsor.logo.height}
+                  alt={sponsor.logo.kind === 'wordmark' ? sponsor.name : ''}
+                />
+                {sponsor.logo.kind === 'mark' && <span>{sponsor.name}</span>}
+              </div>
             </Reveal>
           ))}
         </div>

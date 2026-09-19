@@ -1,0 +1,40 @@
+<!doctype html>
+<!--
+  The source of public/og.png, the picture a shared link shows. It is 1200 by
+  630, the size link previews expect. To rebuild it after an edit, run this
+  from apps/site/frontend (any Chromium works):
+
+  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless=new \
+    --hide-scrollbars --force-device-scale-factor=1 --window-size=1200,630 \
+    --allow-file-access-from-files \
+    --screenshot=public/og.png og-image.html
+-->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <style>
+      @font-face { font-family: 'Space Grotesk'; font-weight: 600; src: url('../../../node_modules/@fontsource/space-grotesk/files/space-grotesk-latin-600-normal.woff2') format('woff2'); }
+      @font-face { font-family: 'Inter'; font-weight: 400; src: url('../../../node_modules/@fontsource/inter/files/inter-latin-400-normal.woff2') format('woff2'); }
+      @font-face { font-family: 'JetBrains Mono'; font-weight: 500; src: url('../../../node_modules/@fontsource/jetbrains-mono/files/jetbrains-mono-latin-500-normal.woff2') format('woff2'); }
+      * { box-sizing: border-box; margin: 0; }
+      body { width: 1200px; height: 630px; overflow: hidden; background: #070b0e; color: #fff; }
+      .card { display: flex; height: 100%; flex-direction: column; justify-content: space-between; padding: 72px 80px; border-left: 12px solid #160b6c; }
+      .wordmark { width: 360px; margin-left: -26px; }
+      h1 { max-width: 900px; font: 600 76px/1.05 'Space Grotesk', sans-serif; letter-spacing: -0.02em; }
+      h1 span { color: #7f9cf5; }
+      p { margin-top: 24px; font: 400 30px/1.4 'Inter', sans-serif; color: #9fb0ba; }
+      .label { display: flex; align-items: center; gap: 16px; font: 500 20px 'JetBrains Mono', monospace; letter-spacing: 0.12em; text-transform: uppercase; color: #6b7d87; }
+      .label::before { content: ''; width: 48px; height: 2px; background: #3050b0; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <img class="wordmark" src="../../../packages/style/src/assets/biotron-wordmark-white.webp" alt="" />
+      <div>
+        <h1>UW Biomechatronics <span>Design Team.</span></h1>
+        <p>Exoskeletons, EMG wearables, and assistive devices.</p>
+      </div>
+      <div class="label">University of Waterloo</div>
+    </div>
+  </body>
+</html>

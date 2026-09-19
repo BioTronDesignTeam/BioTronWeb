@@ -63,10 +63,12 @@ func (s *Scheduler) postOrEditAnnouncement(ctx context.Context, automation store
 	case err != nil:
 		return fmt.Errorf("get posted occurrence %s: %w", occ.UID, err)
 	case posted.Sequence < sequence:
-		if err := s.discord.EditMessage(automation.ChannelID, posted.MessageID, content); err != nil {
+		// Changing an automation's destination affects new announcements.
+		// An existing message still belongs to the channel it was posted in.
+		if err := s.discord.EditMessage(posted.ChannelID, posted.MessageID, content); err != nil {
 			return fmt.Errorf("edit announcement %s: %w", posted.MessageID, err)
 		}
-		if _, err := s.store.UpsertPosted(ctx, automation.ID, occ.UID, occ.RecurrenceID, sequence, automation.ChannelID, posted.MessageID); err != nil {
+		if _, err := s.store.UpsertPosted(ctx, automation.ID, occ.UID, occ.RecurrenceID, sequence, posted.ChannelID, posted.MessageID); err != nil {
 			return fmt.Errorf("record updated occurrence %s: %w", occ.UID, err)
 		}
 		s.emit(logclient.Info, "Announcement updated", map[string]any{
