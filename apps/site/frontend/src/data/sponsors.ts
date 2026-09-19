@@ -1,4 +1,17 @@
-export const SPONSORS = ['University of Waterloo', 'Notion', 'Kenesto', 'Altium'];
+import altiumLogo from '../assets/sponsors/altium-white.webp';
+
+export type Sponsor = {
+  name: string;
+  /** A white-on-transparent logo. Without one, the name shows as text. */
+  logo?: { src: string; width: number; height: number };
+};
+
+export const SPONSORS: Sponsor[] = [
+  { name: 'University of Waterloo' },
+  { name: 'Notion' },
+  { name: 'Kenesto' },
+  { name: 'Altium', logo: { src: altiumLogo, width: 743, height: 163 } },
+];
 
 export const SPONSORSHIP_AREAS = [
   {

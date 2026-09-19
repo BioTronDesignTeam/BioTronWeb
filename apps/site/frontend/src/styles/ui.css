@@ -478,14 +478,24 @@
   display: inline-flex;
   gap: 3.5rem;
   white-space: nowrap;
-  animation: marquee 64s linear infinite;
+  animation: marquee 68s linear infinite;
 }
 .sponsors__item {
+  display: inline-flex;
+  align-items: center;
   font-family: var(--font-display);
   font-size: clamp(1.1rem, 2vw, 1.7rem);
   font-weight: 600;
   color: var(--text-faint);
   letter-spacing: -0.01em;
+}
+/* A white logo, dimmed to sit level with the faint text beside it. */
+.sponsors__logo {
+  flex-shrink: 0;
+  width: auto;
+  max-width: none;
+  height: 1.15em;
+  opacity: 0.47;
 }
 @keyframes marquee {
   to {
@@ -977,6 +987,13 @@
   font-size: var(--fs-xl);
   font-weight: 600;
   text-align: center;
+}
+/* A white logo, dimmed to match the muted sponsor names. */
+.sponsorspage__logo {
+  width: auto;
+  height: 2.25rem;
+  max-width: 100%;
+  opacity: 0.68;
 }
 .sponsorspage__areagrid {
   display: grid;

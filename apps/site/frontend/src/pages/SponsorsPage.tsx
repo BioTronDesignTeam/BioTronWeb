@@ -39,8 +39,20 @@ export default function SponsorsPage() {
         </Reveal>
         <div className="sponsorspage__supportergrid">
           {SPONSORS.map((sponsor, index) => (
-            <Reveal key={sponsor} delay={index * 0.05}>
-              <div className="sponsorspage__supporter glass">{sponsor}</div>
+            <Reveal key={sponsor.name} delay={index * 0.05}>
+              <div className="sponsorspage__supporter glass">
+                {sponsor.logo ? (
+                  <img
+                    className="sponsorspage__logo"
+                    src={sponsor.logo.src}
+                    width={sponsor.logo.width}
+                    height={sponsor.logo.height}
+                    alt={sponsor.name}
+                  />
+                ) : (
+                  sponsor.name
+                )}
+              </div>
             </Reveal>
           ))}
         </div>
