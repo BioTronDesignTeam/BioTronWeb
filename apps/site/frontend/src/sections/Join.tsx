@@ -19,7 +19,7 @@ export default function Join({ showGuideLink = true }: JoinProps) {
           <SplitText
             as="h2"
             className="join__title"
-            text="Build biomechatronics with us."
+            text="Build Biotron with us."
             by="word"
             trigger
           />
