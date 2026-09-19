@@ -9,9 +9,9 @@ interface HeaderProps {
   onPublic: () => void;
   onLoggedOut: () => void;
   /**
-   * The month controls. A docked sidebar shows them, so the bar only carries
-   * them when the sidebar is closed or is a drawer, where the month would
-   * otherwise be out of sight.
+   * The month controls, as a second row below lg. There the sidebar is a
+   * drawer that covers the calendar, so it cannot hold them. From lg up they
+   * live in the sidebar only, and closing it puts them away with it.
    */
   toolbar?: ReactNode;
   /** Day, Week, or Month. It sits beside the theme switch from sm up; a phone has no room, so the sidebar shows it there. */
@@ -52,7 +52,7 @@ export function Header({ auth, managing, onPublic, onLoggedOut, toolbar, viewSwi
           <span className="hidden h-6 w-px bg-ink/15 sm:block dark:bg-white/20" aria-hidden="true" />
           <span className="hidden truncate text-sm font-semibold tracking-wide sm:block">Calendar</span>
         </div>
-        {toolbar && <div className={`order-last w-full pb-3 lg:order-none lg:ml-3 lg:w-auto lg:pb-0 ${sidebar?.open ? 'lg:hidden' : ''}`}>{toolbar}</div>}
+        {toolbar && <div className="order-last w-full pb-3 lg:hidden">{toolbar}</div>}
         <div className="ml-auto flex items-center gap-2">
           {/* On the calendar view Manage lives in the sidebar. This button is the way back from the Manage view. */}
           {auth.can_write && managing && (

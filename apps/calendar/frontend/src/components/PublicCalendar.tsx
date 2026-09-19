@@ -55,9 +55,18 @@ function EventButton({ occurrence, onClick, compact = false }: { occurrence: Occ
   );
 }
 
-const arrowButton = 'grid shrink-0 place-items-center rounded-full border border-ink/15 hover:bg-soft/25 dark:border-line-strong dark:hover:bg-white/10';
+const arrowButton = 'grid shrink-0 place-items-center rounded-full hover:bg-soft/30 dark:hover:bg-white/10';
 
-/** The arrows and the name of the range on screen. The sidebar shows it, or the page header when the sidebar is not docked. */
+/** A bare angle bracket, pointing back or forward. */
+function Chevron({ direction }: { direction: -1 | 1 }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points={direction === -1 ? '11,3.5 5.5,9 11,14.5' : '7,3.5 12.5,9 7,14.5'} />
+    </svg>
+  );
+}
+
+/** The arrows and the name of the range on screen. The sidebar shows it from lg up, and the page header below that. */
 export function CalendarToolbar({ view, anchor, onStep, inSidebar = false }: CalendarToolbarProps) {
   const arrow = `${arrowButton} ${inSidebar ? 'size-10' : 'size-11'}`;
   const label = viewLabel(view, anchor);
@@ -67,9 +76,9 @@ export function CalendarToolbar({ view, anchor, onStep, inSidebar = false }: Cal
     // The label sits between the arrows. Its box has a fixed width so that a
     // shorter name does not slide the next button out from under the pointer.
     <div className={`flex items-center ${inSidebar ? 'justify-between' : 'gap-1 sm:gap-2'}`}>
-      <button type="button" className={arrow} onClick={() => onStep(-1)} aria-label={`Previous ${view}`}>←</button>
+      <button type="button" className={arrow} onClick={() => onStep(-1)} aria-label={`Previous ${view}`}><Chevron direction={-1} /></button>
       <h2 className={`text-center font-semibold ${size}`}>{label}</h2>
-      <button type="button" className={arrow} onClick={() => onStep(1)} aria-label={`Next ${view}`}>→</button>
+      <button type="button" className={arrow} onClick={() => onStep(1)} aria-label={`Next ${view}`}><Chevron direction={1} /></button>
     </div>
   );
 }
