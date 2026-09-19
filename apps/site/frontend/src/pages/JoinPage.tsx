@@ -66,13 +66,8 @@ export default function JoinPage() {
           </div>
           <h2>Notion and onboarding</h2>
           <p>
-            Notion holds the work, the documents, and the onboarding material for every sub-team.
-            Each sub-team sets its own onboarding, so your lead will point you at the right one.
-            Finish it and you are ready to pick up work.
-          </p>
-          <p className="joinpage__stepnote">
-            Use your University of Waterloo email for Notion. The invite turns away every other
-            address.
+            Notion holds the work and the onboarding material for every sub-team. Your lead will
+            point you at the right onboarding. Finish it and you are ready to pick up work.
           </p>
           <ActionButton href={CONTACT.notion} variant="ghost">
             Open Notion <ArrowRight size={16} />

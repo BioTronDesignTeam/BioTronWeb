@@ -1291,11 +1291,6 @@
 .joinpage__perk {
   padding: 1.6rem;
 }
-.joinpage__stepnote {
-  margin-top: 0.75rem;
-  font-size: var(--fs-sm);
-  color: var(--accent-readable);
-}
 .joinpage__perktitle {
   font-size: var(--fs-xl);
   margin: 0 0 0.4rem;
