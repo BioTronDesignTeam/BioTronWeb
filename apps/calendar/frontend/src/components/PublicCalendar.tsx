@@ -13,6 +13,8 @@ interface PublicCalendarProps {
 interface CalendarToolbarProps {
   month: Date;
   onMonthChange: (month: Date) => void;
+  /** The sidebar is narrow, so its copy is tighter and spans the full width. */
+  inSidebar?: boolean;
 }
 
 const weekdayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -44,18 +46,19 @@ function EventButton({ occurrence, onClick, compact = false }: { occurrence: Occ
   );
 }
 
-const arrowButton = 'grid size-11 shrink-0 place-items-center rounded-full border border-ink/15 hover:bg-soft/25 dark:border-line-strong dark:hover:bg-white/10';
+const arrowButton = 'grid shrink-0 place-items-center rounded-full border border-ink/15 hover:bg-soft/25 dark:border-line-strong dark:hover:bg-white/10';
 
-/** The month arrows and the month name. The page header renders it. */
-export function CalendarToolbar(props: CalendarToolbarProps) {
+/** The month arrows and the month name. The sidebar shows it, or the page header when the sidebar is not docked. */
+export function CalendarToolbar({ month, onMonthChange, inSidebar = false }: CalendarToolbarProps) {
+  const arrow = `${arrowButton} ${inSidebar ? 'size-10' : 'size-11'}`;
   return (
     // The month sits between the arrows. Its box has a fixed width so that a
     // shorter month name does not slide the next-month button out from under
     // the pointer.
-    <div className="flex items-center gap-1 sm:gap-2">
-      <button type="button" className={arrowButton} onClick={() => props.onMonthChange(addMonths(props.month, -1))} aria-label="Previous month">←</button>
-      <h2 className="min-w-[8.75rem] text-center text-base font-semibold sm:min-w-[10.5rem] sm:text-xl">{monthLabel(props.month)}</h2>
-      <button type="button" className={arrowButton} onClick={() => props.onMonthChange(addMonths(props.month, 1))} aria-label="Next month">→</button>
+    <div className={`flex items-center ${inSidebar ? 'justify-between' : 'gap-1 sm:gap-2'}`}>
+      <button type="button" className={arrow} onClick={() => onMonthChange(addMonths(month, -1))} aria-label="Previous month">←</button>
+      <h2 className={`text-center font-semibold ${inSidebar ? 'text-base' : 'min-w-[8.75rem] text-base sm:min-w-[10.5rem] sm:text-xl'}`}>{monthLabel(month)}</h2>
+      <button type="button" className={arrow} onClick={() => onMonthChange(addMonths(month, 1))} aria-label="Next month">→</button>
     </div>
   );
 }

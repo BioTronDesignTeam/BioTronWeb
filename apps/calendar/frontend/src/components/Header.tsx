@@ -6,16 +6,19 @@ import type { AuthStatus } from '../types';
 interface HeaderProps {
   auth: AuthStatus;
   managing: boolean;
-  onManage: () => void;
   onPublic: () => void;
   onLoggedOut: () => void;
-  /** Controls for the current view. They join the bar on a wide screen and take a second row below it. */
+  /**
+   * The month controls. A docked sidebar shows them, so the bar only carries
+   * them when the sidebar is closed or is a drawer, where the month would
+   * otherwise be out of sight.
+   */
   toolbar?: ReactNode;
   /** Present on the calendar view, where the button opens and closes the sidebar. */
   sidebar?: { open: boolean; filterCount: number; onToggle: () => void };
 }
 
-export function Header({ auth, managing, onManage, onPublic, onLoggedOut, toolbar, sidebar }: HeaderProps) {
+export function Header({ auth, managing, onPublic, onLoggedOut, toolbar, sidebar }: HeaderProps) {
   const operator = auth.operator;
   const [logoutError, setLogoutError] = useState('');
   return (
@@ -47,15 +50,16 @@ export function Header({ auth, managing, onManage, onPublic, onLoggedOut, toolba
           <span className="hidden h-6 w-px bg-ink/15 sm:block dark:bg-white/20" aria-hidden="true" />
           <span className="hidden truncate text-sm font-semibold tracking-wide sm:block">Calendar</span>
         </div>
-        {toolbar && <div className="order-last w-full pb-3 lg:order-none lg:ml-3 lg:w-auto lg:flex-1 lg:pb-0">{toolbar}</div>}
-        <div className="ml-auto flex items-center gap-2 lg:ml-0">
-          {auth.can_write && (
+        {toolbar && <div className={`order-last w-full pb-3 lg:order-none lg:ml-3 lg:w-auto lg:pb-0 ${sidebar?.open ? 'lg:hidden' : ''}`}>{toolbar}</div>}
+        <div className="ml-auto flex items-center gap-2">
+          {/* On the calendar view Manage lives in the sidebar. This button is the way back from the Manage view. */}
+          {auth.can_write && managing && (
             <button
               type="button"
               className="min-h-11 rounded-full px-4 text-sm font-semibold text-brand hover:bg-soft/30 dark:text-link dark:hover:bg-white/10"
-              onClick={managing ? onPublic : onManage}
+              onClick={onPublic}
             >
-              {managing ? <><span className="sm:hidden">View</span><span className="hidden sm:inline">View calendar</span></> : 'Manage'}
+              <span className="sm:hidden">View</span><span className="hidden sm:inline">View calendar</span>
             </button>
           )}
           <ThemeToggle />
