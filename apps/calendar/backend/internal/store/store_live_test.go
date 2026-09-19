@@ -15,10 +15,15 @@ import (
 // they pin — how much SQL narrowing is safe, and that resetting an occurrence
 // removes its row — cannot be observed from Go alone. Set
 // CALENDAR_TEST_DATABASE_URL to a throwaway database with the calendar schema
-// migrated; without it the suite skips.
+// migrated; without it the suite skips. The address looks like this:
+//
+//	postgresql://user:pass@host:5432/db?schema=calendar (a placeholder; trufflehog:ignore)
+//
+// Export the variable first. `-e NAME` with no value passes it through, which
+// also keeps the password out of the command line.
 //
 //	docker run --rm -v "$PWD/backend:/src" -w /src \
-//	  -e CALENDAR_TEST_DATABASE_URL='postgresql://user:pass@host:5432/db?schema=calendar' \
+//	  -e CALENDAR_TEST_DATABASE_URL \
 //	  golang:1.25-bookworm go test ./internal/store/ -run Live -v
 
 const (

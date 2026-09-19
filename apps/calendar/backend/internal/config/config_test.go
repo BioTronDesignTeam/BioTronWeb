@@ -33,7 +33,7 @@ func TestPublicBaseURLSharesTheBrowserAPIAddress(t *testing.T) {
 }
 
 func TestValidateRejectsInvalidFeedAddresses(t *testing.T) {
-	for _, address := range []string{"/api", "ftp://calendar.example", "https://", "https://calendar.example/api?token=secret", "https://calendar.example/api#feed", "https://user:pass@calendar.example/api"} {
+	for _, address := range []string{"/api", "ftp://calendar.example", "https://", "https://calendar.example/api?token=secret", "https://calendar.example/api#feed", "https://user:pass@calendar.example/api"} { // trufflehog:ignore: made-up addresses the validator must reject
 		t.Run(address, func(t *testing.T) {
 			config := Config{
 				DatabaseURL:     "postgresql://localhost/calendar",
