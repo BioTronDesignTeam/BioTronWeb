@@ -208,6 +208,12 @@ names, such as `OAuthManager` and `exo-gui`. They mean the paths above.
 
 ## Public site
 
+- Every page and its title and description live in
+  `apps/site/frontend/src/data/seo.ts`. The build writes an HTML file, the
+  sitemap, `robots.txt`, and `llms.txt` from that list, and Nginx answers 404
+  for any path with no file. A new route that is missing from the list returns
+  404 in production. See `docs/site-seo.md`.
+- A deployment must set `VITE_SITE_URL` to the public address before the build.
 - Top navigation: Projects, Sponsors, Calendar, and the join call to action.
   `/projects` lists current projects first and past projects below.
   `/past-projects` redirects to `/projects#past`.
