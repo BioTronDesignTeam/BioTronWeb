@@ -478,7 +478,7 @@
   display: inline-flex;
   gap: 3.5rem;
   white-space: nowrap;
-  animation: marquee 32s linear infinite;
+  animation: marquee 64s linear infinite;
 }
 .sponsors__item {
   font-family: var(--font-display);

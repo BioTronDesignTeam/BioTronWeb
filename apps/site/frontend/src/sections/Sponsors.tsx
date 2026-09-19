@@ -1,8 +1,13 @@
 import Reveal from '../components/Reveal';
 import { SPONSORS } from '../data/sponsors';
 
-/** The marquee runs two copies of the list so the loop has no seam. */
-const MARQUEE_ROW = [...SPONSORS, ...SPONSORS];
+/**
+ * The marquee runs two identical halves so the loop has no seam. Each half
+ * repeats the list so it stays wider than the widest screen; a shorter half
+ * leaves a blank stretch at the end of every loop.
+ */
+const MARQUEE_HALF = Array.from({ length: 4 }, () => SPONSORS).flat();
+const MARQUEE_ROW = [...MARQUEE_HALF, ...MARQUEE_HALF];
 
 export default function Sponsors() {
   return (

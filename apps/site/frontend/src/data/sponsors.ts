@@ -1,11 +1,4 @@
-export const SPONSORS = [
-  'University of Waterloo',
-  'Waterloo Engineering Society',
-  'WEEF',
-  'Sedra Student Design Centre',
-  'Notion',
-  'Kenesto',
-];
+export const SPONSORS = ['University of Waterloo', 'Notion', 'Kenesto', 'Altium'];
 
 export const SPONSORSHIP_AREAS = [
   {
