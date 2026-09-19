@@ -44,12 +44,14 @@ names, such as `OAuthManager` and `exo-gui`. They mean the paths above.
 
 ## Run and verify
 
+- Use `./launch`. It wraps both compose files; `./launch --help` lists it all.
 - Start `infra` first. It owns Postgres, Redis, and the `biotron` Docker
-  network that every app joins:
-  `docker compose -f infra/docker-compose.yml --env-file infra/.env up -d postgres redis`
+  network that every app joins. For local work: `./launch infra --local`.
 - Do not start `cloudflared` for local work. It opens a public tunnel.
-- Start one app from the root, for example
-  `docker compose up -d --build calendar-migrate calendar-api calendar-web`.
+  `--local` leaves it out; a plain `./launch infra` starts it.
+- Start the apps with `./launch web --build`, and leave one out with
+  `--no-<app>`. For a single app, name its services to compose directly, for
+  example `docker compose up -d --build calendar-migrate calendar-api calendar-web`.
 - After a change: run the affected tests, rebuild only the affected
   containers, and check the real page in a browser. For a Three.js change on
   the site, check the exact scroll stop you changed.

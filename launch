@@ -1,0 +1,156 @@
+#!/usr/bin/env bash
+# Starts and stops the platform with Docker Compose, so nobody has to remember
+# which compose file takes which flags. It only runs `docker compose`; it never
+# pulls, builds code on the host, edits an .env, or removes a volume.
+set -euo pipefail
+
+usage() {
+  cat <<'USAGE'
+Usage: ./launch <target> [options]
+
+Targets
+  infra     Postgres, Redis, the edge Nginx, and the Cloudflare tunnel
+  web       The apps: site, calendar, auth, exo, logger, sprinter
+  all       infra, then web
+  stop      Stop containers and keep their data: ./launch stop [infra|web|all]
+  status    Show every BioTron container
+
+Options
+  --build        Rebuild images first. Needed after a pull or a VITE_* change.
+  --no-<app>     Leave an app out of web, for example --no-sprinter. Repeatable.
+  --local        infra only: start Postgres and Redis and nothing else. Use it
+                 on a laptop, where the tunnel must stay closed.
+  --dry-run      Print the docker commands and run nothing.
+  --help         Show this help.
+
+Examples
+  ./launch infra --build
+  ./launch web --no-sprinter --build
+  ./launch all --build
+  ./launch infra --local
+  ./launch stop web
+
+Start infra before web: it owns the `biotron` network every app joins.
+Migrations need no step of their own. Each app's *-migrate container applies
+what is pending and exits before that app's API starts.
+USAGE
+}
+
+root=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
+cd "$root"
+
+apps='site calendar auth exo logger sprinter'
+target='' build=false local_only=false dry_run=false excluded='' stop_target='all'
+
+die() { echo "launch: $*" >&2; exit 1; }
+is_app() { case " $apps " in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
+
+[[ $# -gt 0 ]] || { usage; exit 1; }
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --help|-h) usage; exit 0 ;;
+    --build) build=true ;;
+    --local) local_only=true ;;
+    --dry-run) dry_run=true ;;
+    --no-*)
+      app=${1#--no-}
+      is_app "$app" || die "unknown app '$app' in $1. Apps: $apps"
+      excluded="$excluded $app" ;;
+    -*) die "unknown option $1. Try ./launch --help" ;;
+    infra|web|all|status)
+      [[ -z $target ]] || { [[ $target == stop ]] && stop_target=$1 || die "one target at a time: got '$target' and '$1'"; }
+      [[ -n $target ]] || target=$1 ;;
+    stop)
+      [[ -z $target ]] || die "one target at a time: got '$target' and 'stop'"
+      target=stop ;;
+    *) die "unknown target '$1'. Try ./launch --help" ;;
+  esac
+  shift
+done
+[[ -n $target ]] || die 'name a target: infra, web, all, stop, or status'
+[[ $stop_target != status ]] || die "'status' cannot be stopped"
+if [[ -n $excluded && $target == infra ]]; then die '--no-<app> only applies to web and all'; fi
+if $local_only && [[ $target == web ]]; then die '--local only applies to infra and all'; fi
+
+command -v docker >/dev/null 2>&1 || die 'docker is not installed or not on PATH'
+
+# Prints the command, then runs it unless this is a dry run.
+run() {
+  printf '+'; printf ' %q' "$@"; printf '\n'
+  $dry_run || "$@"
+}
+
+infra_compose() { run docker compose -f infra/docker-compose.yml --env-file infra/.env "$@"; }
+
+# Compose reads every app's .env to parse the root file at all, including the
+# apps left out with --no-<app>. One missing file stops every command, and the
+# error does not say that a copy of the example is enough.
+require_env_files() {
+  local missing='' file
+  for file in "$@"; do [[ -f $file ]] || missing="$missing $file"; done
+  [[ -z $missing ]] && return 0
+  echo 'launch: these env files are missing:' >&2
+  for file in $missing; do echo "  $file    create it with: cp $file.example $file" >&2; done
+  echo 'Compose reads all of them, even for an app you leave out.' >&2
+  exit 1
+}
+
+# The services of the chosen apps, read from the compose file itself so a new
+# service is picked up with no edit here. An app's services share its prefix:
+# calendar-migrate, calendar-api, calendar-web.
+web_services() {
+  local service app skip
+  docker compose config --services | sort | while read -r service; do
+    skip=false
+    for app in $excluded; do
+      case "$service" in "$app"-*) skip=true ;; esac
+    done
+    $skip || echo "$service"
+  done
+}
+
+start_infra() {
+  require_env_files infra/.env
+  local args=(up -d)
+  $build && args+=(--build)
+  $local_only && args+=(postgres redis)
+  infra_compose "${args[@]}"
+}
+
+start_web() {
+  local app files=''
+  for app in $apps; do files="$files apps/$app/.env"; done
+  # shellcheck disable=SC2086
+  require_env_files $files
+
+  # The apps join a network that infra creates. Without it compose fails with
+  # "network biotron declared as external, but could not be found".
+  if ! $dry_run && ! docker network inspect biotron >/dev/null 2>&1; then
+    die "the 'biotron' network does not exist yet. Run ./launch infra first."
+  fi
+
+  local services
+  services=$(web_services)
+  [[ -n $services ]] || die 'every app was left out, so there is nothing to start'
+  local args=(up -d)
+  $build && args+=(--build)
+  # shellcheck disable=SC2086
+  run docker compose "${args[@]}" $services
+}
+
+stop_web() { run docker compose stop; }
+stop_infra() { infra_compose stop; }
+
+case "$target" in
+  infra) start_infra ;;
+  web) start_web ;;
+  all) start_infra; start_web ;;
+  status) run docker ps -a --filter name=biotron --format 'table {{.Names}}\t{{.Status}}' ;;
+  stop)
+    # Apps first, so nothing is left talking to a database that has gone.
+    case "$stop_target" in
+      web) stop_web ;;
+      infra) stop_infra ;;
+      all) stop_web; stop_infra ;;
+    esac ;;
+esac

@@ -69,6 +69,31 @@ go work sync                             # after changing any go.mod
 docker compose up -d                     # the whole platform (needs each app's .env)
 ```
 
+### Starting and stopping
+
+`./launch` wraps the two compose files, so nobody has to remember which one
+takes which flags. It only runs `docker compose`. It never pulls, edits an
+`.env`, or removes a volume.
+
+```bash
+./launch infra --build               # Postgres, Redis, the edge Nginx, the tunnel
+./launch web --build                 # every app
+./launch web --no-sprinter --build   # every app but one; --no-<app> repeats
+./launch all --build                 # infra, then web
+./launch infra --local               # a laptop: Postgres and Redis only, no tunnel
+./launch stop                        # stop everything and keep the data
+./launch status
+```
+
+Add `--dry-run` to any of them to print the docker commands and run nothing.
+Use `--build` after a pull and after any `VITE_*` change, because those values
+go into the built frontend. Migrations need no step of their own: each app's
+`*-migrate` container applies what is pending and exits before its API starts.
+
+Compose reads every app's `.env` to parse the root file, including an app left
+out with `--no-<app>`. When one is missing, `./launch` names it and prints the
+`cp` command that creates it from the example.
+
 Frontend images build from the repository root so they can see
 `packages/style`, and the Auth, Exo, and Calendar API images build from
 the root so they can see `go/logclient`; each app's compose file already
