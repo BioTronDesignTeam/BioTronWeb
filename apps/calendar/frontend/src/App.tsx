@@ -214,8 +214,9 @@ export function App() {
   };
 
   return (
-    // The calendar view fills the window and never scrolls as a page. The
-    // Manage view is a long document, so it scrolls the usual way.
+    // The calendar view fills the window and never scrolls as a page, so every
+    // region inside it must scroll on its own. The Manage view is a long
+    // document and scrolls the usual way.
     <div className={`bg-white text-ink dark:bg-page dark:text-white ${showingAdmin ? 'min-h-dvh' : 'flex h-dvh flex-col overflow-hidden'}`}>
       <Header
         auth={auth} managing={managing} onPublic={() => setManaging(false)} onLoggedOut={() => { setAuth({ can_write: false }); setManaging(false); }}

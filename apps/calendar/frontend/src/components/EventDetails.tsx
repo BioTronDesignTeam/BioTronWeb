@@ -23,8 +23,8 @@ export function EventDetails({ occurrence, canWrite, error, onClose, onEditSerie
         {occurrence.modified && <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800 dark:bg-amber-400/15 dark:text-amber-200">Changed occurrence</span>}
       </div>
       <p className="mt-5 text-base font-semibold">{fullDateTimeLabel(occurrence)}</p>
-      {occurrence.location && <p className="mt-2 text-sm text-ink/70 dark:text-muted">{occurrence.location}</p>}
-      {occurrence.description && <p className="mt-5 whitespace-pre-wrap text-sm leading-6 text-ink/70 dark:text-muted">{occurrence.description}</p>}
+      {occurrence.location && <p className="mt-2 break-words text-sm text-ink/70 dark:text-muted">{occurrence.location}</p>}
+      {occurrence.description && <p className="mt-5 whitespace-pre-wrap break-words text-sm leading-6 text-ink/70 dark:text-muted">{occurrence.description}</p>}
       {occurrence.url && <a href={occurrence.url} target="_blank" rel="noreferrer" className="mt-5 inline-flex min-h-11 items-center font-semibold text-brand underline decoration-brand/30 underline-offset-4 dark:text-link dark:decoration-link/40">Open event link ↗</a>}
       {error && <p role="alert" className="mt-5 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800 dark:bg-red-950/30 dark:text-red-200">{error}</p>}
       {canWrite && (

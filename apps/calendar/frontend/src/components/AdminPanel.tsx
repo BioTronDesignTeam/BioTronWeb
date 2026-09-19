@@ -210,7 +210,7 @@ function EventList({ events, onEdit, onPublish, onCancel, onDelete }: {
                 <h2 className="truncate font-semibold">{event.title}</h2>
                 <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${stateStyle(event.state)}`}>{event.state.toLowerCase()}</span>
               </div>
-              <p className="mt-1 text-sm text-ink/60 dark:text-muted">
+              <p className="mt-1 break-words text-sm text-ink/60 dark:text-muted">
                 {event.scope_path} · {localDate(event.starts_at_local)} at {timeOfDayLabel(event.starts_at_local)}
                 {event.recurrence_until ? ` · weekly through ${localDate(event.recurrence_until)}` : ''}
               </p>
