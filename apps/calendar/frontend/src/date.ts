@@ -12,7 +12,6 @@ const dateParts = new Intl.DateTimeFormat('en-CA', {
 });
 
 const monthFormat = new Intl.DateTimeFormat('en-CA', { month: 'long', year: 'numeric', timeZone: 'UTC' });
-const shortMonthFormat = new Intl.DateTimeFormat('en-CA', { month: 'short', year: 'numeric', timeZone: 'UTC' });
 
 const shortDayFormat = new Intl.DateTimeFormat('en-CA', {
   weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC',
@@ -50,8 +49,8 @@ export function dateKey(date: Date) {
   return date.toISOString().slice(0, 10);
 }
 
-export function monthLabel(month: Date, short = false) {
-  return (short ? shortMonthFormat : monthFormat).format(month);
+export function monthLabel(month: Date) {
+  return monthFormat.format(month);
 }
 
 export function dayLabel(key: string, long = false) {

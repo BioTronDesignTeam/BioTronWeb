@@ -1,7 +1,6 @@
 import { useMemo } from 'react';
 import { addMonths, calendarDays, dateKey, dayLabel, monthLabel, occurrenceDateKey, timeLabel } from '../date';
-import type { Occurrence, Scope } from '../types';
-import { ScopeFilter } from './ScopeFilter';
+import type { Occurrence } from '../types';
 
 interface PublicCalendarProps {
   month: Date;
@@ -13,11 +12,7 @@ interface PublicCalendarProps {
 
 interface CalendarToolbarProps {
   month: Date;
-  scopes: Scope[];
-  selectedScopes: string[];
   onMonthChange: (month: Date) => void;
-  onScopeChange: (scopeIds: string[]) => void;
-  onSubscribe: () => void;
 }
 
 const weekdayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -51,27 +46,16 @@ function EventButton({ occurrence, onClick, compact = false }: { occurrence: Occ
 
 const arrowButton = 'grid size-11 shrink-0 place-items-center rounded-full border border-ink/15 hover:bg-soft/25 dark:border-line-strong dark:hover:bg-white/10';
 
-/** The month arrows, Subscribe, and the filter. The page header renders it. */
+/** The month arrows and the month name. The page header renders it. */
 export function CalendarToolbar(props: CalendarToolbarProps) {
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      {/* The month sits between the arrows. Its box has a fixed width so
-          that a shorter month name does not slide the next-month button
-          out from under the pointer. */}
-      <div className="flex items-center gap-1 sm:gap-2">
-        <button type="button" className={arrowButton} onClick={() => props.onMonthChange(addMonths(props.month, -1))} aria-label="Previous month">←</button>
-        <h2 className="min-w-[4.75rem] text-center text-base font-semibold sm:min-w-[10.5rem] sm:text-xl">
-          <span className="sm:hidden">{monthLabel(props.month, true)}</span>
-          <span className="hidden sm:inline">{monthLabel(props.month)}</span>
-        </h2>
-        <button type="button" className={arrowButton} onClick={() => props.onMonthChange(addMonths(props.month, 1))} aria-label="Next month">→</button>
-      </div>
-      <div className="ml-auto flex items-center gap-2">
-        <button type="button" onClick={props.onSubscribe} className="min-h-11 whitespace-nowrap rounded-full bg-deep px-4 text-sm sm:px-5 font-semibold text-white hover:bg-brand dark:bg-brand dark:hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:focus-visible:outline-link">
-          Subscribe<span className="hidden xl:inline"> to a calendar</span>
-        </button>
-        <ScopeFilter scopes={props.scopes} selected={props.selectedScopes} onChange={props.onScopeChange} />
-      </div>
+    // The month sits between the arrows. Its box has a fixed width so that a
+    // shorter month name does not slide the next-month button out from under
+    // the pointer.
+    <div className="flex items-center gap-1 sm:gap-2">
+      <button type="button" className={arrowButton} onClick={() => props.onMonthChange(addMonths(props.month, -1))} aria-label="Previous month">←</button>
+      <h2 className="min-w-[8.75rem] text-center text-base font-semibold sm:min-w-[10.5rem] sm:text-xl">{monthLabel(props.month)}</h2>
+      <button type="button" className={arrowButton} onClick={() => props.onMonthChange(addMonths(props.month, 1))} aria-label="Next month">→</button>
     </div>
   );
 }
@@ -101,26 +85,30 @@ export function PublicCalendar(props: PublicCalendarProps) {
   }, [days, grouped]);
 
   return (
-    <main className="mx-auto w-full max-w-[1500px] pb-16">
+    // The page never scrolls: this column takes the height left under the
+    // header, and the month grid divides it between the weeks.
+    <main className="flex min-h-0 min-w-0 flex-1 flex-col">
       <h1 className="sr-only">BioTron public calendar</h1>
       {/* The month controls live in the page header, so the grid starts right under it. */}
-      <section className="overflow-hidden border-b border-ink/10 bg-white dark:border-line dark:bg-surface min-[1500px]:border-x">
+      <section className="flex min-h-0 flex-1 flex-col bg-white dark:bg-surface">
         {props.error && <div className="border-b border-red-500/20 bg-red-50 px-5 py-3 text-sm text-red-800 dark:bg-red-950/30 dark:text-red-200">{props.error}</div>}
         {props.loading && <div className="h-1 animate-pulse bg-brand" aria-label="Loading calendar" />}
 
-        <div className="hidden md:block">
-          <div className="grid grid-cols-7 border-b border-ink/10 dark:border-line">
+        <div className="hidden min-h-0 flex-1 flex-col overflow-y-auto md:flex">
+          <div className="grid shrink-0 grid-cols-7 border-b border-ink/10 dark:border-line">
             {weekdayLabels.map((weekday) => <div key={weekday} className="px-3 py-2 text-xs font-bold uppercase tracking-wider text-ink/45 dark:text-faint">{weekday}</div>)}
           </div>
-          <div className="grid grid-cols-7">
+          {/* Every week gets an equal share of the height. The floor keeps a
+              day readable in a short window, where this block scrolls instead. */}
+          <div className="grid min-h-0 flex-1 grid-cols-7" style={{ gridTemplateRows: `repeat(${days.length / 7}, minmax(5.5rem, 1fr))` }}>
             {days.map((day) => {
               const key = dateKey(day);
               const events = grouped.get(key) || [];
               const muted = day.getUTCMonth() !== currentMonth;
               return (
-                <div key={key} className={`min-h-32 border-b border-r border-ink/10 p-2 dark:border-line xl:min-h-40 ${muted ? 'bg-ink/[0.018] text-ink/35 dark:bg-black/10 dark:text-faint' : ''}`}>
-                  <div className={`mb-2 grid size-7 place-items-center rounded-full text-xs font-semibold ${key === today ? 'bg-deep text-white' : ''}`}>{day.getUTCDate()}</div>
-                  <div className="max-h-24 space-y-1.5 overflow-y-auto pr-1 xl:max-h-32">
+                <div key={key} className={`flex min-h-0 flex-col overflow-hidden border-b border-r border-ink/10 p-2 dark:border-line ${muted ? 'bg-ink/[0.018] text-ink/35 dark:bg-black/10 dark:text-faint' : ''}`}>
+                  <div className={`mb-1 grid size-7 shrink-0 place-items-center rounded-full text-xs font-semibold ${key === today ? 'bg-deep text-white' : ''}`}>{day.getUTCDate()}</div>
+                  <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-1">
                     {events.map((occurrence) => <EventButton key={`${occurrence.series_id}-${occurrence.recurrence_id_local}`} occurrence={occurrence} compact onClick={() => props.onSelectEvent(occurrence)} />)}
                   </div>
                 </div>
@@ -129,7 +117,7 @@ export function PublicCalendar(props: PublicCalendarProps) {
           </div>
         </div>
 
-        <div className="divide-y divide-ink/10 dark:divide-line md:hidden">
+        <div className="min-h-0 flex-1 divide-y divide-ink/10 overflow-y-auto pb-[env(safe-area-inset-bottom,0px)] dark:divide-line md:hidden">
           {agendaDays.length === 0 && !props.loading ? (
             <div className="px-5 py-16 text-center">
               <p className="font-semibold">Nothing scheduled here yet.</p>
