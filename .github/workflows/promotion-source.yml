@@ -1,0 +1,25 @@
+# Required check for PRs into main. This runs from the trusted base branch,
+# never checks out or runs code from the pull request, and needs no token access.
+name: promotion-source
+
+on:
+  pull_request_target:
+    branches: [main]
+    types: [opened, reopened, synchronize, edited, ready_for_review]
+
+permissions: {}
+
+jobs:
+  staging-only:
+    name: staging-only
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require this repository's staging branch
+        env:
+          SOURCE_BRANCH: ${{ github.event.pull_request.head.ref }}
+          SOURCE_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+        run: |
+          if [[ "$SOURCE_REPO" != "$GITHUB_REPOSITORY" || "$SOURCE_BRANCH" != staging ]]; then
+            echo "Only this repository's staging branch can be promoted to main." >&2
+            exit 1
+          fi
