@@ -2,6 +2,7 @@ name: biotron-logger
 
 services:
   logger-migrate:
+    image: ${IMAGE_REGISTRY:-biotron-}logger-migrate:${IMAGE_TAG:-local}
     build:
       context: ./prisma
       dockerfile: Dockerfile
@@ -12,6 +13,7 @@ services:
     restart: "no"
 
   logger-api:
+    image: ${IMAGE_REGISTRY:-biotron-}logger-api:${IMAGE_TAG:-local}
     build:
       context: ../..
       dockerfile: apps/logger/backend/Dockerfile
@@ -42,6 +44,9 @@ services:
     restart: unless-stopped
 
   logger-web:
+    environment:
+      BASE_DOMAIN: ${BASE_DOMAIN:-localhost}
+    image: ${IMAGE_REGISTRY:-biotron-}logger-web:${IMAGE_TAG:-local}
     build:
       context: ../..
       dockerfile: apps/logger/frontend/Dockerfile

@@ -1,0 +1,140 @@
+name: deploy
+
+on:
+  push:
+    branches: [staging, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  images:
+    if: github.ref == 'refs/heads/staging'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - { name: site-web, context: ., dockerfile: apps/site/frontend/Dockerfile }
+          - { name: calendar-web, context: ., dockerfile: apps/calendar/frontend/Dockerfile }
+          - { name: calendar-api, context: ., dockerfile: apps/calendar/backend/Dockerfile }
+          - { name: calendar-migrate, context: apps/calendar/prisma, dockerfile: apps/calendar/prisma/Dockerfile }
+          - { name: logger-web, context: ., dockerfile: apps/logger/frontend/Dockerfile }
+          - { name: logger-api, context: ., dockerfile: apps/logger/backend/Dockerfile }
+          - { name: logger-migrate, context: apps/logger/prisma, dockerfile: apps/logger/prisma/Dockerfile }
+          - { name: auth-web, context: ., dockerfile: apps/auth/frontend/Dockerfile }
+          - { name: auth-api, context: ., dockerfile: apps/auth/backend/Dockerfile }
+          - { name: auth-migrate, context: apps/auth/prisma, dockerfile: apps/auth/prisma/Dockerfile }
+          - { name: exo-web, context: ., dockerfile: apps/exo/frontend/Dockerfile }
+          - { name: exo-api, context: ., dockerfile: apps/exo/backend/Dockerfile }
+          - { name: exo-migrate, context: apps/exo/prisma, dockerfile: apps/exo/prisma/Dockerfile }
+          - { name: sprinter-web, context: ., dockerfile: apps/sprinter/frontend/Dockerfile }
+          - { name: sprinter-bot, context: ., dockerfile: apps/sprinter/backend/Dockerfile }
+          - { name: sprinter-migrate, context: apps/sprinter/prisma, dockerfile: apps/sprinter/prisma/Dockerfile }
+          - { name: edge-nginx, context: infra/nginx, dockerfile: infra/nginx/Dockerfile }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.image.context }}
+          file: ${{ matrix.image.dockerfile }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ghcr.io/biotrondesignteam/${{ matrix.image.name }}:${{ github.sha }}
+          build-args: |
+            VITE_SITE_URL=https://__BASE_DOMAIN__
+            VITE_CALENDAR_API_URL=https://calendar.__BASE_DOMAIN__/api
+            VITE_API_BASE=/api
+            VITE_API_URL=/api
+            VITE_AUTH_URL=https://auth.__BASE_DOMAIN__/api
+            VITE_IDP_URL=https://auth.__BASE_DOMAIN__/api
+            VITE_CALENDAR_URL=${{ matrix.image.name == 'sprinter-web' && 'https://calendar.__BASE_DOMAIN__/api' || 'https://calendar.__BASE_DOMAIN__' }}
+      - uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ghcr.io/biotrondesignteam/${{ matrix.image.name }}:${{ github.sha }}
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: '1'
+
+  candidate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      image_tag: ${{ steps.resolve.outputs.image_tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Find staging image for this source tree
+        id: resolve
+        run: |
+          set -euo pipefail
+          if [[ $GITHUB_REF_NAME == staging ]]; then
+            candidate=$GITHUB_SHA
+          else
+            git fetch origin staging
+            candidate=$(git merge-base HEAD origin/staging)
+            if [[ $(git rev-parse HEAD^{tree}) != $(git rev-parse "$candidate^{tree}") ]]; then
+              echo 'Main differs from the staging commit that produced the images. Merge staging without squash or unrelated changes.' >&2
+              exit 1
+            fi
+            result=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/deploy.yml/runs?head_sha=$candidate&branch=staging&per_page=30" \
+              --jq '[.workflow_runs[] | select(.conclusion == "success")] | length')
+            [[ $result -gt 0 ]] || { echo 'No successful staging deployment for this commit' >&2; exit 1; }
+          fi
+          echo "image_tag=$candidate" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  deploy:
+    needs: [candidate, images]
+    if: always() && needs.candidate.result == 'success' && (needs.images.result == 'success' || (github.ref == 'refs/heads/main' && needs.images.result == 'skipped'))
+    runs-on: ubuntu-latest
+    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          audience: ${{ secrets.TS_AUDIENCE }}
+          tags: tag:biotron-ci
+      - name: Transfer environment files
+        env:
+          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+          DEPLOY_DOMAIN: ${{ vars.DEPLOY_DOMAIN }}
+          SITE_ENV: ${{ secrets.SITE_ENV }}
+          CALENDAR_ENV: ${{ secrets.CALENDAR_ENV }}
+          LOGGER_ENV: ${{ secrets.LOGGER_ENV }}
+          AUTH_ENV: ${{ secrets.AUTH_ENV }}
+          EXO_ENV: ${{ secrets.EXO_ENV }}
+          SPRINTER_ENV: ${{ secrets.SPRINTER_ENV }}
+          INFRA_ENV: ${{ secrets.INFRA_ENV }}
+          CLOUDFLARE_TUNNEL_TOKEN: ${{ secrets.CLOUDFLARE_TUNNEL_TOKEN }}
+        run: bash deploy/send-env.sh
+      - name: Pull and launch the tested images
+        env:
+          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+          IMAGE_TAG: ${{ needs.candidate.outputs.image_tag }}
+        run: |
+          [[ $DEPLOY_HOST =~ ^[a-zA-Z0-9.-]+$ ]] || exit 1
+          tailscale ssh "deploy@$DEPLOY_HOST" "bash /opt/biotron/deploy/deploy.sh $GITHUB_REF_NAME $GITHUB_SHA $IMAGE_TAG"

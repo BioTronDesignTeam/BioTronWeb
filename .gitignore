@@ -3,4 +3,5 @@ dist/
 .env
 .env.*
 !.env.example
+infra/cloudflare-tunnel-token
 .DS_Store

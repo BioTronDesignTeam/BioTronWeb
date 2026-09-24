@@ -30,6 +30,9 @@ RUN npm run build -w packages/style && npm run build -w apps/site/frontend
 
 FROM nginx:1.27-alpine
 
+COPY deploy/40-domain.sh /docker-entrypoint.d/40-domain.sh
+RUN chmod +x /docker-entrypoint.d/40-domain.sh
+
 COPY apps/site/frontend/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /repo/apps/site/frontend/dist /usr/share/nginx/html
 

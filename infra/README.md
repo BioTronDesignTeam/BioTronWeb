@@ -149,10 +149,8 @@ All containers use `restart: unless-stopped`, so Docker restores them after a
 cold boot. Enable Docker and Tailscale on the host; cloudflared is not installed
 as a native systemd service.
 
-For releases, build multi-architecture application images once, test immutable
-digests in staging, and promote the same digests to production. The local image
-name `biotron-edge-nginx:local` can be replaced through `NGINX_IMAGE` when the
-edge image is published by CI.
+The local edge image is `biotron-edge-nginx:local`. See `deploy/README.md`
+for the staged deployment workflow and GHCR image tags.
 
 ## Data service major upgrades: Postgres 16 to 18, Redis 7 to 8
 
@@ -309,7 +307,5 @@ plaintext, so it must never be readable outside Auth.
 
 ## Releases
 
-The plan is to build each image once in CI, pin it by digest, prove it in
-staging, and promote the same digest to production without rebuilding. The
-release workflow builds and pushes the images; recording digests per
-environment and deploying from that record is not built yet.
+The staging deployment builds commit-tagged images and production pulls the
+images associated with the tested staging commit. See `deploy/README.md`.

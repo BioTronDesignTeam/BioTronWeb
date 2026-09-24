@@ -175,8 +175,8 @@ names, such as `OAuthManager` and `exo-gui`. They mean the paths above.
 - One app per hostname: `www`, `calendar`, `auth`, `exogui`, `status`
   (Logger), and `sprinter`. `infra/nginx` is the source of truth. Within a
   hostname, `/` goes to the frontend and `/api/` to the backend.
-- Staging uses `*.biotron-dev.com`. Production uses the same layout under its
-  own domain. Domains, secrets, and data differ; routing and containers do not.
+- Staging uses `uwbiotron.dev` and its app subdomains. Production uses
+  `uwbiotron.ca`. Domains, secrets, and data differ; routing and containers do not.
 - Build `linux/amd64` and `linux/arm64` images once in CI and pin them by
   digest. Test that digest in staging, then promote the same digest. Never
   rebuild a candidate after staging approves it.

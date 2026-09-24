@@ -2,6 +2,7 @@ name: biotron-calendar
 
 services:
   calendar-migrate:
+    image: ${IMAGE_REGISTRY:-biotron-}calendar-migrate:${IMAGE_TAG:-local}
     build:
       context: ./prisma
       dockerfile: Dockerfile
@@ -12,6 +13,7 @@ services:
     restart: "no"
 
   calendar-api:
+    image: ${IMAGE_REGISTRY:-biotron-}calendar-api:${IMAGE_TAG:-local}
     build:
       context: ../..
       dockerfile: apps/calendar/backend/Dockerfile
@@ -43,6 +45,9 @@ services:
     restart: unless-stopped
 
   calendar-web:
+    environment:
+      BASE_DOMAIN: ${BASE_DOMAIN:-localhost}
+    image: ${IMAGE_REGISTRY:-biotron-}calendar-web:${IMAGE_TAG:-local}
     build:
       context: ../..
       dockerfile: apps/calendar/frontend/Dockerfile
