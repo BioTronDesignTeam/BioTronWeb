@@ -24,6 +24,9 @@ RUN npm run build -w packages/style && npm run build -w apps/auth/frontend
 
 FROM nginx:1.27-alpine
 
+COPY deploy/40-domain.sh /docker-entrypoint.d/40-domain.sh
+RUN chmod +x /docker-entrypoint.d/40-domain.sh
+
 COPY apps/auth/frontend/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /repo/apps/auth/frontend/dist /usr/share/nginx/html
 

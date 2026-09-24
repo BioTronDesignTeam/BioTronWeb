@@ -2,6 +2,7 @@ name: biotron-sprinter
 
 services:
   sprinter-migrate:
+    image: ${IMAGE_REGISTRY:-biotron-}sprinter-migrate:${IMAGE_TAG:-local}
     build:
       context: ./prisma
       dockerfile: Dockerfile
@@ -12,6 +13,7 @@ services:
     restart: "no"
 
   sprinter-bot:
+    image: ${IMAGE_REGISTRY:-biotron-}sprinter-bot:${IMAGE_TAG:-local}
     build:
       context: ../..
       dockerfile: apps/sprinter/backend/Dockerfile
@@ -37,6 +39,7 @@ services:
       - "127.0.0.1:${API_PORT:-8084}:8080"
     networks:
       biotron:
+    image: ${IMAGE_REGISTRY:-biotron-}biotron:${IMAGE_TAG:-local}
         aliases:
           - sprinter
     depends_on:
@@ -45,6 +48,9 @@ services:
     restart: unless-stopped
 
   sprinter-web:
+    environment:
+      BASE_DOMAIN: ${BASE_DOMAIN:-localhost}
+    image: ${IMAGE_REGISTRY:-biotron-}sprinter-web:${IMAGE_TAG:-local}
     build:
       context: ../..
       dockerfile: apps/sprinter/frontend/Dockerfile

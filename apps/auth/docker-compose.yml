@@ -2,6 +2,7 @@ name: biotron-oauth-manager
 
 services:
   auth-migrate:
+    image: ${IMAGE_REGISTRY:-biotron-}auth-migrate:${IMAGE_TAG:-local}
     build:
       context: ./prisma
       dockerfile: Dockerfile
@@ -12,6 +13,7 @@ services:
     restart: "no"
 
   auth-api:
+    image: ${IMAGE_REGISTRY:-biotron-}auth-api:${IMAGE_TAG:-local}
     build:
       context: ../..
       dockerfile: apps/auth/backend/Dockerfile
@@ -39,6 +41,7 @@ services:
       - "127.0.0.1:${API_PORT:-8080}:8080"
     networks:
       biotron:
+    image: ${IMAGE_REGISTRY:-biotron-}biotron:${IMAGE_TAG:-local}
         aliases:
           - oauth-manager
     depends_on:
@@ -47,6 +50,9 @@ services:
     restart: unless-stopped
 
   auth-web:
+    environment:
+      BASE_DOMAIN: ${BASE_DOMAIN:-localhost}
+    image: ${IMAGE_REGISTRY:-biotron-}auth-web:${IMAGE_TAG:-local}
     build:
       context: ../..
       dockerfile: apps/auth/frontend/Dockerfile
