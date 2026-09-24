@@ -30,7 +30,6 @@ services:
       - "127.0.0.1:${API_PORT:-8081}:8080"
     networks:
       biotron:
-    image: ${IMAGE_REGISTRY:-biotron-}biotron:${IMAGE_TAG:-local}
         aliases:
           - exo-api
     depends_on:

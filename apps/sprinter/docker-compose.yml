@@ -39,7 +39,6 @@ services:
       - "127.0.0.1:${API_PORT:-8084}:8080"
     networks:
       biotron:
-    image: ${IMAGE_REGISTRY:-biotron-}biotron:${IMAGE_TAG:-local}
         aliases:
           - sprinter
     depends_on:
