@@ -7,7 +7,7 @@ services:
       context: ./prisma
       dockerfile: Dockerfile
     environment:
-      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL in .env}
+      DATABASE_URL: ${CALENDAR_DATABASE_URL:-${DATABASE_URL:-}}
     networks:
       - biotron
     restart: "no"
@@ -18,23 +18,23 @@ services:
       context: ../..
       dockerfile: apps/calendar/backend/Dockerfile
     environment:
-      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL in .env}
-      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5176}
-      SITE_URL: ${SITE_URL:-http://localhost:5177}
-      VITE_API_URL: ${VITE_API_URL:-http://localhost:8083}
-      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
-      OAUTH_MANAGER_URL: ${OAUTH_MANAGER_URL:-http://oauth-manager:8080}
-      CORS_ORIGINS: ${CORS_ORIGINS:-}
-      ADMIN_CORS_ORIGINS: ${ADMIN_CORS_ORIGINS:-}
-      DEFAULT_TIMEZONE: ${DEFAULT_TIMEZONE:-America/Toronto}
-      MAX_RANGE_DAYS: ${MAX_RANGE_DAYS:-370}
-      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-127.0.0.1,::1}
-      LOGGER_URL: ${LOGGER_URL:-http://logger-api:8080}
+      DATABASE_URL: ${CALENDAR_DATABASE_URL:-${DATABASE_URL:-}}
+      FRONTEND_URL: ${CALENDAR_FRONTEND_URL:-${FRONTEND_URL:-http://localhost:5176}}
+      SITE_URL: ${CALENDAR_SITE_URL:-${SITE_URL:-http://localhost:5177}}
+      VITE_API_URL: ${CALENDAR_VITE_API_URL:-${VITE_API_URL:-http://localhost:8083}}
+      PUBLIC_BASE_URL: ${CALENDAR_PUBLIC_BASE_URL:-${PUBLIC_BASE_URL:-}}
+      OAUTH_MANAGER_URL: ${CALENDAR_OAUTH_MANAGER_URL:-${OAUTH_MANAGER_URL:-http://oauth-manager:8080}}
+      CORS_ORIGINS: ${CALENDAR_CORS_ORIGINS:-${CORS_ORIGINS:-}}
+      ADMIN_CORS_ORIGINS: ${CALENDAR_ADMIN_CORS_ORIGINS:-${ADMIN_CORS_ORIGINS:-}}
+      DEFAULT_TIMEZONE: ${CALENDAR_DEFAULT_TIMEZONE:-${DEFAULT_TIMEZONE:-America/Toronto}}
+      MAX_RANGE_DAYS: ${CALENDAR_MAX_RANGE_DAYS:-${MAX_RANGE_DAYS:-370}}
+      TRUSTED_PROXIES: ${CALENDAR_TRUSTED_PROXIES:-${TRUSTED_PROXIES:-127.0.0.1,::1}}
+      LOGGER_URL: ${CALENDAR_LOGGER_URL:-${LOGGER_URL:-http://logger-api:8080}}
       LOGGER_INGEST_TOKEN: ${LOGGER_INGEST_TOKEN:-}
-      LOG_LEVEL: ${LOG_LEVEL:-info}
+      LOG_LEVEL: ${CALENDAR_LOG_LEVEL:-${LOG_LEVEL:-info}}
       PORT: "8080"
     ports:
-      - "127.0.0.1:${API_PORT:-8083}:8080"
+      - "127.0.0.1:${CALENDAR_API_PORT:-${API_PORT:-8083}}:8080"
     networks:
       biotron:
         aliases:
@@ -52,10 +52,10 @@ services:
       context: ../..
       dockerfile: apps/calendar/frontend/Dockerfile
       args:
-        VITE_API_URL: ${VITE_API_URL:-http://localhost:8083}
-        VITE_AUTH_URL: ${VITE_AUTH_URL:-http://localhost:8080}
+        VITE_API_URL: ${CALENDAR_VITE_API_URL:-${VITE_API_URL:-http://localhost:8083}}
+        VITE_AUTH_URL: ${CALENDAR_VITE_AUTH_URL:-${VITE_AUTH_URL:-http://localhost:8080}}
     ports:
-      - "127.0.0.1:${WEB_PORT:-5176}:80"
+      - "127.0.0.1:${CALENDAR_WEB_PORT:-${WEB_PORT:-5176}}:80"
     networks:
       biotron:
         aliases:

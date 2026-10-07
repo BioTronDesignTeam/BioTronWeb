@@ -5,8 +5,8 @@ commands, and the devcontainer. This file holds the decisions that the code
 alone does not explain.
 
 Never write a real OAuth credential, ingestion token, guest key, or database
-password into this file or any tracked file. Secrets live in each app's
-untracked `.env`.
+password into this file or any tracked file. Deployment secrets live in Infisical; bootstrap credentials stay outside the
+checkout. Local development can use untracked `.env` files.
 
 ## Where things are
 
@@ -35,8 +35,9 @@ names, such as `OAuthManager` and `exo-gui`. They mean the paths above.
   commit B first. Keep behavior and the tests that prove it in one commit.
 - Leave every commit buildable. Do not amend, squash, or reorder existing
   commits unless asked.
-- Each app has one untracked `.env` and one committed `.env.example`, both
-  beside its Compose file. `VITE_*` values go into the public browser bundle;
+- Each app has an optional untracked `.env` and a committed `.env.example`,
+  both beside its Compose file. Runtime deployment uses app-prefixed inputs
+  and `./launch --runtime`; see `infra/infisical/README.md`. `VITE_*` values go into the public browser bundle;
   never put a secret there.
 - Prisma owns every Postgres schema and migration. Go code queries with `pgx`.
   Do not use a Prisma client from Go.
