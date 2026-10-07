@@ -6,7 +6,7 @@ services:
       context: ./prisma
       dockerfile: Dockerfile
     environment:
-      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL in .env}
+      DATABASE_URL: ${AUTH_DATABASE_URL:-${DATABASE_URL:-}}
     networks:
       - biotron
     restart: "no"
@@ -16,27 +16,27 @@ services:
       context: ../..
       dockerfile: apps/auth/backend/Dockerfile
     environment:
-      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL in .env}
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
-      CACHE_TTL_SECONDS: ${CACHE_TTL_SECONDS:-300}
-      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
-      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
-      GITHUB_ORG: ${GITHUB_ORG:-BioTronDesignTeam}
-      OAUTH_CALLBACK_URL: ${OAUTH_CALLBACK_URL:-http://localhost:8080/auth/github/callback}
-      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
-      CORS_ORIGINS: ${CORS_ORIGINS:-}
-      COOKIE_SECURE: ${COOKIE_SECURE:-false}
-      COOKIE_SAMESITE: ${COOKIE_SAMESITE:-Lax}
-      COOKIE_DOMAIN: ${COOKIE_DOMAIN:-}
-      SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-168}
-      SUPERUSER_GITHUB_IDS: ${SUPERUSER_GITHUB_IDS:-}
-      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-127.0.0.1,::1,172.16.0.0/12}
-      LOGGER_URL: ${LOGGER_URL:-http://logger-api:8080}
+      DATABASE_URL: ${AUTH_DATABASE_URL:-${DATABASE_URL:-}}
+      REDIS_URL: ${AUTH_REDIS_URL:-${REDIS_URL:-redis://redis:6379/0}}
+      CACHE_TTL_SECONDS: ${AUTH_CACHE_TTL_SECONDS:-${CACHE_TTL_SECONDS:-300}}
+      GITHUB_CLIENT_ID: ${AUTH_GITHUB_CLIENT_ID:-${GITHUB_CLIENT_ID:-}}
+      GITHUB_CLIENT_SECRET: ${AUTH_GITHUB_CLIENT_SECRET:-${GITHUB_CLIENT_SECRET:-}}
+      GITHUB_ORG: ${AUTH_GITHUB_ORG:-${GITHUB_ORG:-BioTronDesignTeam}}
+      OAUTH_CALLBACK_URL: ${AUTH_OAUTH_CALLBACK_URL:-${OAUTH_CALLBACK_URL:-http://localhost:8080/auth/github/callback}}
+      FRONTEND_URL: ${AUTH_FRONTEND_URL:-${FRONTEND_URL:-http://localhost:5173}}
+      CORS_ORIGINS: ${AUTH_CORS_ORIGINS:-${CORS_ORIGINS:-}}
+      COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-${COOKIE_SECURE:-false}}
+      COOKIE_SAMESITE: ${AUTH_COOKIE_SAMESITE:-${COOKIE_SAMESITE:-Lax}}
+      COOKIE_DOMAIN: ${AUTH_COOKIE_DOMAIN:-${COOKIE_DOMAIN:-}}
+      SESSION_TTL_HOURS: ${AUTH_SESSION_TTL_HOURS:-${SESSION_TTL_HOURS:-168}}
+      SUPERUSER_GITHUB_IDS: ${AUTH_SUPERUSER_GITHUB_IDS:-${SUPERUSER_GITHUB_IDS:-}}
+      TRUSTED_PROXIES: ${AUTH_TRUSTED_PROXIES:-${TRUSTED_PROXIES:-127.0.0.1,::1,172.16.0.0/12}}
+      LOGGER_URL: ${AUTH_LOGGER_URL:-${LOGGER_URL:-http://logger-api:8080}}
       LOGGER_INGEST_TOKEN: ${LOGGER_INGEST_TOKEN:-}
-      LOG_LEVEL: ${LOG_LEVEL:-info}
+      LOG_LEVEL: ${AUTH_LOG_LEVEL:-${LOG_LEVEL:-info}}
       PORT: "8080"
     ports:
-      - "127.0.0.1:${API_PORT:-8080}:8080"
+      - "127.0.0.1:${AUTH_API_PORT:-${API_PORT:-8080}}:8080"
     networks:
       biotron:
         aliases:
@@ -51,9 +51,9 @@ services:
       context: ../..
       dockerfile: apps/auth/frontend/Dockerfile
       args:
-        VITE_API_BASE: ${VITE_API_BASE:-http://localhost:8080}
+        VITE_API_BASE: ${AUTH_VITE_API_BASE:-${VITE_API_BASE:-http://localhost:8080}}
     ports:
-      - "127.0.0.1:${WEB_PORT:-5173}:80"
+      - "127.0.0.1:${AUTH_WEB_PORT:-${WEB_PORT:-5173}}:80"
     networks:
       biotron:
         aliases:

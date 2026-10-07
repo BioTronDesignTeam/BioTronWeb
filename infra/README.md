@@ -59,14 +59,13 @@ Production uses the same hostname layout under its own `BASE_DOMAIN`.
 
 ## First-time setup
 
-### 1. Create the environment file
+### 1. Configure secrets and public settings
 
-```bash
-cp .env.example .env
-```
-
-Change at least `POSTGRES_PASSWORD`. Staging uses
-`BASE_DOMAIN=uwbiotron.dev`.
+For deployment, follow [Infisical setup](infisical/README.md). It describes the
+independent secrets stack, outside-checkout bootstrap file, environment-scoped
+machine identities, and migration from existing `.env` files. Copy public
+settings from `runtime-config.example.sh` and source them before deployment.
+The untracked `infra/.env` remains an optional local-development input.
 
 ### 2. Create a Cloudflare Tunnel
 
@@ -82,36 +81,23 @@ http://nginx:8080
 
 Nginx selects the application from the original HTTP `Host` header.
 
-### 3. Install the tunnel token
+### 3. Import the tunnel token
 
-Store only the tunnel token on the host; never commit it or put it directly in
-`.env`. The default path is:
-
-```text
-/etc/biotron/secrets/cloudflare-tunnel-token
-```
-
-The parent directory should be accessible only to root. The token file must be
-readable inside the non-root cloudflared container; a root-only directory with
-a read-only file satisfies both requirements:
-
-```bash
-sudo install -d -o root -g root -m 0700 /etc/biotron/secrets
-sudo install -o root -g root -m 0444 ./cloudflare-tunnel-token \
-  /etc/biotron/secrets/cloudflare-tunnel-token
-```
-
-Set `CLOUDFLARE_TUNNEL_TOKEN_FILE` in `.env` if a different absolute path is
-used. Rotating the tunnel token requires recreating the `cloudflared`
-container.
+Store the token in the environment's Infisical `/deploy` folder as
+`CLOUDFLARE_TUNNEL_TOKEN`. Compose exposes it to cloudflared as a read-only
+secret file at `/run/secrets/cloudflare_tunnel_token`. The old
+`CLOUDFLARE_TUNNEL_TOKEN_FILE` input has been replaced; import the contents of
+that file before removing it. Rotation requires recreating cloudflared.
 
 ### 4. Start shared infrastructure and the edge
 
 ```bash
-docker compose up -d --build
+infisical run --projectId=YOUR_PROJECT_ID --env=staging --path=/deploy -- \
+  ./launch infra --runtime --build
 ```
 
-Then start each application stack. They discover the `biotron` network and
+Run this from the repository root after authenticating the CLI and sourcing
+public settings, as described in the setup guide. Then start each application stack. They discover the `biotron` network and
 their dependencies by Docker alias rather than host ports.
 
 ## Verification

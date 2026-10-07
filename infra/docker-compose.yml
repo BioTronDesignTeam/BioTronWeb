@@ -8,7 +8,7 @@ services:
     image: ${NGINX_IMAGE:-biotron-edge-nginx:local}
     restart: unless-stopped
     environment:
-      BASE_DOMAIN: ${BASE_DOMAIN:?set BASE_DOMAIN in .env}
+      BASE_DOMAIN: ${BASE_DOMAIN:?set BASE_DOMAIN in the environment}
     networks:
       edge:
         aliases:
@@ -55,9 +55,9 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-biotron}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in the environment}
       POSTGRES_DB: ${POSTGRES_DB:-biotron}
-      SPRINTER_READER_PASSWORD: ${SPRINTER_READER_PASSWORD:?set SPRINTER_READER_PASSWORD in .env}
+      SPRINTER_READER_PASSWORD: ${SPRINTER_READER_PASSWORD:?set SPRINTER_READER_PASSWORD in the environment}
     volumes:
       # Postgres 18 images store data in a major-version-specific directory
       # (PGDATA=/var/lib/postgresql/18/docker) and expect a single mount one
@@ -107,4 +107,4 @@ volumes:
 
 secrets:
   cloudflare_tunnel_token:
-    file: ${CLOUDFLARE_TUNNEL_TOKEN_FILE:?set CLOUDFLARE_TUNNEL_TOKEN_FILE in .env}
+    environment: CLOUDFLARE_TUNNEL_TOKEN

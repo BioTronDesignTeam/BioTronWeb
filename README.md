@@ -66,12 +66,12 @@ npm run build                            # builds packages/style, then each app
 npm run build -w apps/logger/frontend    # one app
 npm run lint                             # Oxlint, type-aware, one configuration for all frontends
 go work sync                             # after changing any go.mod
-docker compose up -d                     # the whole platform (needs each app's .env)
+docker compose up -d                     # the whole platform (injected configuration)
 ```
 
 ### Starting and stopping
 
-`./launch` wraps the two compose files, so nobody has to remember which one
+`./launch` wraps the app, infra, and independent Infisical compose files, so nobody has to remember which one
 takes which flags. It only runs `docker compose`. It never pulls, edits an
 `.env`, or removes a volume.
 
@@ -90,9 +90,17 @@ Use `--build` after a pull and after any `VITE_*` change, because those values
 go into the built frontend. Migrations need no step of their own: each app's
 `*-migrate` container applies what is pending and exits before its API starts.
 
-Compose reads every app's `.env` to parse the root file, including an app left
-out with `--no-<app>`. When one is missing, `./launch` names it and prints the
-`cp` command that creates it from the example.
+App `.env` files are optional local inputs. `./launch` selects the ones that
+exist and checks required configuration only for selected apps. Production
+uses `infisical run -- ... ./launch all --runtime`, which ignores repository
+`.env` files. App inputs use prefixes (`AUTH_DATABASE_URL`,
+`CALENDAR_DATABASE_URL`, etc.) to prevent collisions in one injected process.
+Container variable names stay unchanged. `jq` is required for launch validation.
+See [Infisical setup and migration](infra/infisical/README.md).
+
+`./launch secrets` starts the independent secrets stack using bootstrap
+credentials outside the checkout. `./launch stop secrets` stops it explicitly;
+`all` and the default `stop` cover application infra and apps only.
 
 Frontend images build from the repository root so they can see
 `packages/style`, and the Auth, Exo, and Calendar API images build from
@@ -139,7 +147,9 @@ through their existing test-database environment variables.
 
 ### Environment settings
 
-Keep one `.env` beside each app's Compose file, copied from its example.
+For local development, keep an optional `.env` beside each app's Compose file,
+copied from its example. Production credentials live in Infisical, while
+public deployment configuration stays in a sourced shell configuration file.
 `VITE_*` URLs go into the public browser bundle; never put secrets there.
 Backend integration URLs such as `OAUTH_MANAGER_URL` use Docker aliases
 instead, so they remain separate even when they reach the same service.

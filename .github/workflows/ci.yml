@@ -22,6 +22,16 @@ permissions:
   contents: read
 
 jobs:
+  compose-config:
+    name: runtime configuration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: validate Compose and launch without starting containers
+        run: |
+          bash -n launch infra/runtime-config.example.sh
+          python3 infra/tests/test-runtime-config.py
+
   changes:
     name: what changed
     runs-on: ubuntu-latest
