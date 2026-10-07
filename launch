@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # Starts and stops the platform with Docker Compose, so nobody has to remember
-# which compose file takes which flags. It only runs `docker compose`; it never
-# pulls, builds code on the host, edits an .env, or removes a volume.
+# which compose file takes which flags. It never edits secrets or removes volumes.
 set -euo pipefail
 
 usage() {
@@ -10,12 +9,14 @@ Usage: ./launch <target> [options]
 
 Targets
   infra     Postgres, Redis, the edge Nginx, and the Cloudflare tunnel
+  secrets   Independent Infisical stack (not part of all)
   web       The apps: site, calendar, auth, exo, logger, sprinter
   all       infra, then web
-  stop      Stop containers and keep their data: ./launch stop [infra|web|all]
+  stop      Stop containers and keep their data: ./launch stop [infra|web|all|secrets]
   status    Show every BioTron container
 
 Options
+  --runtime      Ignore repo .env files; use injected process variables.
   --build        Rebuild images first. Needed after a pull or a VITE_* change.
   --no-<app>     Leave an app out of web, for example --no-sprinter. Repeatable.
   --local        infra only: start Postgres and Redis and nothing else. Use it
@@ -40,7 +41,7 @@ root=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 cd "$root"
 
 apps='site calendar auth exo logger sprinter'
-target='' build=false local_only=false dry_run=false excluded='' stop_target='all'
+target='' build=false local_only=false dry_run=false excluded='' stop_target='all' runtime=false
 
 die() { echo "launch: $*" >&2; exit 1; }
 is_app() { case " $apps " in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
@@ -50,6 +51,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --help|-h) usage; exit 0 ;;
     --build) build=true ;;
+    --runtime) runtime=true ;;
     --local) local_only=true ;;
     --dry-run) dry_run=true ;;
     --no-*)
@@ -57,7 +59,7 @@ while [[ $# -gt 0 ]]; do
       is_app "$app" || die "unknown app '$app' in $1. Apps: $apps"
       excluded="$excluded $app" ;;
     -*) die "unknown option $1. Try ./launch --help" ;;
-    infra|web|all|status)
+    infra|web|all|status|secrets)
       [[ -z $target ]] || { [[ $target == stop ]] && stop_target=$1 || die "one target at a time: got '$target' and '$1'"; }
       [[ -n $target ]] || target=$1 ;;
     stop)
@@ -67,10 +69,10 @@ while [[ $# -gt 0 ]]; do
   esac
   shift
 done
-[[ -n $target ]] || die 'name a target: infra, web, all, stop, or status'
+[[ -n $target ]] || die 'name a target: infra, web, all, stop, status, or secrets'
 [[ $stop_target != status ]] || die "'status' cannot be stopped"
-if [[ -n $excluded && $target == infra ]]; then die '--no-<app> only applies to web and all'; fi
-if $local_only && [[ $target == web ]]; then die '--local only applies to infra and all'; fi
+if [[ -n $excluded && $target != web && $target != all ]]; then die '--no-<app> only applies to web and all'; fi
+if $local_only && [[ $target != infra && $target != all ]]; then die '--local only applies to infra and all'; fi
 
 command -v docker >/dev/null 2>&1 || die 'docker is not installed or not on PATH'
 
@@ -80,19 +82,40 @@ run() {
   $dry_run || "$@"
 }
 
-infra_compose() { run docker compose -f infra/docker-compose.yml --env-file infra/.env "$@"; }
+# Runtime mode also disables Compose's implicit root .env lookup.
+if $runtime; then
+  export COMPOSE_DISABLE_ENV_FILE=true
+fi
+# Include env_file does not support required:false. Select existing local
+# files explicitly, otherwise use /dev/null so no app file is required.
+for app in $apps; do
+  env_file=/dev/null
+  if ! $runtime && [[ -f apps/$app/.env ]]; then env_file="$root/apps/$app/.env"; fi
+  env_key=$(printf '%s' "$app" | tr '[:lower:]' '[:upper:]')
+  export "${env_key}_ENV_FILE=$env_file"
+done
+infra_compose() {
+  local env_file=/dev/null
+  if ! $runtime && [[ -f infra/.env ]]; then env_file=infra/.env; fi
+  run docker compose -f infra/docker-compose.yml --env-file "$env_file" "$@"
+}
+secrets_compose() {
+  run docker compose -f infra/infisical/docker-compose.yml --env-file "${INFISICAL_BOOTSTRAP_FILE:-/etc/biotron/infisical/bootstrap.env}" "$@"
+}
 
-# Compose reads every app's .env to parse the root file at all, including the
-# apps left out with --no-<app>. One missing file stops every command, and the
-# error does not say that a copy of the example is enough.
-require_env_files() {
-  local missing='' file
-  for file in "$@"; do [[ -f $file ]] || missing="$missing $file"; done
-  [[ -z $missing ]] && return 0
-  echo 'launch: these env files are missing:' >&2
-  for file in $missing; do echo "  $file    create it with: cp $file.example $file" >&2; done
-  echo 'Compose reads all of them, even for an app you leave out.' >&2
-  exit 1
+# Check only selected services, without printing the rendered credentials.
+validate_web() {
+  command -v jq >/dev/null 2>&1 || die 'jq is required to validate app configuration'
+  docker compose config --format json | jq -er --arg selected "$1" '
+    .services as $services |
+    ($selected | split("\n"))[] as $name |
+    $services[$name].environment as $env |
+    if ($env | has("DATABASE_URL")) and (($env.DATABASE_URL // "") == "") then
+      error($name + ": set its app-prefixed DATABASE_URL")
+    elif $name == "logger-api" and (($env.LOGGER_INGEST_TOKEN // "") == "") then
+      error("logger-api: set LOGGER_INGEST_TOKEN")
+    else true end
+  ' >/dev/null
 }
 
 # The services of the chosen apps, read from the compose file itself so a new
@@ -110,7 +133,6 @@ web_services() {
 }
 
 start_infra() {
-  require_env_files infra/.env
   local args=(up -d)
   $build && args+=(--build)
   $local_only && args+=(postgres redis)
@@ -118,11 +140,6 @@ start_infra() {
 }
 
 start_web() {
-  local app files=''
-  for app in $apps; do files="$files apps/$app/.env"; done
-  # shellcheck disable=SC2086
-  require_env_files $files
-
   # The apps join a network that infra creates. Without it compose fails with
   # "network biotron declared as external, but could not be found".
   if ! $dry_run && ! docker network inspect biotron >/dev/null 2>&1; then
@@ -132,6 +149,7 @@ start_web() {
   local services
   services=$(web_services)
   [[ -n $services ]] || die 'every app was left out, so there is nothing to start'
+  validate_web "$services"
   local args=(up -d)
   $build && args+=(--build)
   # shellcheck disable=SC2086
@@ -142,6 +160,10 @@ stop_web() { run docker compose stop; }
 stop_infra() { infra_compose stop; }
 
 case "$target" in
+  secrets)
+    args=(up -d)
+    $build && die 'Infisical uses prebuilt images; --build does not apply'
+    secrets_compose "${args[@]}" ;;
   infra) start_infra ;;
   web) start_web ;;
   all) start_infra; start_web ;;
@@ -149,6 +171,7 @@ case "$target" in
   stop)
     # Apps first, so nothing is left talking to a database that has gone.
     case "$stop_target" in
+      secrets) secrets_compose stop ;;
       web) stop_web ;;
       infra) stop_infra ;;
       all) stop_web; stop_infra ;;

@@ -14,8 +14,9 @@ cd /opt/biotron
 git fetch origin "$remote_ref"
 [[ $(git rev-parse 'FETCH_HEAD^{commit}') == "$revision" ]] || { echo "$ref moved during deployment" >&2; exit 1; }
 git checkout --detach "$revision"
-[[ -f infra/.env && -f infra/cloudflare-tunnel-token ]] || { echo 'missing deployment environment' >&2; exit 1; }
+[[ -f infra/.env ]] || { echo 'missing deployment environment' >&2; exit 1; }
 export IMAGE_TAG="$revision" IMAGE_REGISTRY=ghcr.io/biotrondesignteam/
+for app in site calendar logger auth exo sprinter; do export "${app^^}_ENV_FILE=$PWD/apps/$app/.env"; done
 docker compose -f infra/docker-compose.yml --env-file infra/.env config -q
 docker compose config -q
 docker compose -f infra/docker-compose.yml --env-file infra/.env pull

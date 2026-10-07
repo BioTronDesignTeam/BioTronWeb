@@ -1,31 +1,24 @@
-# The six products from one place. `docker compose up -d --build` here builds
-# and starts every app; each included file still works on its own from its
-# folder, and each needs its own .env beside it (copy .env.example).
-#
-# infra/ is not included on purpose: it owns the Postgres data, Redis, and the
-# edge, and it outlives any app deploy. Start it first, on its own:
-#
-#   docker compose -f infra/docker-compose.yml --env-file infra/.env up -d
-#
-# It creates the external `biotron` network every app below joins.
+# App .env files are optional for local development. Runtime deployment
+# uses /dev/null and supplies prefixed process variables.
+# Infra and Infisical have independent lifecycles and are not included here.
 name: biotron
 
 include:
   - path: apps/site/docker-compose.yml
     project_directory: apps/site
-    env_file: apps/site/.env
+    env_file: ${SITE_ENV_FILE:-/dev/null}
   - path: apps/calendar/docker-compose.yml
     project_directory: apps/calendar
-    env_file: apps/calendar/.env
+    env_file: ${CALENDAR_ENV_FILE:-/dev/null}
   - path: apps/logger/docker-compose.yml
     project_directory: apps/logger
-    env_file: apps/logger/.env
+    env_file: ${LOGGER_ENV_FILE:-/dev/null}
   - path: apps/auth/docker-compose.yml
     project_directory: apps/auth
-    env_file: apps/auth/.env
+    env_file: ${AUTH_ENV_FILE:-/dev/null}
   - path: apps/exo/docker-compose.yml
     project_directory: apps/exo
-    env_file: apps/exo/.env
+    env_file: ${EXO_ENV_FILE:-/dev/null}
   - path: apps/sprinter/docker-compose.yml
     project_directory: apps/sprinter
-    env_file: apps/sprinter/.env
+    env_file: ${SPRINTER_ENV_FILE:-/dev/null}

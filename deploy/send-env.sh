@@ -17,10 +17,9 @@ for app in site calendar logger auth exo sprinter; do
 done
 [[ -n ${INFRA_ENV:-} ]] || { echo 'missing INFRA_ENV' >&2; exit 1; }
 [[ -n ${CLOUDFLARE_TUNNEL_TOKEN:-} ]] || { echo 'missing CLOUDFLARE_TUNNEL_TOKEN' >&2; exit 1; }
-printf '%s\nBASE_DOMAIN=%s\nCLOUDFLARE_TUNNEL_TOKEN_FILE=/opt/biotron/infra/cloudflare-tunnel-token\n' "$INFRA_ENV" "$DEPLOY_DOMAIN" > "$tmp/infra/.env"
-printf '%s\n' "$CLOUDFLARE_TUNNEL_TOKEN" > "$tmp/infra/cloudflare-tunnel-token"
+printf '%s\nBASE_DOMAIN=%s\nCLOUDFLARE_TUNNEL_TOKEN=%s\n' "$INFRA_ENV" "$DEPLOY_DOMAIN" "$CLOUDFLARE_TUNNEL_TOKEN" > "$tmp/infra/.env"
 # The remote directory must already exist and be owned by the deploy user.
 # tar transfers hidden .env files without putting their contents in command
-# arguments or Actions logs. A stable token path is referenced by infra/.env.
+# arguments or Actions logs.
 tar -C "$tmp" -cf - apps infra | tailscale ssh "deploy@$DEPLOY_HOST" \
-  'umask 077; cd /opt/biotron && tar -xf - && chmod 600 apps/*/.env infra/.env infra/cloudflare-tunnel-token'
+  'umask 077; cd /opt/biotron && tar -xf - && chmod 600 apps/*/.env infra/.env'

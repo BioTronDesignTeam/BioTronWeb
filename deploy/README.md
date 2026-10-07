@@ -30,7 +30,7 @@ contents:
 Start from each `.env.example`. Configure database URLs and passwords, OAuth
 credentials and callback, cookie domain, HTTPS origins, logging tokens and
 the application keys. The workflow adds `BASE_DOMAIN` to every app file and
-adds `BASE_DOMAIN` and `CLOUDFLARE_TUNNEL_TOKEN_FILE` to `infra/.env`, overriding
+adds `BASE_DOMAIN` and `CLOUDFLARE_TUNNEL_TOKEN` to `infra/.env`, overriding
 any earlier entries for those keys. Use `.uwbiotron.dev` and `.uwbiotron.ca`
 for the respective `COOKIE_DOMAIN` values, with `COOKIE_SECURE=true`.
 Frontend builds use a neutral public domain marker replaced at startup.
@@ -47,8 +47,8 @@ Docker. Docker group membership grants root-equivalent access, so limit that
 account and its Tailscale SSH policy to CI. Configure the federated identity
 with `auth_keys` write permission and `tag:biotron-ci`; allow the tag to reach
 only the deployment hosts on port 22 and log in as `deploy`. No public SSH
-port is needed. The workflow writes the tunnel token to a private file at
-`/opt/biotron/infra/cloudflare-tunnel-token`. Set up separate Cloudflare
+port is needed. The workflow puts the tunnel token in the private
+`/opt/biotron/infra/.env`. Set up separate Cloudflare
 tunnels and hostname routes. The GHCR packages must be public, or the hosts
 must have read-only GHCR credentials for pulling them.
 
