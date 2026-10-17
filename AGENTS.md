@@ -2,7 +2,7 @@
 
 Read `README.md` first. It owns the layout, the toolchain versions, the run
 commands, and the devcontainer. This file holds the decisions that the code
-alone does not explain. `CLAUDE.md` is a symlink to this file.
+alone does not explain.
 
 Never write a real OAuth credential, ingestion token, guest key, or database
 password into this file or any tracked file. Secrets live in each app's
