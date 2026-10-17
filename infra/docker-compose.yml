@@ -5,7 +5,7 @@ services:
     build:
       context: ./nginx
       dockerfile: Dockerfile
-    image: ${NGINX_IMAGE:-biotron-edge-nginx:local}
+    image: ${IMAGE_REGISTRY:-biotron-}edge-nginx:${IMAGE_TAG:-local}
     restart: unless-stopped
     environment:
       BASE_DOMAIN: ${BASE_DOMAIN:?set BASE_DOMAIN in .env}
