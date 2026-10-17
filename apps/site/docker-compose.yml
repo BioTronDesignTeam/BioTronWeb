@@ -2,6 +2,8 @@ name: biotron-site
 
 services:
   site-web:
+    environment:
+      BASE_DOMAIN: ${BASE_DOMAIN:-localhost}
     image: ${IMAGE_REGISTRY:-biotron-}site-web:${IMAGE_TAG:-local}
     build:
       context: ../..

@@ -45,6 +45,8 @@ services:
     restart: unless-stopped
 
   calendar-web:
+    environment:
+      BASE_DOMAIN: ${BASE_DOMAIN:-localhost}
     image: ${IMAGE_REGISTRY:-biotron-}calendar-web:${IMAGE_TAG:-local}
     build:
       context: ../..

@@ -47,6 +47,8 @@ services:
     restart: unless-stopped
 
   sprinter-web:
+    environment:
+      BASE_DOMAIN: ${BASE_DOMAIN:-localhost}
     image: ${IMAGE_REGISTRY:-biotron-}sprinter-web:${IMAGE_TAG:-local}
     build:
       context: ../..

@@ -28,6 +28,9 @@ RUN npm run build -w packages/style && npm run build -w apps/sprinter/frontend
 
 FROM nginx:1.27-alpine
 
+COPY deploy/40-domain.sh /docker-entrypoint.d/40-domain.sh
+RUN chmod +x /docker-entrypoint.d/40-domain.sh
+
 COPY apps/sprinter/frontend/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /repo/apps/sprinter/frontend/dist /usr/share/nginx/html
 

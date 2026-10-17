@@ -49,6 +49,8 @@ services:
     restart: unless-stopped
 
   auth-web:
+    environment:
+      BASE_DOMAIN: ${BASE_DOMAIN:-localhost}
     image: ${IMAGE_REGISTRY:-biotron-}auth-web:${IMAGE_TAG:-local}
     build:
       context: ../..
