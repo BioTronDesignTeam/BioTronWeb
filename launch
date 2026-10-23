@@ -25,6 +25,9 @@ Options
                  project is biotron.
   --runtime      Ignore repo .env files; use injected process variables.
   --build        Rebuild images first. Needed after a pull or a VITE_* change.
+  --pull         Pull the images IMAGE_REGISTRY and IMAGE_TAG name and never
+                 build, as a host does when it deploys a commit. With all, also
+                 remove containers of services that no longer exist.
   --no-<app>     Leave an app out of web, for example --no-sprinter. Repeatable.
   --no-tunnel    edge only: start Nginx and leave the tunnel closed.
   --dry-run      Print the docker commands and run nothing.
@@ -50,7 +53,7 @@ cd "$root"
 
 apps='site calendar auth exo logger sprinter'
 infra_services='postgres redis'
-target='' build=false tunnel=true dry_run=false excluded='' stop_target='all' runtime=false instance=''
+target='' build=false pull=false tunnel=true dry_run=false excluded='' stop_target='all' runtime=false instance=''
 
 die() { echo "launch: $*" >&2; exit 1; }
 is_app() { case " $apps " in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
@@ -60,6 +63,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --help|-h) usage; exit 0 ;;
     --build) build=true ;;
+    --pull) pull=true ;;
     --runtime) runtime=true ;;
     --no-tunnel) tunnel=false ;;
     --dry-run) dry_run=true ;;
@@ -86,6 +90,10 @@ done
 [[ $stop_target != status ]] || die "'status' cannot be stopped"
 if [[ -n $excluded && $target != web && $target != all ]]; then die '--no-<app> only applies to web and all'; fi
 if ! $tunnel && [[ $target != edge ]]; then die '--no-tunnel only applies to edge'; fi
+if $pull; then
+  $build && die '--pull and --build exclude each other'
+  [[ -n ${IMAGE_REGISTRY:-} && -n ${IMAGE_TAG:-} ]] || die '--pull needs IMAGE_REGISTRY and IMAGE_TAG, such as ghcr.io/biotrondesignteam/ and a commit'
+fi
 if [[ -n $instance ]]; then
   # The name becomes part of project, network, volume, and alias names.
   [[ $instance =~ ^[a-z][a-z0-9]{0,15}$ ]] || die "instance names are a lowercase letter, then up to 15 lowercase letters or digits: got '$instance'"
@@ -233,10 +241,20 @@ refuse_old_infra() {
   fi
 }
 
-up_args() {
+# Starts services through the given compose function. With --pull it first
+# pulls their tagged images and then never builds, which is how a host deploys.
+bring_up() {
+  local compose=$1
+  shift
   local args=(up -d)
   $build && args+=(--build)
-  printf '%s\n' "${args[@]}"
+  if $pull; then
+    "$compose" pull "$@"
+    args+=(--no-build)
+    # A full deploy also drops containers of services that no longer exist.
+    if [[ $target == all ]]; then args+=(--remove-orphans); fi
+  fi
+  "$compose" "${args[@]}" "$@"
 }
 
 start_infra() {
@@ -244,10 +262,8 @@ start_infra() {
   validate "$(printf '%s\n' $infra_services)"
   refuse_old_infra
   ensure_network "$network"
-  local args
-  mapfile -t args < <(up_args)
   # shellcheck disable=SC2086
-  stack_compose "${args[@]}" $infra_services
+  bring_up stack_compose $infra_services
 }
 
 start_web() {
@@ -256,23 +272,19 @@ start_web() {
   [[ -n $services ]] || die 'every app was left out, so there is nothing to start'
   validate "$services"
   ensure_network "$network"
-  local args
-  mapfile -t args < <(up_args)
   # shellcheck disable=SC2086
-  stack_compose "${args[@]}" $services
+  bring_up stack_compose $services
 }
 
 start_edge() {
-  local net
+  local net services=()
   override=$(mktemp)
   trap 'rm -f "$override"' EXIT
   edge_override > "$override"
   for net in $(sed -n 's/^    name: //p' "$override"); do ensure_network "$net"; done
   edge_files+=(-f "$override")
-  local args
-  mapfile -t args < <(up_args)
-  $tunnel || args+=(nginx)
-  edge_compose "${args[@]}"
+  $tunnel || services=(nginx)
+  bring_up edge_compose "${services[@]}"
 }
 
 stop_web() {

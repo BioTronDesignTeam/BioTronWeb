@@ -195,6 +195,23 @@ class RuntimeConfigTests(unittest.TestCase):
         result = self.run_command('./launch', 'web', '--instance', 'staging', '--dry-run')
         self.assertIn('-f infra/no-host-ports.yml', result.stdout)
 
+    def test_pull_deploys_tagged_images_without_building(self):
+        self.secrets()
+        args = ('./launch', 'all', '--instance', 'staging', '--runtime', '--pull', '--dry-run')
+        self.run_command(*args, success=False)
+        self.env.update(IMAGE_REGISTRY='ghcr.io/biotrondesignteam/', IMAGE_TAG='0' * 40)
+        lines = self.run_command(*args).stdout.splitlines()
+        pulls = [line for line in lines if ' pull ' in line]
+        ups = [line for line in lines if ' up ' in line]
+        self.assertEqual(len(pulls), 2)
+        self.assertEqual(len(ups), 2)
+        for line in ups:
+            self.assertIn('--no-build', line)
+            self.assertIn('--remove-orphans', line)
+            self.assertNotIn('--build ', line)
+        self.assertLess(lines.index(pulls[0]), lines.index(ups[0]))
+        self.run_command('./launch', 'web', '--pull', '--build', '--dry-run', success=False)
+
     def test_launch_rejects_bad_or_shared_instance_names(self):
         for name in ('Prod', 'edge', 'secrets', 'a-b', ''):
             self.run_command('./launch', 'web', '--instance', name, '--dry-run', success=False)
