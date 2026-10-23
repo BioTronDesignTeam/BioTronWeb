@@ -2,13 +2,15 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log"
+	"net"
+	"net/http"
 	"os/signal"
 	"syscall"
 	"time"
 	_ "time/tzdata"
 
-	"github.com/gofiber/fiber/v3"
 	"github.com/joho/godotenv"
 
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
@@ -16,6 +18,9 @@ import (
 	"github.com/BioTronDesignTeam/exo-gui/backend/internal/config"
 	"github.com/BioTronDesignTeam/exo-gui/backend/internal/server"
 )
+
+// shutdownTimeout is how long in-flight requests get to finish on SIGTERM.
+const shutdownTimeout = 10 * time.Second
 
 func main() {
 	loc, err := time.LoadLocation("America/Toronto")
@@ -39,28 +44,64 @@ func main() {
 		log.Println("warning: OAUTH_MANAGER_URL unset — every permission-gated route will refuse")
 		events.LogAsync(logclient.Warning, "Authorization not configured", nil)
 	}
-	app := server.New(cfg.FrontendURL, cfg.TrustedProxies, events, authz)
+	handler := server.New(cfg.FrontendURL, cfg.TrustedProxies, events, authz)
 	addr := ":" + cfg.Port
-	events.LogAsync(logclient.Info, "Exo API started", map[string]any{"port": cfg.Port})
 
-	go func() {
-		log.Printf("backend listening on %s", addr)
-		// v3 moved DisableStartupMessage out of fiber.Config and onto Listen.
-		if err := app.Listen(addr, fiber.ListenConfig{DisableStartupMessage: true}); err != nil {
-			log.Fatalf("listen: %v", err)
-		}
-	}()
+	listener, err := net.Listen("tcp", addr)
+	if err != nil {
+		log.Fatalf("listen: %v", err)
+	}
+	events.LogAsync(logclient.Info, "Exo API started", map[string]any{"port": cfg.Port})
+	log.Printf("backend listening on %s", addr)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
-	<-ctx.Done()
-	log.Println("shutting down")
-	shutdownLogCtx, cancelShutdownLog := context.WithTimeout(context.Background(), 2*time.Second)
-	if err := events.Log(shutdownLogCtx, logclient.Info, "Exo API stopping", nil); err != nil {
-		log.Printf("structured shutdown log: %v", err)
+	err = serve(ctx, newHTTPServer(handler), listener, func() {
+		log.Println("shutting down")
+		shutdownLogCtx, cancelShutdownLog := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancelShutdownLog()
+		if err := events.Log(shutdownLogCtx, logclient.Info, "Exo API stopping", nil); err != nil {
+			log.Printf("structured shutdown log: %v", err)
+		}
+	})
+	if err != nil {
+		log.Fatalf("serve: %v", err)
 	}
-	cancelShutdownLog()
-	if err := app.ShutdownWithTimeout(10 * time.Second); err != nil {
+}
+
+// newHTTPServer carries the timeouts the Fiber app had. There is no write
+// timeout, as there was none before: a live telemetry stream must be able to
+// outlast any fixed deadline.
+func newHTTPServer(handler http.Handler) *http.Server {
+	return &http.Server{
+		Handler:           handler,
+		ReadHeaderTimeout: 15 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		IdleTimeout:       60 * time.Second,
+	}
+}
+
+// serve runs srv on listener until ctx ends, then calls stopping and gives
+// in-flight requests shutdownTimeout to finish. A failure to serve is
+// returned; a clean shutdown is not an error.
+func serve(ctx context.Context, srv *http.Server, listener net.Listener, stopping func()) error {
+	served := make(chan error, 1)
+	go func() { served <- srv.Serve(listener) }()
+
+	select {
+	case err := <-served:
+		return err
+	case <-ctx.Done():
+	}
+
+	stopping()
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer cancel()
+	if err := srv.Shutdown(shutdownCtx); err != nil {
 		log.Printf("shutdown: %v", err)
 	}
+	if err := <-served; !errors.Is(err, http.ErrServerClosed) {
+		return err
+	}
+	return nil
 }
