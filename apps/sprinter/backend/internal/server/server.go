@@ -127,8 +127,17 @@ func (h *Handler) health(c fiber.Ctx) error {
 		"service":           "sprinter",
 		"status":            map[bool]string{true: "ok", false: "unavailable"}[status == fiber.StatusOK],
 		"database":          database,
+		"discord_enabled":   h.config.DiscordEnabled(),
 		"discord_connected": h.discordConnected(),
 	})
+}
+
+// statusBody is what /v1/auth/status answers. The page needs to know whether
+// the bot runs here at all, because with Discord off a guard or automation is
+// saved but nothing acts on it, and an operator should not be left guessing.
+type statusBody struct {
+	auth.Status
+	DiscordEnabled bool `json:"discord_enabled"`
 }
 
 func (h *Handler) authStatus(c fiber.Ctx) error {
@@ -139,7 +148,7 @@ func (h *Handler) authStatus(c fiber.Ctx) error {
 		fiberlog.SetError(c, err)
 		return fiber.ErrServiceUnavailable
 	}
-	return c.JSON(status)
+	return c.JSON(statusBody{Status: status, DiscordEnabled: h.config.DiscordEnabled()})
 }
 
 // requireAdmin is the whole gate. It asks Auth for the session rather than the

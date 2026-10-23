@@ -1,13 +1,15 @@
 // Package config reads Sprinter's environment once, at start.
 //
-// Two things here are optional on purpose. An empty DISCORD_TOKEN runs the
-// admin API with no gateway session, which is how the tests and a local
-// frontend session work. An empty GEMINI_API_KEY runs the bot with the echo
-// runner, so a missing key costs the answers and nothing else.
+// Two things here are optional on purpose. SPRINTER_DISCORD_ENABLED left
+// unset runs the admin API with no gateway session, which is how production,
+// the tests, and a local frontend session work. An empty GEMINI_API_KEY runs
+// the bot with the echo runner, so a missing key costs the answers and
+// nothing else.
 package config
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -21,10 +23,17 @@ type Config struct {
 	// ReadDatabaseURL is a read-only role the agent's tools query. Empty leaves
 	// out the four SQL tools; the bot still answers from the public endpoints.
 	ReadDatabaseURL string
-	DiscordToken    string
-	DiscordGuildID  string
-	GeminiAPIKey    string
-	GeminiModel     string
+	// Discord turns the bot on. Off, the token and guild are never read and
+	// no gateway session opens: production cannot reach Discord, and the
+	// admin API must still run there.
+	Discord bool
+	// discordErr holds a SPRINTER_DISCORD_ENABLED that is not a boolean, so
+	// Validate can refuse it rather than guess which way it was meant.
+	discordErr     error
+	DiscordToken   string
+	DiscordGuildID string
+	GeminiAPIKey   string
+	GeminiModel    string
 	// ThreadMaxTurns caps one thread's conversation. Every turn is replayed to
 	// the model, so an old thread costs more per answer than a new one.
 	ThreadMaxTurns int
@@ -41,7 +50,10 @@ type Config struct {
 }
 
 func Load() Config {
+	discord, discordErr := getbool("SPRINTER_DISCORD_ENABLED")
 	return Config{
+		Discord:         discord,
+		discordErr:      discordErr,
 		Port:            getenv("PORT", "8080"),
 		DatabaseURL:     os.Getenv("DATABASE_URL"),
 		ReadDatabaseURL: os.Getenv("READ_DATABASE_URL"),
@@ -75,17 +87,28 @@ func (c Config) ReadEnabled() bool {
 
 // DiscordEnabled reports whether the bot should open a gateway session.
 func (c Config) DiscordEnabled() bool {
-	return c.DiscordToken != ""
+	return c.Discord
 }
 
 func (c Config) Validate() error {
 	if c.DatabaseURL == "" {
 		return errors.New("DATABASE_URL is required")
 	}
+	if c.discordErr != nil {
+		return c.discordErr
+	}
+	if !c.Discord {
+		return nil
+	}
+	// Turned on, the bot is the point of the deploy, so a missing credential
+	// stops the process instead of leaving an admin API that looks healthy.
+	if c.DiscordToken == "" {
+		return errors.New("DISCORD_TOKEN is required when SPRINTER_DISCORD_ENABLED is true")
+	}
 	// Commands are registered per guild, not globally, so a token with no
 	// guild id would open a session that can never publish a command.
-	if c.DiscordEnabled() && c.DiscordGuildID == "" {
-		return errors.New("DISCORD_GUILD_ID is required when DISCORD_TOKEN is set")
+	if c.DiscordGuildID == "" {
+		return errors.New("DISCORD_GUILD_ID is required when SPRINTER_DISCORD_ENABLED is true")
 	}
 	return nil
 }
@@ -126,6 +149,20 @@ func splitCSV(value string) []string {
 		}
 	}
 	return out
+}
+
+// getbool reads a flag that is off unless set. Unlike the tunings below, a
+// value that is not a boolean is an error: "ture" must not quietly mean off.
+func getbool(key string) (bool, error) {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return false, nil
+	}
+	value, err := strconv.ParseBool(raw)
+	if err != nil {
+		return false, fmt.Errorf("%s must be true or false, got %q", key, raw)
+	}
+	return value, nil
 }
 
 // getint and getduration fall back rather than fail. A typo in an optional

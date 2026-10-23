@@ -65,7 +65,10 @@ func main() {
 
 	var bot *discord.Bot
 	if !cfg.DiscordEnabled() {
-		events.LogAsync(logclient.Warning, "Discord token unset", nil)
+		// Off is a deliberate setting, not a fault: production cannot reach
+		// Discord. The admin API still runs, and nothing touches the gateway.
+		events.LogAsync(logclient.Info, "Discord disabled", nil)
+		log.Println("SPRINTER_DISCORD_ENABLED is off — no Discord session, commands, or scheduler")
 	} else {
 		bot, err = discord.New(cfg.DiscordToken, sprinterStore, events, discord.Options{
 			GuildID:        cfg.DiscordGuildID,
