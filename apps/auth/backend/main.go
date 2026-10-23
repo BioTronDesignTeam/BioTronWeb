@@ -36,16 +36,15 @@ func main() {
 	if cfg.DatabaseURL == "" {
 		log.Fatal("DATABASE_URL is required")
 	}
-	// The client reads only the environment, so it is built before anything can
-	// fail. A misconfigured sign-in is then reported to Logger as well as to
-	// stdout, instead of being noticed when the first operator cannot get in.
+	// Validate has already refused a missing or malformed GitHub App, so the
+	// key parses here.
+	appKey, err := config.ParsePrivateKey(cfg.GitHubAppPrivateKey)
+	if err != nil {
+		log.Fatalf("config: %v", err)
+	}
 	events := logclient.NewFromEnv("oauth-manager")
 	if !events.LoggerEnabled() {
 		log.Println("warning: LOGGER_INGEST_TOKEN unset — structured logging is disabled")
-	}
-	if cfg.GitHubClientID == "" || cfg.GitHubClientSecret == "" {
-		log.Println("warning: GITHUB_CLIENT_ID/SECRET unset — operator login will fail until configured")
-		events.LogAsync(logclient.Warning, "GitHub OAuth not configured", nil)
 	}
 
 	st, err := connectDB(cfg.DatabaseURL)
@@ -57,8 +56,10 @@ func main() {
 	go prune(st, events)
 
 	gh := auth.NewGitHubClient(auth.GitHubOptions{
-		ClientID:     cfg.GitHubClientID,
-		ClientSecret: cfg.GitHubClientSecret,
+		AppID:        cfg.GitHubAppID,
+		PrivateKey:   appKey,
+		ClientID:     cfg.GitHubAppClientID,
+		ClientSecret: cfg.GitHubAppClientSecret,
 		CallbackURL:  cfg.CallbackURL,
 		Org:          cfg.GitHubOrg,
 	})
