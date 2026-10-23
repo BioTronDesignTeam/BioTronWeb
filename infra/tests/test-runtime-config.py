@@ -2,6 +2,7 @@
 """Exercise real Compose interpolation and launch selection, without a daemon."""
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -96,7 +97,7 @@ class RuntimeConfigTests(unittest.TestCase):
         self.run_command('./launch', 'web', '--runtime', '--dry-run', *args)
 
     def test_edge_uses_environment_backed_tunnel_secret(self):
-        self.env.update(BASE_DOMAIN='example.test', CLOUDFLARE_TUNNEL_TOKEN='fixture-tunnel')
+        self.env.update(EDGE_SITES='prod=example.test', CLOUDFLARE_TUNNEL_TOKEN='fixture-tunnel')
         config = self.config('-f', 'infra/edge/docker-compose.yml', '--env-file', '/dev/null')
         self.assertEqual(config['secrets']['cloudflare_tunnel_token']['environment'],
                          'CLOUDFLARE_TUNNEL_TOKEN')
@@ -107,12 +108,41 @@ class RuntimeConfigTests(unittest.TestCase):
         self.env.update(POSTGRES_PASSWORD='fixture-db', SPRINTER_READER_PASSWORD='fixture-reader')
         infra = self.config('-f', 'infra/docker-compose.yml', '--env-file', '/dev/null')
         self.assertEqual(sorted(infra['services']), ['postgres', 'redis'])
-        (self.root / 'edge.env').write_text('BASE_DOMAIN=example.test\n')
+        (self.root / 'edge.env').write_text('EDGE_SITES=local=localhost\n')
         self.env['EDGE_ENV_FILE'] = str(self.root / 'edge.env')
         result = self.run_command('./launch', 'edge', '--no-tunnel', '--dry-run')
         self.assertIn('infra/edge/docker-compose.yml', result.stdout)
         self.assertTrue(result.stdout.rstrip().endswith('up -d nginx'), result.stdout)
         self.run_command('./launch', 'infra', '--no-tunnel', '--dry-run', success=False)
+
+    def test_edge_joins_each_instance_network_and_no_other(self):
+        (self.root / 'edge.env').write_text(
+            'EDGE_SITES=staging=staging.example.test prod=example.test\n')
+        self.env['EDGE_ENV_FILE'] = str(self.root / 'edge.env')
+        result = self.run_command('./launch', 'edge', '--dry-run')
+        self.assertIn('docker network create biotron-staging', result.stdout)
+        self.assertIn('docker network create biotron-prod', result.stdout)
+        self.assertNotIn('create biotron\n', result.stdout)
+        (self.root / 'edge.env').write_text('EDGE_SITES=Prod=example.test\n')
+        self.run_command('./launch', 'edge', '--dry-run', success=False)
+
+    def test_apps_carry_instance_qualified_aliases_for_the_edge(self):
+        edge_targets = {'site-web', 'calendar-api', 'calendar-web', 'oauth-manager',
+                        'oauth-web', 'exo-api', 'exo-web', 'logger-api', 'logger-web',
+                        'sprinter', 'sprinter-web'}
+        for instance in (None, 'staging'):
+            if instance:
+                self.env['BIOTRON_INSTANCE'] = instance
+            prefix = instance or 'local'
+            aliases = set()
+            for service in self.config()['services'].values():
+                for net in (service.get('networks') or {}).values():
+                    aliases.update((net or {}).get('aliases') or [])
+            self.assertTrue({f'{prefix}-{name}' for name in edge_targets} <= aliases)
+        # Every upstream the edge names is one of those aliases.
+        template = (ROOT / 'infra/nginx/sites/site.conf.template').read_text()
+        upstreams = set(re.findall(r'http://\$\{INSTANCE\}-([a-z-]+):', template))
+        self.assertEqual(upstreams, edge_targets)
 
     def test_local_project_keeps_its_names(self):
         config = self.config()

@@ -88,7 +88,7 @@ if ! $tunnel && [[ $target != edge ]]; then die '--no-tunnel only applies to edg
 if [[ -n $instance ]]; then
   # The name becomes part of project, network, volume, and alias names.
   [[ $instance =~ ^[a-z][a-z0-9]{0,15}$ ]] || die "instance names are a lowercase letter, then up to 15 lowercase letters or digits: got '$instance'"
-  case $instance in edge|secrets|infrastructure) die "'$instance' is a reserved name" ;; esac
+  case $instance in local|edge|secrets|infrastructure) die "'$instance' is a reserved name" ;; esac
   case "$target:$stop_target" in
     edge:*|secrets:*|stop:edge|stop:secrets) die '--instance applies to infra, web, and all; the edge and Infisical are shared' ;;
   esac
@@ -135,10 +135,43 @@ stack_config() { docker compose -p "$project" config "$@"; }
 # The edge's settings and tunnel token are bootstrap configuration, kept in a
 # root-only file outside the checkout. A local infra/edge/.env wins outside
 # runtime mode, for testing the edge on a laptop.
-edge_compose() {
-  local env_file=${EDGE_ENV_FILE:-/etc/biotron/edge.env}
-  if [[ -z ${EDGE_ENV_FILE:-} ]] && ! $runtime && [[ -f infra/edge/.env ]]; then env_file=infra/edge/.env; fi
-  run docker compose -f infra/edge/docker-compose.yml --env-file "$env_file" "$@"
+edge_env_file=${EDGE_ENV_FILE:-/etc/biotron/edge.env}
+if [[ -z ${EDGE_ENV_FILE:-} ]] && ! $runtime && [[ -f infra/edge/.env ]]; then edge_env_file=infra/edge/.env; fi
+edge_files=(-f infra/edge/docker-compose.yml)
+edge_compose() { run docker compose "${edge_files[@]}" --env-file "$edge_env_file" "$@"; }
+
+# An instance's network. The unnamed laptop instance is `local` to the edge.
+instance_network() { if [[ $1 == local ]]; then echo biotron; else echo "biotron-$1"; fi; }
+
+# Nginx joins the network of every instance in EDGE_SITES, so it can reach each
+# one while the instances never share a network with each other. The list
+# depends on the host, so it goes into a generated override file.
+edge_override() {
+  command -v jq >/dev/null 2>&1 || die 'jq is required to read EDGE_SITES'
+  local sites entry name net
+  sites=$(docker compose "${edge_files[@]}" --env-file "$edge_env_file" config --format json |
+    jq -r '.services.nginx.environment.EDGE_SITES // ""') || die "cannot read EDGE_SITES from $edge_env_file"
+  printf 'services:
+  nginx:
+    networks:
+'
+  for entry in $sites; do
+    name=${entry%%=*}
+    [[ $name =~ ^[a-z][a-z0-9]{0,15}$ ]] || die "EDGE_SITES: invalid instance name '$name'"
+    printf '      instance-%s:
+        aliases: [edge-proxy]
+' "$name"
+  done
+  printf 'networks:
+'
+  for entry in $sites; do
+    name=${entry%%=*}
+    net=$(instance_network "$name")
+    printf '  instance-%s:
+    external: true
+    name: %s
+' "$name" "$net"
+  done
 }
 secrets_compose() {
   run docker compose -f infra/infisical/docker-compose.yml --env-file "${INFISICAL_BOOTSTRAP_FILE:-/etc/biotron/infisical/bootstrap.env}" "$@"
@@ -226,7 +259,12 @@ start_web() {
 }
 
 start_edge() {
-  ensure_network biotron
+  local net
+  override=$(mktemp)
+  trap 'rm -f "$override"' EXIT
+  edge_override > "$override"
+  for net in $(sed -n 's/^    name: //p' "$override"); do ensure_network "$net"; done
+  edge_files+=(-f "$override")
   local args
   mapfile -t args < <(up_args)
   $tunnel || args+=(nginx)

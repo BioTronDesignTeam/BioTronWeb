@@ -19,6 +19,7 @@ services:
       biotron:
         aliases:
           - site-web
+          - ${BIOTRON_INSTANCE:-local}-site-web
     restart: unless-stopped
 
 networks:

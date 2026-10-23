@@ -1,6 +1,7 @@
-# The public edge: Nginx and the Cloudflare tunnel. It has its own lifecycle,
-# apart from the Postgres and Redis in ../docker-compose.yml, so restarting or
-# redeploying the data services and apps never touches the tunnel.
+# The public edge: Nginx and the Cloudflare tunnel, shared by every instance on
+# the host. It has its own lifecycle, apart from each instance's data services
+# and apps, so redeploying or stopping an instance never touches the tunnel or
+# the other instance.
 name: biotron-edge
 
 services:
@@ -11,14 +12,15 @@ services:
     image: ${IMAGE_REGISTRY:-biotron-}edge-nginx:${IMAGE_TAG:-local}
     restart: unless-stopped
     environment:
-      BASE_DOMAIN: ${BASE_DOMAIN:?set BASE_DOMAIN in the environment}
+      # <instance>=<domain> pairs, space separated. See ../nginx/docker-entrypoint.d.
+      EDGE_SITES: ${EDGE_SITES:?set EDGE_SITES, such as staging=uwbiotron.dev prod=uwbiotron.ca}
+    # ./launch edge also attaches Nginx to the network of every instance in
+    # EDGE_SITES, as `edge-proxy`, through a generated override. Start the edge
+    # with ./launch, not with this file alone.
     networks:
       edge:
         aliases:
           - nginx
-      biotron:
-        aliases:
-          - edge-proxy
     read_only: true
     tmpfs:
       - /etc/nginx/conf.d
@@ -55,9 +57,6 @@ services:
 
 networks:
   edge:
-  biotron:
-    external: true
-    name: biotron
 
 secrets:
   cloudflare_tunnel_token:

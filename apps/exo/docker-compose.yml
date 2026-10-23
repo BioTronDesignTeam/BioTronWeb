@@ -32,6 +32,7 @@ services:
       biotron:
         aliases:
           - exo-api
+          - ${BIOTRON_INSTANCE:-local}-exo-api
     depends_on:
       exo-migrate:
         condition: service_completed_successfully
@@ -53,6 +54,7 @@ services:
       biotron:
         aliases:
           - exo-web
+          - ${BIOTRON_INSTANCE:-local}-exo-web
     depends_on:
       - exo-api
     restart: unless-stopped

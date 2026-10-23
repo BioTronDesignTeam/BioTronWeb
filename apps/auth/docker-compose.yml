@@ -43,6 +43,7 @@ services:
       biotron:
         aliases:
           - oauth-manager
+          - ${BIOTRON_INSTANCE:-local}-oauth-manager
     depends_on:
       auth-migrate:
         condition: service_completed_successfully
@@ -63,6 +64,7 @@ services:
       biotron:
         aliases:
           - oauth-web
+          - ${BIOTRON_INSTANCE:-local}-oauth-web
     depends_on:
       - auth-api
     restart: unless-stopped

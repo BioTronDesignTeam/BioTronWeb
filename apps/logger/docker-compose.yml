@@ -38,6 +38,7 @@ services:
       biotron:
         aliases:
           - logger-api
+          - ${BIOTRON_INSTANCE:-local}-logger-api
     depends_on:
       logger-migrate:
         condition: service_completed_successfully
@@ -59,6 +60,7 @@ services:
       biotron:
         aliases:
           - logger-web
+          - ${BIOTRON_INSTANCE:-local}-logger-web
     depends_on:
       - logger-api
     restart: unless-stopped
