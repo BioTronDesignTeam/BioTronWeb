@@ -19,7 +19,7 @@ name Auth reports to Logger.
 
 | Path | What |
 |------|------|
-| `backend/` | Go `net/http` API. Postgres through pgx and sqlc. Redis caches grant sets. |
+| `backend/` | Go `net/http` API. Postgres through pgx and sqlc. Grants are cached in memory. |
 | `frontend/` | Vite and React UI, served by Nginx. |
 | `prisma/` | Schema and migrations. The Go service runs its own queries. |
 | `docker-compose.yml` | `auth-migrate`, `auth-api`, `auth-web` on the `biotron` network. |
@@ -27,7 +27,7 @@ name Auth reports to Logger.
 
 ## Run
 
-Start the shared Postgres and Redis once, from the monorepo root, then Auth:
+Start the shared Postgres once, from the monorepo root, then Auth:
 
 ```bash
 docker compose -f infra/docker-compose.yml --env-file infra/.env up -d

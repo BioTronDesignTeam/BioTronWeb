@@ -257,23 +257,6 @@ func (q *Queries) GetSessionOperator(ctx context.Context, id string) (GetSession
 	return i, err
 }
 
-const hasGrant = `-- name: HasGrant :one
-SELECT 1 FROM grants WHERE operator_id = $1 AND app_id = $2 AND permission_key = $3
-`
-
-type HasGrantParams struct {
-	OperatorID    int64
-	AppID         string
-	PermissionKey string
-}
-
-func (q *Queries) HasGrant(ctx context.Context, arg HasGrantParams) (int32, error) {
-	row := q.db.QueryRow(ctx, hasGrant, arg.OperatorID, arg.AppID, arg.PermissionKey)
-	var column_1 int32
-	err := row.Scan(&column_1)
-	return column_1, err
-}
-
 const listApps = `-- name: ListApps :many
 SELECT id, name, description, daily_key_enabled FROM apps ORDER BY name
 `

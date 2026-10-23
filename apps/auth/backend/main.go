@@ -54,12 +54,6 @@ func main() {
 	}
 	defer st.Close()
 
-	c, err := connectRedis(cfg.RedisURL, st, cfg.CacheTTL)
-	if err != nil {
-		log.Fatalf("connect redis: %v", err)
-	}
-	defer c.Close()
-
 	go prune(st, events)
 
 	gh := auth.NewGitHubClient(auth.GitHubOptions{
@@ -71,7 +65,7 @@ func main() {
 
 	h := &auth.Handler{
 		Store:  st,
-		Cache:  c,
+		Cache:  cache.New(st),
 		GitHub: gh,
 		Events: events,
 		Cfg: auth.Config{
@@ -161,22 +155,6 @@ func connectDB(databaseURL string) (*store.Store, error) {
 			return nil, err
 		}
 		log.Printf("database not ready (attempt %d): %v; retrying in 3s", attempt, err)
-		time.Sleep(3 * time.Second)
-	}
-}
-
-func connectRedis(redisURL string, st *store.Store, ttl time.Duration) (*cache.Cache, error) {
-	const redisConnectTimeout = 2 * time.Minute
-	deadline := time.Now().Add(redisConnectTimeout)
-	for attempt := 1; ; attempt++ {
-		c, err := cache.New(context.Background(), redisURL, st, ttl)
-		if err == nil {
-			return c, nil
-		}
-		if time.Now().After(deadline) {
-			return nil, err
-		}
-		log.Printf("redis not ready (attempt %d): %v; retrying in 3s", attempt, err)
 		time.Sleep(3 * time.Second)
 	}
 }

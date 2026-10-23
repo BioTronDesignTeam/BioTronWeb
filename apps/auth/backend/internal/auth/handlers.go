@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"crypto/subtle"
 	"errors"
 	"log"
@@ -191,9 +192,6 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 			log.Printf("auth: delete session on logout: %v", err)
 			h.Events.LogAsync(logclient.Error, "Session delete failed", map[string]any{"error": err.Error()})
 		}
-		if h.Cache != nil {
-			_ = h.Cache.InvalidateSession(r.Context(), hash)
-		}
 	}
 	clearSessionCookie(w, h.Cfg.CookieSecure, h.Cfg.CookieSameSite, h.Cfg.CookieDomain)
 	if op := OperatorFrom(r); op != nil {
@@ -275,13 +273,7 @@ func (h *Handler) CreateApp(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) MyGrants(w http.ResponseWriter, r *http.Request) {
 	op := OperatorFrom(r)
-	var grants []store.Grant
-	var err error
-	if h.Cache != nil {
-		grants, err = h.Cache.ListGrantsForOperator(r.Context(), op.GitHubID)
-	} else {
-		grants, err = h.Store.ListGrantsForOperator(r.Context(), op.GitHubID)
-	}
+	grants, err := h.Cache.Grants(r.Context(), op.GitHubID)
 	if err != nil {
 		fail(r, err, "grants: list")
 		httpx.Status(w, http.StatusInternalServerError)
@@ -326,9 +318,7 @@ func (h *Handler) CreateGrant(w http.ResponseWriter, r *http.Request) {
 		httpx.Status(w, http.StatusInternalServerError)
 		return
 	}
-	if h.Cache != nil {
-		_ = h.Cache.InvalidateGrants(r.Context(), *body.OperatorID)
-	}
+	h.invalidate(*body.OperatorID)
 	h.audit("Permission granted", OperatorFrom(r), map[string]any{
 		"target_id": *body.OperatorID, "app": body.AppID, "permission": body.PermissionKey,
 	})
@@ -348,9 +338,7 @@ func (h *Handler) DeleteGrant(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, r, http.StatusInternalServerError)
 		return
 	}
-	if h.Cache != nil {
-		_ = h.Cache.InvalidateGrants(r.Context(), *body.OperatorID)
-	}
+	h.invalidate(*body.OperatorID)
 	h.audit("Permission revoked", OperatorFrom(r), map[string]any{
 		"target_id": *body.OperatorID, "app": body.AppID, "permission": body.PermissionKey,
 	})
@@ -369,7 +357,7 @@ func (h *Handler) Check(w http.ResponseWriter, r *http.Request) {
 		httpx.JSON(w, http.StatusBadRequest, map[string]any{"error": "app and permission query params required"})
 		return
 	}
-	ok, err := h.Store.Allowed(r.Context(), op, appID, key)
+	ok, err := h.allowed(r.Context(), op, appID, key)
 	if err != nil {
 		httpx.Error(w, r, http.StatusInternalServerError)
 		return
@@ -447,6 +435,7 @@ func (h *Handler) setBanned(w http.ResponseWriter, r *http.Request, banned bool)
 		httpx.Error(w, r, http.StatusInternalServerError)
 		return
 	}
+	h.invalidate(id)
 	message := "Operator unbanned"
 	if banned {
 		_, _ = h.Store.DeleteSessionsForOperator(r.Context(), id)
@@ -487,6 +476,7 @@ func (h *Handler) SetManager(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_, _ = h.Store.DeleteSessionsForOperator(r.Context(), id)
+	h.invalidate(id)
 	message := "Manager flag removed"
 	if body.Manager {
 		message = "Manager flag set"
@@ -509,4 +499,25 @@ func clearStateCookie(w http.ResponseWriter, cfg Config) {
 		SameSite: http.SameSiteLaxMode,
 		Expires:  time.Now().Add(-time.Hour),
 	})
+}
+
+// allowed reports whether op may use permissionKey on appID. Staff hold every
+// permission; a guest holds its tool's telemetry and nothing else; a member
+// needs a grant.
+func (h *Handler) allowed(ctx context.Context, op *store.SessionOperator, appID, permissionKey string) (bool, error) {
+	if op.IsStaff() {
+		return true, nil
+	}
+	if op.IsGuest() {
+		return op.GuestAppID == appID && (permissionKey == "live" || permissionKey == "historical"), nil
+	}
+	return h.Cache.HasGrant(ctx, op.GitHubID, appID, permissionKey)
+}
+
+// invalidate makes the next request see an operator's changed standing or
+// grants at once.
+func (h *Handler) invalidate(githubID int64) {
+	if h.Cache != nil {
+		h.Cache.Invalidate(githubID)
+	}
 }

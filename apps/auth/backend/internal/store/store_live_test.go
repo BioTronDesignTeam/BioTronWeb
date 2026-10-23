@@ -214,13 +214,6 @@ func TestLiveCatalogAndGrants(t *testing.T) {
 		grants[0].CreatedAt.IsZero() {
 		t.Fatalf("grants = %+v", grants)
 	}
-	member := &SessionOperator{GitHubID: liveMember}
-	if ok, err := st.Allowed(ctx, member, "exo-gui", "live"); err != nil || !ok {
-		t.Fatalf("granted permission: ok = %v, err = %v", ok, err)
-	}
-	if ok, err := st.Allowed(ctx, member, "exo-gui", "commands"); err != nil || ok {
-		t.Fatalf("ungranted permission: ok = %v, err = %v", ok, err)
-	}
 
 	if err := st.DeleteGrant(ctx, liveMember, "exo-gui", "live"); err != nil {
 		t.Fatal(err)
