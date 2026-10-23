@@ -99,8 +99,8 @@ func TestAllowedOrigins(t *testing.T) {
 	if got := config.AllowedOrigins(); !slices.Equal(got, want) {
 		t.Fatalf("AllowedOrigins() = %q, want %q", got, want)
 	}
-	// Credentials plus an empty list would make Fiber fall back to the
-	// wildcard and panic, so the default always stands in.
+	// An empty list would shut the admin page out of its own API, so the
+	// default always stands in.
 	if got := (Config{}).AllowedOrigins(); !slices.Equal(got, []string{DefaultFrontendURL}) {
 		t.Fatalf("AllowedOrigins() = %q", got)
 	}
