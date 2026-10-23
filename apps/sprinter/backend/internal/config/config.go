@@ -117,9 +117,8 @@ func (c Config) Validate() error {
 const DefaultFrontendURL = "http://localhost:5178"
 
 // AllowedOrigins are the origins that may make credentialed admin requests.
-// It never returns an empty list: with credentials allowed, an empty list
-// makes Fiber's CORS middleware fall back to the wildcard, which it then
-// refuses by panicking at start.
+// It never returns an empty list: an empty list would shut the admin page
+// out of its own API, so the default origin stands in.
 func (c Config) AllowedOrigins() []string {
 	seen := map[string]bool{}
 	var out []string

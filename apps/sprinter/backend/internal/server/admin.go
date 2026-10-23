@@ -1,7 +1,8 @@
 package server
 
 import (
-	"github.com/gofiber/fiber/v3"
+	"net/http"
+
 	"github.com/google/uuid"
 
 	"github.com/BioTronDesignTeam/Sprinter/backend/internal/store"
@@ -15,33 +16,35 @@ type guardBody struct {
 	ChannelIDs []string `json:"channel_ids"`
 }
 
-func (h *Handler) listGuards(c fiber.Ctx) error {
-	guards, err := h.store.ListGuards(c.Context())
+func (h *Handler) listGuards(w http.ResponseWriter, r *http.Request) error {
+	guards, err := h.store.ListGuards(r.Context())
 	if err != nil {
 		return err
 	}
-	return c.JSON(guards)
+	writeJSON(w, http.StatusOK, guards)
+	return nil
 }
 
-func (h *Handler) getGuard(c fiber.Ctx) error {
-	subject, err := guardSubject(c)
+func (h *Handler) getGuard(w http.ResponseWriter, r *http.Request) error {
+	subject, err := guardSubject(r)
 	if err != nil {
 		return err
 	}
-	guard, err := h.store.GetGuard(c.Context(), subject)
+	guard, err := h.store.GetGuard(r.Context(), subject)
 	if err != nil {
 		return err
 	}
-	return c.JSON(guard)
+	writeJSON(w, http.StatusOK, guard)
+	return nil
 }
 
-func (h *Handler) putGuard(c fiber.Ctx) error {
-	subject, err := guardSubject(c)
+func (h *Handler) putGuard(w http.ResponseWriter, r *http.Request) error {
+	subject, err := guardSubject(r)
 	if err != nil {
 		return err
 	}
 	var body guardBody
-	if err := bind(c, &body); err != nil {
+	if err := bind(r, &body); err != nil {
 		return err
 	}
 	if !isDiscordID(body.GuildID) {
@@ -58,7 +61,7 @@ func (h *Handler) putGuard(c fiber.Ctx) error {
 	if len(body.RoleIDs) == 0 {
 		return badRequest("role_ids must name at least one role")
 	}
-	guard, err := h.store.UpsertGuard(c.Context(), store.Guard{
+	guard, err := h.store.UpsertGuard(r.Context(), store.Guard{
 		Subject:    subject,
 		GuildID:    body.GuildID,
 		RoleIDs:    body.RoleIDs,
@@ -67,29 +70,31 @@ func (h *Handler) putGuard(c fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	h.adminEvent(c, "Guard saved", map[string]any{
+	h.adminEvent(r, "Guard saved", map[string]any{
 		"subject":  guard.Subject,
 		"guild_id": guard.GuildID,
 		"roles":    len(guard.RoleIDs),
 		"channels": len(guard.ChannelIDs),
 	})
-	return c.JSON(guard)
+	writeJSON(w, http.StatusOK, guard)
+	return nil
 }
 
-func (h *Handler) deleteGuard(c fiber.Ctx) error {
-	subject, err := guardSubject(c)
+func (h *Handler) deleteGuard(w http.ResponseWriter, r *http.Request) error {
+	subject, err := guardSubject(r)
 	if err != nil {
 		return err
 	}
-	if err := h.store.DeleteGuard(c.Context(), subject); err != nil {
+	if err := h.store.DeleteGuard(r.Context(), subject); err != nil {
 		return err
 	}
-	h.adminEvent(c, "Guard deleted", map[string]any{"subject": subject})
-	return c.SendStatus(fiber.StatusNoContent)
+	h.adminEvent(r, "Guard deleted", map[string]any{"subject": subject})
+	w.WriteHeader(http.StatusNoContent)
+	return nil
 }
 
-func guardSubject(c fiber.Ctx) (string, error) {
-	subject := c.Params("subject")
+func guardSubject(r *http.Request) (string, error) {
+	subject := r.PathValue("subject")
 	switch subject {
 	case store.SubjectAgent, store.SubjectAgentThread, store.SubjectAnnounce, store.SubjectNudge:
 		return subject, nil
@@ -117,29 +122,31 @@ type automationBody struct {
 	Enabled       *bool   `json:"enabled"`
 }
 
-func (h *Handler) listAutomations(c fiber.Ctx) error {
-	automations, err := h.store.ListAutomations(c.Context())
+func (h *Handler) listAutomations(w http.ResponseWriter, r *http.Request) error {
+	automations, err := h.store.ListAutomations(r.Context())
 	if err != nil {
 		return err
 	}
-	return c.JSON(automations)
+	writeJSON(w, http.StatusOK, automations)
+	return nil
 }
 
-func (h *Handler) getAutomation(c fiber.Ctx) error {
-	id, err := automationID(c)
+func (h *Handler) getAutomation(w http.ResponseWriter, r *http.Request) error {
+	id, err := automationID(r)
 	if err != nil {
 		return err
 	}
-	automation, err := h.store.GetAutomation(c.Context(), id)
+	automation, err := h.store.GetAutomation(r.Context(), id)
 	if err != nil {
 		return err
 	}
-	return c.JSON(automation)
+	writeJSON(w, http.StatusOK, automation)
+	return nil
 }
 
-func (h *Handler) createAutomation(c fiber.Ctx) error {
+func (h *Handler) createAutomation(w http.ResponseWriter, r *http.Request) error {
 	var body automationBody
-	if err := bind(c, &body); err != nil {
+	if err := bind(r, &body); err != nil {
 		return err
 	}
 	// The defaults match the migration's, so a row created here and a row
@@ -156,55 +163,58 @@ func (h *Handler) createAutomation(c fiber.Ctx) error {
 	if err := apply(&automation, body); err != nil {
 		return err
 	}
-	saved, err := h.store.CreateAutomation(c.Context(), automation)
+	saved, err := h.store.CreateAutomation(r.Context(), automation)
 	if err != nil {
 		return err
 	}
-	h.adminEvent(c, "Automation created", map[string]any{
+	h.adminEvent(r, "Automation created", map[string]any{
 		"automation_id": saved.ID, "kind": saved.Kind,
 		"name": saved.Name, "scope_id": saved.ScopeID,
 	})
-	return c.Status(fiber.StatusCreated).JSON(saved)
+	writeJSON(w, http.StatusCreated, saved)
+	return nil
 }
 
-func (h *Handler) patchAutomation(c fiber.Ctx) error {
-	id, err := automationID(c)
+func (h *Handler) patchAutomation(w http.ResponseWriter, r *http.Request) error {
+	id, err := automationID(r)
 	if err != nil {
 		return err
 	}
 	var body automationBody
-	if err := bind(c, &body); err != nil {
+	if err := bind(r, &body); err != nil {
 		return err
 	}
 	// The row is read first so the update writes the fields the caller left
 	// out unchanged. The store writes whole rows; the merge belongs here.
-	automation, err := h.store.GetAutomation(c.Context(), id)
+	automation, err := h.store.GetAutomation(r.Context(), id)
 	if err != nil {
 		return err
 	}
 	if err := apply(&automation, body); err != nil {
 		return err
 	}
-	saved, err := h.store.UpdateAutomation(c.Context(), automation)
+	saved, err := h.store.UpdateAutomation(r.Context(), automation)
 	if err != nil {
 		return err
 	}
-	h.adminEvent(c, "Automation updated", map[string]any{
+	h.adminEvent(r, "Automation updated", map[string]any{
 		"automation_id": saved.ID, "kind": saved.Kind, "enabled": saved.Enabled,
 	})
-	return c.JSON(saved)
+	writeJSON(w, http.StatusOK, saved)
+	return nil
 }
 
-func (h *Handler) deleteAutomation(c fiber.Ctx) error {
-	id, err := automationID(c)
+func (h *Handler) deleteAutomation(w http.ResponseWriter, r *http.Request) error {
+	id, err := automationID(r)
 	if err != nil {
 		return err
 	}
-	if err := h.store.DeleteAutomation(c.Context(), id); err != nil {
+	if err := h.store.DeleteAutomation(r.Context(), id); err != nil {
 		return err
 	}
-	h.adminEvent(c, "Automation deleted", map[string]any{"automation_id": id})
-	return c.SendStatus(fiber.StatusNoContent)
+	h.adminEvent(r, "Automation deleted", map[string]any{"automation_id": id})
+	w.WriteHeader(http.StatusNoContent)
+	return nil
 }
 
 // apply merges a body onto an automation and validates the result. It runs on
@@ -293,8 +303,8 @@ func validateAutomation(automation store.Automation) error {
 	return nil
 }
 
-func automationID(c fiber.Ctx) (string, error) {
-	id := c.Params("id")
+func automationID(r *http.Request) (string, error) {
+	id := r.PathValue("id")
 	if _, err := uuid.Parse(id); err != nil {
 		return "", badRequest("automation id must be a UUID")
 	}

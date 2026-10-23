@@ -9,8 +9,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-
-	"github.com/gofiber/fiber/v3"
+	"time"
 
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
 	"github.com/BioTronDesignTeam/Sprinter/backend/internal/auth"
@@ -83,17 +82,23 @@ func admin() auth.Status {
 	return auth.Status{Operator: &auth.Operator{GitHubID: 7, Login: "octocat"}, CanAdmin: true}
 }
 
-func newTestApp(t *testing.T, authorizer Authorizer, sprinterStore Store) *fiberApp {
+func newTestApp(t *testing.T, authorizer Authorizer, sprinterStore Store) *testApp {
 	t.Helper()
-	return &fiberApp{t: t, app: New(config.Config{}, sprinterStore, authorizer, &logclient.Client{}, nil)}
+	return &testApp{t: t, app: New(config.Config{}, sprinterStore, authorizer, &logclient.Client{}, nil)}
 }
 
-type fiberApp struct {
+type testApp struct {
 	t   *testing.T
-	app *fiber.App
+	app http.Handler
 }
 
-func (f *fiberApp) do(method, path, body string, headers map[string]string) (int, string) {
+func (f *testApp) do(method, path, body string, headers map[string]string) (int, string) {
+	f.t.Helper()
+	status, _, raw := f.doHeaders(method, path, body, headers)
+	return status, raw
+}
+
+func (f *testApp) doHeaders(method, path, body string, headers map[string]string) (int, http.Header, string) {
 	f.t.Helper()
 	var reader io.Reader
 	if body != "" {
@@ -104,13 +109,12 @@ func (f *fiberApp) do(method, path, body string, headers map[string]string) (int
 	for key, value := range headers {
 		request.Header.Set(key, value)
 	}
-	response, err := f.app.Test(request)
-	if err != nil {
-		f.t.Fatal(err)
-	}
+	recorder := httptest.NewRecorder()
+	f.app.ServeHTTP(recorder, request)
+	response := recorder.Result()
 	defer response.Body.Close()
 	raw, _ := io.ReadAll(response.Body)
-	return response.StatusCode, string(raw)
+	return response.StatusCode, response.Header, string(raw)
 }
 
 const cookie = "biotron_session=abc"
@@ -306,7 +310,7 @@ func TestHealthReportsDatabaseAndDiscord(t *testing.T) {
 // the page's status call say so, so nobody mistakes "off" for "broken".
 func TestDiscordFlagIsReported(t *testing.T) {
 	for _, enabled := range []bool{false, true} {
-		app := &fiberApp{t: t, app: New(
+		app := &testApp{t: t, app: New(
 			config.Config{Discord: enabled}, &fakeStore{guards: []store.Guard{}},
 			fakeAuth{status: admin()}, &logclient.Client{}, nil,
 		)}
@@ -324,5 +328,167 @@ func TestDiscordFlagIsReported(t *testing.T) {
 		if status != http.StatusOK {
 			t.Fatalf("guards: status = %d body = %s", status, body)
 		}
+	}
+}
+
+// The routes answer exactly as the Fiber version did, quirks included, so the
+// admin page and anything that probes the API see no change.
+func TestRoutingMatchesTheOldServer(t *testing.T) {
+	origins := config.Config{FrontendURL: "http://localhost:5178"}
+	app := &testApp{t: t, app: New(origins, &fakeStore{guards: []store.Guard{}},
+		fakeAuth{status: admin()}, &logclient.Client{}, nil)}
+	origin := map[string]string{"Origin": "http://localhost:5178"}
+	preflight := map[string]string{"Origin": "http://localhost:5178", "Access-Control-Request-Method": "PUT"}
+	cases := []struct {
+		name, method, path string
+		headers            map[string]string
+		status             int
+		body               string
+		header             map[string]string
+	}{
+		{name: "unknown path", method: http.MethodGet, path: "/nope", status: 404, body: `{"error":"not found"}`},
+		{name: "trailing slash", method: http.MethodGet, path: "/health/", status: 200},
+		{name: "any case", method: http.MethodGet, path: "/HEALTH", status: 200},
+		{
+			name: "wrong method on health", method: http.MethodPost, path: "/health", status: 405,
+			body: `{"error":"method not allowed"}`, header: map[string]string{"Allow": "GET, HEAD"},
+		},
+		{
+			name: "wrong method on status", method: http.MethodPost, path: "/v1/auth/status", status: 405,
+			header: map[string]string{"Allow": "GET, HEAD, OPTIONS"},
+		},
+		{
+			name: "status with an allowed origin", method: http.MethodGet, path: "/v1/auth/status", headers: origin,
+			status: 200, header: map[string]string{
+				"Vary": "Origin", "Access-Control-Allow-Origin": "http://localhost:5178",
+				"Access-Control-Allow-Credentials": "true", "Content-Type": "application/json; charset=utf-8",
+			},
+		},
+		{
+			name: "status with another origin", method: http.MethodGet, path: "/v1/auth/status",
+			headers: map[string]string{"Origin": "http://evil.example"}, status: 200,
+			header: map[string]string{"Vary": "Origin", "Access-Control-Allow-Origin": ""},
+		},
+		{
+			name: "preflight", method: http.MethodOptions, path: "/v1/admin/guards/agent", headers: preflight,
+			status: 204, header: map[string]string{
+				"Vary":                         "Access-Control-Request-Method, Access-Control-Request-Headers, Origin",
+				"Access-Control-Allow-Origin":  "http://localhost:5178",
+				"Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+				"Access-Control-Allow-Headers": "Content-Type, X-Requested-With",
+			},
+		},
+		{
+			name: "an OPTIONS that is not a preflight", method: http.MethodOptions, path: "/v1/auth/status",
+			headers: origin, status: 404, header: map[string]string{"Vary": "Origin", "Access-Control-Allow-Origin": ""},
+		},
+		{
+			name: "admin path with a wrong method", method: http.MethodPost, path: "/v1/admin/guards/agent",
+			headers: withCookie(xhr), status: 405, header: map[string]string{"Allow": "GET, HEAD, PUT, DELETE, OPTIONS"},
+		},
+		{
+			name: "unknown admin path", method: http.MethodGet, path: "/v1/admin/nope",
+			headers: withCookie(nil), status: 405, header: map[string]string{"Allow": "OPTIONS"},
+		},
+		{name: "admin list with a trailing slash", method: http.MethodGet, path: "/v1/admin/guards/", headers: withCookie(nil), status: 200, body: `[]`},
+		{name: "delete answers no content", method: http.MethodDelete, path: "/v1/admin/guards/agent", headers: withCookie(xhr), status: 204},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			status, header, body := app.doHeaders(testCase.method, testCase.path, "", testCase.headers)
+			if status != testCase.status {
+				t.Fatalf("status = %d, want %d (%s)", status, testCase.status, body)
+			}
+			if testCase.body != "" && body != testCase.body {
+				t.Fatalf("body = %s, want %s", body, testCase.body)
+			}
+			for key, want := range testCase.header {
+				if got := header.Get(key); got != want {
+					t.Fatalf("%s = %q, want %q", key, got, want)
+				}
+			}
+		})
+	}
+}
+
+func TestBodyOverTheLimitIs413(t *testing.T) {
+	app := newTestApp(t, fakeAuth{status: admin()}, &fakeStore{})
+	big := `{"guild_id":"` + strings.Repeat("1", bodyLimit) + `"}`
+	status, header, body := app.doHeaders(http.MethodPut, "/v1/admin/guards/agent", big, withCookie(xhr))
+	if status != http.StatusRequestEntityTooLarge || body != `{"error":"request entity too large"}` {
+		t.Fatalf("status = %d body = %s", status, body)
+	}
+	if header.Get("Connection") != "close" {
+		t.Fatalf("Connection = %q", header.Get("Connection"))
+	}
+}
+
+type panicStore struct{ fakeStore }
+
+func (panicStore) ListGuards(context.Context) ([]store.Guard, error) { panic("boom") }
+
+func TestPanicIsAJSON500(t *testing.T) {
+	app := newTestApp(t, fakeAuth{status: admin()}, &panicStore{})
+	status, body := app.do(http.MethodGet, "/v1/admin/guards", "", withCookie(nil))
+	if status != http.StatusInternalServerError || body != `{"error":"internal server error"}` {
+		t.Fatalf("status = %d body = %s", status, body)
+	}
+}
+
+type loggedEvent struct {
+	Message string         `json:"message"`
+	Level   string         `json:"level"`
+	Payload map[string]any `json:"payload"`
+}
+
+// eventsTo returns a client that posts to a stand-in Logger, and a function
+// that waits for the request event naming path.
+func eventsTo(t *testing.T) (*logclient.Client, func(path string) loggedEvent) {
+	t.Helper()
+	received := make(chan loggedEvent, 32)
+	logger := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var event loggedEvent
+		_ = json.NewDecoder(r.Body).Decode(&event)
+		received <- event
+	}))
+	t.Cleanup(logger.Close)
+	t.Setenv("LOGGER_URL", logger.URL)
+	t.Setenv("LOGGER_INGEST_TOKEN", "test")
+	wait := func(path string) loggedEvent {
+		t.Helper()
+		timeout := time.After(2 * time.Second)
+		for {
+			select {
+			case event := <-received:
+				if event.Message == "HTTP request completed" && event.Payload["path"] == path {
+					return event
+				}
+			case <-timeout:
+				t.Fatalf("no request event for %s", path)
+			}
+		}
+	}
+	return logclient.NewFromEnv("sprinter"), wait
+}
+
+// The request log names the operator behind an admin call, and the cause
+// behind a failure, as it did when Fiber handlers returned their errors.
+func TestRequestEventsCarryActorAndCause(t *testing.T) {
+	events, wait := eventsTo(t)
+	app := &testApp{t: t, app: New(config.Config{}, &fakeStore{guards: []store.Guard{}},
+		fakeAuth{status: admin()}, events, nil)}
+	app.do(http.MethodPut, "/v1/admin/guards/agent", `{"guild_id":"nope","role_ids":[]}`, withCookie(xhr))
+	event := wait("/v1/admin/guards/agent")
+	if event.Level != "warning" || event.Payload["actor"] != "octocat" ||
+		event.Payload["error"] != "guild_id must be a Discord id" || event.Payload["status"] != float64(400) {
+		t.Fatalf("event = %+v", event)
+	}
+
+	down := &testApp{t: t, app: New(config.Config{}, &fakeStore{},
+		fakeAuth{err: errors.New("dial tcp: connection refused")}, events, nil)}
+	down.do(http.MethodGet, "/v1/auth/status", "", withCookie(nil))
+	event = wait("/v1/auth/status")
+	if event.Level != "error" || event.Payload["error"] != "dial tcp: connection refused" {
+		t.Fatalf("event = %+v", event)
 	}
 }
