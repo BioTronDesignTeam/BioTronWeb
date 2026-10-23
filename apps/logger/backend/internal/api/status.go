@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"log"
+	"net/http"
 	"strconv"
 	"sync"
 	"time"
@@ -10,8 +11,6 @@ import (
 	// The runtime image is debian-slim and carries no zoneinfo database, so the
 	// America/Toronto rules used for daily buckets travel inside the binary.
 	_ "time/tzdata"
-
-	"github.com/gofiber/fiber/v3"
 
 	"github.com/BioTronDesignTeam/Logger/backend/internal/catalog"
 	"github.com/BioTronDesignTeam/Logger/backend/internal/model"
@@ -100,27 +99,29 @@ type historyResponse struct {
 
 // status serves the public status page. It contains no health detail string, no
 // health URL, and no log data of any kind: everything here is world-readable.
-func (s *Server) status(c fiber.Ctx) error {
-	payload, err := cached(c.Context(), s.statusCache, "status", func(ctx context.Context) (statusResponse, error) {
+func (s *Server) status(w http.ResponseWriter, r *http.Request) error {
+	payload, err := cached(r.Context(), s.statusCache, "status", func(ctx context.Context) (statusResponse, error) {
 		return s.buildStatus(ctx)
 	})
 	if err != nil {
 		return err
 	}
-	return c.JSON(payload)
+	writeJSON(w, http.StatusOK, payload)
+	return nil
 }
 
 // statusHistory serves the fixed-width daily bar. days is clamped rather than
 // echoed back, so a hostile value never reaches the response.
-func (s *Server) statusHistory(c fiber.Ctx) error {
-	days := clampDays(c.Query("days"))
-	payload, err := cached(c.Context(), s.statusCache, "history:"+strconv.Itoa(days), func(ctx context.Context) (historyResponse, error) {
+func (s *Server) statusHistory(w http.ResponseWriter, r *http.Request) error {
+	days := clampDays(r.URL.Query().Get("days"))
+	payload, err := cached(r.Context(), s.statusCache, "history:"+strconv.Itoa(days), func(ctx context.Context) (historyResponse, error) {
 		return s.buildHistory(ctx, days)
 	})
 	if err != nil {
 		return err
 	}
-	return c.JSON(payload)
+	writeJSON(w, http.StatusOK, payload)
+	return nil
 }
 
 func clampDays(raw string) int {
@@ -434,7 +435,7 @@ func cached[T any](ctx context.Context, cache *ttlCache, key string, load func(c
 	if err != nil {
 		var zero T
 		log.Printf("build %s: %v", key, err)
-		return zero, fiber.NewError(fiber.StatusServiceUnavailable, "status is temporarily unavailable")
+		return zero, newError(http.StatusServiceUnavailable, "status is temporarily unavailable")
 	}
 	cache.store(key, value)
 	return value, nil
