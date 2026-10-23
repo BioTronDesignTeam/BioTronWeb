@@ -15,6 +15,13 @@ import (
 // behind the gate can read it without asking OAuthManager a second time.
 type decisionKey struct{}
 
+// The refusals carry these as their cause on the request event, since a
+// net/http handler has no error to return.
+var (
+	errAuthenticationRequired = errors.New("authentication required")
+	errPermissionRequired     = errors.New("permission required")
+)
+
 // Require builds middleware that refuses the request unless the caller's
 // session carries permission on Exo.
 //
@@ -48,15 +55,17 @@ func (c *Client) Require(permission string) func(http.Handler) http.Handler {
 					"error":      err.Error(),
 				})
 				httplog.SetError(r, err)
-				writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "authorization service unavailable"})
+				writeJSON(w, r, http.StatusServiceUnavailable, map[string]any{"error": "authorization service unavailable"})
 				return
 			}
 			if !decision.Authenticated {
-				writeJSON(w, http.StatusUnauthorized, map[string]any{"error": "authentication required"})
+				httplog.SetError(r, errAuthenticationRequired)
+				writeJSON(w, r, http.StatusUnauthorized, map[string]any{"error": "authentication required"})
 				return
 			}
 			if !decision.Allowed {
-				writeJSON(w, http.StatusForbidden, map[string]any{"error": "permission required", "permission": permission})
+				httplog.SetError(r, errPermissionRequired)
+				writeJSON(w, r, http.StatusForbidden, map[string]any{"error": "permission required", "permission": permission})
 				return
 			}
 			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), decisionKey{}, decision)))
@@ -72,9 +81,10 @@ func DecisionFrom(r *http.Request) (Decision, bool) {
 
 // writeJSON answers the way Fiber's c.JSON did: compact, no trailing newline,
 // and the charset spelled out in the content type.
-func writeJSON(w http.ResponseWriter, status int, body any) {
+func writeJSON(w http.ResponseWriter, r *http.Request, status int, body any) {
 	encoded, err := json.Marshal(body)
 	if err != nil {
+		httplog.SetError(r, err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}

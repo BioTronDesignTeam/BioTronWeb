@@ -33,9 +33,10 @@ func chain(h http.Handler, middleware ...func(http.Handler) http.Handler) http.H
 
 // writeJSON answers the way Fiber's c.JSON did: compact, no trailing newline,
 // and the charset spelled out in the content type.
-func writeJSON(w http.ResponseWriter, status int, body any) {
+func writeJSON(w http.ResponseWriter, r *http.Request, status int, body any) {
 	encoded, err := json.Marshal(body)
 	if err != nil {
+		httplog.SetError(r, err)
 		writeText(w, http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
 		return
 	}
