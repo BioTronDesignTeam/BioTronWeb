@@ -1,11 +1,10 @@
 package auth
 
 import (
+	"net/http"
 	"net/url"
 	"strings"
 	"time"
-
-	"github.com/gofiber/fiber/v3"
 )
 
 const returnCookie = "oauth_return"
@@ -28,26 +27,26 @@ func (h *Handler) safeReturn(raw string) string {
 	return fallback
 }
 
-func setReturnCookie(c fiber.Ctx, dest string, cfg Config) {
-	c.Cookie(&fiber.Cookie{
+func setReturnCookie(w http.ResponseWriter, dest string, cfg Config) {
+	http.SetCookie(w, &http.Cookie{
 		Name:     returnCookie,
 		Value:    dest,
 		Path:     "/",
-		HTTPOnly: true,
+		HttpOnly: true,
 		Secure:   cfg.CookieSecure,
-		SameSite: fiber.CookieSameSiteLaxMode,
+		SameSite: http.SameSiteLaxMode,
 		Expires:  time.Now().Add(10 * time.Minute),
 	})
 }
 
-func clearReturnCookie(c fiber.Ctx, cfg Config) {
-	c.Cookie(&fiber.Cookie{
+func clearReturnCookie(w http.ResponseWriter, cfg Config) {
+	http.SetCookie(w, &http.Cookie{
 		Name:     returnCookie,
 		Value:    "",
 		Path:     "/",
-		HTTPOnly: true,
+		HttpOnly: true,
 		Secure:   cfg.CookieSecure,
-		SameSite: fiber.CookieSameSiteLaxMode,
+		SameSite: http.SameSiteLaxMode,
 		Expires:  time.Now().Add(-time.Hour),
 	})
 }
