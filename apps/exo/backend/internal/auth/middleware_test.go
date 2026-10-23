@@ -8,8 +8,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"testing"
-
-	"github.com/gofiber/fiber/v3"
 )
 
 // silenceLog keeps the deliberate fail-closed log lines out of test output.
@@ -41,30 +39,24 @@ func stubOAuthManager(t *testing.T, respond func(w http.ResponseWriter, permissi
 }
 
 // gatedApp mounts a single route behind Require, the way a real Exo route will.
-func gatedApp(client *Client, permission string) *fiber.App {
-	app := fiber.New()
-	app.Get("/v1/probe", client.Require(permission), func(c fiber.Ctx) error {
-		return c.JSON(fiber.Map{"ok": true})
-	})
-	return app
+func gatedApp(client *Client, permission string) http.Handler {
+	mux := http.NewServeMux()
+	mux.Handle("GET /v1/probe", client.Require(permission)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		_, _ = io.WriteString(w, `{"ok":true}`)
+	})))
+	return mux
 }
 
-// v3 replaced Test's timeout argument with a config struct; a zero Timeout
-// disables the deadline, which is what -1 meant in v2.
-var noTestTimeout = fiber.TestConfig{Timeout: 0, FailOnTimeout: false}
-
-func request(t *testing.T, app *fiber.App, cookie string) *http.Response {
+func request(t *testing.T, app http.Handler, cookie string) *http.Response {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodGet, "/v1/probe", nil)
 	if cookie != "" {
 		req.Header.Set("Cookie", cookie)
 	}
-	resp, err := app.Test(req, noTestTimeout)
-	if err != nil {
-		t.Fatalf("request: %v", err)
-	}
-	t.Cleanup(func() { _ = resp.Body.Close() })
-	return resp
+	recorder := httptest.NewRecorder()
+	app.ServeHTTP(recorder, req)
+	return recorder.Result()
 }
 
 // No session at all. Exo must not spend a call on OAuthManager, and must say
@@ -216,5 +208,58 @@ func TestCheckSendsTheRequestedPermission(t *testing.T) {
 		if i >= len(seen) || seen[i] != permission {
 			t.Fatalf("permissions sent = %v, want %v", seen, want)
 		}
+	}
+}
+
+// The frontend reads these bodies, so the move off Fiber must not change a
+// byte of them: compact JSON, no trailing newline, charset in the type.
+func TestRequireRefusalBodies(t *testing.T) {
+	silenceLog(t)
+	upstream := stubOAuthManager(t, func(w http.ResponseWriter, _ string) {
+		_, _ = io.WriteString(w, `{"allowed": false}`)
+	})
+
+	for _, tc := range []struct {
+		name   string
+		client *Client
+		cookie string
+		status int
+		body   string
+	}{
+		{"no session", NewClient(upstream.URL), "", http.StatusUnauthorized, `{"error":"authentication required"}`},
+		{"no permission", NewClient(upstream.URL), "oauth_session=guest", http.StatusForbidden, `{"error":"permission required","permission":"commands"}`},
+		{"unconfigured", NewClient(""), "oauth_session=valid", http.StatusServiceUnavailable, `{"error":"authorization service unavailable"}`},
+	} {
+		resp := request(t, gatedApp(tc.client, PermissionCommands), tc.cookie)
+		body, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode != tc.status || string(body) != tc.body {
+			t.Errorf("%s: %d %s, want %d %s", tc.name, resp.StatusCode, body, tc.status, tc.body)
+		}
+		if got := resp.Header.Get("Content-Type"); got != "application/json; charset=utf-8" {
+			t.Errorf("%s: Content-Type = %q", tc.name, got)
+		}
+	}
+}
+
+// A handler behind the gate reads the decision Require made instead of asking
+// OAuthManager again.
+func TestDecisionFromReachesTheHandler(t *testing.T) {
+	upstream := stubOAuthManager(t, func(w http.ResponseWriter, _ string) {
+		_, _ = io.WriteString(w, `{"allowed": true}`)
+	})
+	var got Decision
+	var ok bool
+	handler := NewClient(upstream.URL).Require(PermissionLive)(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		got, ok = DecisionFrom(r)
+	}))
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Cookie", "oauth_session=valid")
+	handler.ServeHTTP(httptest.NewRecorder(), req)
+
+	if !ok || got != (Decision{Authenticated: true, Allowed: true}) {
+		t.Fatalf("DecisionFrom = %+v, %v", got, ok)
+	}
+	if _, ok := DecisionFrom(httptest.NewRequest(http.MethodGet, "/", nil)); ok {
+		t.Fatal("DecisionFrom found a decision on a request that never passed the gate")
 	}
 }
