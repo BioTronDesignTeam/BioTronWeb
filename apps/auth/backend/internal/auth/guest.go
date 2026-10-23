@@ -5,13 +5,13 @@ import (
 	"crypto/subtle"
 	"encoding/base32"
 	"errors"
+	"net/http"
 	"strings"
 	"time"
 	_ "time/tzdata"
 
-	"github.com/gofiber/fiber/v3"
-
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
+	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/httpx"
 	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/store"
 )
 
@@ -69,87 +69,96 @@ func normalizeGuestKey(s string) string {
 
 // StaffProductDailyKeys returns today's independently generated key for every
 // product that has opted into daily-key guest access.
-func (h *Handler) StaffProductDailyKeys(c fiber.Ctx) error {
-	apps, err := h.Store.ListDailyKeyApps(c.Context())
+func (h *Handler) StaffProductDailyKeys(w http.ResponseWriter, r *http.Request) {
+	apps, err := h.Store.ListDailyKeyApps(r.Context())
 	if err != nil {
-		fail(c, err, "auth: list daily-key products")
-		return fiber.ErrInternalServerError
+		fail(r, err, "auth: list daily-key products")
+		httpx.Status(w, http.StatusInternalServerError)
+		return
 	}
 	keys := make([]store.ProductDailyKey, 0, len(apps))
 	day := easternDay(time.Now())
 	for _, app := range apps {
 		candidate, err := newGuestKey()
 		if err != nil {
-			fail(c, err, "auth: generate product daily key")
-			return fiber.ErrInternalServerError
+			fail(r, err, "auth: generate product daily key")
+			httpx.Status(w, http.StatusInternalServerError)
+			return
 		}
-		key, err := h.Store.EnsureProductDailyKey(c.Context(), app.ID, day, candidate)
+		key, err := h.Store.EnsureProductDailyKey(r.Context(), app.ID, day, candidate)
 		if err != nil {
-			fail(c, err, "auth: ensure product daily key for "+app.ID)
-			return fiber.ErrInternalServerError
+			fail(r, err, "auth: ensure product daily key for "+app.ID)
+			httpx.Status(w, http.StatusInternalServerError)
+			return
 		}
 		key.AppName = app.Name
 		key.Key = formatGuestKey(key.Key)
 		keys = append(keys, key)
 	}
-	return c.JSON(keys)
+	httpx.JSON(w, http.StatusOK, keys)
 }
 
 // GuestLogin validates today's key for one product and starts a session scoped
 // to that product. A key from one app can never authenticate another app.
-func (h *Handler) GuestLogin(c fiber.Ctx) error {
+func (h *Handler) GuestLogin(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		AppID string `json:"app_id"`
 		Key   string `json:"key"`
 	}
-	if err := c.Bind().Body(&body); err != nil || strings.TrimSpace(body.AppID) == "" || strings.TrimSpace(body.Key) == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "app_id and key required"})
+	if err := httpx.Decode(w, r, &body); err != nil || strings.TrimSpace(body.AppID) == "" || strings.TrimSpace(body.Key) == "" {
+		httpx.JSON(w, http.StatusBadRequest, map[string]any{"error": "app_id and key required"})
+		return
 	}
 
 	now := time.Now()
-	// body.AppID came out of the JSON decoder, not the pooled request buffer,
-	// so it is safe to keep and to hand to an event.
 	appID := strings.TrimSpace(body.AppID)
 	candidate, err := newGuestKey()
 	if err != nil {
-		fail(c, err, "auth: generate guest key")
-		return fiber.ErrInternalServerError
+		fail(r, err, "auth: generate guest key")
+		httpx.Status(w, http.StatusInternalServerError)
+		return
 	}
-	gk, err := h.Store.EnsureProductDailyKey(c.Context(), appID, easternDay(now), candidate)
+	gk, err := h.Store.EnsureProductDailyKey(r.Context(), appID, easternDay(now), candidate)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			h.Events.LogAsync(logclient.Warning, "Guest key refused", map[string]any{"app_id": appID})
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "invalid or expired key"})
+			httpx.JSON(w, http.StatusUnauthorized, map[string]any{"error": "invalid or expired key"})
+			return
 		}
-		fail(c, err, "auth: ensure product daily key")
-		return fiber.ErrInternalServerError
+		fail(r, err, "auth: ensure product daily key")
+		httpx.Status(w, http.StatusInternalServerError)
+		return
 	}
 	if subtle.ConstantTimeCompare([]byte(normalizeGuestKey(body.Key)), []byte(gk.Key)) != 1 {
 		h.Events.LogAsync(logclient.Warning, "Guest key refused", map[string]any{"app_id": gk.AppID})
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "invalid or expired key"})
+		httpx.JSON(w, http.StatusUnauthorized, map[string]any{"error": "invalid or expired key"})
+		return
 	}
 
-	if err := h.Store.UpsertOperator(c.Context(), store.Operator{
+	if err := h.Store.UpsertOperator(r.Context(), store.Operator{
 		GitHubID: store.GuestGitHubID,
 		Login:    store.GuestLogin,
 		Name:     "Guest",
 	}, false); err != nil {
-		fail(c, err, "auth: upsert guest operator")
-		return fiber.ErrInternalServerError
+		fail(r, err, "auth: upsert guest operator")
+		httpx.Status(w, http.StatusInternalServerError)
+		return
 	}
 
 	token, err := newToken()
 	if err != nil {
-		return fiber.ErrInternalServerError
+		httpx.Error(w, r, http.StatusInternalServerError)
+		return
 	}
 	expiry := guestSessionExpiry(now)
-	if err := h.Store.CreateSession(c.Context(), hashToken(token), store.GuestGitHubID, gk.AppID,
-		expiry, c.Get("User-Agent")); err != nil {
-		fail(c, err, "auth: create guest session")
-		return fiber.ErrInternalServerError
+	if err := h.Store.CreateSession(r.Context(), hashToken(token), store.GuestGitHubID, gk.AppID,
+		expiry, r.UserAgent()); err != nil {
+		fail(r, err, "auth: create guest session")
+		httpx.Status(w, http.StatusInternalServerError)
+		return
 	}
 
-	setSessionCookie(c, token, h.Cfg.CookieSecure, h.Cfg.CookieSameSite, h.Cfg.CookieDomain, time.Until(expiry))
+	setSessionCookie(w, token, h.Cfg.CookieSecure, h.Cfg.CookieSameSite, h.Cfg.CookieDomain, time.Until(expiry))
 	h.Events.LogAsync(logclient.Info, "Guest signed in", map[string]any{"app_id": gk.AppID})
-	return c.SendStatus(fiber.StatusNoContent)
+	httpx.Status(w, http.StatusNoContent)
 }

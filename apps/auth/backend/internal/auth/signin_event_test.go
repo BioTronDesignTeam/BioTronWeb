@@ -7,8 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gofiber/fiber/v3"
-
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
 )
 
@@ -69,17 +67,15 @@ func TestSignInRefusedIsReportedWhenTheCallerIsNotAnOrgMember(t *testing.T) {
 		Events: logclient.NewFromEnv("oauth-manager"),
 		Cfg:    Config{FrontendURL: "http://localhost:5173"},
 	}
-	app := fiber.New()
-	app.Get("/auth/github/callback", h.Callback)
-
 	request := httptest.NewRequest(http.MethodGet, "/auth/github/callback?state=s&code=c", nil)
 	request.AddCookie(&http.Cookie{Name: stateCookie, Value: "s"})
-	response, err := app.Test(request)
-	if err != nil {
-		t.Fatal(err)
+	response := httptest.NewRecorder()
+	h.Callback(response, request)
+	if response.Code != http.StatusFound {
+		t.Fatalf("callback status = %d, want 302 back to the frontend", response.Code)
 	}
-	if response.StatusCode != fiber.StatusFound {
-		t.Fatalf("callback status = %d, want 302 back to the frontend", response.StatusCode)
+	if got := response.Header().Get("Location"); got != "http://localhost:5173/?auth=denied" {
+		t.Errorf("Location = %q, want the frontend with auth=denied", got)
 	}
 
 	select {

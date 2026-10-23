@@ -2,13 +2,14 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log"
+	"net/http"
 	"os/signal"
 	"syscall"
 	"time"
 	_ "time/tzdata"
 
-	"github.com/gofiber/fiber/v3"
 	"github.com/joho/godotenv"
 
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
@@ -84,15 +85,19 @@ func main() {
 		},
 	}
 
-	app := server.New(h, cfg.AllowedOrigins, cfg.TrustedProxies, events)
-	addr := ":" + cfg.Port
+	srv := &http.Server{
+		Addr:              ":" + cfg.Port,
+		Handler:           server.New(h, cfg.AllowedOrigins, cfg.TrustedProxies, events),
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       60 * time.Second,
+	}
 	events.LogAsync(logclient.Info, "OAuthManager started", map[string]any{"port": cfg.Port})
 
 	go func() {
-		log.Printf("oauth-manager listening on %s", addr)
-		// v3 moved DisableStartupMessage out of fiber.Config and into the
-		// per-listener config; the banner stays suppressed.
-		if err := app.Listen(addr, fiber.ListenConfig{DisableStartupMessage: true}); err != nil {
+		log.Printf("oauth-manager listening on %s", srv.Addr)
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Fatalf("listen: %v", err)
 		}
 	}()
@@ -106,7 +111,10 @@ func main() {
 		log.Printf("structured shutdown log: %v", err)
 	}
 	cancelShutdownLog()
-	if err := app.ShutdownWithTimeout(10 * time.Second); err != nil {
+	// In-flight requests get ten seconds to finish; new ones are refused.
+	shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancelShutdown()
+	if err := srv.Shutdown(shutdownCtx); err != nil {
 		log.Printf("shutdown: %v", err)
 	}
 }
