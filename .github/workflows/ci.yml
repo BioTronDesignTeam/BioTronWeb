@@ -34,6 +34,7 @@ jobs:
       backends: ${{ steps.plan.outputs.backends }}
       logclient: ${{ steps.plan.outputs.logclient }}
       golangci-lint: ${{ steps.tools.outputs.golangci-lint }}
+      trufflehog: ${{ steps.tools.outputs.trufflehog }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -94,17 +95,23 @@ jobs:
           echo "frontends: $frontends"
           echo "backends:  $backends"
           echo "logclient: $logclient"
-      # The golangci-lint of the devcontainer image, so CI and ./pr-precheck
-      # lint with the same release. Dependabot updates that FROM line.
+      # The tool releases of the devcontainer image, read from its FROM lines
+      # (which Dependabot updates), so CI and ./pr-precheck run the same ones.
       - name: read tool versions
         id: tools
         run: |
-          version=$(sed -nE 's|^FROM golangci/golangci-lint:(v[0-9.]+)@.*|\1|p' .devcontainer/Dockerfile)
-          if [[ ! $version =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "::error::No single golangci-lint version in .devcontainer/Dockerfile"
-            exit 1
-          fi
-          echo "golangci-lint=$version" >> "$GITHUB_OUTPUT"
+          # tool OUTPUT IMAGE: the tag that .devcontainer/Dockerfile pins IMAGE to.
+          tool() {
+            local version
+            version=$(sed -nE "s|^FROM $2:(v?[0-9]+\.[0-9]+\.[0-9]+)@sha256:.*|\1|p" .devcontainer/Dockerfile)
+            if [[ ! $version =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "::error::No single $2 version in .devcontainer/Dockerfile"
+              exit 1
+            fi
+            echo "$1=$version" | tee -a "$GITHUB_OUTPUT"
+          }
+          tool golangci-lint golangci/golangci-lint
+          tool trufflehog trufflesecurity/trufflehog
 
   frontend:
     name: frontend ${{ matrix.app }}
@@ -187,6 +194,7 @@ jobs:
 
   secrets:
     name: secrets (TruffleHog)
+    needs: changes
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -202,8 +210,11 @@ jobs:
       # can never resolve, so a placeholder and a real one look the same to
       # the scanner. The token types that matter (GitHub, Cloudflare,
       # Discord, AWS) verify against their provider and do gate.
+      # The action runs the TruffleHog image of the version it is given (the
+      # latest by default), so it gets the one of the devcontainer.
       - uses: trufflesecurity/trufflehog@363923b901c911a9164f50b6c423f47c15372b1c # v3.97.4
         with:
+          version: ${{ needs.changes.outputs.trufflehog }}
           extra_args: --results=verified,unknown
 
   vulnerabilities:
