@@ -231,3 +231,13 @@ To create a migration in the devcontainer, source `apps/calendar/.env`
 and run `npm run --prefix apps/calendar/prisma migrate`. The
 `calendar-migrate` service applies the migrations as the image's `node`
 user.
+
+The store's SQL is in `backend/internal/store/queries/queries.sql`. sqlc
+1.31.1 turns it into Go beside it, reading the schema from the Prisma
+migrations, so a migration needs no second copy of the schema. After you
+change a query or add a migration, regenerate from the monorepo root and
+commit the result:
+
+```bash
+docker run --rm -v "$PWD:/src" -w /src/apps/calendar/backend sqlc/sqlc:1.31.1 generate
+```
