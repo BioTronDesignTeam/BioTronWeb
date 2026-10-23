@@ -163,26 +163,17 @@ edge_override() {
   local sites entry name net
   sites=$(docker compose "${edge_files[@]}" --env-file "$edge_env_file" config --format json |
     jq -r '.services.nginx.environment.EDGE_SITES // ""') || die "cannot read EDGE_SITES from $edge_env_file"
-  printf 'services:
-  nginx:
-    networks:
-'
+  printf 'services:\n  nginx:\n    networks:\n'
   for entry in $sites; do
     name=${entry%%=*}
     [[ $name =~ ^[a-z][a-z0-9]{0,15}$ ]] || die "EDGE_SITES: invalid instance name '$name'"
-    printf '      instance-%s:
-        aliases: [edge-proxy]
-' "$name"
+    printf '      instance-%s:\n        aliases: [edge-proxy]\n' "$name"
   done
-  printf 'networks:
-'
+  printf 'networks:\n'
   for entry in $sites; do
     name=${entry%%=*}
     net=$(instance_network "$name")
-    printf '  instance-%s:
-    external: true
-    name: %s
-' "$name" "$net"
+    printf '  instance-%s:\n    external: true\n    name: %s\n' "$name" "$net"
   done
 }
 secrets_compose() {
@@ -281,7 +272,9 @@ start_edge() {
   override=$(mktemp)
   trap 'rm -f "$override"' EXIT
   edge_override > "$override"
-  for net in $(sed -n 's/^    name: //p' "$override"); do ensure_network "$net"; done
+  local nets
+  mapfile -t nets < <(sed -n 's/^    name: //p' "$override")
+  for net in "${nets[@]}"; do ensure_network "$net"; done
   edge_files+=(-f "$override")
   $tunnel || services=(nginx)
   bring_up edge_compose "${services[@]}"

@@ -13,6 +13,8 @@
 # :noindex asks search engines to stay away from that instance: every response
 # carries X-Robots-Tag: noindex, nofollow, and robots.txt disallows everything.
 # Mark staging with it, never production. It hides nothing from people.
+# The single-quoted $names below are meant for envsubst and nginx, not sh.
+# shellcheck disable=SC2016
 set -eu
 
 sites=/etc/nginx/sites
