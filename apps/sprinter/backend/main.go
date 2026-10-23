@@ -36,9 +36,18 @@ func main() {
 	// reaches Logger when the database never comes up and the process dies in
 	// connectStore.
 	events := logclient.NewFromEnv("sprinter")
-	if !events.Enabled() {
+	if !events.LoggerEnabled() {
 		log.Println("warning: LOGGER_INGEST_TOKEN unset — structured logging is disabled")
 	}
+	// Deferred first, so it runs last: after the stopping event and whatever
+	// the Discord session reports as it closes.
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := events.Close(ctx); err != nil {
+			log.Printf("flush events: %v", err)
+		}
+	}()
 
 	sprinterStore, err := connectStore(cfg.DatabaseURL)
 	if err != nil {
