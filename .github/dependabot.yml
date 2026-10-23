@@ -1,0 +1,119 @@
+# Dependabot opens pull requests each Monday for newer Go modules, npm
+# packages, actions, and Docker images. GitHub reads this file only at the
+# root of the repository, so every folder that has dependencies is listed
+# here. A glob in `directories` picks up a new app without an edit.
+#
+# Groups keep the noise down: one pull request per ecosystem each week for
+# the minor and patch updates, and a major update alone, because it can need
+# a change of the code. Security updates are not grouped and still come as
+# soon as an advisory lands (when Dependabot security updates are on in the
+# repository settings).
+#
+# Not updated by Dependabot: the Go version on the `go` line of each go.mod
+# and go.work (README.md owns it). Tool versions that CI shares with the
+# devcontainer live on the FROM lines of .devcontainer/Dockerfile, which the
+# docker entry below updates, and the workflows read them from there.
+version: 2
+updates:
+  # The five backends and go/logclient. They form one go.work workspace, and
+  # the backends build go/logclient through it, so one pull request moves
+  # every module together.
+  - package-ecosystem: gomod
+    directories:
+      - /apps/*/backend
+      - /go/*
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      go:
+        patterns: ["*"]
+        update-types: [minor, patch]
+
+  # The root package-lock.json: packages/style and every apps/*/frontend are
+  # npm workspaces of it, and the lint and build tooling is in the root
+  # package.json.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      npm:
+        patterns: ["*"]
+        update-types: [minor, patch]
+    ignore:
+      # @types/node follows the Node 24 runtime (AGENTS.md).
+      - dependency-name: "@types/node"
+        update-types: [version-update:semver-major]
+
+  # The Prisma CLI of each app, in its own lockfile beside its schema.
+  # Prisma 7 is a planned migration, not a bump (AGENTS.md), so majors stay
+  # off; the five folders move together in one pull request.
+  - package-ecosystem: npm
+    directories:
+      - /apps/*/prisma
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      prisma:
+        patterns: ["*"]
+    ignore:
+      - dependency-name: prisma
+        update-types: [version-update:semver-major]
+      - dependency-name: "@prisma/client"
+        update-types: [version-update:semver-major]
+
+  # The actions of every workflow in .github/workflows, pinned by commit
+  # SHA with the version in a comment; Dependabot moves both.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      actions:
+        patterns: ["*"]
+
+  # The base images of every Dockerfile, and the tool images that the
+  # devcontainer copies its binaries from. Dependabot moves the Go image and
+  # golangci-lint of .devcontainer/Dockerfile in one pull request, which
+  # matters: golangci-lint must understand the export data of that Go.
+  # Node stays on 24 to match @types/node, and a Postgres major needs a
+  # dump and restore, so neither takes a major update here.
+  - package-ecosystem: docker
+    directories:
+      - /.devcontainer
+      - /apps/*/backend
+      - /apps/*/frontend
+      - /apps/*/prisma
+      - /infra/nginx
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      docker:
+        patterns: ["*"]
+    ignore:
+      - dependency-name: node
+        update-types: [version-update:semver-major]
+
+  # The images that the compose files run as they are: Postgres, Redis, and
+  # cloudflared. The app images are built here and tagged by commit, so
+  # Dependabot leaves them alone.
+  - package-ecosystem: docker-compose
+    directories:
+      - /
+      - /.devcontainer
+      - /apps/*
+      - /infra
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      compose:
+        patterns: ["*"]
+    ignore:
+      - dependency-name: postgres
+        update-types: [version-update:semver-major]
