@@ -21,8 +21,8 @@ func newHandler(frontendURL string, trustedProxies []string, events httplog.Sink
 
 	// /health is public on purpose: the container healthcheck and Logger's
 	// monitor poll it, and it reveals nothing.
-	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]any{"status": "ok"})
+	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, r, http.StatusOK, map[string]any{"status": "ok"})
 	})
 
 	// Exo has no data or command routes yet. When the first one lands, mount it

@@ -241,8 +241,8 @@ func TestGatedRouteThroughTheStack(t *testing.T) {
 	authz := auth.NewClient(upstream.URL)
 	sink := &recorder{}
 	handler := testHandler(sink, authz, func(mux *http.ServeMux) {
-		mux.Handle("GET /gated", authz.Require(auth.PermissionLive)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+		mux.Handle("GET /gated", authz.Require(auth.PermissionLive)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			writeJSON(w, r, http.StatusOK, map[string]any{"ok": true})
 		})))
 	})
 	silenceLog(t)
@@ -257,6 +257,9 @@ func TestGatedRouteThroughTheStack(t *testing.T) {
 	events := sink.take()
 	if len(events) != 3 {
 		t.Fatalf("events = %+v", events)
+	}
+	if refusal := events[1]; refusal.level != logclient.Warning || refusal.payload["error"] != "authentication required" {
+		t.Fatalf("refusal event = %+v", refusal)
 	}
 	if outage := events[2]; outage.level != logclient.Error || outage.payload["error"] != "OAuthManager /v1/check returned HTTP 500" {
 		t.Fatalf("outage event = %+v", outage)
