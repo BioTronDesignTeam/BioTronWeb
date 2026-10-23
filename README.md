@@ -95,16 +95,20 @@ go into the built frontend. Migrations need no step of their own: each app's
 `*-migrate` container applies what is pending and exits before its API starts.
 
 App `.env` files are optional local inputs. `./launch` selects the ones that
-exist and checks required configuration only for selected apps. Production
-uses `infisical run -- ... ./launch all --runtime`, which ignores repository
-`.env` files. App inputs use prefixes (`AUTH_DATABASE_URL`,
+exist and checks required configuration only for selected apps. A deployed
+host has no checkout and no `.env` files: `deploy/biotron-deploy` fetches an
+instance's settings from Infisical and runs `./launch all --instance <name>
+--runtime --pull`, which ignores repository `.env` files and pulls the
+commit's images. App inputs use prefixes (`AUTH_DATABASE_URL`,
 `CALENDAR_DATABASE_URL`, etc.) to prevent collisions in one injected process.
-Container variable names stay unchanged. `jq` is required for launch validation.
-See [Infisical setup and migration](infra/infisical/README.md).
+Container variable names stay unchanged. `jq` is required for launch
+validation. See [Deploying staging and production](deploy/README.md).
 
-`./launch secrets` starts the independent secrets stack using bootstrap
-credentials outside the checkout. `./launch stop secrets` stops it explicitly;
-`all` and the default `stop` cover application infra and apps only.
+`./launch secrets` starts the independent Infisical stack using bootstrap
+credentials outside the checkout, and `./launch edge` the shared Nginx and
+tunnel. `./launch stop secrets` and `./launch stop edge` stop them
+explicitly; `all` and the default `stop` cover one instance's data services
+and apps only.
 
 Frontend images build from the repository root so they can see
 `packages/style`, and the Auth, Exo, and Calendar API images build from
