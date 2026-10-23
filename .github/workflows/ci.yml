@@ -4,9 +4,9 @@
 # The build, test, and lint jobs then fan out, in parallel, only over those
 # parts: a pull request that never touches Auth does not build Auth. Two
 # shared pieces widen the fan-out on purpose: a change to packages/style or
-# the root tooling rebuilds every frontend, and a change to go/ or go.work
-# re-tests every backend. The secret and vulnerability scans run on every
-# change regardless of what it touched.
+# the root tooling rebuilds every frontend, and a change to go/, go.work, or
+# the Go lint setup re-tests every backend. The secret and vulnerability
+# scans run on every change regardless of what it touched.
 name: ci
 
 on:
@@ -29,6 +29,7 @@ jobs:
       frontends: ${{ steps.plan.outputs.frontends }}
       backends: ${{ steps.plan.outputs.backends }}
       logclient: ${{ steps.plan.outputs.logclient }}
+      golangci-lint: ${{ steps.tools.outputs.golangci-lint }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -45,6 +46,8 @@ jobs:
               - 'go.work'
               - 'go.work.sum'
               - 'go/**'
+              - '.golangci.yml'
+              - '.devcontainer/Dockerfile'
             site:
               - 'apps/site/**'
             calendar:
@@ -85,6 +88,17 @@ jobs:
           echo "frontends: $frontends"
           echo "backends:  $backends"
           echo "logclient: $logclient"
+      # The golangci-lint of the devcontainer image, so CI and ./pr-precheck
+      # lint with the same release. Dependabot updates that FROM line.
+      - name: read tool versions
+        id: tools
+        run: |
+          version=$(sed -nE 's|^FROM golangci/golangci-lint:(v[0-9.]+)@.*|\1|p' .devcontainer/Dockerfile)
+          if [[ ! $version =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::No single golangci-lint version in .devcontainer/Dockerfile"
+            exit 1
+          fi
+          echo "golangci-lint=$version" >> "$GITHUB_OUTPUT"
 
   frontend:
     name: frontend ${{ matrix.app }}
@@ -130,7 +144,7 @@ jobs:
           cache-dependency-path: apps/${{ matrix.app }}/backend/go.sum
       - uses: golangci/golangci-lint-action@v8
         with:
-          version: latest
+          version: ${{ needs.changes.outputs.golangci-lint }}
           working-directory: apps/${{ matrix.app }}/backend
       - run: go vet ./...
       - run: go test ./...
@@ -151,7 +165,7 @@ jobs:
           cache-dependency-path: go/logclient/go.sum
       - uses: golangci/golangci-lint-action@v8
         with:
-          version: latest
+          version: ${{ needs.changes.outputs.golangci-lint }}
           working-directory: go/logclient
       - run: go vet ./...
       - run: go test ./...
