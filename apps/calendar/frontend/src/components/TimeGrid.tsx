@@ -31,6 +31,8 @@ function timedDraft(day: Date, minutes: number): EventDraft {
 /** Pixels per hour. The grid is 24 of these tall and scrolls. */
 const HOUR = 48;
 const DAY_MINUTES = 24 * 60;
+/** Where the grid opens, in minutes after midnight. Earlier hours stay a scroll away. */
+const OPENING_MINUTES = 10 * 60;
 /** A short event still needs room for its title, so it is drawn, and packed, as at least this long. */
 const MIN_DRAWN_MINUTES = 30;
 
@@ -109,7 +111,7 @@ export function TimeGrid({ days, occurrences, today, onSelectEvent, onOpenDay, o
     };
   }, [keys, occurrences]);
 
-  // Open on the working day rather than at midnight, unless something starts
+  // Open at 10 a.m. rather than at midnight, unless something starts
   // earlier. It happens once for each range: events that load afterwards must
   // not yank the grid out from under the reader.
   const range = keys.join();
@@ -117,7 +119,7 @@ export function TimeGrid({ days, occurrences, today, onSelectEvent, onOpenDay, o
   useLayoutEffect(() => {
     if (!scroller.current || scrolledFor.current === range) return;
     scrolledFor.current = range;
-    scroller.current.scrollTop = (Math.min(7 * 60, Math.max(0, earliest - 30)) / 60) * HOUR;
+    scroller.current.scrollTop = (Math.min(OPENING_MINUTES, Math.max(0, earliest - 30)) / 60) * HOUR;
   }, [range, earliest]);
 
   const [now, setNow] = useState(() => torontoClock(new Date()));
