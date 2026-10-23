@@ -6,7 +6,8 @@ usage() {
   cat <<'USAGE'
 Usage: ./pr-precheck [--base REF] [--all] [--plan]
 
-Run CI's build, lint, test, secret, and vulnerability checks locally.
+Run CI's build, lint, test, sqlc, workflow, secret, and vulnerability checks
+locally.
 Includes committed, staged, unstaged, and untracked nonignored changes.
 
   --base REF  Compare with this local ref (default: origin/main, then main)
@@ -14,7 +15,8 @@ Includes committed, staged, unstaged, and untracked nonignored changes.
   --plan      Show selected checks without running or installing anything
   --help      Show this help
 
-Use the devcontainer for Node, Go, golangci-lint, TruffleHog, Trivy, and jq.
+Use the devcontainer for Node, Go, golangci-lint, sqlc, actionlint, ShellCheck,
+TruffleHog, Trivy, and jq.
 Security scans always run and require network access for live verification.
 No fetching, commits, pushes, migrations, or services are started.
 USAGE
@@ -77,12 +79,13 @@ done
 logclient=no
 if $all_backends; then logclient=yes; fi
 printf 'Base: %s (merge base %.12s)\nFrontends: %s\nBackends: %s\nLog client: %s\n' "$base" "$merge_base" "${frontends:-none}" "${backends:-none}" "$logclient"
+echo 'Workflows: actionlint and ShellCheck on every workflow'
 echo 'Security: commit history, staged and working files, vulnerabilities and misconfigurations'
 if $plan; then exit 0; fi
 
-required='trufflehog trivy jq'
+required='trufflehog trivy jq actionlint shellcheck'
 if [[ -n $frontends ]]; then required="$required npm"; fi
-if [[ -n $backends || $logclient == yes ]]; then required="$required go golangci-lint"; fi
+if [[ -n $backends || $logclient == yes ]]; then required="$required go golangci-lint sqlc"; fi
 missing=''
 for tool in $required; do
   if ! command -v "$tool" >/dev/null 2>&1; then missing="$missing $tool"; fi
@@ -183,7 +186,15 @@ for module in $modules; do
   run "$module lint" in_directory "$root/$module" golangci-lint run ./...
   run "$module vet" in_directory "$root/$module" go vet ./...
   run "$module tests" in_directory "$root/$module" go test ./...
+  # Same as .github/workflows/sqlc.yml: generated code matches its queries.
+  for config in sqlc.yaml sqlc.yml sqlc.json; do
+    if [[ -f $root/$module/$config ]]; then
+      run "$module sqlc" in_directory "$root/$module" sqlc diff -f "$config"
+    fi
+  done
 done
+
+run 'workflows' actionlint
 
 repo_url=$(jq -nr --arg root "$root" '"file://" + ($root | split("/") | map(@uri) | join("/"))')
 run 'commit secrets' scan_secrets git "$repo_url" --since-commit "$merge_base" --branch "$head_commit"
