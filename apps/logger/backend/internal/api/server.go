@@ -5,23 +5,24 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
+	"io"
 	"log"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/gofiber/fiber/v3"
-	"github.com/gofiber/fiber/v3/middleware/limiter"
-	"github.com/gofiber/fiber/v3/middleware/recover"
-
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
-	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient/fiberlog"
+	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient/httplog"
 
 	"github.com/BioTronDesignTeam/Logger/backend/internal/auth"
 	"github.com/BioTronDesignTeam/Logger/backend/internal/catalog"
 	"github.com/BioTronDesignTeam/Logger/backend/internal/model"
 	"github.com/BioTronDesignTeam/Logger/backend/internal/selflog"
 )
+
+// bodyLimit bounds a request body, an ingest event included.
+const bodyLimit = 256 * 1024
 
 type Store interface {
 	Ping(context.Context) error
@@ -42,16 +43,16 @@ type Options struct {
 	StatusCacheTTL        time.Duration
 	StatusRateLimit       int
 	IngestRateLimit       int
-	// TrustedProxies are the peers whose Cf-Connecting-Ip header c.IP() may
-	// believe. Every rate-limit bucket and every access-log client address is
-	// keyed off that value, so an empty list means all of them collapse into
-	// one bucket holding the edge proxy's own bridge address.
+	// TrustedProxies are the peers whose Cf-Connecting-Ip header the API may
+	// believe. Every rate-limit bucket is keyed off that value, so an empty
+	// list means all of them collapse into one bucket holding the edge proxy's
+	// own bridge address.
 	TrustedProxies []string
 	// Events receives the request log and the events the API raises itself.
 	// Logger records its own events by writing into its store, not by posting
 	// to its own ingest route, so this is *selflog.Recorder in the service and
 	// a collector in the tests.
-	Events fiberlog.Sink
+	Events httplog.Sink
 	// Now is injectable so tests can pin a window without sleeping.
 	Now func() time.Time
 }
@@ -85,7 +86,7 @@ type Server struct {
 	store          Store
 	catalog        *catalog.Catalog
 	authorizer     auth.Authorizer
-	events         fiberlog.Sink
+	events         httplog.Sink
 	ingestToken    string
 	healthInterval time.Duration
 	maxGap         time.Duration
@@ -94,7 +95,7 @@ type Server struct {
 	now            func() time.Time
 }
 
-func New(store Store, serviceCatalog *catalog.Catalog, authorizer auth.Authorizer, options Options) *fiber.App {
+func New(store Store, serviceCatalog *catalog.Catalog, authorizer auth.Authorizer, options Options) http.Handler {
 	options = options.withDefaults()
 	location, err := time.LoadLocation(bucketTimeZone)
 	if err != nil {
@@ -114,59 +115,16 @@ func New(store Store, serviceCatalog *catalog.Catalog, authorizer auth.Authorize
 		statusCache: newTTLCache(options.StatusCacheTTL, options.Now),
 		now:         options.Now,
 	}
-	app := fiber.New(fiber.Config{
-		BodyLimit: 256 * 1024,
-		// Logger sits behind the shared edge proxy, which rewrites
-		// Cf-Connecting-Ip to the real client address on every hop. Without
-		// this, c.IP() reports the proxy's container address for every request
-		// and the limiters below throttle the whole internet as one client.
-		// Fiber v3 spells the v2 pair EnableTrustedProxyCheck/TrustedProxies as
-		// TrustProxy plus TrustProxyConfig.Proxies. The meaning is unchanged:
-		// the header is only believed when the peer is on this list.
-		TrustProxy:       true,
-		TrustProxyConfig: fiber.TrustProxyConfig{Proxies: options.TrustedProxies},
-		ProxyHeader:      "Cf-Connecting-Ip",
-		ErrorHandler: func(c fiber.Ctx, err error) error {
-			code := fiber.StatusInternalServerError
-			message := "internal server error"
-			var fiberError *fiber.Error
-			if errors.As(err, &fiberError) {
-				code = fiberError.Code
-				message = fiberError.Message
-			} else {
-				log.Printf("request %s %s: %v", c.Method(), c.Path(), err)
-			}
-			return c.Status(code).JSON(fiber.Map{"error": message})
-		},
-	})
 
-	// First, ahead of recover, so a panic is logged as the 500 the caller got.
-	//
-	// Quiet covers the three routes the status page polls on every load and the
-	// ingest route. Ingest is quiet for a reason of its own: an event for every
-	// accepted event would double the warehouse, one row for the event and one
-	// for the request that carried it. A refused ingest still speaks, because a
-	// 400 says one of our own services is sending what this one cannot store.
-	app.Use(fiberlog.New(options.Events, fiberlog.Options{
-		Quiet: []string{"/v1/status", "/v1/status/history", "/v1/session", "/v1/logs"},
-		Skip: func(c fiber.Ctx, status int) bool {
-			// These requests come from the internet. One warning row per refused
-			// attempt would hand an attacker a write into the audit trail at the
-			// rate limit itself: 600 rows a minute per address on ingest alone,
-			// enough to bury a real intrusion in noise. A throttled request is
-			// therefore dropped, and so is an ingest turned away for a bad
-			// token. The limiter already bounds both, and neither tells an
-			// operator anything the limiter has not counted.
-			if status == fiber.StatusTooManyRequests {
-				return true
-			}
-			return status == fiber.StatusUnauthorized && c.Path() == "/v1/logs"
-		},
-	}))
-	app.Use(recover.New())
+	// Logger sits behind the shared edge proxy, which rewrites
+	// Cf-Connecting-Ip to the real client address on every hop. Without
+	// trusting it, every request seems to come from the proxy's container
+	// address and the limiters below throttle the whole internet as one
+	// client. The header is only believed when the peer is on this list.
+	proxies := newProxyTrust(options.TrustedProxies)
 
-	app.Get("/health", server.health)
-	v1 := app.Group("/v1")
+	mux := http.NewServeMux()
+	mux.Handle("GET /health", handle(server.health))
 
 	// Ingestion is reachable from the internet and gated by one static token
 	// shared by every sender, so a leak anywhere buys an unbounded write into
@@ -177,85 +135,133 @@ func New(store Store, serviceCatalog *catalog.Catalog, authorizer auth.Authorize
 	// The throttle sits ahead of the token check so a flood costs an attacker a
 	// bucket whether or not they hold the token. It is per client address,
 	// which is only true because the app trusts the edge for that address; see
-	// TrustProxy above.
-	v1.Post("/logs",
-		limiter.New(limiter.Config{
-			Max:          options.IngestRateLimit,
-			Expiration:   time.Minute,
-			KeyGenerator: func(c fiber.Ctx) string { return c.IP() },
-		}),
-		server.requireIngestToken, server.ingestLog)
+	// proxies above.
+	ingestLimit := newLimiter(options.IngestRateLimit, time.Minute, proxies.clientIP)
+	mux.Handle("POST /v1/logs", ingestLimit.wrap(handle(server.requireIngestToken(server.ingestLog))))
 
 	// The public layer answers with no session at all. It runs time-series
 	// queries for anyone who asks, so it is rate limited per client address.
-	public := v1.Group("", limiter.New(limiter.Config{
-		Max:        options.StatusRateLimit,
-		Expiration: time.Minute,
-	}))
-	public.Get("/status", cacheFor(30*time.Second), server.status)
-	public.Get("/status/history", cacheFor(30*time.Second), server.statusHistory)
-	public.Get("/session", server.session)
+	// The Fiber app mounted this limiter on all of /v1 after the ingest route,
+	// so the log explorer routes and unknown /v1 paths share the bucket too.
+	publicLimit := newLimiter(options.StatusRateLimit, time.Minute, proxies.clientIP)
+	public := func(h handlerFunc) http.Handler { return publicLimit.wrap(handle(h)) }
+	mux.Handle("GET /v1/status", public(cacheFor(30*time.Second, server.status)))
+	mux.Handle("GET /v1/status/history", public(cacheFor(30*time.Second, server.statusHistory)))
+	mux.Handle("GET /v1/session", public(server.session))
 
-	v1.Get("/apps", server.requireRead, server.apps)
-	v1.Get("/apps/:app/logs/recent", server.requireRead, server.recentLogs)
-	v1.Get("/apps/:app/logs/history", server.requireRead, server.historyLogs)
-	return app
+	mux.Handle("GET /v1/apps", public(server.requireRead(server.apps)))
+	mux.Handle("GET /v1/apps/{app}/logs/recent", public(server.requireRead(server.recentLogs)))
+	mux.Handle("GET /v1/apps/{app}/logs/history", public(server.requireRead(server.historyLogs)))
+
+	notFound := unmatched(mux, "/", "/v1", "/v1/")
+	mux.Handle("/v1", public(notFound))
+	mux.Handle("/v1/", public(notFound))
+	mux.Handle("/", handle(notFound))
+
+	handler := lenientPaths(mux)
+	handler = recoverPanics(handler)
+	// Fiber never cancelled a request's context when the client went away, and
+	// the handlers count on that: a cancelled call to Auth would otherwise
+	// read as an Auth outage and write a false error into the warehouse.
+	handler = keepContext(handler)
+
+	// Outermost, so the request log records the status the client got.
+	//
+	// Quiet covers the three routes the status page polls on every load and the
+	// ingest route. Ingest is quiet for a reason of its own: an event for every
+	// accepted event would double the warehouse, one row for the event and one
+	// for the request that carried it. A refused ingest still speaks, because a
+	// 400 says one of our own services is sending what this one cannot store.
+	return httplog.New(options.Events, httplog.Options{
+		Quiet: []string{"/v1/status", "/v1/status/history", "/v1/session", "/v1/logs"},
+		Skip: func(r *http.Request, status int) bool {
+			// These requests come from the internet. One warning row per refused
+			// attempt would hand an attacker a write into the audit trail at the
+			// rate limit itself: 600 rows a minute per address on ingest alone,
+			// enough to bury a real intrusion in noise. A throttled request is
+			// therefore dropped, and so is an ingest turned away for a bad
+			// token. The limiter already bounds both, and neither tells an
+			// operator anything the limiter has not counted.
+			if status == http.StatusTooManyRequests {
+				return true
+			}
+			return status == http.StatusUnauthorized && r.URL.Path == "/v1/logs"
+		},
+	})(handler)
+}
+
+func keepContext(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		next.ServeHTTP(w, r.WithContext(context.WithoutCancel(r.Context())))
+	})
 }
 
 // cacheFor lets shared caches hold the public status responses briefly. They are
 // world-readable by design and change no faster than the health poll.
-func cacheFor(ttl time.Duration) fiber.Handler {
+func cacheFor(ttl time.Duration, next handlerFunc) handlerFunc {
 	value := "public, max-age=" + strconv.Itoa(int(ttl.Seconds()))
-	return func(c fiber.Ctx) error {
-		c.Set(fiber.HeaderCacheControl, value)
-		return c.Next()
+	return func(w http.ResponseWriter, r *http.Request) error {
+		w.Header().Set("Cache-Control", value)
+		return next(w, r)
 	}
 }
 
-func (s *Server) health(c fiber.Ctx) error {
-	ctx, cancel := context.WithTimeout(c.Context(), 2*time.Second)
+func (s *Server) health(w http.ResponseWriter, r *http.Request) error {
+	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 	defer cancel()
 	if err := s.store.Ping(ctx); err != nil {
-		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+		writeJSON(w, http.StatusServiceUnavailable, map[string]any{
 			"service": "logger-api",
 			"status":  "unavailable",
 		})
+		return nil
 	}
-	return c.JSON(fiber.Map{"service": "logger-api", "status": "ok"})
+	writeJSON(w, http.StatusOK, map[string]any{"service": "logger-api", "status": "ok"})
+	return nil
 }
 
-func (s *Server) requireIngestToken(c fiber.Ctx) error {
-	provided := strings.TrimPrefix(c.Get(fiber.HeaderAuthorization), "Bearer ")
-	if provided == "" || subtle.ConstantTimeCompare([]byte(provided), []byte(s.ingestToken)) != 1 {
-		return fiber.ErrUnauthorized
+func (s *Server) requireIngestToken(next handlerFunc) handlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) error {
+		provided := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+		if provided == "" || subtle.ConstantTimeCompare([]byte(provided), []byte(s.ingestToken)) != 1 {
+			return errUnauthorized
+		}
+		return next(w, r)
 	}
-	return c.Next()
 }
 
-func (s *Server) requireRead(c fiber.Ctx) error {
-	decision, err := s.authorizer.Authorize(c.Context(), c.Get(fiber.HeaderCookie))
-	if err != nil {
-		// Auth is unreachable, so every operator is locked out of the log
-		// explorer. The 503 the caller gets says nothing about why.
-		log.Printf("authorize read: %v", err)
-		s.events.LogAsync(logclient.Error, "Authorization service unavailable", map[string]any{"error": err.Error()})
-		return fiber.NewError(fiber.StatusServiceUnavailable, "authorization service unavailable")
+func (s *Server) requireRead(next handlerFunc) handlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) error {
+		decision, err := s.authorizer.Authorize(r.Context(), cookieHeader(r))
+		if err != nil {
+			// Auth is unreachable, so every operator is locked out of the log
+			// explorer. The 503 the caller gets says nothing about why.
+			log.Printf("authorize read: %v", err)
+			s.events.LogAsync(logclient.Error, "Authorization service unavailable", map[string]any{"error": err.Error()})
+			return newError(http.StatusServiceUnavailable, "authorization service unavailable")
+		}
+		if !decision.Authenticated {
+			return errUnauthorized
+		}
+		if !decision.Allowed {
+			return errForbidden
+		}
+		return next(w, r)
 	}
-	if !decision.Authenticated {
-		return fiber.ErrUnauthorized
-	}
-	if !decision.Allowed {
-		return fiber.ErrForbidden
-	}
-	return c.Next()
+}
+
+// cookieHeader is the browser's Cookie header as Auth expects it. HTTP/2 may
+// split cookies across several fields; they rejoin with "; ".
+func cookieHeader(r *http.Request) string {
+	return strings.Join(r.Header.Values("Cookie"), "; ")
 }
 
 // session always answers HTTP 200. The portal needs to tell "signed out" from
 // "signed in without logger/view", and a 401 or 403 collapses those two into
 // one, which is what sent permission-less users round the sign-in loop.
-func (s *Server) session(c fiber.Ctx) error {
-	c.Set(fiber.HeaderCacheControl, "no-store")
-	decision, err := s.authorizer.Authorize(c.Context(), c.Get(fiber.HeaderCookie))
+func (s *Server) session(w http.ResponseWriter, r *http.Request) error {
+	w.Header().Set("Cache-Control", "no-store")
+	decision, err := s.authorizer.Authorize(r.Context(), cookieHeader(r))
 	if err != nil {
 		// The permission service is unreachable. Reporting a signed-out visitor
 		// is the safe answer: it grants nothing and offers a sign-in button that
@@ -268,35 +274,58 @@ func (s *Server) session(c fiber.Ctx) error {
 		s.events.LogAsync(logclient.Error, "Authorization service unavailable", map[string]any{"error": err.Error()})
 		decision = auth.Decision{}
 	}
-	return c.JSON(fiber.Map{"authenticated": decision.Authenticated, "allowed": decision.Allowed})
+	writeJSON(w, http.StatusOK, map[string]any{"authenticated": decision.Authenticated, "allowed": decision.Allowed})
+	return nil
 }
 
-func (s *Server) ingestLog(c fiber.Ctx) error {
+func (s *Server) ingestLog(w http.ResponseWriter, r *http.Request) error {
 	var input model.NewLog
-	// v3's replacement for v2's c.BodyParser.
-	if err := c.Bind().Body(&input); err != nil {
-		return fiber.NewError(fiber.StatusBadRequest, "invalid JSON body")
+	if err := decodeJSONBody(w, r, &input); err != nil {
+		return err
 	}
 	input.Service = strings.TrimSpace(input.Service)
 	input.Message = strings.TrimSpace(input.Message)
 	if !s.catalog.HasService(input.Service) {
-		return fiber.NewError(fiber.StatusBadRequest, "unknown service")
+		return newError(http.StatusBadRequest, "unknown service")
 	}
 	if !input.Level.Valid() {
-		return fiber.NewError(fiber.StatusBadRequest, "level must be debug, info, warning, or error")
+		return newError(http.StatusBadRequest, "level must be debug, info, warning, or error")
 	}
 	if input.Message == "" || len(input.Message) > 16*1024 {
-		return fiber.NewError(fiber.StatusBadRequest, "message must be between 1 and 16384 characters")
+		return newError(http.StatusBadRequest, "message must be between 1 and 16384 characters")
 	}
 	if len(input.Payload) > 128*1024 || (len(input.Payload) > 0 && !json.Valid(input.Payload)) {
-		return fiber.NewError(fiber.StatusBadRequest, "payload must be valid JSON no larger than 128 KiB")
+		return newError(http.StatusBadRequest, "payload must be valid JSON no larger than 128 KiB")
 	}
 
-	entry, err := s.store.InsertLog(c.Context(), input)
+	entry, err := s.store.InsertLog(r.Context(), input)
 	if err != nil {
 		return err
 	}
-	return c.Status(fiber.StatusCreated).JSON(entry)
+	writeJSON(w, http.StatusCreated, entry)
+	return nil
+}
+
+// decodeJSONBody reads a JSON request body the way Fiber's body binder did:
+// the Content-Type must name JSON, and the whole body must be one JSON value.
+// A body past bodyLimit is a 413, as Fiber's BodyLimit made it.
+func decodeJSONBody(w http.ResponseWriter, r *http.Request, into any) error {
+	mediaType, _, _ := strings.Cut(r.Header.Get("Content-Type"), ";")
+	if strings.ToLower(strings.TrimSpace(mediaType)) != "application/json" {
+		return newError(http.StatusBadRequest, "invalid JSON body")
+	}
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, bodyLimit))
+	if err != nil {
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			return newError(http.StatusRequestEntityTooLarge)
+		}
+		return newError(http.StatusBadRequest, "invalid JSON body")
+	}
+	if err := json.Unmarshal(body, into); err != nil {
+		return newError(http.StatusBadRequest, "invalid JSON body")
+	}
+	return nil
 }
 
 type applicationStatus struct {
@@ -315,13 +344,13 @@ type componentStatus struct {
 	CheckedAt *time.Time `json:"checked_at,omitempty"`
 }
 
-func (s *Server) apps(c fiber.Ctx) error {
+func (s *Server) apps(w http.ResponseWriter, r *http.Request) error {
 	applications := s.catalog.Applications()
 	services := make([]string, 0)
 	for _, app := range applications {
 		services = append(services, catalog.ServiceIDs(app)...)
 	}
-	health, err := s.store.LatestHealth(c.Context(), services)
+	health, err := s.store.LatestHealth(r.Context(), services)
 	if err != nil {
 		return err
 	}
@@ -350,59 +379,64 @@ func (s *Server) apps(c fiber.Ctx) error {
 		}
 		statuses = append(statuses, status)
 	}
-	return c.JSON(fiber.Map{"applications": statuses, "generated_at": time.Now()})
+	writeJSON(w, http.StatusOK, map[string]any{"applications": statuses, "generated_at": time.Now()})
+	return nil
 }
 
-func (s *Server) recentLogs(c fiber.Ctx) error {
-	app, ok := s.catalog.Application(c.Params("app"))
+func (s *Server) recentLogs(w http.ResponseWriter, r *http.Request) error {
+	app, ok := s.catalog.Application(r.PathValue("app"))
 	if !ok {
-		return fiber.ErrNotFound
+		return errNotFound
 	}
-	levels, err := parseLevels(c.Query("levels"))
+	query := r.URL.Query()
+	levels, err := parseLevels(query.Get("levels"))
 	if err != nil {
-		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+		return newError(http.StatusBadRequest, err.Error())
 	}
-	limit := parseLimit(c.Query("limit"))
-	logs, err := s.store.RecentLogs(c.Context(), catalog.ServiceIDs(app), levels, strings.TrimSpace(c.Query("q")), limit)
+	limit := parseLimit(query.Get("limit"))
+	logs, err := s.store.RecentLogs(r.Context(), catalog.ServiceIDs(app), levels, strings.TrimSpace(query.Get("q")), limit)
 	if err != nil {
 		return err
 	}
-	return c.JSON(fiber.Map{"logs": logs})
+	writeJSON(w, http.StatusOK, map[string]any{"logs": logs})
+	return nil
 }
 
-func (s *Server) historyLogs(c fiber.Ctx) error {
-	app, ok := s.catalog.Application(c.Params("app"))
+func (s *Server) historyLogs(w http.ResponseWriter, r *http.Request) error {
+	app, ok := s.catalog.Application(r.PathValue("app"))
 	if !ok {
-		return fiber.ErrNotFound
+		return errNotFound
 	}
-	levels, err := parseLevels(c.Query("levels"))
+	query := r.URL.Query()
+	levels, err := parseLevels(query.Get("levels"))
 	if err != nil {
-		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+		return newError(http.StatusBadRequest, err.Error())
 	}
-	from, err := parseTime(c.Query("from"))
+	from, err := parseTime(query.Get("from"))
 	if err != nil {
-		return fiber.NewError(fiber.StatusBadRequest, "from must be an RFC3339 timestamp")
+		return newError(http.StatusBadRequest, "from must be an RFC3339 timestamp")
 	}
-	to, err := parseTime(c.Query("to"))
+	to, err := parseTime(query.Get("to"))
 	if err != nil {
-		return fiber.NewError(fiber.StatusBadRequest, "to must be an RFC3339 timestamp")
+		return newError(http.StatusBadRequest, "to must be an RFC3339 timestamp")
 	}
-	page, err := s.store.QueryLogs(c.Context(), model.HistoryQuery{
+	page, err := s.store.QueryLogs(r.Context(), model.HistoryQuery{
 		Services: catalog.ServiceIDs(app),
 		Levels:   levels,
 		From:     from,
 		To:       to,
-		Search:   strings.TrimSpace(c.Query("q")),
-		Cursor:   c.Query("cursor"),
-		Limit:    parseLimit(c.Query("limit")),
+		Search:   strings.TrimSpace(query.Get("q")),
+		Cursor:   query.Get("cursor"),
+		Limit:    parseLimit(query.Get("limit")),
 	})
 	if err != nil {
 		if err.Error() == "invalid cursor" {
-			return fiber.NewError(fiber.StatusBadRequest, err.Error())
+			return newError(http.StatusBadRequest, err.Error())
 		}
 		return err
 	}
-	return c.JSON(page)
+	writeJSON(w, http.StatusOK, page)
+	return nil
 }
 
 func parseLevels(raw string) ([]model.LogLevel, error) {

@@ -9,8 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gofiber/fiber/v3"
-
 	"github.com/BioTronDesignTeam/Logger/backend/internal/auth"
 	"github.com/BioTronDesignTeam/Logger/backend/internal/catalog"
 	"github.com/BioTronDesignTeam/Logger/backend/internal/model"
@@ -37,7 +35,7 @@ func (a deniedAuthorizer) Authorize(context.Context, string) (auth.Decision, err
 	return a.decision, nil
 }
 
-func statusApp(t *testing.T, store *fakeStore, authorizer auth.Authorizer) *fiber.App {
+func statusApp(t *testing.T, store *fakeStore, authorizer auth.Authorizer) http.Handler {
 	t.Helper()
 	serviceCatalog, err := catalog.Load(statusCatalog)
 	if err != nil {
@@ -59,12 +57,9 @@ func heartbeats(from, to time.Time, ok bool) []model.HealthPoint {
 	return points
 }
 
-func getJSON(t *testing.T, app *fiber.App, path string, into any) *http.Response {
+func getJSON(t *testing.T, app http.Handler, path string, into any) *http.Response {
 	t.Helper()
-	response, err := app.Test(httptest.NewRequest(http.MethodGet, path, nil), noTestTimeout)
-	if err != nil {
-		t.Fatal(err)
-	}
+	response := serve(app, httptest.NewRequest(http.MethodGet, path, nil))
 	if response.StatusCode != http.StatusOK {
 		t.Fatalf("GET %s status = %d", path, response.StatusCode)
 	}
@@ -369,10 +364,7 @@ func TestSessionIsPublicAndSeparatesSignedOutFromUnpermitted(t *testing.T) {
 func TestLogRoutesStayBehindLoggerView(t *testing.T) {
 	app := statusApp(t, &fakeStore{}, deniedAuthorizer{decision: auth.Decision{Authenticated: true}})
 	for _, path := range []string{"/v1/apps", "/v1/apps/calendar/logs/recent", "/v1/apps/calendar/logs/history"} {
-		response, err := app.Test(httptest.NewRequest(http.MethodGet, path, nil), noTestTimeout)
-		if err != nil {
-			t.Fatal(err)
-		}
+		response := serve(app, httptest.NewRequest(http.MethodGet, path, nil))
 		if response.StatusCode != http.StatusForbidden {
 			t.Fatalf("GET %s status = %d, want 403 without logger/view", path, response.StatusCode)
 		}
@@ -392,10 +384,7 @@ func TestPublicStatusIsRateLimited(t *testing.T) {
 
 	var lastStatus int
 	for i := 0; i < 5; i++ {
-		response, err := app.Test(httptest.NewRequest(http.MethodGet, "/v1/status", nil), noTestTimeout)
-		if err != nil {
-			t.Fatal(err)
-		}
+		response := serve(app, httptest.NewRequest(http.MethodGet, "/v1/status", nil))
 		lastStatus = response.StatusCode
 	}
 	if lastStatus != http.StatusTooManyRequests {
@@ -404,7 +393,7 @@ func TestPublicStatusIsRateLimited(t *testing.T) {
 }
 
 // Behind the edge every request arrives from the same container address, so the
-// limiter is only per-client if c.IP() reads the address the edge stamped into
+// limiter is only per-client if the limiter reads the address the edge stamped into
 // Cf-Connecting-Ip. Without the trusted-proxy configuration one visitor's burst
 // would 429 everybody else.
 func TestPublicStatusLimitIsPerClientBehindTheEdge(t *testing.T) {
@@ -415,18 +404,15 @@ func TestPublicStatusLimitIsPerClientBehindTheEdge(t *testing.T) {
 	app := New(&fakeStore{}, serviceCatalog, auth.AllowAll{}, Options{
 		IngestToken:     "secret",
 		StatusRateLimit: 1,
-		// app.Test dials from 0.0.0.0, standing in for the edge proxy.
-		TrustedProxies: []string{"0.0.0.0"},
+		// httptest requests come from 192.0.2.1, standing in for the edge proxy.
+		TrustedProxies: []string{"192.0.2.1"},
 		Now:            func() time.Time { return statusNow },
 	})
 
 	get := func(clientIP string) int {
 		request := httptest.NewRequest(http.MethodGet, "/v1/status", nil)
 		request.Header.Set("Cf-Connecting-Ip", clientIP)
-		response, err := app.Test(request, noTestTimeout)
-		if err != nil {
-			t.Fatal(err)
-		}
+		response := serve(app, request)
 		return response.StatusCode
 	}
 

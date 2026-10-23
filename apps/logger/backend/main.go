@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -65,9 +67,19 @@ func main() {
 		TrustedProxies:        cfg.TrustedProxies,
 		Events:                events,
 	})
+	server := &http.Server{
+		Addr:    ":" + cfg.Port,
+		Handler: app,
+		// The edge proxies every request, so these bound only a slow or stuck
+		// client. The write bound leaves room for a cold ninety-day status query.
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       60 * time.Second,
+	}
 	go func() {
 		log.Printf("Logger API listening on :%s", cfg.Port)
-		if err := app.Listen(":" + cfg.Port); err != nil {
+		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Printf("Logger API stopped: %v", err)
 		}
 	}()
@@ -81,7 +93,7 @@ func main() {
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	if err := app.ShutdownWithContext(shutdownCtx); err != nil {
+	if err := server.Shutdown(shutdownCtx); err != nil {
 		log.Printf("Logger API shutdown: %v", err)
 	}
 }
