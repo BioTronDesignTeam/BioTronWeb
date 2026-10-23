@@ -19,7 +19,7 @@ name Auth reports to Logger.
 
 | Path | What |
 |------|------|
-| `backend/` | Go Fiber API. Postgres through pgx and sqlc. Redis caches grant sets. |
+| `backend/` | Go `net/http` API. Postgres through pgx and sqlc. Redis caches grant sets. |
 | `frontend/` | Vite and React UI, served by Nginx. |
 | `prisma/` | Schema and migrations. The Go service runs its own queries. |
 | `docker-compose.yml` | `auth-migrate`, `auth-api`, `auth-web` on the `biotron` network. |
@@ -67,7 +67,7 @@ Prisma. Do not add environment files below it.
 - `CORS_ORIGINS` must list each tool frontend as both `localhost` and
   `127.0.0.1`. Browsers treat them as different origins.
 - `TRUSTED_PROXIES` must include the edge Nginx network. The per-IP rate
-  limit keys on `Cf-Connecting-Ip`, which Fiber reads only from a trusted
+  limit keys on `Cf-Connecting-Ip`, which the API reads only from a trusted
   proxy.
 - `LOGGER_INGEST_TOKEN` must match Logger's. Leave it empty to send nothing.
 

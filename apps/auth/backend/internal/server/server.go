@@ -1,86 +1,70 @@
 package server
 
 import (
+	"net/http"
 	"time"
 
-	"github.com/gofiber/fiber/v3"
-	"github.com/gofiber/fiber/v3/middleware/cors"
-	"github.com/gofiber/fiber/v3/middleware/limiter"
-	"github.com/gofiber/fiber/v3/middleware/logger"
-	"github.com/gofiber/fiber/v3/middleware/recover"
-
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
-	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient/fiberlog"
+	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient/httplog"
 	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/auth"
+	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/httpx"
 )
 
-func New(h *auth.Handler, allowedOrigins []string, trustedProxies []string, events *logclient.Client) *fiber.App {
-	app := fiber.New(fiber.Config{
-		ReadTimeout: 15 * time.Second,
-		IdleTimeout: 60 * time.Second,
-		// Fiber v3 renamed EnableTrustedProxyCheck/TrustedProxies to
-		// TrustProxy/TrustProxyConfig.Proxies. The meaning is unchanged: only
-		// a request arriving from one of these addresses may set the client IP
-		// through ProxyHeader, so the per-IP limiter keys on the real caller
-		// instead of collapsing into one bucket for the edge.
-		TrustProxy:       true,
-		TrustProxyConfig: fiber.TrustProxyConfig{Proxies: trustedProxies},
-		ProxyHeader:      "Cf-Connecting-Ip",
+type middleware = func(http.Handler) http.Handler
+
+// chain runs the middlewares in order, then h.
+func chain(h http.HandlerFunc, middlewares ...middleware) http.Handler {
+	var out http.Handler = h
+	for i := len(middlewares) - 1; i >= 0; i-- {
+		out = middlewares[i](out)
+	}
+	return out
+}
+
+// New returns the API. trustedProxies are the addresses (or CIDR ranges)
+// whose Cf-Connecting-Ip header names the client for the guest-login limit.
+func New(h *auth.Handler, allowedOrigins []string, trustedProxies []string, events *logclient.Client) http.Handler {
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
+		httpx.JSON(w, http.StatusOK, map[string]any{"status": "ok"})
 	})
 
-	// Fiber's console logger first: it runs the error handler itself and
-	// returns nil, so fiberlog must sit inside it to see a returned error,
-	// and recover inside fiberlog so a panic is logged as the 500 it became.
-	app.Use(logger.New())
-	// The two quiet paths are polled by every tool on every page load. They are
-	// logged only when they fail, so the log stays a record of what happened
-	// rather than a tally of who is still signed in.
-	app.Use(fiberlog.New(events, fiberlog.Options{Quiet: []string{"/v1/check", "/auth/me"}}))
-	app.Use(recover.New(recover.Config{EnableStackTrace: true}))
-	// v3 takes slices where v2 took comma-joined strings; the allow-list is
-	// still exact-match, still credentialed, and the middleware still sets
-	// Vary: Origin on every non-wildcard response.
-	app.Use(cors.New(cors.Config{
-		AllowOrigins:     allowedOrigins,
-		AllowCredentials: true,
-		AllowMethods: []string{
-			fiber.MethodGet,
-			fiber.MethodPost,
-			fiber.MethodDelete,
-			fiber.MethodPatch,
-			fiber.MethodOptions,
-		},
-		AllowHeaders: []string{fiber.HeaderContentType, "X-Requested-With"},
-	}))
+	guestLimit := newLimiter(20, time.Minute, clientIP(trustedProxies))
+	mux.Handle("GET /auth/github/login", chain(h.LoginRedirect))
+	mux.Handle("GET /auth/github/callback", chain(h.Callback))
+	mux.Handle("POST /auth/guest", chain(h.GuestLogin, guestLimit.wrap))
+	mux.Handle("POST /auth/logout", chain(h.Logout, h.RequireXHR, h.RequireSession))
+	mux.Handle("GET /auth/me", chain(h.Me, h.RequireSession))
+	mux.Handle("GET /auth/guest-keys", chain(h.StaffProductDailyKeys, h.RequireSession, h.RequireStaff))
 
-	app.Get("/health", func(c fiber.Ctx) error {
-		return c.JSON(fiber.Map{"status": "ok"})
-	})
+	mux.Handle("GET /apps", chain(h.ListApps, h.RequireSession))
+	mux.Handle("GET /permissions", chain(h.ListPermissions, h.RequireSession))
+	mux.Handle("POST /apps", chain(h.CreateApp, h.RequireXHR, h.RequireSession, h.RequireSuperuser))
 
-	a := app.Group("/auth")
-	a.Get("/github/login", h.LoginRedirect)
-	a.Get("/github/callback", h.Callback)
-	a.Post("/guest", limiter.New(limiter.Config{Max: 20, Expiration: time.Minute}), h.GuestLogin)
-	a.Post("/logout", h.RequireXHR, h.RequireSession, h.Logout)
-	a.Get("/me", h.RequireSession, h.Me)
-	a.Get("/guest-keys", h.RequireSession, h.RequireStaff, h.StaffProductDailyKeys)
+	mux.Handle("GET /me/grants", chain(h.MyGrants, h.RequireSession))
+	mux.Handle("GET /v1/check", chain(h.Check, h.RequireSession))
 
-	app.Get("/apps", h.RequireSession, h.ListApps)
-	app.Get("/permissions", h.RequireSession, h.ListPermissions)
-	app.Post("/apps", h.RequireXHR, h.RequireSession, h.RequireSuperuser, h.CreateApp)
+	mux.Handle("POST /grants", chain(h.CreateGrant, h.RequireXHR, h.RequireSession, h.RequireStaff))
+	mux.Handle("DELETE /grants", chain(h.DeleteGrant, h.RequireXHR, h.RequireSession, h.RequireStaff))
 
-	app.Get("/me/grants", h.RequireSession, h.MyGrants)
-	app.Get("/v1/check", h.RequireSession, h.Check)
+	// Every /org route is staff-only, and the session and staff checks run
+	// ahead of the CSRF guard, so an anonymous caller is told it is
+	// unauthenticated before anything else.
+	org := func(handler http.HandlerFunc, more ...middleware) http.Handler {
+		return chain(handler, append([]middleware{h.RequireSession, h.RequireStaff}, more...)...)
+	}
+	mux.Handle("GET /org/members", org(h.ListOrgMembers))
+	mux.Handle("GET /org/members/{id}/grants", org(h.MemberGrants))
+	mux.Handle("POST /org/members/{id}/ban", org(h.BanMember, h.RequireXHR))
+	mux.Handle("POST /org/members/{id}/unban", org(h.UnbanMember, h.RequireXHR))
+	mux.Handle("PATCH /org/members/{id}/manager", org(h.SetManager, h.RequireXHR, h.RequireSuperuser))
 
-	app.Post("/grants", h.RequireXHR, h.RequireSession, h.RequireStaff, h.CreateGrant)
-	app.Delete("/grants", h.RequireXHR, h.RequireSession, h.RequireStaff, h.DeleteGrant)
-
-	org := app.Group("/org", h.RequireSession, h.RequireStaff)
-	org.Get("/members", h.ListOrgMembers)
-	org.Get("/members/:id/grants", h.MemberGrants)
-	org.Post("/members/:id/ban", h.RequireXHR, h.BanMember)
-	org.Post("/members/:id/unban", h.RequireXHR, h.UnbanMember)
-	org.Patch("/members/:id/manager", h.RequireXHR, h.RequireSuperuser, h.SetManager)
-
-	return app
+	// httplog outermost, so the status it logs is the one the client got and
+	// a panic anywhere inside is logged as the 500 it became. The two quiet
+	// paths are polled by every tool on every page load. They are logged only
+	// when they fail, so the log stays a record of what happened rather than
+	// a tally of who is still signed in.
+	logged := httplog.New(events, httplog.Options{Quiet: []string{"/v1/check", "/auth/me"}})
+	return logged(cors(allowedOrigins)(mux))
 }

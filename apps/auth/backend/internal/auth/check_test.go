@@ -2,10 +2,9 @@ package auth
 
 import (
 	"encoding/json"
+	"net/http"
 	"net/http/httptest"
 	"testing"
-
-	"github.com/gofiber/fiber/v3"
 
 	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/store"
 )
@@ -17,15 +16,13 @@ import (
 // sign-in loop on the other side of the wire.
 
 func TestCheckAnswersUnauthorizedWithoutSession(t *testing.T) {
-	app := fiber.New()
-	app.Get("/v1/check", (&Handler{}).RequireSession, (&Handler{}).Check)
+	h := &Handler{}
+	handler := h.RequireSession(http.HandlerFunc(h.Check))
 
-	response, err := app.Test(httptest.NewRequest("GET", "/v1/check?app=logger&permission=view", nil))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if response.StatusCode != fiber.StatusUnauthorized {
-		t.Fatalf("status = %d, want 401 so callers can tell signed-out from unpermitted", response.StatusCode)
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest("GET", "/v1/check?app=logger&permission=view", nil))
+	if response.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401 so callers can tell signed-out from unpermitted", response.Code)
 	}
 }
 
@@ -43,48 +40,44 @@ func TestCheckAnswersOKWithVerdictForValidSessions(t *testing.T) {
 			name:       "staff hold every permission",
 			operator:   &store.SessionOperator{GitHubID: 7, Login: "manager", IsManager: true},
 			query:      "app=logger&permission=view",
-			wantStatus: fiber.StatusOK,
+			wantStatus: http.StatusOK,
 			wantAllow:  true,
 		},
 		{
 			name:       "exo guests are authenticated but never hold logger view",
 			operator:   &store.SessionOperator{GitHubID: store.GuestGitHubID, Login: store.GuestLogin, GuestAppID: "exo-gui"},
 			query:      "app=logger&permission=view",
-			wantStatus: fiber.StatusOK,
+			wantStatus: http.StatusOK,
 			wantAllow:  false,
 		},
 		{
 			name:       "exo guests keep the telemetry permissions their key grants",
 			operator:   &store.SessionOperator{GitHubID: store.GuestGitHubID, Login: store.GuestLogin, GuestAppID: "exo-gui"},
 			query:      "app=exo-gui&permission=historical",
-			wantStatus: fiber.StatusOK,
+			wantStatus: http.StatusOK,
 			wantAllow:  true,
 		},
 		{
 			name:       "missing query parameters are a bad request, never a silent refusal",
 			operator:   &store.SessionOperator{GitHubID: 7, Login: "manager", IsManager: true},
 			query:      "app=logger",
-			wantStatus: fiber.StatusBadRequest,
+			wantStatus: http.StatusBadRequest,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// RequireSession is covered above; here the operator it would have
 			// loaded is injected directly so the verdict needs no database.
-			app := fiber.New()
-			app.Get("/v1/check", func(c fiber.Ctx) error {
-				c.Locals(OperatorLocal, tc.operator)
-				return h.Check(c)
-			})
-
-			response, err := app.Test(httptest.NewRequest("GET", "/v1/check?"+tc.query, nil))
-			if err != nil {
-				t.Fatal(err)
+			request := withOperator(httptest.NewRequest("GET", "/v1/check?"+tc.query, nil), tc.operator)
+			response := httptest.NewRecorder()
+			h.Check(response, request)
+			if response.Code != tc.wantStatus {
+				t.Fatalf("status = %d, want %d", response.Code, tc.wantStatus)
 			}
-			if response.StatusCode != tc.wantStatus {
-				t.Fatalf("status = %d, want %d", response.StatusCode, tc.wantStatus)
-			}
-			if tc.wantStatus != fiber.StatusOK {
+			if tc.wantStatus != http.StatusOK {
 				return
+			}
+			if got := response.Header().Get("Content-Type"); got != "application/json; charset=utf-8" {
+				t.Errorf("Content-Type = %q", got)
 			}
 			var body struct {
 				Allowed bool `json:"allowed"`
