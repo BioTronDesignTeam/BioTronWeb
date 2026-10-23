@@ -9,8 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gofiber/fiber/v3"
-
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
 
 	"github.com/BioTronDesignTeam/Logger/backend/internal/auth"
@@ -18,9 +16,13 @@ import (
 	"github.com/BioTronDesignTeam/Logger/backend/internal/model"
 )
 
-// noTestTimeout is v3's spelling of v2's app.Test(request, -1): let the handler
-// run to completion instead of failing it after Fiber's one-second default.
-var noTestTimeout = fiber.TestConfig{Timeout: 0}
+// serve runs one request through the API in process and returns what the
+// client would receive.
+func serve(app http.Handler, request *http.Request) *http.Response {
+	recorder := httptest.NewRecorder()
+	app.ServeHTTP(recorder, request)
+	return recorder.Result()
+}
 
 type recordedEvent struct {
 	level   logclient.Level
@@ -29,7 +31,7 @@ type recordedEvent struct {
 }
 
 // eventCollector stands in for the recorder that writes Logger's own events
-// into its store. fiberlog calls it before the request returns, so the test
+// into its store. httplog calls it before the request returns, so the test
 // reads the slice without waiting.
 type eventCollector struct {
 	events []recordedEvent
@@ -80,8 +82,8 @@ func TestIngestIsRateLimitedPerSender(t *testing.T) {
 	app := New(&fakeStore{}, serviceCatalog, auth.AllowAll{}, Options{
 		IngestToken:     "secret",
 		IngestRateLimit: 2,
-		// app.Test dials from 0.0.0.0, standing in for the edge proxy.
-		TrustedProxies: []string{"0.0.0.0"},
+		// httptest requests come from 192.0.2.1, standing in for the edge proxy.
+		TrustedProxies: []string{"192.0.2.1"},
 	})
 	body := []byte(`{"service":"exo-api","level":"info","message":"telemetry batch stored"}`)
 
@@ -90,10 +92,7 @@ func TestIngestIsRateLimitedPerSender(t *testing.T) {
 		request.Header.Set("Content-Type", "application/json")
 		request.Header.Set("Authorization", "Bearer "+token)
 		request.Header.Set("Cf-Connecting-Ip", senderIP)
-		response, err := app.Test(request, noTestTimeout)
-		if err != nil {
-			t.Fatal(err)
-		}
+		response := serve(app, request)
 		return response.StatusCode
 	}
 
@@ -124,10 +123,7 @@ func TestIngestRequiresTokenAndAcceptsStructuredLog(t *testing.T) {
 
 	request := httptest.NewRequest(http.MethodPost, "/v1/logs", bytes.NewReader(body))
 	request.Header.Set("Content-Type", "application/json")
-	response, err := app.Test(request, noTestTimeout)
-	if err != nil {
-		t.Fatal(err)
-	}
+	response := serve(app, request)
 	if response.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("unauthorized status = %d", response.StatusCode)
 	}
@@ -135,10 +131,7 @@ func TestIngestRequiresTokenAndAcceptsStructuredLog(t *testing.T) {
 	request = httptest.NewRequest(http.MethodPost, "/v1/logs", bytes.NewReader(body))
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("Authorization", "Bearer secret")
-	response, err = app.Test(request, noTestTimeout)
-	if err != nil {
-		t.Fatal(err)
-	}
+	response = serve(app, request)
 	if response.StatusCode != http.StatusCreated {
 		t.Fatalf("created status = %d", response.StatusCode)
 	}
@@ -158,10 +151,7 @@ func TestApplicationsAggregateComponentHealth(t *testing.T) {
 	}
 	app := New(dataStore, serviceCatalog, auth.AllowAll{}, Options{IngestToken: "secret"})
 
-	response, err := app.Test(httptest.NewRequest(http.MethodGet, "/v1/apps", nil), noTestTimeout)
-	if err != nil {
-		t.Fatal(err)
-	}
+	response := serve(app, httptest.NewRequest(http.MethodGet, "/v1/apps", nil))
 	if response.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d", response.StatusCode)
 	}
@@ -182,10 +172,7 @@ func TestHistoryRejectsUnknownLevel(t *testing.T) {
 		t.Fatal(err)
 	}
 	app := New(&fakeStore{}, serviceCatalog, auth.AllowAll{}, Options{IngestToken: "secret"})
-	response, err := app.Test(httptest.NewRequest(http.MethodGet, "/v1/apps/exo/logs/history?levels=critical", nil), noTestTimeout)
-	if err != nil {
-		t.Fatal(err)
-	}
+	response := serve(app, httptest.NewRequest(http.MethodGet, "/v1/apps/exo/logs/history?levels=critical", nil))
 	if response.StatusCode != http.StatusBadRequest {
 		t.Fatalf("status = %d", response.StatusCode)
 	}
@@ -207,8 +194,8 @@ func TestIngestRequestLogRecordsOnlyOurOwnMistakes(t *testing.T) {
 	app := New(&fakeStore{}, serviceCatalog, auth.AllowAll{}, Options{
 		IngestToken:     "secret",
 		IngestRateLimit: 2,
-		// app.Test dials from 0.0.0.0, standing in for the edge proxy.
-		TrustedProxies: []string{"0.0.0.0"},
+		// httptest requests come from 192.0.2.1, standing in for the edge proxy.
+		TrustedProxies: []string{"192.0.2.1"},
 		Events:         events,
 	})
 
@@ -217,10 +204,7 @@ func TestIngestRequestLogRecordsOnlyOurOwnMistakes(t *testing.T) {
 		request.Header.Set("Content-Type", "application/json")
 		request.Header.Set("Authorization", "Bearer "+token)
 		request.Header.Set("Cf-Connecting-Ip", senderIP)
-		response, err := app.Test(request, noTestTimeout)
-		if err != nil {
-			t.Fatal(err)
-		}
+		response := serve(app, request)
 		return response.StatusCode
 	}
 

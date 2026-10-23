@@ -25,7 +25,7 @@ type Store interface {
 }
 
 // Recorder writes Logger's own events into the store. It satisfies
-// fiberlog.Sink, so the request log and the events Logger raises itself take
+// httplog.Sink, so the request log and the events Logger raises itself take
 // one path.
 type Recorder struct {
 	store Store
