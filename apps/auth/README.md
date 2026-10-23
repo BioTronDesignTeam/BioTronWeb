@@ -70,6 +70,10 @@ Prisma. Do not add environment files below it.
   limit keys on `Cf-Connecting-Ip`, which the API reads only from a trusted
   proxy.
 - `LOGGER_INGEST_TOKEN` must match Logger's. Leave it empty to send nothing.
+- `SESSION_SIGNING_KEY` signs the session and sign-in cookies. Generate one
+  per environment with `openssl rand -base64 48` and keep it secret: anyone
+  holding it can sign in as anyone. The backend refuses a key shorter than 32
+  characters or one that looks like a placeholder.
 
 ## The GitHub App
 
@@ -124,7 +128,7 @@ the organization.
 | GET | `/auth/github/login` | anyone | starts OAuth; `?redirect=` must be an allowed origin |
 | GET | `/auth/github/callback` | anyone | non-members return with `?auth=denied`, banned operators with `?auth=banned` |
 | POST | `/auth/guest` | anyone | guest login with `app_id` and `key`; 20 per minute per IP |
-| POST | `/auth/logout` | session | ends the session |
+| POST | `/auth/logout` | session | removes the session cookie |
 | GET | `/auth/me` | session | current operator; a guest must pass its `?app=` |
 | GET | `/auth/guest-keys` | staff | today's key for each opted-in tool |
 | GET | `/apps`, `/permissions` | session | the catalog |
@@ -133,18 +137,41 @@ the organization.
 | POST, DELETE | `/grants` | staff | grants or revokes one permission |
 | GET | `/org/members` | staff | every operator who has signed in |
 | GET | `/org/members/:id/grants` | staff | one member's grants |
-| POST | `/org/members/:id/ban`, `/unban` | staff | a ban ends the member's sessions |
-| PATCH | `/org/members/:id/manager` | superuser | sets the manager flag; ends the member's sessions |
+| POST | `/org/members/:id/ban`, `/unban` | staff | a ban refuses the member at once |
+| PATCH | `/org/members/:id/manager` | superuser | sets the manager flag, effective at once |
 | GET | `/v1/check?app=&permission=` | session | allow or deny |
 
 Staff means a manager or a superuser. Every mutating route requires the
 `X-Requested-With` header, which blocks cross-site form posts. Nobody can ban
 or change themself or the guest account. Only a superuser can ban a superuser.
 
-Sessions live in Postgres. The cookie is `oauth_session` and lasts
-`SESSION_TTL_HOURS`. Membership is checked at login only, so a removed member
-keeps access until the cookie ends or staff ban them. Roles and bans are read
-on every request and are never stale.
+### Sessions
+
+The cookie is `oauth_session`: a JWT signed with HMAC-SHA256 and
+`SESSION_SIGNING_KEY`, with its own issuer and audience, and it lasts
+`SESSION_TTL_HOURS` (a guest's ends at the next Eastern midnight). There is
+no session table: the signature is the check. The cookie names only the
+operator's GitHub id, and a guest's tool. Roles, bans, and grants are read
+from Postgres through an in-memory cache of at most 30 seconds, and every
+grant, revoke, ban, and manager change clears that operator from the cache,
+so it applies to the very next request. The sign-in state cookie,
+`oauth_state`, is signed the same way for another audience and also carries
+the origin to return to.
+
+What that means in practice:
+
+- A ban refuses the operator's next request on every device. An unban lets
+  their unexpired cookies in again.
+- Sign-out removes the cookie from that browser only. A copy of the cookie
+  stays valid until it expires; ban the operator to end it everywhere.
+- Changing `SESSION_SIGNING_KEY` signs everyone out.
+- Membership is checked at login only, so a removed member keeps access
+  until the cookie ends or staff ban them.
+
+Sessions from before signed cookies were opaque tokens in the `sessions`
+table. Those cookies no longer validate, so everyone signs in once more
+after the upgrade. The table is no longer read or written; a later migration
+can drop it.
 
 ### Permission check
 
@@ -153,14 +180,14 @@ cookie. The status code carries the verdict:
 
 | Situation | Response |
 |---|---|
-| No cookie, or an unknown, expired, or banned session | `401` |
+| No cookie, or an unsigned, expired, or banned session | `401` |
 | `app` or `permission` missing | `400` |
 | Valid session | `200` with `{"allowed": true}` or `{"allowed": false}` |
 
 The route never answers `403`. Callers must still treat a `403` as "signed
 in but not permitted", so that a stricter middleware can be added later
-without sending anyone into a sign-in loop. A ban deletes the operator's
-sessions at once, so the next check refuses.
+without sending anyone into a sign-in loop. A ban applies to the next
+check, which refuses.
 
 ### Events to Logger
 
@@ -184,9 +211,8 @@ session names its operator as `actor`.
 | `Operator banned`, `Operator unbanned` | info | `target_id`, `target_login` |
 | `Manager flag set`, `Manager flag removed` | info | `target_id`, `target_login` |
 | `Tool registered` | info | `app_id` |
-| `Session delete failed` | error | `error` |
-| `Expired sessions pruned`, `Stale guest keys pruned` | info | `count` |
-| `Session prune failed`, `Guest key prune failed` | error | `error` |
+| `Stale guest keys pruned` | info | `count` |
+| `Guest key prune failed` | error | `error` |
 
 The grant, revoke, ban, unban, manager, and tool rows are the audit trail.
 Each also names the actor as `actor_id` and `actor_login`. These events are
@@ -215,8 +241,8 @@ bundle; Compose passes it to `auth-web` as a build argument.
 
 ## Database
 
-Prisma 6.19.3, pinned exactly. Six tables: `operators`, `sessions`,
-`guest_keys`, `apps`, `permissions`, and `grants`. Tools and their
+Prisma 6.19.3, pinned exactly. Six tables: `operators`, `sessions` (unused,
+see Sessions), `guest_keys`, `apps`, `permissions`, and `grants`. Tools and their
 permissions are rows that the migrations seed, so `auth-migrate` is what
 makes a fresh database usable. Without it, every permission check for a
 non-staff operator answers `false`.

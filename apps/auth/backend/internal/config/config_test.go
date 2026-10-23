@@ -33,7 +33,7 @@ func TestLocalhostDefaultsValidate(t *testing.T) {
 	} {
 		t.Setenv(key, "")
 	}
-	setGitHubApp(t)
+	setSecrets(t)
 
 	cfg := Load()
 	if cfg.CookieSecure {
@@ -133,18 +133,19 @@ var testKeyPEM = func() string {
 	return string(pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)}))
 }()
 
-func setGitHubApp(t *testing.T) {
+func setSecrets(t *testing.T) {
 	t.Helper()
 	t.Setenv("GITHUB_APP_ID", "12345")
 	t.Setenv("GITHUB_APP_CLIENT_ID", "Iv1.test")
 	t.Setenv("GITHUB_APP_CLIENT_SECRET", "test-secret")
 	t.Setenv("GITHUB_APP_PRIVATE_KEY", testKeyPEM)
+	t.Setenv("SESSION_SIGNING_KEY", "kq3R8vXbN2mWc7TzLp5HdYf9GsJa4UeQ")
 }
 
 func TestGitHubAppIsRequiredAtStartup(t *testing.T) {
 	for _, key := range []string{"GITHUB_APP_ID", "GITHUB_APP_CLIENT_ID", "GITHUB_APP_CLIENT_SECRET", "GITHUB_APP_PRIVATE_KEY"} {
 		t.Run(key, func(t *testing.T) {
-			setGitHubApp(t)
+			setSecrets(t)
 			t.Setenv(key, "")
 			err := Load().Validate()
 			if err == nil || !strings.Contains(err.Error(), key) {
@@ -163,7 +164,7 @@ func TestGitHubAppValuesAreChecked(t *testing.T) {
 		{"key on one line with escaped newlines", "GITHUB_APP_PRIVATE_KEY", strings.ReplaceAll(testKeyPEM, "\n", `\n`), ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			setGitHubApp(t)
+			setSecrets(t)
 			t.Setenv(tc.key, tc.value)
 			err := Load().Validate()
 			switch {
@@ -187,5 +188,22 @@ func TestParsePrivateKeyAcceptsPKCS8(t *testing.T) {
 	}
 	if _, err := ParsePrivateKey(string(pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der}))); err != nil {
 		t.Fatalf("PKCS#8: %v", err)
+	}
+}
+
+func TestWeakSessionSigningKeysAreRefused(t *testing.T) {
+	for name, key := range map[string]string{
+		"missing":     "",
+		"short":       "kq3R8vXbN2mWc7Tz",
+		"one letter":  strings.Repeat("a", 48),
+		"placeholder": "change-me-change-me-change-me-change-me-0123456789",
+	} {
+		t.Run(name, func(t *testing.T) {
+			setSecrets(t)
+			t.Setenv("SESSION_SIGNING_KEY", key)
+			if err := Load().Validate(); err == nil || !strings.Contains(err.Error(), "SESSION_SIGNING_KEY") {
+				t.Fatalf("err = %v, want a refusal naming SESSION_SIGNING_KEY", err)
+			}
+		})
 	}
 }

@@ -15,7 +15,6 @@ import (
 )
 
 var ErrNotFound = errors.New("not found")
-var ErrBanned = errors.New("banned")
 
 // GuestGitHubID is the sentinel operator for daily-key guest sessions.
 // Real GitHub numeric ids are >= 1.
@@ -120,43 +119,6 @@ func (s *Store) UpsertOperator(ctx context.Context, op Operator, forceSuperuser 
 		AvatarURL:   nullable(op.AvatarURL),
 		IsSuperuser: forceSuperuser,
 	})
-}
-
-func (s *Store) CreateSession(ctx context.Context, idHash string, githubID int64, guestAppID string, expiresAt time.Time, userAgent string) error {
-	return s.q.CreateSession(ctx, queries.CreateSessionParams{
-		ID:         idHash,
-		OperatorID: githubID,
-		GuestAppID: nullable(guestAppID),
-		ExpiresAt:  expiresAt,
-		UserAgent:  nullable(userAgent),
-	})
-}
-
-func (s *Store) GetSessionOperator(ctx context.Context, idHash string) (*SessionOperator, error) {
-	row, err := s.q.GetSessionOperator(ctx, idHash)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, ErrNotFound
-		}
-		return nil, err
-	}
-	if row.IsBanned {
-		return nil, ErrBanned
-	}
-	op := SessionOperator(row)
-	return &op, nil
-}
-
-func (s *Store) DeleteSession(ctx context.Context, idHash string) error {
-	return s.q.DeleteSession(ctx, idHash)
-}
-
-func (s *Store) DeleteSessionsForOperator(ctx context.Context, operatorID int64) (int64, error) {
-	return s.q.DeleteSessionsForOperator(ctx, operatorID)
-}
-
-func (s *Store) DeleteExpiredSessions(ctx context.Context) (int64, error) {
-	return s.q.DeleteExpiredSessions(ctx)
 }
 
 func (s *Store) GetOperator(ctx context.Context, githubID int64) (*OrgMember, error) {

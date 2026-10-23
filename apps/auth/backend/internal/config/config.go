@@ -29,6 +29,7 @@ type Config struct {
 	CookieSameSite        string
 	CookieDomain          string
 	SessionTTL            time.Duration
+	SessionSigningKey     string
 	TrustedProxies        []string
 	SuperuserIDs          map[int64]bool
 }
@@ -50,6 +51,7 @@ func Load() Config {
 		CookieSameSite:        getenv("COOKIE_SAMESITE", "Lax"),
 		CookieDomain:          strings.TrimSpace(os.Getenv("COOKIE_DOMAIN")),
 		SessionTTL:            time.Duration(getint("SESSION_TTL_HOURS", 168)) * time.Hour,
+		SessionSigningKey:     os.Getenv("SESSION_SIGNING_KEY"),
 		TrustedProxies:        splitCSV(getenv("TRUSTED_PROXIES", "127.0.0.1,::1")),
 		SuperuserIDs:          parseIntSet(os.Getenv("SUPERUSER_GITHUB_IDS")),
 	}
@@ -65,6 +67,9 @@ func (c Config) IsSuperuserID(id int64) bool {
 // sign-in.
 func (c Config) Validate() error {
 	if err := c.validateCookies(); err != nil {
+		return err
+	}
+	if err := c.validateSession(); err != nil {
 		return err
 	}
 	return c.validateGitHubApp()
@@ -221,4 +226,28 @@ func ParsePrivateKey(raw string) (*rsa.PrivateKey, error) {
 		return nil, errors.New("GITHUB_APP_PRIVATE_KEY is not an RSA private key")
 	}
 	return key, nil
+}
+
+// minSigningKey is the shortest SESSION_SIGNING_KEY accepted: 256 bits, the
+// size of the HMAC-SHA256 that signs the session cookie.
+const minSigningKey = 32
+
+func (c Config) validateSession() error {
+	key := c.SessionSigningKey
+	if len(key) < minSigningKey {
+		return fmt.Errorf("SESSION_SIGNING_KEY must be at least %d characters: generate one with `openssl rand -base64 48`", minSigningKey)
+	}
+	// A key of one repeated character, or one copied from an example, is
+	// long enough and still guessable.
+	distinct := map[rune]bool{}
+	for _, r := range key {
+		distinct[r] = true
+	}
+	if len(distinct) < 10 || strings.Contains(strings.ToLower(key), "change-me") {
+		return errors.New("SESSION_SIGNING_KEY looks like a placeholder: generate one with `openssl rand -base64 48`")
+	}
+	if c.SessionTTL <= 0 {
+		return errors.New("SESSION_TTL_HOURS must be a positive number of hours")
+	}
+	return nil
 }

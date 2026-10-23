@@ -8,26 +8,6 @@ SET login = EXCLUDED.login,
     last_login_at = now(),
     is_superuser = EXCLUDED.is_superuser;
 
--- name: CreateSession :exec
-INSERT INTO sessions (id, operator_id, guest_app_id, expires_at, user_agent)
-VALUES ($1, $2, $3, $4, $5);
-
--- name: GetSessionOperator :one
-SELECT o.github_id, o.login, COALESCE(o.name, '') AS name, COALESCE(o.avatar_url, '') AS avatar_url,
-       o.is_superuser, o.is_manager, o.is_banned, COALESCE(s.guest_app_id, '') AS guest_app_id
-FROM sessions s
-JOIN operators o ON o.github_id = s.operator_id
-WHERE s.id = $1 AND s.expires_at > now();
-
--- name: DeleteSession :exec
-DELETE FROM sessions WHERE id = $1;
-
--- name: DeleteSessionsForOperator :execrows
-DELETE FROM sessions WHERE operator_id = $1;
-
--- name: DeleteExpiredSessions :execrows
-DELETE FROM sessions WHERE expires_at <= now();
-
 -- name: GetOperator :one
 SELECT github_id, login, COALESCE(name, '') AS name, COALESCE(avatar_url, '') AS avatar_url,
        is_superuser, is_manager, is_banned, last_login_at
