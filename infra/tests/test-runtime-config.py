@@ -44,9 +44,10 @@ class RuntimeConfigTests(unittest.TestCase):
             if app != 'site':
                 self.env[f'{app.upper()}_DATABASE_URL'] = f'fixture-{app}'
         self.env['LOGGER_INGEST_TOKEN'] = 'fixture-ingest'
+        self.env.update(POSTGRES_PASSWORD='fixture-db', SPRINTER_READER_PASSWORD='fixture-reader')
 
     def test_no_env_files_required_to_parse_or_stop_web(self):
-        self.assertEqual(len(self.config()['services']), 16)
+        self.assertEqual(len(self.config()['services']), 18)
         self.run_command('./launch', 'stop', 'web', '--runtime', '--dry-run')
 
     def test_database_and_public_config_are_isolated(self):
@@ -112,6 +113,44 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertIn('infra/edge/docker-compose.yml', result.stdout)
         self.assertTrue(result.stdout.rstrip().endswith('up -d nginx'), result.stdout)
         self.run_command('./launch', 'infra', '--no-tunnel', '--dry-run', success=False)
+
+    def test_local_project_keeps_its_names(self):
+        config = self.config()
+        self.assertEqual(config['name'], 'biotron')
+        self.assertEqual(config['networks']['biotron']['name'], 'biotron')
+        self.assertEqual(config['volumes']['postgres-data']['name'],
+                         'biotron-infrastructure_postgres-data')
+
+    def test_instances_get_their_own_project_network_and_volumes(self):
+        self.env.update(BIOTRON_INSTANCE='staging', BIOTRON_NETWORK='biotron-staging')
+        config = self.config('-p', 'biotron-staging')
+        self.assertEqual(config['name'], 'biotron-staging')
+        self.assertEqual({net['name'] for net in config['networks'].values()},
+                         {'biotron-staging'})
+        self.assertEqual({vol['name'] for vol in config['volumes'].values()},
+                         {'biotron-staging_postgres-data', 'biotron-staging_redis-data'})
+        for service in config['services'].values():
+            self.assertNotIn('container_name', service)
+
+    def test_launch_runs_an_instance_as_its_own_project(self):
+        self.secrets()
+        result = self.run_command('./launch', 'all', '--instance', 'prod', '--runtime', '--dry-run')
+        self.assertIn('docker network create biotron-prod', result.stdout)
+        ups = [line for line in result.stdout.splitlines() if ' up ' in line]
+        self.assertEqual(len(ups), 2, result.stdout)
+        self.assertTrue(all('-p biotron-prod' in line for line in ups), result.stdout)
+        self.assertTrue(ups[0].endswith('up -d postgres redis'), ups[0])
+        self.assertNotIn('postgres', ups[1])
+
+    def test_launch_rejects_bad_or_shared_instance_names(self):
+        for name in ('Prod', 'edge', 'secrets', 'a-b', ''):
+            self.run_command('./launch', 'web', '--instance', name, '--dry-run', success=False)
+        self.run_command('./launch', 'edge', '--instance', 'prod', '--dry-run', success=False)
+
+    def test_infra_needs_database_passwords(self):
+        self.run_command('./launch', 'infra', '--runtime', '--dry-run', success=False)
+        self.env.update(POSTGRES_PASSWORD='fixture-db', SPRINTER_READER_PASSWORD='fixture-reader')
+        self.run_command('./launch', 'infra', '--runtime', '--dry-run')
 
     def test_infisical_is_independent_and_loopback_only(self):
         self.env.update(ENCRYPTION_KEY='fixture-key', AUTH_SECRET='fixture-auth',

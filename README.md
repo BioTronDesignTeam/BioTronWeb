@@ -30,10 +30,13 @@ Each app keeps its own `README.md`, `.env.example`, `docker-compose.yml`, and
 - **`go.work`** lists every backend and `go/logclient`. Each backend keeps its
   own `go.mod`, so an image compiles only its own code, but locally everything
   resolves together.
-- **`docker-compose.yml`** includes every app, and not `infra`, which owns the
-  databases and the edge and starts first on its own. `docker compose up -d`
-  here starts the six apps; `docker compose up -d --build logger-web` builds
-  one service, and each app's compose file still works alone from its folder.
+- **`docker-compose.yml`** is one instance of the platform: it includes
+  `infra/docker-compose.yml` (Postgres and Redis) and every app, so an
+  instance's data and apps are one Compose project. `./launch --instance
+  staging` runs a second copy beside it with its own network and volumes. The
+  edge and Infisical are separate projects. `docker compose up -d --build
+  logger-web` builds one service, and each app's compose file still works
+  alone from its folder once the `biotron` network exists.
 
 Ports do not change: Auth 5173/8080, Exo 5174/8081, Logger 5175/8082,
 Calendar 5176/8083, Site 5177, Sprinter 5178/8084.

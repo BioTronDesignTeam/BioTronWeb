@@ -70,4 +70,4 @@ services:
 networks:
   biotron:
     external: true
-    name: biotron
+    name: ${BIOTRON_NETWORK:-biotron}
