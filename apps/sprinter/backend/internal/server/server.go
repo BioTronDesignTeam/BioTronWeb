@@ -5,19 +5,13 @@ package server
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"log"
-	"strings"
+	"net/http"
 	"time"
 
-	"github.com/gofiber/fiber/v3"
-	"github.com/gofiber/fiber/v3/middleware/cors"
-	"github.com/gofiber/fiber/v3/middleware/logger"
-	"github.com/gofiber/fiber/v3/middleware/recover"
-
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
-	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient/fiberlog"
+	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient/httplog"
 	"github.com/BioTronDesignTeam/Sprinter/backend/internal/auth"
 	"github.com/BioTronDesignTeam/Sprinter/backend/internal/config"
 	"github.com/BioTronDesignTeam/Sprinter/backend/internal/store"
@@ -58,7 +52,14 @@ type Handler struct {
 	discordConnected func() bool
 }
 
-func New(cfg config.Config, sprinterStore Store, authClient Authorizer, events *logclient.Client, discordConnected func() bool) *fiber.App {
+// bodyLimit caps a request body. The largest real body is an automation,
+// well under a kilobyte.
+const bodyLimit = 256 * 1024
+
+// New returns the whole API as one handler. The routes, statuses, headers and
+// bodies are the ones the Fiber version answered, quirks included, so the
+// admin page and anything probing the API see no change.
+func New(cfg config.Config, sprinterStore Store, authClient Authorizer, events *logclient.Client, discordConnected func() bool) http.Handler {
 	if discordConnected == nil {
 		discordConnected = func() bool { return false }
 	}
@@ -66,70 +67,74 @@ func New(cfg config.Config, sprinterStore Store, authClient Authorizer, events *
 		store: sprinterStore, auth: authClient, config: cfg,
 		events: events, discordConnected: discordConnected,
 	}
-	app := fiber.New(fiber.Config{
-		BodyLimit:   256 * 1024,
-		ReadTimeout: 15 * time.Second,
-		IdleTimeout: 60 * time.Second,
-		// Client identity comes from Cloudflare, but only when the peer is one
-		// of our own proxies. Without the allow-list, c.IP() would take a
-		// spoofable header from any caller.
-		TrustProxy:       true,
-		TrustProxyConfig: fiber.TrustProxyConfig{Proxies: cfg.TrustedProxies},
-		ProxyHeader:      "Cf-Connecting-Ip",
-		ErrorHandler:     jsonErrorHandler,
-	})
+	adminCORS := newCORS(cfg.AllowedOrigins())
 
-	// Fiber's console logger first: it runs the error handler itself and
-	// returns nil, so fiberlog must sit inside it to see a returned error, and
-	// recover inside fiberlog so a panic is logged as the 500 it became.
-	app.Use(logger.New())
-	app.Use(fiberlog.New(events, fiberlog.Options{Quiet: []string{"/v1/auth/status"}}))
-	app.Use(recover.New(recover.Config{EnableStackTrace: true}))
+	admin := http.NewServeMux()
+	admin.Handle("GET /v1/admin/guards", handle(handler.listGuards))
+	admin.Handle("/v1/admin/guards", adminMethods("GET, HEAD, OPTIONS"))
+	admin.Handle("GET /v1/admin/guards/{subject}", handle(handler.getGuard))
+	admin.Handle("PUT /v1/admin/guards/{subject}", handle(handler.putGuard))
+	admin.Handle("DELETE /v1/admin/guards/{subject}", handle(handler.deleteGuard))
+	admin.Handle("/v1/admin/guards/{subject}", adminMethods("GET, HEAD, PUT, DELETE, OPTIONS"))
+	admin.Handle("GET /v1/admin/automations", handle(handler.listAutomations))
+	admin.Handle("POST /v1/admin/automations", handle(handler.createAutomation))
+	admin.Handle("/v1/admin/automations", adminMethods("GET, HEAD, POST, OPTIONS"))
+	admin.Handle("GET /v1/admin/automations/{id}", handle(handler.getAutomation))
+	admin.Handle("PATCH /v1/admin/automations/{id}", handle(handler.patchAutomation))
+	admin.Handle("DELETE /v1/admin/automations/{id}", handle(handler.deleteAutomation))
+	admin.Handle("/v1/admin/automations/{id}", adminMethods("GET, HEAD, DELETE, OPTIONS, PATCH"))
+	// Any other path below /v1/admin still has the preflight route, so it is
+	// a wrong method rather than a missing page.
+	admin.Handle("/", adminMethods("OPTIONS"))
+	// The gate runs before the route is known, so an unknown admin path asks
+	// for a session like a real one.
+	gated := adminCORS(handle(func(w http.ResponseWriter, r *http.Request) error {
+		r, err := handler.requireAdmin(r)
+		if err != nil {
+			return err
+		}
+		admin.ServeHTTP(w, r)
+		return nil
+	}))
 
-	adminCORS := cors.New(cors.Config{
-		AllowOrigins:     cfg.AllowedOrigins(),
-		AllowCredentials: true,
-		AllowMethods: []string{
-			fiber.MethodGet, fiber.MethodPost, fiber.MethodPut,
-			fiber.MethodPatch, fiber.MethodDelete, fiber.MethodOptions,
-		},
-		AllowHeaders: []string{fiber.HeaderContentType, "X-Requested-With"},
-	})
+	mux := http.NewServeMux()
+	mux.Handle("GET /health", handle(handler.health))
+	mux.Handle("/health", methods("GET, HEAD"))
+	mux.Handle("GET /v1/auth/status", adminCORS(handle(handler.authStatus)))
+	// A preflight is answered inside adminCORS; any other OPTIONS falls
+	// through to nothing.
+	mux.Handle("OPTIONS /v1/auth/status", adminCORS(handle(notFound)))
+	mux.Handle("/v1/auth/status", methods("GET, HEAD, OPTIONS"))
+	mux.Handle("/v1/admin", gated)
+	mux.Handle("/v1/admin/", gated)
+	mux.Handle("/", handle(notFound))
 
-	app.Get("/health", handler.health)
-	app.Get("/v1/auth/status", adminCORS, handler.authStatus)
-	app.Options("/v1/auth/status", adminCORS)
-	app.Options("/v1/admin/*", adminCORS)
-
-	admin := app.Group("/v1/admin", adminCORS, handler.requireAdmin)
-	admin.Get("/guards", handler.listGuards)
-	admin.Get("/guards/:subject", handler.getGuard)
-	admin.Put("/guards/:subject", handler.putGuard)
-	admin.Delete("/guards/:subject", handler.deleteGuard)
-	admin.Get("/automations", handler.listAutomations)
-	admin.Post("/automations", handler.createAutomation)
-	admin.Get("/automations/:id", handler.getAutomation)
-	admin.Patch("/automations/:id", handler.patchAutomation)
-	admin.Delete("/automations/:id", handler.deleteAutomation)
-
-	return app
+	// httplog sits outermost so its status is the one the client received,
+	// and it reports a panic as the 500 it became. The console line comes
+	// next, then the recovery that turns a panic into the JSON error body.
+	return httplog.New(events, httplog.Options{Quiet: []string{"/v1/auth/status"}})(
+		accessLog(cfg.TrustedProxies)(
+			recoverJSON(
+				limitBody(bodyLimit)(
+					normalizePath(mux)))))
 }
 
-func (h *Handler) health(c fiber.Ctx) error {
-	ctx, cancel := context.WithTimeout(c.Context(), time.Second)
+func (h *Handler) health(w http.ResponseWriter, r *http.Request) error {
+	ctx, cancel := context.WithTimeout(r.Context(), time.Second)
 	defer cancel()
 	database := "ok"
-	status := fiber.StatusOK
+	status := http.StatusOK
 	if err := h.store.Ping(ctx); err != nil {
-		database, status = "unavailable", fiber.StatusServiceUnavailable
+		database, status = "unavailable", http.StatusServiceUnavailable
 	}
-	return c.Status(status).JSON(fiber.Map{
+	writeJSON(w, status, map[string]any{
 		"service":           "sprinter",
-		"status":            map[bool]string{true: "ok", false: "unavailable"}[status == fiber.StatusOK],
+		"status":            map[bool]string{true: "ok", false: "unavailable"}[status == http.StatusOK],
 		"database":          database,
 		"discord_enabled":   h.config.DiscordEnabled(),
 		"discord_connected": h.discordConnected(),
 	})
+	return nil
 }
 
 // statusBody is what /v1/auth/status answers. The page needs to know whether
@@ -140,72 +145,71 @@ type statusBody struct {
 	DiscordEnabled bool `json:"discord_enabled"`
 }
 
-func (h *Handler) authStatus(c fiber.Ctx) error {
-	status, err := h.auth.Status(c.Context(), c.Get(fiber.HeaderCookie))
+func (h *Handler) authStatus(w http.ResponseWriter, r *http.Request) error {
+	status, err := h.auth.Status(r.Context(), r.Header.Get("Cookie"))
 	if err != nil {
 		log.Printf("auth status: %v", err)
 		h.events.LogAsync(logclient.Error, "Authorization service unavailable", map[string]any{"error": err.Error()})
-		fiberlog.SetError(c, err)
-		return fiber.ErrServiceUnavailable
+		return errServiceUnavailable.because(err)
 	}
-	return c.JSON(statusBody{Status: status, DiscordEnabled: h.config.DiscordEnabled()})
+	writeJSON(w, http.StatusOK, statusBody{Status: status, DiscordEnabled: h.config.DiscordEnabled()})
+	return nil
 }
 
 // requireAdmin is the whole gate. It asks Auth for the session rather than the
 // permission alone, so every admin event that follows can name the operator
-// who caused it.
+// who caused it. It returns the request carrying that operator.
 //
 //	no cookie, or Auth says 401       -> 401  (sign in)
 //	403, or allowed:false             -> 403  (signed in, not permitted)
 //	transport error, unexpected status -> 503  (fail closed, never open)
-func (h *Handler) requireAdmin(c fiber.Ctx) error {
+func (h *Handler) requireAdmin(r *http.Request) (*http.Request, error) {
 	// A mutating request without this header cannot come from a cross-site
 	// form post, because a form cannot set it and a browser preflights it.
-	if mutating(c.Method()) && c.Get("X-Requested-With") != "XMLHttpRequest" {
-		return fiber.ErrForbidden
+	if mutating(r.Method) && r.Header.Get("X-Requested-With") != "XMLHttpRequest" {
+		return r, errForbidden
 	}
-	status, err := h.auth.Status(c.Context(), c.Get(fiber.HeaderCookie))
+	status, err := h.auth.Status(r.Context(), r.Header.Get("Cookie"))
 	if err != nil {
 		switch {
 		case errors.Is(err, auth.ErrUnauthenticated):
-			return fiber.ErrUnauthorized
+			return r, errUnauthorized
 		case errors.Is(err, auth.ErrForbidden):
-			return fiber.ErrForbidden
+			return r, errForbidden
 		default:
 			log.Printf("authorization check: %v", err)
 			h.events.LogAsync(logclient.Error, "Authorization service unavailable", map[string]any{"error": err.Error()})
-			return fiber.ErrServiceUnavailable
+			return r, errServiceUnavailable
 		}
 	}
 	// Status answers an absent or rejected session with an empty operator and
 	// no error, which is the 401.
 	if status.Operator == nil {
-		return fiber.ErrUnauthorized
+		return r, errUnauthorized
 	}
 	if !status.CanAdmin {
-		return fiber.ErrForbidden
+		return r, errForbidden
 	}
-	c.Locals(operatorKey, status.Operator)
-	fiberlog.SetActor(c, status.Operator.Login)
-	return c.Next()
+	httplog.SetActor(r, status.Operator.Login)
+	return r.WithContext(context.WithValue(r.Context(), operatorKey, status.Operator)), nil
 }
 
-type localKey string
+type contextKey string
 
 // operatorKey holds the operator requireAdmin resolved. The key has its own
 // type so nothing else in the request can collide with it.
-const operatorKey localKey = "sprinter.operator"
+const operatorKey contextKey = "sprinter.operator"
 
-func operatorFrom(c fiber.Ctx) *auth.Operator {
-	operator, _ := c.Locals(operatorKey).(*auth.Operator)
+func operatorFrom(r *http.Request) *auth.Operator {
+	operator, _ := r.Context().Value(operatorKey).(*auth.Operator)
 	return operator
 }
 
 // adminEvent reports one admin change at Info, naming the operator behind it.
 // Call it only after the store call succeeded, so the log holds what happened
 // rather than what was attempted.
-func (h *Handler) adminEvent(c fiber.Ctx, message string, payload map[string]any) {
-	if operator := operatorFrom(c); operator != nil {
+func (h *Handler) adminEvent(r *http.Request, message string, payload map[string]any) {
+	if operator := operatorFrom(r); operator != nil {
 		payload["actor_id"] = operator.GitHubID
 		payload["actor_login"] = operator.Login
 	}
@@ -214,40 +218,9 @@ func (h *Handler) adminEvent(c fiber.Ctx, message string, payload map[string]any
 
 func mutating(method string) bool {
 	switch method {
-	case fiber.MethodGet, fiber.MethodHead, fiber.MethodOptions:
+	case http.MethodGet, http.MethodHead, http.MethodOptions:
 		return false
 	default:
 		return true
 	}
-}
-
-// bind decodes a JSON body. Fiber's own binder answers a malformed body with a
-// 500, which reads in the log as Sprinter's fault rather than the caller's.
-func bind(c fiber.Ctx, destination any) error {
-	if err := json.Unmarshal(c.Body(), destination); err != nil {
-		return badRequest("body must be a JSON object")
-	}
-	return nil
-}
-
-func badRequest(message string) error {
-	return fiber.NewError(fiber.StatusBadRequest, message)
-}
-
-func jsonErrorHandler(c fiber.Ctx, err error) error {
-	status := fiber.StatusInternalServerError
-	message := "internal server error"
-	var fiberError *fiber.Error
-	if errors.As(err, &fiberError) {
-		status = fiberError.Code
-		message = strings.ToLower(fiberError.Message)
-	} else if errors.Is(err, store.ErrNotFound) {
-		status, message = fiber.StatusNotFound, "not found"
-	} else if errors.Is(err, store.ErrConflict) {
-		status, message = fiber.StatusConflict, "the requested change conflicts with existing data"
-	}
-	if status >= 500 {
-		log.Printf("request failed: %v", err)
-	}
-	return c.Status(status).JSON(fiber.Map{"error": message})
 }

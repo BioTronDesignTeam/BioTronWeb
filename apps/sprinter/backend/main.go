@@ -2,13 +2,14 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log"
+	"net/http"
 	"os/signal"
 	"syscall"
 	"time"
 	_ "time/tzdata"
 
-	"github.com/gofiber/fiber/v3"
 	"github.com/joho/godotenv"
 
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
@@ -127,15 +128,24 @@ func main() {
 	}
 
 	authClient := auth.NewClient(cfg.OAuthManagerURL)
-	app := server.New(cfg, sprinterStore, authClient, events, bot.Connected)
-	address := ":" + cfg.Port
+	httpServer := &http.Server{
+		Addr:    ":" + cfg.Port,
+		Handler: server.New(cfg, sprinterStore, authClient, events, bot.Connected),
+		// ReadTimeout covers a slow body as well as slow headers. The
+		// WriteTimeout leaves room for the two Auth calls an admin request
+		// makes, each bounded at five seconds.
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       60 * time.Second,
+	}
 	events.LogAsync(logclient.Info, "Sprinter started", map[string]any{
 		"port": cfg.Port, "discord": cfg.DiscordEnabled(),
 	})
 
 	go func() {
-		log.Printf("Sprinter admin API listening on %s", address)
-		if err := app.Listen(address, fiber.ListenConfig{DisableStartupMessage: true}); err != nil {
+		log.Printf("Sprinter admin API listening on %s", httpServer.Addr)
+		if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Fatalf("listen: %v", err)
 		}
 	}()
@@ -149,7 +159,10 @@ func main() {
 		log.Printf("structured shutdown log: %v", err)
 	}
 	cancel()
-	if err := app.ShutdownWithTimeout(10 * time.Second); err != nil {
+	// Requests in flight finish; new connections are refused.
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := httpServer.Shutdown(shutdownCtx); err != nil {
 		log.Printf("shutdown: %v", err)
 	}
 }
