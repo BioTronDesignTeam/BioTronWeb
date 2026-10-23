@@ -1,0 +1,38 @@
+# Lints every workflow in .github/workflows with actionlint, which also runs
+# ShellCheck on each run: step. It runs on every pull request, not only on
+# those that touch .github, because it takes seconds and a new actionlint
+# release can find something in a workflow that did not change.
+name: workflows
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: workflows-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  actionlint:
+    name: actionlint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The actionlint image that .devcontainer/Dockerfile copies its
+      # actionlint and ShellCheck from, by the same digest, so this job and
+      # ./pr-precheck agree. Dependabot updates that FROM line.
+      - name: lint the workflows
+        run: |
+          image=$(sed -nE 's|^FROM (rhysd/actionlint:[0-9.]+@sha256:[0-9a-f]{64}) AS actionlint$|\1|p' .devcontainer/Dockerfile)
+          if [[ -z $image ]]; then
+            echo "::error::No pinned actionlint image in .devcontainer/Dockerfile"
+            exit 1
+          fi
+          docker run --rm -v "$PWD:/repo" -w /repo "$image" -color
