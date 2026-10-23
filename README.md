@@ -54,6 +54,7 @@ in exactly one place so it cannot drift:
 | Type packages | React 19.2, Node 24 | root `package.json` |
 | Prisma | 6.19.3 | each `apps/*/prisma/package.json`, exact |
 | Go | 1.27.0 | every `go.mod`, `go.work`, every backend Dockerfile |
+| golangci-lint, sqlc, actionlint, TruffleHog | 2.15.0, 1.31.1, 1.7.12, 3.97.4 | `.devcontainer/Dockerfile` `FROM` lines; CI reads them there |
 
 An app's own `package.json` lists only what that app alone needs, such as
 `three` for the site. Build and lint tooling never goes there.
@@ -102,10 +103,12 @@ sets `context: ../..` for them.
 ### Before opening a pull request
 
 Run `./pr-precheck` inside the devcontainer. It mirrors
-`.github/workflows/ci.yml`: build and lint affected frontends, then run
-golangci-lint, `go vet`, and `go test` for affected backends. Shared tooling
-changes expand the checks to their consumers. Changes to the precheck,
-devcontainer, or CI workflow check every app.
+`.github/workflows/ci.yml`, `sqlc.yml`, and `workflows.yml`: build and lint
+affected frontends, then run golangci-lint, `go vet`, `go test`, and (where
+the backend has a `sqlc.yaml`) `sqlc diff` for affected backends, and lint
+every workflow with actionlint. Shared tooling changes expand the checks to
+their consumers. Changes to the precheck, devcontainer, CI workflow, or
+`.golangci.yml` check every app.
 
 ```bash
 ./pr-precheck --plan             # inspect the selected checks
@@ -136,6 +139,28 @@ binaries. The checks need network access for dependencies, vulnerability
 databases, and credential verification, but no Docker daemon. They do not
 start services or run migrations. Database integration tests remain opt-in
 through their existing test-database environment variables.
+
+### Code quality checks in GitHub
+
+| Workflow or file | What it does |
+|---|---|
+| `.github/workflows/ci.yml` | Builds, lints, and tests what a change touches; TruffleHog and Trivy on every change |
+| `.github/workflows/sqlc.yml` | `sqlc diff` for every `apps/*/backend/sqlc.yaml`; passes when none exist |
+| `.github/workflows/workflows.yml` | actionlint, with ShellCheck, on every workflow |
+| `.github/workflows/codeql.yml` | CodeQL for Go, TypeScript, and the workflows, on pull requests, `main`, and each Monday |
+| `.github/dependabot.yml` | Weekly grouped updates for Go, npm (root and Prisma), actions, Dockerfiles, and compose files |
+| `.golangci.yml` | One golangci-lint config for every Go module; it lists each enabled linter and why |
+
+Every action is pinned by commit SHA with its release in a comment, and
+Dependabot moves both. Every job reads the repository only, and no checkout
+keeps the token. Generate sqlc code with the devcontainer's `sqlc`: the
+header of each generated file names the release, and `sqlc diff` fails on
+any other one. Keep `database:` out of a `sqlc.yaml`, so sqlc reads the
+schema from files and needs no Postgres in CI.
+
+Repository settings the workflows depend on: CodeQL's default setup must stay
+off (the workflow is the advanced setup), and Dependabot security updates
+are a separate switch from this file.
 
 ### Environment settings
 
@@ -200,6 +225,7 @@ same ports as before.
   find-and-replace plus `go work sync`.
 - The OAuthManager permission-check client that Logger, Exo, and Calendar each
   hand-roll belongs in `go/authcheck`. It is not extracted here.
-- The CI workflows under `.github/workflows` are written but have never run.
+- The CI, CodeQL, sqlc, and actionlint workflows under `.github/workflows`
+  are written but have never run on GitHub.
 - The React hook and effect findings Oxlint reports are warnings; each app
   should clear its own and the rules then return to errors.
