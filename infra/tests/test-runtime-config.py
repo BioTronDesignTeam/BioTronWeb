@@ -18,7 +18,7 @@ class RuntimeConfigTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         paths = ['launch', 'docker-compose.yml', 'infra/docker-compose.yml',
-                 'infra/infisical/docker-compose.yml']
+                 'infra/edge/docker-compose.yml', 'infra/infisical/docker-compose.yml']
         paths += [f'apps/{app}/docker-compose.yml' for app in APPS]
         for path in paths:
             dest = self.root / path
@@ -94,15 +94,24 @@ class RuntimeConfigTests(unittest.TestCase):
         self.env['AUTH_DATABASE_URL'] = 'fixture-injected'
         self.run_command('./launch', 'web', '--runtime', '--dry-run', *args)
 
-    def test_infra_uses_environment_backed_tunnel_secret(self):
-        self.env.update(BASE_DOMAIN='example.test', POSTGRES_PASSWORD='fixture-db',
-                        SPRINTER_READER_PASSWORD='fixture-reader',
-                        CLOUDFLARE_TUNNEL_TOKEN='fixture-tunnel')
-        config = self.config('-f', 'infra/docker-compose.yml', '--env-file', '/dev/null')
+    def test_edge_uses_environment_backed_tunnel_secret(self):
+        self.env.update(BASE_DOMAIN='example.test', CLOUDFLARE_TUNNEL_TOKEN='fixture-tunnel')
+        config = self.config('-f', 'infra/edge/docker-compose.yml', '--env-file', '/dev/null')
         self.assertEqual(config['secrets']['cloudflare_tunnel_token']['environment'],
                          'CLOUDFLARE_TUNNEL_TOKEN')
         self.assertNotIn('CLOUDFLARE_TUNNEL_TOKEN',
                          config['services']['cloudflared'].get('environment', {}))
+
+    def test_edge_is_its_own_project(self):
+        self.env.update(POSTGRES_PASSWORD='fixture-db', SPRINTER_READER_PASSWORD='fixture-reader')
+        infra = self.config('-f', 'infra/docker-compose.yml', '--env-file', '/dev/null')
+        self.assertEqual(sorted(infra['services']), ['postgres', 'redis'])
+        (self.root / 'edge.env').write_text('BASE_DOMAIN=example.test\n')
+        self.env['EDGE_ENV_FILE'] = str(self.root / 'edge.env')
+        result = self.run_command('./launch', 'edge', '--no-tunnel', '--dry-run')
+        self.assertIn('infra/edge/docker-compose.yml', result.stdout)
+        self.assertTrue(result.stdout.rstrip().endswith('up -d nginx'), result.stdout)
+        self.run_command('./launch', 'infra', '--no-tunnel', '--dry-run', success=False)
 
     def test_infisical_is_independent_and_loopback_only(self):
         self.env.update(ENCRYPTION_KEY='fixture-key', AUTH_SECRET='fixture-auth',

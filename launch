@@ -8,30 +8,32 @@ usage() {
 Usage: ./launch <target> [options]
 
 Targets
-  infra     Postgres, Redis, the edge Nginx, and the Cloudflare tunnel
-  secrets   Independent Infisical stack (not part of all)
+  infra     Postgres and Redis
   web       The apps: site, calendar, auth, exo, logger, sprinter
   all       infra, then web
-  stop      Stop containers and keep their data: ./launch stop [infra|web|all|secrets]
+  edge      The edge Nginx and the Cloudflare tunnel (not part of all)
+  secrets   Independent Infisical stack (not part of all)
+  stop      Stop containers and keep their data:
+            ./launch stop [infra|web|all|edge|secrets]
   status    Show every BioTron container
 
 Options
   --runtime      Ignore repo .env files; use injected process variables.
   --build        Rebuild images first. Needed after a pull or a VITE_* change.
   --no-<app>     Leave an app out of web, for example --no-sprinter. Repeatable.
-  --local        infra only: start Postgres and Redis and nothing else. Use it
-                 on a laptop, where the tunnel must stay closed.
+  --no-tunnel    edge only: start Nginx and leave the tunnel closed.
   --dry-run      Print the docker commands and run nothing.
   --help         Show this help.
 
 Examples
-  ./launch infra --build
+  ./launch infra
   ./launch web --no-sprinter --build
   ./launch all --build
-  ./launch infra --local
+  ./launch edge --no-tunnel --build
   ./launch stop web
 
-Start infra before web: it owns the `biotron` network every app joins.
+A laptop needs only infra and web; never start the tunnel there. The edge reads
+infra/edge/.env when it exists, otherwise /etc/biotron/edge.env.
 Migrations need no step of their own. Each app's *-migrate container applies
 what is pending and exits before that app's API starts.
 USAGE
@@ -41,7 +43,7 @@ root=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 cd "$root"
 
 apps='site calendar auth exo logger sprinter'
-target='' build=false local_only=false dry_run=false excluded='' stop_target='all' runtime=false
+target='' build=false tunnel=true dry_run=false excluded='' stop_target='all' runtime=false
 
 die() { echo "launch: $*" >&2; exit 1; }
 is_app() { case " $apps " in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
@@ -52,14 +54,14 @@ while [[ $# -gt 0 ]]; do
     --help|-h) usage; exit 0 ;;
     --build) build=true ;;
     --runtime) runtime=true ;;
-    --local) local_only=true ;;
+    --no-tunnel) tunnel=false ;;
     --dry-run) dry_run=true ;;
     --no-*)
       app=${1#--no-}
       is_app "$app" || die "unknown app '$app' in $1. Apps: $apps"
       excluded="$excluded $app" ;;
     -*) die "unknown option $1. Try ./launch --help" ;;
-    infra|web|all|status|secrets)
+    infra|web|all|edge|status|secrets)
       [[ -z $target ]] || { [[ $target == stop ]] && stop_target=$1 || die "one target at a time: got '$target' and '$1'"; }
       [[ -n $target ]] || target=$1 ;;
     stop)
@@ -69,10 +71,10 @@ while [[ $# -gt 0 ]]; do
   esac
   shift
 done
-[[ -n $target ]] || die 'name a target: infra, web, all, stop, status, or secrets'
+[[ -n $target ]] || die 'name a target: infra, web, all, edge, secrets, stop, or status'
 [[ $stop_target != status ]] || die "'status' cannot be stopped"
 if [[ -n $excluded && $target != web && $target != all ]]; then die '--no-<app> only applies to web and all'; fi
-if $local_only && [[ $target != infra && $target != all ]]; then die '--local only applies to infra and all'; fi
+if ! $tunnel && [[ $target != edge ]]; then die '--no-tunnel only applies to edge'; fi
 
 command -v docker >/dev/null 2>&1 || die 'docker is not installed or not on PATH'
 
@@ -99,8 +101,25 @@ infra_compose() {
   if ! $runtime && [[ -f infra/.env ]]; then env_file=infra/.env; fi
   run docker compose -f infra/docker-compose.yml --env-file "$env_file" "$@"
 }
+# The edge's settings and tunnel token are bootstrap configuration, kept in a
+# root-only file outside the checkout. A local infra/edge/.env wins outside
+# runtime mode, for testing the edge on a laptop.
+edge_compose() {
+  local env_file=${EDGE_ENV_FILE:-/etc/biotron/edge.env}
+  if [[ -z ${EDGE_ENV_FILE:-} ]] && ! $runtime && [[ -f infra/edge/.env ]]; then env_file=infra/edge/.env; fi
+  run docker compose -f infra/edge/docker-compose.yml --env-file "$env_file" "$@"
+}
 secrets_compose() {
   run docker compose -f infra/infisical/docker-compose.yml --env-file "${INFISICAL_BOOTSTRAP_FILE:-/etc/biotron/infisical/bootstrap.env}" "$@"
+}
+
+# The networks are external to every compose file, so infra, the apps, and the
+# edge can start in any order. Creating one is the only state launch adds.
+ensure_network() {
+  if $dry_run || ! docker network inspect "$1" >/dev/null 2>&1; then
+    printf '+ docker network create %q\n' "$1"
+    $dry_run || docker network create "$1" >/dev/null
+  fi
 }
 
 # Check only selected services, without printing the rendered credentials.
@@ -133,27 +152,30 @@ web_services() {
 }
 
 start_infra() {
+  ensure_network biotron
   local args=(up -d)
   $build && args+=(--build)
-  $local_only && args+=(postgres redis)
   infra_compose "${args[@]}"
 }
 
 start_web() {
-  # The apps join a network that infra creates. Without it compose fails with
-  # "network biotron declared as external, but could not be found".
-  if ! $dry_run && ! docker network inspect biotron >/dev/null 2>&1; then
-    die "the 'biotron' network does not exist yet. Run ./launch infra first."
-  fi
-
   local services
   services=$(web_services)
   [[ -n $services ]] || die 'every app was left out, so there is nothing to start'
   validate_web "$services"
+  ensure_network biotron
   local args=(up -d)
   $build && args+=(--build)
   # shellcheck disable=SC2086
   run docker compose "${args[@]}" $services
+}
+
+start_edge() {
+  ensure_network biotron
+  local args=(up -d)
+  $build && args+=(--build)
+  $tunnel || args+=(nginx)
+  edge_compose "${args[@]}"
 }
 
 stop_web() { run docker compose stop; }
@@ -167,11 +189,13 @@ case "$target" in
   infra) start_infra ;;
   web) start_web ;;
   all) start_infra; start_web ;;
+  edge) start_edge ;;
   status) run docker ps -a --filter name=biotron --format 'table {{.Names}}\t{{.Status}}' ;;
   stop)
     # Apps first, so nothing is left talking to a database that has gone.
     case "$stop_target" in
       secrets) secrets_compose stop ;;
+      edge) edge_compose stop ;;
       web) stop_web ;;
       infra) stop_infra ;;
       all) stop_web; stop_infra ;;
