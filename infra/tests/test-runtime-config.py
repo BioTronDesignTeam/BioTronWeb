@@ -144,6 +144,15 @@ class RuntimeConfigTests(unittest.TestCase):
         upstreams = set(re.findall(r'http://\$\{INSTANCE\}-([a-z-]+):', template))
         self.assertEqual(upstreams, edge_targets)
 
+    def test_every_server_of_an_instance_can_turn_crawlers_away(self):
+        template = (ROOT / 'infra/nginx/sites/site.conf.template').read_text()
+        servers = template.count('\nserver {')
+        self.assertEqual(template.count('    ${ROBOTS}\n'), servers)
+        nginx_conf = (ROOT / 'infra/nginx/nginx.conf').read_text()
+        self.assertIn('add_header X-Robots-Tag $robots_tag always;', nginx_conf)
+        snippet = (ROOT / 'infra/nginx/snippets/robots-noindex.conf').read_text()
+        self.assertIn('Disallow: /', snippet)
+
     def test_local_project_keeps_its_names(self):
         config = self.config()
         self.assertEqual(config['name'], 'biotron')
