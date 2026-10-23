@@ -257,31 +257,6 @@ func (s *Store) ListGrantsForOperator(ctx context.Context, operatorID int64) ([]
 	return out, nil
 }
 
-func (s *Store) HasGrant(ctx context.Context, operatorID int64, appID, permissionKey string) (bool, error) {
-	_, err := s.q.HasGrant(ctx, queries.HasGrantParams{
-		OperatorID: operatorID, AppID: appID, PermissionKey: permissionKey,
-	})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return false, nil
-	}
-	if err != nil {
-		return false, err
-	}
-	return true, nil
-}
-
-// Allowed reports whether op may use permissionKey on appID.
-// Superusers and managers are allowed everywhere; members need a grant.
-func (s *Store) Allowed(ctx context.Context, op *SessionOperator, appID, permissionKey string) (bool, error) {
-	if op.IsSuperuser || op.IsManager {
-		return true, nil
-	}
-	if op.IsGuest() {
-		return op.GuestAppID == appID && (permissionKey == "live" || permissionKey == "historical"), nil
-	}
-	return s.HasGrant(ctx, op.GitHubID, appID, permissionKey)
-}
-
 func (s *Store) CreateGrant(ctx context.Context, operatorID int64, appID, permissionKey string) error {
 	if _, err := s.GetPermission(ctx, appID, permissionKey); err != nil {
 		return err

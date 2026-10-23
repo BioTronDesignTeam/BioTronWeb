@@ -63,9 +63,6 @@ SELECT operator_id, app_id, permission_key, created_at
 FROM grants WHERE operator_id = $1
 ORDER BY app_id, permission_key;
 
--- name: HasGrant :one
-SELECT 1 FROM grants WHERE operator_id = $1 AND app_id = $2 AND permission_key = $3;
-
 -- name: CreateGrant :exec
 INSERT INTO grants (operator_id, app_id, permission_key)
 VALUES ($1, $2, $3)
