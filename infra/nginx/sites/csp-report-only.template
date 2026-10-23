@@ -1,11 +1,11 @@
 # Resource-loading half of the edge Content-Security-Policy.
 #
-# The nginx image's entrypoint runs envsubst over /etc/nginx/templates/*.template
-# into /etc/nginx/conf.d/, which nginx.conf includes from inside the http block.
-# This file lives in templates/ only because the policy has to name the product
-# subdomains and therefore needs ${BASE_DOMAIN}; the deployment-independent
-# headers stay in nginx.conf. Both are at http level, so they accumulate rather
-# than override each other.
+# 40-biotron-sites.sh fills ${BASE_DOMAIN} in the policy line at the bottom
+# once per instance in EDGE_SITES and maps each domain to its own policy, so
+# every instance names only its own product subdomains. nginx.conf sends the
+# mapped value as Content-Security-Policy-Report-Only at http level, beside the
+# deployment-independent headers, so they accumulate rather than override each
+# other. Lines starting with # are left out of the header.
 #
 # WHY REPORT-ONLY.
 #
@@ -40,4 +40,4 @@
 #   worker-src blob:        Three.js loaders on the public site construct their
 #                           decoder workers from blobs.
 #   frame-src 'none'        no frontend embeds an iframe.
-add_header Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://avatars.githubusercontent.com; font-src 'self' data:; connect-src 'self' https://${BASE_DOMAIN} https://www.${BASE_DOMAIN} https://auth.${BASE_DOMAIN} https://exogui.${BASE_DOMAIN} https://status.${BASE_DOMAIN} https://calendar.${BASE_DOMAIN} https://sprinter.${BASE_DOMAIN}; worker-src 'self' blob:; frame-src 'none'; frame-ancestors 'none'; base-uri 'none'; object-src 'none'; form-action 'self'" always;
+default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://avatars.githubusercontent.com; font-src 'self' data:; connect-src 'self' https://${BASE_DOMAIN} https://www.${BASE_DOMAIN} https://auth.${BASE_DOMAIN} https://exogui.${BASE_DOMAIN} https://status.${BASE_DOMAIN} https://calendar.${BASE_DOMAIN} https://sprinter.${BASE_DOMAIN}; worker-src 'self' blob:; frame-src 'none'; frame-ancestors 'none'; base-uri 'none'; object-src 'none'; form-action 'self'

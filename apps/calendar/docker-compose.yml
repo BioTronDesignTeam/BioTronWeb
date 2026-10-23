@@ -39,6 +39,7 @@ services:
       biotron:
         aliases:
           - calendar-api
+          - ${BIOTRON_INSTANCE:-local}-calendar-api
     depends_on:
       calendar-migrate:
         condition: service_completed_successfully
@@ -60,6 +61,7 @@ services:
       biotron:
         aliases:
           - calendar-web
+          - ${BIOTRON_INSTANCE:-local}-calendar-web
     depends_on:
       - calendar-api
     restart: unless-stopped

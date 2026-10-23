@@ -1,13 +1,8 @@
-server {
-    listen 8080 default_server;
-    server_name _;
-
-    include /etc/nginx/snippets/edge-health.conf;
-
-    location / {
-        return 404;
-    }
-}
+# One instance's hostnames. 40-biotron-sites.sh renders this once per entry in
+# EDGE_SITES, filling INSTANCE and BASE_DOMAIN. Upstreams use the
+# instance-qualified aliases each app carries on its instance's network,
+# which Nginx joins. They are resolved per request, so a stopped instance
+# answers 502 without keeping Nginx or another instance from starting.
 
 server {
     listen 8080;
@@ -16,7 +11,7 @@ server {
     include /etc/nginx/snippets/edge-health.conf;
 
     location / {
-        set $frontend http://site-web:80;
+        set $frontend http://${INSTANCE}-site-web:80;
         proxy_pass $frontend;
         include /etc/nginx/snippets/proxy-headers.conf;
     }
@@ -44,20 +39,20 @@ server {
     }
 
     location /api/ {
-        set $backend http://calendar-api:8080;
+        set $backend http://${INSTANCE}-calendar-api:8080;
         rewrite ^/api/?(.*)$ /$1 break;
         proxy_pass $backend;
         include /etc/nginx/snippets/proxy-headers.conf;
     }
 
     location /feeds/ {
-        set $backend http://calendar-api:8080;
+        set $backend http://${INSTANCE}-calendar-api:8080;
         proxy_pass $backend;
         include /etc/nginx/snippets/proxy-headers.conf;
     }
 
     location / {
-        set $frontend http://calendar-web:80;
+        set $frontend http://${INSTANCE}-calendar-web:80;
         proxy_pass $frontend;
         include /etc/nginx/snippets/proxy-headers.conf;
     }
@@ -74,14 +69,14 @@ server {
     }
 
     location /api/ {
-        set $backend http://oauth-manager:8080;
+        set $backend http://${INSTANCE}-oauth-manager:8080;
         rewrite ^/api/?(.*)$ /$1 break;
         proxy_pass $backend;
         include /etc/nginx/snippets/proxy-headers.conf;
     }
 
     location / {
-        set $frontend http://oauth-web:80;
+        set $frontend http://${INSTANCE}-oauth-web:80;
         proxy_pass $frontend;
         include /etc/nginx/snippets/proxy-headers.conf;
     }
@@ -98,14 +93,14 @@ server {
     }
 
     location /api/ {
-        set $backend http://exo-api:8080;
+        set $backend http://${INSTANCE}-exo-api:8080;
         rewrite ^/api/?(.*)$ /$1 break;
         proxy_pass $backend;
         include /etc/nginx/snippets/proxy-headers.conf;
     }
 
     location / {
-        set $frontend http://exo-web:80;
+        set $frontend http://${INSTANCE}-exo-web:80;
         proxy_pass $frontend;
         include /etc/nginx/snippets/proxy-headers.conf;
     }
@@ -122,14 +117,14 @@ server {
     }
 
     location /api/ {
-        set $backend http://logger-api:8080;
+        set $backend http://${INSTANCE}-logger-api:8080;
         rewrite ^/api/?(.*)$ /$1 break;
         proxy_pass $backend;
         include /etc/nginx/snippets/proxy-headers.conf;
     }
 
     location / {
-        set $frontend http://logger-web:80;
+        set $frontend http://${INSTANCE}-logger-web:80;
         proxy_pass $frontend;
         include /etc/nginx/snippets/proxy-headers.conf;
     }
@@ -146,14 +141,14 @@ server {
     }
 
     location /api/ {
-        set $backend http://sprinter:8080;
+        set $backend http://${INSTANCE}-sprinter:8080;
         rewrite ^/api/?(.*)$ /$1 break;
         proxy_pass $backend;
         include /etc/nginx/snippets/proxy-headers.conf;
     }
 
     location / {
-        set $frontend http://sprinter-web:80;
+        set $frontend http://${INSTANCE}-sprinter-web:80;
         proxy_pass $frontend;
         include /etc/nginx/snippets/proxy-headers.conf;
     }

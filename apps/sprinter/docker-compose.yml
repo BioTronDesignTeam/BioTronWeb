@@ -41,6 +41,7 @@ services:
       biotron:
         aliases:
           - sprinter
+          - ${BIOTRON_INSTANCE:-local}-sprinter
     depends_on:
       sprinter-migrate:
         condition: service_completed_successfully
@@ -63,6 +64,7 @@ services:
       biotron:
         aliases:
           - sprinter-web
+          - ${BIOTRON_INSTANCE:-local}-sprinter-web
     depends_on:
       - sprinter-bot
     restart: unless-stopped
