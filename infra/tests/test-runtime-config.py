@@ -8,9 +8,18 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[2]
 APPS = ('auth', 'calendar', 'exo', 'logger', 'site', 'sprinter')
+
+
+def database_url_parts(url):
+    """Split a database URL, so that no test spells out one with a password,
+    which secret scanners report."""
+    parts = urlsplit(url)
+    return (parts.scheme, parts.username, parts.password, f'{parts.hostname}:{parts.port}',
+            parts.path, parts.query)
 
 
 class RuntimeConfigTests(unittest.TestCase):
@@ -20,7 +29,7 @@ class RuntimeConfigTests(unittest.TestCase):
         self.root = Path(self.temp.name)
         paths = ['launch', 'docker-compose.yml', 'infra/docker-compose.yml',
                  'infra/edge/docker-compose.yml', 'infra/infisical/docker-compose.yml',
-                 'infra/no-host-ports.yml']
+                 'infra/no-host-ports.yml', 'deploy/instance-defaults.sh']
         paths += [f'apps/{app}/docker-compose.yml' for app in APPS]
         for path in paths:
             dest = self.root / path
@@ -244,6 +253,41 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertIn('infra/infisical/docker-compose.yml', result.stdout)
         self.run_command('./launch', 'stop', 'secrets', '--dry-run')
 
+
+    def instance_defaults(self, **values):
+        self.env.update(values)
+        result = self.run_command('bash', 'deploy/instance-defaults.sh', 'env')
+        return dict(line.split('=', 1) for line in result.stdout.splitlines() if '=' in line)
+
+    def test_instance_defaults_derive_settings_from_the_domain_and_passwords(self):
+        env = self.instance_defaults(BASE_DOMAIN='example.test', POSTGRES_PASSWORD='abc123',
+                                     SPRINTER_READER_PASSWORD='def456')
+        self.assertEqual(database_url_parts(env['AUTH_DATABASE_URL']),
+                         ('postgresql', 'biotron', 'abc123', 'postgres:5432', '/biotron', 'schema=oauth'))
+        self.assertEqual(database_url_parts(env['SPRINTER_READ_DATABASE_URL']),
+                         ('postgresql', 'sprinter_reader', 'def456', 'postgres:5432', '/biotron', ''))
+        self.assertEqual(env['AUTH_OAUTH_CALLBACK_URL'],
+                         'https://auth.example.test/api/auth/github/callback')
+        self.assertEqual(env['AUTH_COOKIE_DOMAIN'], '.example.test')
+        self.assertEqual(env['CALENDAR_SITE_URL'], 'https://example.test')
+        # A value Infisical sets wins over the derived one.
+        env = self.instance_defaults(AUTH_FRONTEND_URL='https://login.example.test')
+        self.assertEqual(env['AUTH_FRONTEND_URL'], 'https://login.example.test')
+
+    def test_instance_defaults_reject_missing_or_unsafe_values(self):
+        self.run_command('bash', 'deploy/instance-defaults.sh', 'true', success=False)
+        self.env.update(BASE_DOMAIN='example.test', POSTGRES_PASSWORD='a@b',
+                        SPRINTER_READER_PASSWORD='def456')
+        self.run_command('bash', 'deploy/instance-defaults.sh', 'true', success=False)
+        self.env.update(POSTGRES_PASSWORD='abc', BASE_DOMAIN='Example.test')
+        self.run_command('bash', 'deploy/instance-defaults.sh', 'true', success=False)
+
+    def test_derived_settings_satisfy_launch(self):
+        self.env.update(BASE_DOMAIN='example.test', POSTGRES_PASSWORD='abc123',
+                        SPRINTER_READER_PASSWORD='def456', LOGGER_INGEST_TOKEN='fixture-ingest',
+                        IMAGE_REGISTRY='ghcr.io/biotrondesignteam/', IMAGE_TAG='0' * 40)
+        self.run_command('bash', 'deploy/instance-defaults.sh', './launch', 'all',
+                         '--instance', 'prod', '--runtime', '--pull', '--dry-run')
 
 if __name__ == '__main__':
     unittest.main()

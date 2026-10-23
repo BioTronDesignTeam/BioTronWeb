@@ -177,7 +177,7 @@ edge_override() {
   done
 }
 secrets_compose() {
-  run docker compose -f infra/infisical/docker-compose.yml --env-file "${INFISICAL_BOOTSTRAP_FILE:-/etc/biotron/infisical/bootstrap.env}" "$@"
+  run docker compose -f infra/infisical/docker-compose.yml --env-file "${INFISICAL_BOOTSTRAP_FILE:-/etc/biotron/infisical.env}" "$@"
 }
 
 # The networks are external to every compose file, so infra, the apps, and the
