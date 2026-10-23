@@ -54,10 +54,11 @@ The backend defaults to port 8080, which Auth uses, so pass `PORT=8081`.
 ## Environment
 
 One file, `apps/exo/.env`, feeds Compose, the backend, the frontend, and
-Prisma. Do not add environment files below it. The Go code reads seven
-variables: `PORT`, `FRONTEND_URL`, `TRUSTED_PROXIES`, and `OAUTH_MANAGER_URL`
-in `backend/internal/config`; `LOGGER_URL`, `LOGGER_INGEST_TOKEN`, and
-`LOG_LEVEL` in `backend/internal/eventlog`.
+Prisma. Do not add environment files below it. The backend reads `PORT`,
+`FRONTEND_URL`, `TRUSTED_PROXIES`, and `OAUTH_MANAGER_URL` in
+`backend/internal/config`. The shared `go/logclient` reads `LOGGER_URL`,
+`LOGGER_INGEST_TOKEN`, and `LOG_LEVEL`, plus the optional Grafana and PostHog
+variables listed in `go/logclient/README.md`.
 
 - `FRONTEND_URL` is the one CORS origin.
 - `TRUSTED_PROXIES` must include the edge Nginx network. The API reads
