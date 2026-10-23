@@ -11,8 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gofiber/fiber/v3"
-
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
 	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/auth"
 	calendarlogic "github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/calendar"
@@ -314,21 +312,19 @@ func TestAdminEventNamesTheOperator(t *testing.T) {
 	sent := captureEvents(t)
 	handler := &Handler{auth: fakeAuth(t, signedInEditor), events: logclient.NewFromEnv("calendar-api")}
 
-	app := fiber.New(fiber.Config{ErrorHandler: jsonErrorHandler})
-	admin := app.Group("/v1/admin", handler.requireWrite)
-	admin.Post("/scopes", func(c fiber.Ctx) error {
-		handler.adminEvent(c, "Scope created", map[string]any{
+	app := handler.requireWrite(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handler.adminEvent(r, "Scope created", map[string]any{
 			"scope_id": "scope-1", "kind": model.ScopeProject, "name": "Drivetrain", "parent_id": "root",
 		})
-		return c.SendStatus(fiber.StatusCreated)
-	})
+		w.WriteHeader(http.StatusCreated)
+	}))
 
-	response, err := app.Test(editorRequest(fiber.MethodPost, "/v1/admin/scopes"), fiber.TestConfig{Timeout: 10 * time.Second})
+	response, err := serveTest(app, editorRequest(http.MethodPost, "/v1/admin/scopes"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer response.Body.Close()
-	if response.StatusCode != fiber.StatusCreated {
+	if response.StatusCode != http.StatusCreated {
 		t.Fatalf("editor request returned %d", response.StatusCode)
 	}
 
@@ -358,12 +354,12 @@ func TestRequireWriteKeepsItsStatusMapping(t *testing.T) {
 		omitXHR bool
 		want    int
 	}{
-		{name: "editor", answer: signedInEditor, cookie: "session=abc", want: fiber.StatusCreated},
-		{name: "no cookie", answer: signedInEditor, want: fiber.StatusUnauthorized},
+		{name: "editor", answer: signedInEditor, cookie: "session=abc", want: http.StatusCreated},
+		{name: "no cookie", answer: signedInEditor, want: http.StatusUnauthorized},
 		{
 			name:   "session rejected",
 			answer: authAnswer{meStatus: http.StatusUnauthorized, checkStatus: http.StatusUnauthorized},
-			cookie: "session=abc", want: fiber.StatusUnauthorized,
+			cookie: "session=abc", want: http.StatusUnauthorized,
 		},
 		{
 			name: "permission missing",
@@ -371,7 +367,7 @@ func TestRequireWriteKeepsItsStatusMapping(t *testing.T) {
 				meStatus: http.StatusOK, meBody: signedInEditor.meBody,
 				checkStatus: http.StatusOK, checkBody: `{"allowed":false}`,
 			},
-			cookie: "session=abc", want: fiber.StatusForbidden,
+			cookie: "session=abc", want: http.StatusForbidden,
 		},
 		{
 			name: "permission forbidden",
@@ -379,7 +375,7 @@ func TestRequireWriteKeepsItsStatusMapping(t *testing.T) {
 				meStatus: http.StatusOK, meBody: signedInEditor.meBody,
 				checkStatus: http.StatusForbidden,
 			},
-			cookie: "session=abc", want: fiber.StatusForbidden,
+			cookie: "session=abc", want: http.StatusForbidden,
 		},
 		{
 			name: "session expired between the two calls",
@@ -387,7 +383,7 @@ func TestRequireWriteKeepsItsStatusMapping(t *testing.T) {
 				meStatus: http.StatusOK, meBody: signedInEditor.meBody,
 				checkStatus: http.StatusUnauthorized,
 			},
-			cookie: "session=abc", want: fiber.StatusUnauthorized,
+			cookie: "session=abc", want: http.StatusUnauthorized,
 		},
 		{
 			name: "auth broken",
@@ -395,21 +391,21 @@ func TestRequireWriteKeepsItsStatusMapping(t *testing.T) {
 				meStatus: http.StatusOK, meBody: signedInEditor.meBody,
 				checkStatus: http.StatusInternalServerError,
 			},
-			cookie: "session=abc", want: fiber.StatusServiceUnavailable,
+			cookie: "session=abc", want: http.StatusServiceUnavailable,
 		},
 		{
 			name: "no X-Requested-With", answer: signedInEditor, cookie: "session=abc",
-			omitXHR: true, want: fiber.StatusForbidden,
+			omitXHR: true, want: http.StatusForbidden,
 		},
 	}
 
 	for _, test := range tests {
 		handler := &Handler{auth: fakeAuth(t, test.answer), events: logclient.NewFromEnv("calendar-api")}
-		app := fiber.New(fiber.Config{ErrorHandler: jsonErrorHandler})
-		admin := app.Group("/v1/admin", handler.requireWrite)
-		admin.Post("/scopes", func(c fiber.Ctx) error { return c.SendStatus(fiber.StatusCreated) })
+		app := handler.requireWrite(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusCreated)
+		}))
 
-		request := editorRequest(fiber.MethodPost, "/v1/admin/scopes")
+		request := editorRequest(http.MethodPost, "/v1/admin/scopes")
 		request.Header.Del("Cookie")
 		if test.cookie != "" {
 			request.Header.Set("Cookie", test.cookie)
@@ -417,7 +413,7 @@ func TestRequireWriteKeepsItsStatusMapping(t *testing.T) {
 		if test.omitXHR {
 			request.Header.Del("X-Requested-With")
 		}
-		response, err := app.Test(request, fiber.TestConfig{Timeout: 10 * time.Second})
+		response, err := serveTest(app, request)
 		if err != nil {
 			t.Fatalf("%s: %v", test.name, err)
 		}
@@ -457,12 +453,12 @@ func TestRefusedRequestIsLoggedWithTheStatusTheClientGot(t *testing.T) {
 		nil, nil, logclient.NewFromEnv("calendar-api"), time.UTC,
 	)
 
-	response, err := app.Test(httptest.NewRequest(fiber.MethodGet, "/v1/nope", nil), fiber.TestConfig{Timeout: 10 * time.Second})
+	response, err := serveTest(app, httptest.NewRequest(http.MethodGet, "/v1/nope", nil))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer response.Body.Close()
-	if response.StatusCode != fiber.StatusNotFound {
+	if response.StatusCode != http.StatusNotFound {
 		t.Fatalf("unknown route returned %d", response.StatusCode)
 	}
 
@@ -470,10 +466,18 @@ func TestRefusedRequestIsLoggedWithTheStatusTheClientGot(t *testing.T) {
 	if event.Level != string(logclient.Warning) {
 		t.Fatalf("a 404 was logged at %q", event.Level)
 	}
-	if got := event.Payload["status"]; got != float64(fiber.StatusNotFound) {
+	if got := event.Payload["status"]; got != float64(http.StatusNotFound) {
 		t.Fatalf("status = %v, want 404", got)
 	}
 	if got := event.Payload["path"]; got != "/v1/nope" {
 		t.Fatalf("path = %v", got)
 	}
+}
+
+// serveTest runs one request through handler and returns the response the
+// client would have received.
+func serveTest(handler http.Handler, request *http.Request) (*http.Response, error) {
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+	return recorder.Result(), nil
 }

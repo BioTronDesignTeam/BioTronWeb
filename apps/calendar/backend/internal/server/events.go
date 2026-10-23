@@ -3,12 +3,12 @@ package server
 import (
 	"encoding/json"
 	"errors"
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 
 	calendarlogic "github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/calendar"
@@ -29,16 +29,16 @@ type eventInput struct {
 	ExpectedSequence int    `json:"expected_sequence"`
 }
 
-func (h *Handler) listOccurrences(c fiber.Ctx) error {
-	from, to, err := h.parseRange(c)
+func (h *Handler) listOccurrences(w http.ResponseWriter, r *http.Request) error {
+	from, to, err := h.parseRange(r)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
 	}
-	scopeID := strings.TrimSpace(c.Query("scope_id"))
+	scopeID := strings.TrimSpace(r.URL.Query().Get("scope_id"))
 	if scopeID != "" && uuid.Validate(scopeID) != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "scope_id must be a UUID"})
+		return writeJSON(w, http.StatusBadRequest, map[string]any{"error": "scope_id must be a UUID"})
 	}
-	series, err := h.store.ListSeries(c.Context(), scopeID, false, h.window(from, to))
+	series, err := h.store.ListSeries(r.Context(), scopeID, false, h.window(from, to))
 	if err != nil {
 		return err
 	}
@@ -49,7 +49,7 @@ func (h *Handler) listOccurrences(c fiber.Ctx) error {
 	if occurrences == nil {
 		occurrences = []model.Occurrence{}
 	}
-	return c.JSON(occurrences)
+	return writeJSON(w, http.StatusOK, occurrences)
 }
 
 const (
@@ -65,12 +65,12 @@ const (
 // reimplemented per client. It returns the same occurrence objects as
 // GET /v1/events, already filtered to occurrences still running or still to
 // come, ordered by start, and truncated to limit.
-func (h *Handler) listUpcoming(c fiber.Ctx) error {
-	limit := clampQuery(c.Query("limit"), upcomingDefaultLimit, 1, upcomingMaxLimit)
-	days := clampQuery(c.Query("days"), upcomingDefaultDays, 1, upcomingMaxDays)
+func (h *Handler) listUpcoming(w http.ResponseWriter, r *http.Request) error {
+	limit := clampQuery(r.URL.Query().Get("limit"), upcomingDefaultLimit, 1, upcomingMaxLimit)
+	days := clampQuery(r.URL.Query().Get("days"), upcomingDefaultDays, 1, upcomingMaxDays)
 	now := h.now().In(h.location)
 	until := now.AddDate(0, 0, days)
-	series, err := h.store.ListSeries(c.Context(), "", false, h.window(now, until))
+	series, err := h.store.ListSeries(r.Context(), "", false, h.window(now, until))
 	if err != nil {
 		return err
 	}
@@ -82,10 +82,10 @@ func (h *Handler) listUpcoming(c fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	c.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
+	w.Header().Set("Content-Type", "application/json")
 	// The window slides with the clock, so an unchanged Last-Modified must never
 	// be allowed to serve a stale 304; the content-hash ETag still can.
-	return sendCacheable(c, body, latestChange(series), false)
+	return sendCacheable(w, r, body, latestChange(series), false)
 }
 
 // upcomingOccurrences is the rule this endpoint exists to own, kept out of the
@@ -163,168 +163,166 @@ func (h *Handler) window(from, to time.Time) *store.Window {
 
 // The editor lists the whole calendar, past and future, drafts included, so
 // this read is deliberately not windowed.
-func (h *Handler) listAdminEvents(c fiber.Ctx) error {
-	series, err := h.store.ListSeries(c.Context(), strings.TrimSpace(c.Query("scope_id")), true, nil)
+func (h *Handler) listAdminEvents(w http.ResponseWriter, r *http.Request) error {
+	series, err := h.store.ListSeries(r.Context(), strings.TrimSpace(r.URL.Query().Get("scope_id")), true, nil)
 	if err != nil {
 		return err
 	}
 	if series == nil {
 		series = []model.EventSeries{}
 	}
-	return c.JSON(series)
+	return writeJSON(w, http.StatusOK, series)
 }
 
-func (h *Handler) createEvent(c fiber.Ctx) error {
+func (h *Handler) createEvent(w http.ResponseWriter, r *http.Request) error {
 	var body eventInput
-	if err := c.Bind().Body(&body); err != nil {
-		return fiber.ErrBadRequest
+	if err := decodeBody(r, &body); err != nil {
+		return err
 	}
 	event, err := h.eventFromInput(body)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
 	}
-	active, err := h.store.ScopeIsActive(c.Context(), event.ScopeID)
+	active, err := h.store.ScopeIsActive(r.Context(), event.ScopeID)
 	if err != nil {
 		return err
 	}
 	if !active {
-		return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "events can only be created in an active scope"})
+		return writeJSON(w, http.StatusConflict, map[string]any{"error": "events can only be created in an active scope"})
 	}
-	event, err = h.store.CreateSeries(c.Context(), event)
+	event, err = h.store.CreateSeries(r.Context(), event)
 	if err != nil {
 		return err
 	}
-	h.adminEvent(c, "Event created", map[string]any{
+	h.adminEvent(r, "Event created", map[string]any{
 		"series_id": event.ID, "scope_id": event.ScopeID, "title": event.Title,
 	})
-	return c.Status(fiber.StatusCreated).JSON(event)
+	return writeJSON(w, http.StatusCreated, event)
 }
 
-func (h *Handler) updateEvent(c fiber.Ctx) error {
-	current, err := h.store.GetSeries(c.Context(), c.Params("id"))
+func (h *Handler) updateEvent(w http.ResponseWriter, r *http.Request) error {
+	current, err := h.store.GetSeries(r.Context(), r.PathValue("id"))
 	if err != nil {
 		return err
 	}
 	var body eventInput
-	if err := c.Bind().Body(&body); err != nil {
-		return fiber.ErrBadRequest
+	if err := decodeBody(r, &body); err != nil {
+		return err
 	}
 	updated, err := h.eventFromInput(body)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
 	}
 	updated.ID = current.ID
 	if current.State != model.EventDraft && updated.ScopeID != current.ScopeID {
-		return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+		return writeJSON(w, http.StatusConflict, map[string]any{
 			"error": "a published event cannot move feeds; cancel it and create a replacement",
 		})
 	}
 	if updated.ScopeID != current.ScopeID {
-		active, err := h.store.ScopeIsActive(c.Context(), updated.ScopeID)
+		active, err := h.store.ScopeIsActive(r.Context(), updated.ScopeID)
 		if err != nil {
 			return err
 		}
 		if !active {
-			return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "the selected scope is archived"})
+			return writeJSON(w, http.StatusConflict, map[string]any{"error": "the selected scope is archived"})
 		}
 	}
 	if occurrenceChanges := calendarlogic.OccurrenceChanges(current.Overrides); len(occurrenceChanges) > 0 {
 		structuralChange := !updated.StartsAtLocal.Equal(current.StartsAtLocal) ||
 			updated.AllDay != current.AllDay || updated.Timezone != current.Timezone
 		if structuralChange {
-			return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+			return writeJSON(w, http.StatusConflict, map[string]any{
 				"error": "remove occurrence changes before changing the series start, timezone, or all-day mode",
 			})
 		}
 		if updated.RecurrenceUntil == nil && current.RecurrenceUntil != nil {
-			return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+			return writeJSON(w, http.StatusConflict, map[string]any{
 				"error": "remove occurrence changes before turning a recurring series into a one-off event",
 			})
 		}
 		if updated.RecurrenceUntil != nil {
 			for _, override := range occurrenceChanges {
 				if localDateAfter(override.RecurrenceIDLocal, *updated.RecurrenceUntil) {
-					return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+					return writeJSON(w, http.StatusConflict, map[string]any{
 						"error": "the new series end date would discard an occurrence change",
 					})
 				}
 			}
 		}
 	}
-	updated, err = h.store.UpdateSeries(c.Context(), updated, body.ExpectedSequence)
+	updated, err = h.store.UpdateSeries(r.Context(), updated, body.ExpectedSequence)
 	if err != nil {
 		return err
 	}
-	h.adminEvent(c, "Event updated", map[string]any{
+	h.adminEvent(r, "Event updated", map[string]any{
 		"series_id": updated.ID, "sequence": updated.Sequence,
 	})
-	return c.JSON(updated)
+	return writeJSON(w, http.StatusOK, updated)
 }
 
-func (h *Handler) publishEvent(c fiber.Ctx) error {
-	current, err := h.store.GetSeries(c.Context(), c.Params("id"))
+func (h *Handler) publishEvent(w http.ResponseWriter, r *http.Request) error {
+	current, err := h.store.GetSeries(r.Context(), r.PathValue("id"))
 	if err != nil {
 		return err
 	}
-	active, err := h.store.ScopeIsActive(c.Context(), current.ScopeID)
+	active, err := h.store.ScopeIsActive(r.Context(), current.ScopeID)
 	if err != nil {
 		return err
 	}
 	if !active {
-		return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "an event cannot be published in an archived scope"})
+		return writeJSON(w, http.StatusConflict, map[string]any{"error": "an event cannot be published in an archived scope"})
 	}
-	sequence, err := expectedSequence(c)
+	sequence, err := expectedSequence(r)
 	if err != nil {
 		return err
 	}
-	event, err := h.store.PublishSeries(c.Context(), current.ID, sequence)
+	event, err := h.store.PublishSeries(r.Context(), current.ID, sequence)
 	if err != nil {
 		return err
 	}
-	h.adminEvent(c, "Event published", map[string]any{
+	h.adminEvent(r, "Event published", map[string]any{
 		"series_id": event.ID, "scope_id": event.ScopeID, "title": event.Title,
 	})
-	return c.JSON(event)
+	return writeJSON(w, http.StatusOK, event)
 }
 
-func (h *Handler) cancelEvent(c fiber.Ctx) error {
-	sequence, err := expectedSequence(c)
+func (h *Handler) cancelEvent(w http.ResponseWriter, r *http.Request) error {
+	sequence, err := expectedSequence(r)
 	if err != nil {
 		return err
 	}
-	event, err := h.store.CancelSeries(c.Context(), c.Params("id"), sequence)
+	event, err := h.store.CancelSeries(r.Context(), r.PathValue("id"), sequence)
 	if err != nil {
 		return err
 	}
-	h.adminEvent(c, "Event cancelled", map[string]any{"series_id": event.ID})
-	return c.JSON(event)
+	h.adminEvent(r, "Event cancelled", map[string]any{"series_id": event.ID})
+	return writeJSON(w, http.StatusOK, event)
 }
 
-func (h *Handler) deleteEvent(c fiber.Ctx) error {
+func (h *Handler) deleteEvent(w http.ResponseWriter, r *http.Request) error {
 	// The row is gone once the delete returns, so its id has to be read from
-	// the path. Params points into fasthttp's pooled buffer and the event is
-	// marshalled on another goroutine, so the copy is what keeps the event
-	// from naming whatever series the next request happens to carry.
-	seriesID := strings.Clone(c.Params("id"))
-	deleted, err := h.store.DeleteSeries(c.Context(), seriesID)
+	// the path.
+	seriesID := r.PathValue("id")
+	deleted, err := h.store.DeleteSeries(r.Context(), seriesID)
 	if err != nil {
 		return err
 	}
 	// The row is gone, so this log line is the only record of what it was.
-	h.adminEvent(c, "Event deleted", map[string]any{"series_id": seriesID, "title": deleted.Title, "state": deleted.State})
-	return c.SendStatus(fiber.StatusNoContent)
+	h.adminEvent(r, "Event deleted", map[string]any{"series_id": seriesID, "title": deleted.Title, "state": deleted.State})
+	return noContent(w)
 }
 
-func (h *Handler) upsertOccurrence(c fiber.Ctx) error {
-	event, err := h.store.GetSeries(c.Context(), c.Params("id"))
+func (h *Handler) upsertOccurrence(w http.ResponseWriter, r *http.Request) error {
+	event, err := h.store.GetSeries(r.Context(), r.PathValue("id"))
 	if err != nil {
 		return err
 	}
 	if event.State != model.EventPublished {
-		return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "only a published series can have occurrence changes"})
+		return writeJSON(w, http.StatusConflict, map[string]any{"error": "only a published series can have occurrence changes"})
 	}
 	if event.RecurrenceUntil == nil {
-		return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "one-off events must be edited as a whole event"})
+		return writeJSON(w, http.StatusConflict, map[string]any{"error": "one-off events must be edited as a whole event"})
 	}
 	var body struct {
 		RecurrenceIDLocal string          `json:"recurrence_id_local"`
@@ -332,29 +330,29 @@ func (h *Handler) upsertOccurrence(c fiber.Ctx) error {
 		Patch             json.RawMessage `json:"patch"`
 		ExpectedSequence  int             `json:"expected_sequence"`
 	}
-	if err := c.Bind().Body(&body); err != nil {
-		return fiber.ErrBadRequest
+	if err := decodeBody(r, &body); err != nil {
+		return err
 	}
 	if body.ExpectedSequence != event.Sequence {
 		return store.ErrConflict
 	}
 	recurrenceID, err := calendarlogic.ParseLocalDateTime(body.RecurrenceIDLocal)
 	if err != nil || !calendarlogic.IsGeneratedStart(event, recurrenceID) {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "recurrence_id_local is not an occurrence in this series"})
+		return writeJSON(w, http.StatusBadRequest, map[string]any{"error": "recurrence_id_local is not an occurrence in this series"})
 	}
 	body.State = strings.ToUpper(strings.TrimSpace(body.State))
 	if body.State != model.OverrideModified && body.State != model.OverrideCancelled {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "state must be MODIFIED or CANCELLED"})
+		return writeJSON(w, http.StatusBadRequest, map[string]any{"error": "state must be MODIFIED or CANCELLED"})
 	}
 	patch := json.RawMessage(`{}`)
 	if body.State == model.OverrideModified {
 		patch, err = calendarlogic.ValidatePatch(body.Patch)
 		if err != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+			return writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
 		}
 		decoded, err := calendarlogic.DecodePatch(patch)
 		if err != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+			return writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
 		}
 		start := recurrenceID
 		end := recurrenceID.Add(event.EndsAtLocal.Sub(event.StartsAtLocal))
@@ -367,51 +365,49 @@ func (h *Handler) upsertOccurrence(c fiber.Ctx) error {
 			end = start.Add(event.EndsAtLocal.Sub(event.StartsAtLocal))
 		}
 		if !end.After(start) {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "the occurrence must end after it starts"})
+			return writeJSON(w, http.StatusBadRequest, map[string]any{"error": "the occurrence must end after it starts"})
 		}
 		if event.AllDay && (start.Hour() != 0 || start.Minute() != 0 || start.Second() != 0 || end.Hour() != 0 || end.Minute() != 0 || end.Second() != 0) {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "all-day occurrence boundaries must be at midnight"})
+			return writeJSON(w, http.StatusBadRequest, map[string]any{"error": "all-day occurrence boundaries must be at midnight"})
 		}
 		if decoded.Title != nil && strings.TrimSpace(*decoded.Title) == "" {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "the occurrence title cannot be empty"})
+			return writeJSON(w, http.StatusBadRequest, map[string]any{"error": "the occurrence title cannot be empty"})
 		}
 	}
-	override, err := h.store.UpsertOverride(c.Context(), model.EventOverride{
+	override, err := h.store.UpsertOverride(r.Context(), model.EventOverride{
 		SeriesID: event.ID, RecurrenceIDLocal: recurrenceID, State: body.State, Patch: patch,
 	}, body.ExpectedSequence)
 	if err != nil {
 		return err
 	}
-	h.adminEvent(c, "Occurrence changed", map[string]any{
+	h.adminEvent(r, "Occurrence changed", map[string]any{
 		"series_id":           override.SeriesID,
 		"recurrence_id_local": calendarlogic.FormatLocal(override.RecurrenceIDLocal),
 		"cancelled":           override.State == model.OverrideCancelled,
 	})
-	return c.JSON(override)
+	return writeJSON(w, http.StatusOK, override)
 }
 
-func (h *Handler) deleteOccurrenceOverride(c fiber.Ctx) error {
-	recurrenceID, err := calendarlogic.ParseLocalDateTime(c.Query("recurrence_id_local"))
+func (h *Handler) deleteOccurrenceOverride(w http.ResponseWriter, r *http.Request) error {
+	recurrenceID, err := calendarlogic.ParseLocalDateTime(r.URL.Query().Get("recurrence_id_local"))
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
 	}
-	expected, err := strconv.Atoi(c.Query("expected_sequence"))
+	expected, err := strconv.Atoi(r.URL.Query().Get("expected_sequence"))
 	if err != nil || expected < 1 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "expected_sequence is required"})
+		return writeJSON(w, http.StatusBadRequest, map[string]any{"error": "expected_sequence is required"})
 	}
 	// The override is gone once the reset returns, so the series id has to be
-	// read from the path. Params points into fasthttp's pooled buffer and the
-	// event is marshalled on another goroutine, so the copy is what keeps the
-	// event from naming whatever series the next request happens to carry.
-	seriesID := strings.Clone(c.Params("id"))
-	if err := h.store.ResetOverride(c.Context(), seriesID, recurrenceID, expected); err != nil {
+	// read from the path.
+	seriesID := r.PathValue("id")
+	if err := h.store.ResetOverride(r.Context(), seriesID, recurrenceID, expected); err != nil {
 		return err
 	}
-	h.adminEvent(c, "Occurrence reset", map[string]any{
+	h.adminEvent(r, "Occurrence reset", map[string]any{
 		"series_id":           seriesID,
 		"recurrence_id_local": calendarlogic.FormatLocal(recurrenceID),
 	})
-	return c.SendStatus(fiber.StatusNoContent)
+	return noContent(w)
 }
 
 func (h *Handler) eventFromInput(body eventInput) (model.EventSeries, error) {
@@ -465,10 +461,10 @@ func (h *Handler) eventFromInput(body eventInput) (model.EventSeries, error) {
 	return event, nil
 }
 
-func (h *Handler) parseRange(c fiber.Ctx) (time.Time, time.Time, error) {
+func (h *Handler) parseRange(r *http.Request) (time.Time, time.Time, error) {
 	today := time.Now().In(h.location)
-	fromDate := c.Query("from", today.Format(calendarlogic.LocalDateLayout))
-	toDate := c.Query("to", today.AddDate(0, 3, 0).Format(calendarlogic.LocalDateLayout))
+	fromDate := queryOr(r, "from", today.Format(calendarlogic.LocalDateLayout))
+	toDate := queryOr(r, "to", today.AddDate(0, 3, 0).Format(calendarlogic.LocalDateLayout))
 	fromLocal, err := calendarlogic.ParseLocalDate(fromDate)
 	if err != nil {
 		return time.Time{}, time.Time{}, err
@@ -488,12 +484,15 @@ func (h *Handler) parseRange(c fiber.Ctx) (time.Time, time.Time, error) {
 	return from, to, nil
 }
 
-func expectedSequence(c fiber.Ctx) (int, error) {
+func expectedSequence(r *http.Request) (int, error) {
 	var body struct {
 		ExpectedSequence *int `json:"expected_sequence"`
 	}
-	if err := c.Bind().Body(&body); err != nil || body.ExpectedSequence == nil {
-		return 0, fiber.ErrBadRequest
+	if err := decodeBody(r, &body); err != nil {
+		return 0, err
+	}
+	if body.ExpectedSequence == nil {
+		return 0, errBadRequest
 	}
 	return *body.ExpectedSequence, nil
 }
