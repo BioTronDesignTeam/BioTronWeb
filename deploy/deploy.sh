@@ -17,12 +17,10 @@ git checkout --detach "$revision"
 [[ -f infra/.env ]] || { echo 'missing deployment environment' >&2; exit 1; }
 export IMAGE_TAG="$revision" IMAGE_REGISTRY=ghcr.io/biotrondesignteam/
 for app in site calendar logger auth exo sprinter; do export "${app^^}_ENV_FILE=$PWD/apps/$app/.env"; done
+export INFRA_ENV_FILE=$PWD/infra/.env
 docker network inspect biotron >/dev/null 2>&1 || docker network create biotron
-docker compose -f infra/docker-compose.yml --env-file infra/.env config -q
 docker compose -f infra/edge/docker-compose.yml --env-file infra/.env config -q
 docker compose config -q
-docker compose -f infra/docker-compose.yml --env-file infra/.env pull
-docker compose -f infra/docker-compose.yml --env-file infra/.env up -d --no-build
 docker compose -f infra/edge/docker-compose.yml --env-file infra/.env pull nginx
 docker compose -f infra/edge/docker-compose.yml --env-file infra/.env up -d --no-build
 docker compose pull

@@ -1,7 +1,10 @@
-# Postgres and Redis. The edge Nginx and tunnel live in edge/docker-compose.yml
-# and the secrets manager in infisical/docker-compose.yml, each with its own
-# lifecycle. The `biotron` network is external so the apps, the edge, and this
-# file can start in any order; ./launch creates it.
+# Postgres and Redis for one instance. The root docker-compose.yml includes this
+# file, so an instance's data services and apps form one Compose project:
+# `biotron` locally, `biotron-<instance>` from `./launch --instance <instance>`.
+# The edge Nginx and tunnel live in edge/docker-compose.yml and the secrets
+# manager in infisical/docker-compose.yml, each with its own lifecycle.
+# BIOTRON_NETWORK and BIOTRON_INSTANCE keep two instances on one host apart;
+# ./launch sets both and creates the external network.
 name: biotron-infrastructure
 
 services:
@@ -10,9 +13,9 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-biotron}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in the environment}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
       POSTGRES_DB: ${POSTGRES_DB:-biotron}
-      SPRINTER_READER_PASSWORD: ${SPRINTER_READER_PASSWORD:?set SPRINTER_READER_PASSWORD in the environment}
+      SPRINTER_READER_PASSWORD: ${SPRINTER_READER_PASSWORD:-}
     volumes:
       # Postgres 18 images store data in a major-version-specific directory
       # (PGDATA=/var/lib/postgresql/18/docker) and expect a single mount one
@@ -53,8 +56,12 @@ services:
 networks:
   biotron:
     external: true
-    name: biotron
+    name: ${BIOTRON_NETWORK:-biotron}
 
+# Named by instance, not by project, so a laptop keeps the volumes it had
+# before the data services joined the root project.
 volumes:
   postgres-data:
+    name: biotron-${BIOTRON_INSTANCE:-infrastructure}_postgres-data
   redis-data:
+    name: biotron-${BIOTRON_INSTANCE:-infrastructure}_redis-data
