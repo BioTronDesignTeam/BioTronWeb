@@ -14,7 +14,7 @@ to Logger as `exo-api`. The code is MIT licensed; see `LICENSE`.
 
 | Path | What |
 |------|------|
-| `backend/` | Go Fiber API. `/health` and the permission gate. No database code yet. |
+| `backend/` | Go `net/http` API. `/health` and the permission gate. No database code yet. |
 | `frontend/` | Vite and React UI, served by Nginx. |
 | `prisma/` | Schema and migrations. No models yet. |
 | `scripts/` | `mock_telemetry.sh`, a stand-in for the ESP32. See Scripts. |
@@ -60,7 +60,7 @@ in `backend/internal/config`; `LOGGER_URL`, `LOGGER_INGEST_TOKEN`, and
 `LOG_LEVEL` in `backend/internal/eventlog`.
 
 - `FRONTEND_URL` is the one CORS origin.
-- `TRUSTED_PROXIES` must include the edge Nginx network. Fiber reads
+- `TRUSTED_PROXIES` must include the edge Nginx network. The API reads
   `Cf-Connecting-Ip` only from a trusted proxy.
 - `OAUTH_MANAGER_URL` unset or unreachable: every gated route answers `503`.
 - `LOGGER_INGEST_TOKEN` must match Logger's. Leave it empty to send nothing.
@@ -78,7 +78,7 @@ opens `live` and `historical` on Exo and never `commands`. Auth enforces that
 inside `/v1/check`; Exo enforces it by asking.
 
 `backend/internal/auth` is the one gate. `Require(permission)` is middleware
-for a route group. It forwards the caller's cookie to
+for a route prefix. It forwards the caller's cookie to
 `GET {OAUTH_MANAGER_URL}/v1/check?app=exo-gui&permission=<key>` and maps the
 answer to a status:
 
@@ -91,18 +91,19 @@ answer to a status:
 
 A request with no cookie never reaches Auth. `401` and `403` stay distinct,
 so a signed-in operator is never sent back to a sign-in button that already
-worked. A handler reads the decision with `auth.DecisionFrom(c)`.
+worked. A handler reads the decision with `auth.DecisionFrom(r)`.
 
 No route uses the gate yet. `server.go` shows the intended wiring in a
-comment: mount each route on a gated group, never check inside a handler, so
-a second route on the group cannot forget it. Use the constants in
-`backend/internal/auth`, not string literals.
+comment: mount each route under a gated prefix, never check inside a
+handler, so a second route under the prefix cannot forget it. Use the
+constants in `backend/internal/auth`, not string literals.
 
 ## Backend
 
-Go Fiber v3. Exo issues no sessions; Auth does. CORS allows `FRONTEND_URL`
-only, with `GET`, `POST`, and `OPTIONS`. One route exists: `GET /health`
-answers `{"status":"ok"}` to anyone. Logger's monitor polls it.
+Go's standard `net/http`, with no framework. Exo issues no sessions; Auth
+does. CORS allows `FRONTEND_URL` only, with `GET`, `POST`, and `OPTIONS`. One
+route exists: `GET /health` answers `{"status":"ok"}` to anyone. Logger's
+monitor polls it. Routes match exactly: `/health/` and `/HEALTH` are `404`.
 
 Exo reports to Logger as `exo-api`. `/health` is never sent.
 
