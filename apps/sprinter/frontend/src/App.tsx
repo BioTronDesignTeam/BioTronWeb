@@ -103,6 +103,11 @@ export function App() {
           </p>
         ) : (
           <>
+            {auth.discord_enabled === false && (
+              <p className="rounded-xl border border-ink/10 bg-white px-4 py-3 text-sm dark:border-line dark:bg-surface" role="status">
+                Discord is turned off in this environment. Guards and automations save, but the bot does not answer commands or post until it is turned on.
+              </p>
+            )}
             {error && <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800 dark:bg-red-950/30 dark:text-red-200">{error}</p>}
             {loading && <div className="h-1 animate-pulse rounded-full bg-brand" />}
             <GuardsPanel guards={guards} onSave={saveGuard} onClear={clearGuard} />

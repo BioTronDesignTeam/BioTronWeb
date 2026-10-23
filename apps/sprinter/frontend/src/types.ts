@@ -52,6 +52,8 @@ export interface Operator {
 export interface AuthStatus {
   operator?: Operator;
   can_admin: boolean;
+  // False where SPRINTER_DISCORD_ENABLED is off: settings save, nothing runs.
+  discord_enabled?: boolean;
 }
 
 // Copied from apps/calendar/frontend/src/types.ts — this is the exact shape
