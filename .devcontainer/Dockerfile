@@ -9,12 +9,16 @@ FROM golang:1.27.3-bookworm@sha256:972b4110ba0f47539a975c31e52c64765e1ff19f2d744
 
 # Copy official native binaries so ./pr-precheck needs no Docker daemon.
 # These are multi-architecture index digests for both amd64 and arm64.
-# CI installs the golangci-lint version named here (ci.yml reads this line),
-# so the devcontainer and CI lint alike. Trivy 0.70.0 matches the default
+# CI reads the golangci-lint, TruffleHog, actionlint, and sqlc releases from
+# these lines (ci.yml, workflows.yml, sqlc.yml), so the devcontainer and CI
+# run the same tools. The actionlint image also carries a static ShellCheck,
+# which actionlint runs on every run: step. Trivy 0.70.0 matches the default
 # installed by trivy-action@v0.36.0 in .github/workflows/ci.yml.
 FROM golangci/golangci-lint:v2.15.0@sha256:fbfcfd12a6f8d7f1b97b3362ca80fc2a244d46863148c73cb88e7793af96c481 AS golangci
 FROM trufflesecurity/trufflehog:3.97.4@sha256:562bc231afa9de3d04de44cfe624252b08207de1fc3cebc5e7ed92bed7f279e4 AS trufflehog
 FROM aquasec/trivy:0.70.0@sha256:be1190afcb28352bfddc4ddeb71470835d16462af68d310f9f4bca710961a41e AS trivy
+FROM rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667 AS actionlint
+FROM sqlc/sqlc:1.31.1@sha256:70f53171d27b2424e9358869975455a6e955a5aa8e58a998a270a6e34e525537 AS sqlc
 
 FROM node:24-bookworm-slim
 
@@ -23,6 +27,9 @@ COPY --from=golangci /usr/bin/golangci-lint /usr/local/bin/golangci-lint
 COPY --from=trufflehog /usr/bin/trufflehog /usr/local/bin/trufflehog
 COPY --from=trivy /usr/local/bin/trivy /usr/local/bin/trivy
 COPY --from=trivy /contrib /contrib
+COPY --from=actionlint /usr/local/bin/actionlint /usr/local/bin/actionlint
+COPY --from=actionlint /usr/local/bin/shellcheck /usr/local/bin/shellcheck
+COPY --from=sqlc /workspace/sqlc /usr/local/bin/sqlc
 
 ENV PATH="/usr/local/go/bin:${PATH}"
 
@@ -60,4 +67,7 @@ RUN go version \
     && jq --version \
     && golangci-lint version \
     && trufflehog --version \
-    && trivy --version
+    && trivy --version \
+    && actionlint --version \
+    && shellcheck --version \
+    && sqlc version
