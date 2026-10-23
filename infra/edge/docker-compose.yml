@@ -12,8 +12,9 @@ services:
     image: ${IMAGE_REGISTRY:-biotron-}edge-nginx:${IMAGE_TAG:-local}
     restart: unless-stopped
     environment:
-      # <instance>=<domain> pairs, space separated. See ../nginx/docker-entrypoint.d.
-      EDGE_SITES: ${EDGE_SITES:?set EDGE_SITES, such as staging=uwbiotron.dev prod=uwbiotron.ca}
+      # <instance>=<domain>[:noindex] pairs, space separated.
+      # See ../nginx/docker-entrypoint.d/40-biotron-sites.sh.
+      EDGE_SITES: ${EDGE_SITES:?set EDGE_SITES, such as staging=uwbiotron.dev:noindex prod=uwbiotron.ca}
     # ./launch edge also attaches Nginx to the network of every instance in
     # EDGE_SITES, as `edge-proxy`, through a generated override. Start the edge
     # with ./launch, not with this file alone.

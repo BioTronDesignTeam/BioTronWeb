@@ -1,5 +1,5 @@
 # One instance's hostnames. 40-biotron-sites.sh renders this once per entry in
-# EDGE_SITES, filling INSTANCE and BASE_DOMAIN. Upstreams use the
+# EDGE_SITES, filling INSTANCE, BASE_DOMAIN, and ROBOTS. Upstreams use the
 # instance-qualified aliases each app carries on its instance's network,
 # which Nginx joins. They are resolved per request, so a stopped instance
 # answers 502 without keeping Nginx or another instance from starting.
@@ -9,6 +9,7 @@ server {
     server_name ${BASE_DOMAIN};
 
     include /etc/nginx/snippets/edge-health.conf;
+    ${ROBOTS}
 
     location / {
         set $frontend http://${INSTANCE}-site-web:80;
@@ -22,6 +23,7 @@ server {
     server_name www.${BASE_DOMAIN};
 
     include /etc/nginx/snippets/edge-health.conf;
+    ${ROBOTS}
 
     location / {
         return 308 https://${BASE_DOMAIN}$request_uri;
@@ -33,6 +35,7 @@ server {
     server_name calendar.${BASE_DOMAIN};
 
     include /etc/nginx/snippets/edge-health.conf;
+    ${ROBOTS}
 
     location = /api {
         return 308 /api/;
@@ -63,6 +66,7 @@ server {
     server_name auth.${BASE_DOMAIN};
 
     include /etc/nginx/snippets/edge-health.conf;
+    ${ROBOTS}
 
     location = /api {
         return 308 /api/;
@@ -87,6 +91,7 @@ server {
     server_name exogui.${BASE_DOMAIN};
 
     include /etc/nginx/snippets/edge-health.conf;
+    ${ROBOTS}
 
     location = /api {
         return 308 /api/;
@@ -111,6 +116,7 @@ server {
     server_name status.${BASE_DOMAIN};
 
     include /etc/nginx/snippets/edge-health.conf;
+    ${ROBOTS}
 
     location = /api {
         return 308 /api/;
@@ -135,6 +141,7 @@ server {
     server_name sprinter.${BASE_DOMAIN};
 
     include /etc/nginx/snippets/edge-health.conf;
+    ${ROBOTS}
 
     location = /api {
         return 308 /api/;
