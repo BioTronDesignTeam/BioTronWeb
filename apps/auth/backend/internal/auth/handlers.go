@@ -32,6 +32,7 @@ type Handler struct {
 	Store  *store.Store
 	Cache  *cache.Cache
 	GitHub *GitHubClient
+	Signer *Signer
 	Cfg    Config
 	// Events carries the audit trail to Logger. Access is asked for in a
 	// meeting or on Discord and granted by hand, so the grant, the revoke, the
@@ -67,29 +68,35 @@ func (h *Handler) LoginRedirect(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, r, http.StatusInternalServerError)
 		return
 	}
+	// The state and the origin to return to travel together in one signed
+	// cookie, so neither can be swapped on the way back from GitHub.
+	value, err := h.Signer.State(state, h.safeReturn(r.URL.Query().Get("redirect")))
+	if err != nil {
+		fail(r, err, "auth: sign state")
+		httpx.Status(w, http.StatusInternalServerError)
+		return
+	}
 	http.SetCookie(w, &http.Cookie{
 		Name:     stateCookie,
-		Value:    state,
+		Value:    value,
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   h.Cfg.CookieSecure,
 		SameSite: http.SameSiteLaxMode,
-		Expires:  time.Now().Add(10 * time.Minute),
+		Expires:  time.Now().Add(stateLifetime),
 	})
-	setReturnCookie(w, h.safeReturn(r.URL.Query().Get("redirect")), h.Cfg)
 	httpx.Redirect(w, h.GitHub.AuthCodeURL(state))
 }
 
 func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 	state := r.URL.Query().Get("state")
 	code := r.URL.Query().Get("code")
-	cookieState := cookieValue(r, stateCookie)
-	dest := h.safeReturn(cookieValue(r, returnCookie))
+	// One state serves one callback, whatever its result.
+	cookieState, returnTo, ok := h.Signer.ReadState(cookieValue(r, stateCookie))
+	dest := h.safeReturn(returnTo)
 	clearStateCookie(w, h.Cfg)
-	clearReturnCookie(w, h.Cfg)
 
-	if state == "" || cookieState == "" ||
-		subtle.ConstantTimeCompare([]byte(state), []byte(cookieState)) != 1 {
+	if !ok || state == "" || subtle.ConstantTimeCompare([]byte(state), []byte(cookieState)) != 1 {
 		httpx.Text(w, http.StatusBadRequest, "invalid OAuth state")
 		return
 	}
@@ -153,15 +160,12 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 		httpx.Status(w, http.StatusInternalServerError)
 		return
 	}
+	h.invalidate(user.ID)
 
-	token, err := newToken()
+	expires := time.Now().Add(h.Cfg.SessionTTL)
+	token, err := h.Signer.Session(Session{GitHubID: user.ID}, expires)
 	if err != nil {
-		httpx.Error(w, r, http.StatusInternalServerError)
-		return
-	}
-	if err := h.Store.CreateSession(ctx, hashToken(token), user.ID, "",
-		time.Now().Add(h.Cfg.SessionTTL), r.UserAgent()); err != nil {
-		fail(r, err, "auth: create session")
+		fail(r, err, "auth: sign session")
 		httpx.Status(w, http.StatusInternalServerError)
 		return
 	}
@@ -184,17 +188,9 @@ func (h *Handler) signInFailed(r *http.Request, err error, stage, what string) {
 	})
 }
 
+// Logout removes the session cookie. There is no session store, so a copy of
+// the cookie stays valid until it expires; a ban is what ends it everywhere.
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
-	if token := cookieValue(r, SessionCookie); token != "" {
-		hash := hashToken(token)
-		if err := h.Store.DeleteSession(r.Context(), hash); err != nil {
-			// The browser loses its cookie either way, so the request answers
-			// 204 and its event stays Info. Only this event says the row
-			// survived and the session still works for whoever holds the token.
-			log.Printf("auth: delete session on logout: %v", err)
-			h.Events.LogAsync(logclient.Error, "Session delete failed", map[string]any{"error": err.Error()})
-		}
-	}
 	clearSessionCookie(w, h.Cfg.CookieSecure, h.Cfg.CookieSameSite, h.Cfg.CookieDomain)
 	if op := OperatorFrom(r); op != nil {
 		h.Events.LogAsync(logclient.Info, "Operator signed out", map[string]any{
@@ -437,10 +433,11 @@ func (h *Handler) setBanned(w http.ResponseWriter, r *http.Request, banned bool)
 		httpx.Error(w, r, http.StatusInternalServerError)
 		return
 	}
+	// Every request reads the ban through the cache, so forgetting the
+	// operator here refuses their next request on every device.
 	h.invalidate(id)
 	message := "Operator unbanned"
 	if banned {
-		_, _ = h.Store.DeleteSessionsForOperator(r.Context(), id)
 		message = "Operator banned"
 	}
 	h.audit(message, actor, map[string]any{"target_id": id, "target_login": target.Login})
@@ -477,7 +474,6 @@ func (h *Handler) SetManager(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, r, http.StatusInternalServerError)
 		return
 	}
-	_, _ = h.Store.DeleteSessionsForOperator(r.Context(), id)
 	h.invalidate(id)
 	message := "Manager flag removed"
 	if body.Manager {

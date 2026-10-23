@@ -49,11 +49,16 @@ func TestSignInRefusedIsReportedWhenTheCallerIsNotAnOrgMember(t *testing.T) {
 
 	h := &Handler{
 		GitHub: github.client(),
+		Signer: NewSigner(testSigningKey),
 		Events: logclient.NewFromEnv("oauth-manager"),
 		Cfg:    Config{FrontendURL: "http://localhost:5173"},
 	}
 	request := httptest.NewRequest(http.MethodGet, "/auth/github/callback?state=s&code=good", nil)
-	request.AddCookie(&http.Cookie{Name: stateCookie, Value: "s"})
+	state, err := h.Signer.State("s", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.AddCookie(&http.Cookie{Name: stateCookie, Value: state})
 	response := httptest.NewRecorder()
 	h.Callback(response, request)
 	if response.Code != http.StatusFound {
@@ -79,5 +84,18 @@ func TestSignInRefusedIsReportedWhenTheCallerIsNotAnOrgMember(t *testing.T) {
 		}
 	case <-time.After(3 * time.Second):
 		t.Fatal("no event reached Logger; a refused sign-in went unrecorded")
+	}
+}
+
+// The state cookie is signed: a bare value that matches the query, as the
+// cookie of a forged sign-in would, is refused before GitHub is called.
+func TestCallbackRefusesAnUnsignedState(t *testing.T) {
+	h := &Handler{Signer: NewSigner(testSigningKey), Cfg: Config{FrontendURL: "http://localhost:5173"}}
+	request := httptest.NewRequest(http.MethodGet, "/auth/github/callback?state=s&code=good", nil)
+	request.AddCookie(&http.Cookie{Name: stateCookie, Value: "s"})
+	response := httptest.NewRecorder()
+	h.Callback(response, request)
+	if response.Code != http.StatusBadRequest || response.Body.String() != "invalid OAuth state" {
+		t.Fatalf("callback = %d %q, want 400 invalid OAuth state", response.Code, response.Body.String())
 	}
 }

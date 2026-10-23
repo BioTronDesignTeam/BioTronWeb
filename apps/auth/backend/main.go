@@ -68,6 +68,7 @@ func main() {
 		Store:  st,
 		Cache:  cache.New(st),
 		GitHub: gh,
+		Signer: auth.NewSigner([]byte(cfg.SessionSigningKey)),
 		Events: events,
 		Cfg: auth.Config{
 			FrontendURL:    cfg.FrontendURL,
@@ -126,13 +127,6 @@ func main() {
 // heartbeat.
 func prune(st *store.Store, events *logclient.Client) {
 	for {
-		if n, err := st.DeleteExpiredSessions(context.Background()); err != nil {
-			log.Printf("prune sessions: %v", err)
-			events.LogAsync(logclient.Error, "Session prune failed", map[string]any{"error": err.Error()})
-		} else if n > 0 {
-			log.Printf("pruned %d expired sessions", n)
-			events.LogAsync(logclient.Info, "Expired sessions pruned", map[string]any{"count": n})
-		}
 		if n, err := st.DeleteOldProductDailyKeys(context.Background()); err != nil {
 			log.Printf("prune product daily keys: %v", err)
 			events.LogAsync(logclient.Error, "Guest key prune failed", map[string]any{"error": err.Error()})

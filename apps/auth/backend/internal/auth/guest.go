@@ -145,15 +145,10 @@ func (h *Handler) GuestLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := newToken()
-	if err != nil {
-		httpx.Error(w, r, http.StatusInternalServerError)
-		return
-	}
 	expiry := guestSessionExpiry(now)
-	if err := h.Store.CreateSession(r.Context(), hashToken(token), store.GuestGitHubID, gk.AppID,
-		expiry, r.UserAgent()); err != nil {
-		fail(r, err, "auth: create guest session")
+	token, err := h.Signer.Session(Session{GitHubID: store.GuestGitHubID, GuestAppID: gk.AppID}, expiry)
+	if err != nil {
+		fail(r, err, "auth: sign guest session")
 		httpx.Status(w, http.StatusInternalServerError)
 		return
 	}
