@@ -33,8 +33,8 @@ func main() {
 
 	cfg := config.Load()
 	events := logclient.NewFromEnv("exo-api")
-	if !events.Enabled() {
-		log.Println("warning: LOGGER_INGEST_TOKEN unset — structured logging is disabled")
+	if !events.LoggerEnabled() {
+		log.Println("warning: LOGGER_INGEST_TOKEN unset — no events go to Logger")
 	}
 	authz := auth.NewClient(cfg.OAuthManagerURL)
 	authz.Events = events
