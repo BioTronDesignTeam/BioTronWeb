@@ -19,7 +19,8 @@ class RuntimeConfigTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         paths = ['launch', 'docker-compose.yml', 'infra/docker-compose.yml',
-                 'infra/edge/docker-compose.yml', 'infra/infisical/docker-compose.yml']
+                 'infra/edge/docker-compose.yml', 'infra/infisical/docker-compose.yml',
+                 'infra/no-host-ports.yml']
         paths += [f'apps/{app}/docker-compose.yml' for app in APPS]
         for path in paths:
             dest = self.root / path
@@ -180,6 +181,19 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertTrue(all('-p biotron-prod' in line for line in ups), result.stdout)
         self.assertTrue(ups[0].endswith('up -d postgres redis'), ups[0])
         self.assertNotIn('postgres', ups[1])
+
+    def test_named_instances_publish_no_host_ports(self):
+        local = self.config()['services']
+        self.assertTrue(any(service.get('ports') for service in local.values()))
+        self.env.update(BIOTRON_INSTANCE='staging', BIOTRON_NETWORK='biotron-staging')
+        config = self.config('-p', 'biotron-staging', '-f', 'docker-compose.yml',
+                             '-f', 'infra/no-host-ports.yml')
+        self.assertEqual(sorted(config['services']), sorted(local))
+        for name, service in config['services'].items():
+            self.assertFalse(service.get('ports'), name)
+        self.secrets()
+        result = self.run_command('./launch', 'web', '--instance', 'staging', '--dry-run')
+        self.assertIn('-f infra/no-host-ports.yml', result.stdout)
 
     def test_launch_rejects_bad_or_shared_instance_names(self):
         for name in ('Prod', 'edge', 'secrets', 'a-b', ''):

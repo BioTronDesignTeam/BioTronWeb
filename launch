@@ -21,7 +21,8 @@ Options
   --instance <name>
                  Run infra and web as the named instance, such as staging or
                  prod: Compose project biotron-<name>, network biotron-<name>,
-                 and volumes of its own. Without it the project is biotron.
+                 volumes of its own, and no host ports. Without it the
+                 project is biotron.
   --runtime      Ignore repo .env files; use injected process variables.
   --build        Rebuild images first. Needed after a pull or a VITE_* change.
   --no-<app>     Leave an app out of web, for example --no-sprinter. Repeatable.
@@ -120,17 +121,20 @@ export INFRA_ENV_FILE
 
 # One instance is one Compose project holding its data services and apps.
 # The instance name keeps everything two instances on one host could share
-# apart: project, network, volumes, and the edge's aliases.
+# apart: project, network, volumes, the edge's aliases, and host ports, which a
+# named instance does not publish at all.
 project=biotron network=biotron
+stack_files=(-f docker-compose.yml)
 if [[ -n $instance ]]; then
   project=biotron-$instance network=biotron-$instance
+  stack_files+=(-f infra/no-host-ports.yml)
   export BIOTRON_INSTANCE=$instance
 else
   unset BIOTRON_INSTANCE
 fi
 export BIOTRON_NETWORK=$network
-stack_compose() { run docker compose -p "$project" "$@"; }
-stack_config() { docker compose -p "$project" config "$@"; }
+stack_compose() { run docker compose -p "$project" "${stack_files[@]}" "$@"; }
+stack_config() { docker compose -p "$project" "${stack_files[@]}" config "$@"; }
 
 # The edge's settings and tunnel token are bootstrap configuration, kept in a
 # root-only file outside the checkout. A local infra/edge/.env wins outside
