@@ -117,46 +117,6 @@ func TestLiveOperatorsAndOrgMembers(t *testing.T) {
 	}
 }
 
-func TestLiveSessions(t *testing.T) {
-	st, ctx := liveStore(t)
-	if err := st.UpsertOperator(ctx, Operator{GitHubID: liveMember, Login: "live-member"}, false); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := st.CreateSession(ctx, "live-a", liveMember, "", time.Now().Add(time.Hour), "agent"); err != nil {
-		t.Fatal(err)
-	}
-	if err := st.CreateSession(ctx, "live-b", liveMember, "", time.Now().Add(-time.Hour), ""); err != nil {
-		t.Fatal(err)
-	}
-	op, err := st.GetSessionOperator(ctx, "live-a")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if op.GitHubID != liveMember || op.Login != "live-member" || op.GuestAppID != "" {
-		t.Fatalf("session operator = %+v", op)
-	}
-	if _, err := st.GetSessionOperator(ctx, "live-b"); !errors.Is(err, ErrNotFound) {
-		t.Fatalf("expired session: err = %v, want ErrNotFound", err)
-	}
-	if n, err := st.DeleteExpiredSessions(ctx); err != nil || n < 1 {
-		t.Fatalf("prune: n = %d, err = %v", n, err)
-	}
-
-	if err := st.SetBanned(ctx, liveMember, true); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := st.GetSessionOperator(ctx, "live-a"); !errors.Is(err, ErrBanned) {
-		t.Fatalf("banned session: err = %v, want ErrBanned", err)
-	}
-	if n, err := st.DeleteSessionsForOperator(ctx, liveMember); err != nil || n != 1 {
-		t.Fatalf("delete for operator: n = %d, err = %v", n, err)
-	}
-	if err := st.DeleteSession(ctx, "live-a"); err != nil {
-		t.Fatalf("deleting a missing session is not an error: %v", err)
-	}
-}
-
 func TestLiveCatalogAndGrants(t *testing.T) {
 	st, ctx := liveStore(t)
 	if err := st.UpsertOperator(ctx, Operator{GitHubID: liveMember, Login: "live-member"}, false); err != nil {

@@ -42,30 +42,6 @@ func (q *Queries) CreateGrant(ctx context.Context, arg CreateGrantParams) error 
 	return err
 }
 
-const createSession = `-- name: CreateSession :exec
-INSERT INTO sessions (id, operator_id, guest_app_id, expires_at, user_agent)
-VALUES ($1, $2, $3, $4, $5)
-`
-
-type CreateSessionParams struct {
-	ID         string
-	OperatorID int64
-	GuestAppID *string
-	ExpiresAt  time.Time
-	UserAgent  *string
-}
-
-func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) error {
-	_, err := q.db.Exec(ctx, createSession,
-		arg.ID,
-		arg.OperatorID,
-		arg.GuestAppID,
-		arg.ExpiresAt,
-		arg.UserAgent,
-	)
-	return err
-}
-
 const deleteAllGrants = `-- name: DeleteAllGrants :exec
 DELETE FROM grants WHERE operator_id = $1
 `
@@ -73,18 +49,6 @@ DELETE FROM grants WHERE operator_id = $1
 func (q *Queries) DeleteAllGrants(ctx context.Context, operatorID int64) error {
 	_, err := q.db.Exec(ctx, deleteAllGrants, operatorID)
 	return err
-}
-
-const deleteExpiredSessions = `-- name: DeleteExpiredSessions :execrows
-DELETE FROM sessions WHERE expires_at <= now()
-`
-
-func (q *Queries) DeleteExpiredSessions(ctx context.Context) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteExpiredSessions)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
 }
 
 const deleteGrant = `-- name: DeleteGrant :execrows
@@ -112,27 +76,6 @@ DELETE FROM guest_keys WHERE day < (now() AT TIME ZONE 'America/Toronto')::date
 // Product keys for past Eastern days.
 func (q *Queries) DeleteOldProductDailyKeys(ctx context.Context) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteOldProductDailyKeys)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
-const deleteSession = `-- name: DeleteSession :exec
-DELETE FROM sessions WHERE id = $1
-`
-
-func (q *Queries) DeleteSession(ctx context.Context, id string) error {
-	_, err := q.db.Exec(ctx, deleteSession, id)
-	return err
-}
-
-const deleteSessionsForOperator = `-- name: DeleteSessionsForOperator :execrows
-DELETE FROM sessions WHERE operator_id = $1
-`
-
-func (q *Queries) DeleteSessionsForOperator(ctx context.Context, operatorID int64) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteSessionsForOperator, operatorID)
 	if err != nil {
 		return 0, err
 	}
@@ -218,41 +161,6 @@ func (q *Queries) GetPermission(ctx context.Context, arg GetPermissionParams) (P
 		&i.Key,
 		&i.Label,
 		&i.Description,
-	)
-	return i, err
-}
-
-const getSessionOperator = `-- name: GetSessionOperator :one
-SELECT o.github_id, o.login, COALESCE(o.name, '') AS name, COALESCE(o.avatar_url, '') AS avatar_url,
-       o.is_superuser, o.is_manager, o.is_banned, COALESCE(s.guest_app_id, '') AS guest_app_id
-FROM sessions s
-JOIN operators o ON o.github_id = s.operator_id
-WHERE s.id = $1 AND s.expires_at > now()
-`
-
-type GetSessionOperatorRow struct {
-	GitHubID    int64
-	Login       string
-	Name        string
-	AvatarURL   string
-	IsSuperuser bool
-	IsManager   bool
-	IsBanned    bool
-	GuestAppID  string
-}
-
-func (q *Queries) GetSessionOperator(ctx context.Context, id string) (GetSessionOperatorRow, error) {
-	row := q.db.QueryRow(ctx, getSessionOperator, id)
-	var i GetSessionOperatorRow
-	err := row.Scan(
-		&i.GitHubID,
-		&i.Login,
-		&i.Name,
-		&i.AvatarURL,
-		&i.IsSuperuser,
-		&i.IsManager,
-		&i.IsBanned,
-		&i.GuestAppID,
 	)
 	return i, err
 }
