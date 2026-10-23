@@ -52,12 +52,13 @@ func newHandler(frontendURL string, trustedProxies []string, events httplog.Sink
 	}
 
 	return chain(fallback(mux),
-		// Outermost first. The client IP is resolved before anything logs it;
-		// the console line wraps httplog so both see the same final status;
-		// recover sits inside httplog so a panic is logged as the 500 it became.
+		// Outermost first. httplog wraps everything, so its status is the one
+		// the client got and a panic anywhere below is still logged. Its own
+		// recover answers a bare 500; recoverPanic sits inside it to answer
+		// with the panic text as Fiber did, so httplog only sees the 500.
+		httplog.New(events, httplog.Options{}),
 		clientIP(trustedProxies),
 		accessLog,
-		httplog.New(events, httplog.Options{}),
 		recoverPanic,
 		cors(frontendURL),
 		limitBody(bodyLimit),
