@@ -1,0 +1,58 @@
+# Sprinter's queries, made into Go by sqlc. Each package keeps its queries in
+# queries/queries.sql, and sqlc writes package queries beside it: generated
+# code, never edited by hand. Regenerate from the monorepo root after changing
+# a query or a migration:
+#
+#   docker run --rm -v "$PWD:/src" -w /src/apps/sprinter/backend sqlc/sqlc:1.31.1 generate
+#
+# sqlc is pinned to 1.31.1, the latest 1.x release when it was adopted. Bump
+# the tag here and in the command above together, then regenerate.
+#
+# The schema is the SQL of the Prisma migrations, in name order, the same
+# files sprinter-migrate applies. Nothing here is a second copy of a table.
+version: "2"
+sql:
+  # The sprinter schema, read and written through DATABASE_URL. Its tables are
+  # unqualified, as Prisma writes them, because the pool's search_path names
+  # the schema.
+  - engine: postgresql
+    schema: ../prisma/migrations/*/migration.sql
+    queries: internal/store/queries/queries.sql
+    gen:
+      go: &go
+        package: queries
+        out: internal/store/queries
+        sql_package: pgx/v5
+        # A nullable column is a pointer (*string), not pgtype.Text.
+        emit_pointers_for_null_types: true
+        # models.go holds only the tables that the package's queries return.
+        omit_unused_structs: true
+        overrides:
+          # Sprinter reads a UUID as text, in lower case.
+          - db_type: uuid
+            go_type: string
+          - db_type: timestamptz
+            go_type: time.Time
+          - db_type: timestamptz
+            nullable: true
+            go_type:
+              type: time.Time
+              pointer: true
+  # The read-only pool the agent's tools use. It reads Logger's and Auth's
+  # tables, so its schema is their migrations. Those are written unqualified
+  # too, and each app applies them with its own schema on the search_path;
+  # the two files in internal/readstore/schema move the tables into logger
+  # and oauth after them, so the queries can name the schema as the pool
+  # must. The oauth file moves only the four tables sprinter_reader may read,
+  # so a query against sessions or guest_keys does not generate.
+  - engine: postgresql
+    schema:
+      - ../../logger/prisma/migrations/*/migration.sql
+      - internal/readstore/schema/logger.sql
+      - ../../auth/prisma/migrations/*/migration.sql
+      - internal/readstore/schema/oauth.sql
+    queries: internal/readstore/queries/queries.sql
+    gen:
+      go:
+        <<: *go
+        out: internal/readstore/queries
