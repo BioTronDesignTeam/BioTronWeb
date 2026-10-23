@@ -17,7 +17,7 @@ module path and the Compose project name `biotron-calendar`.
 
 | Path | What |
 |------|------|
-| `backend/` | Go Fiber API. Postgres through pgx. No Redis. |
+| `backend/` | Go `net/http` API. Postgres through pgx and sqlc. No Redis. |
 | `frontend/` | Vite and React UI, served by Nginx. |
 | `prisma/` | Schema and migrations. The Go service runs its own queries. |
 | `docker-compose.yml` | `calendar-migrate`, `calendar-api`, `calendar-web` on the `biotron` network. |
