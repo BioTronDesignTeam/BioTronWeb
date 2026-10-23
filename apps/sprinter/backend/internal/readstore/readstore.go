@@ -4,8 +4,9 @@
 // It connects as a role with SELECT on the logger schema and on four oauth
 // tables and nothing else. That is the containment. A model can be talked into
 // asking for anything, so the answer to "what stops it writing" is the role's
-// grants, not the wording of a prompt. Every query here names its schema,
-// because this pool has no search_path of its own.
+// grants, not the wording of a prompt. Every query names its schema, because
+// this pool has no search_path of its own. The SQL lives in
+// queries/queries.sql and sqlc makes it into Go (sqlc.yaml).
 package readstore
 
 import (
@@ -19,6 +20,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/BioTronDesignTeam/Sprinter/backend/internal/readstore/queries"
 )
 
 // Timeout bounds one query. A tool call sits inside a Discord interaction, so
@@ -27,6 +30,7 @@ const Timeout = 10 * time.Second
 
 type Store struct {
 	pool *pgxpool.Pool
+	q    *queries.Queries
 }
 
 // New opens the pool and proves the role can reach the database. A read URL
@@ -48,7 +52,7 @@ func New(ctx context.Context, databaseURL string) (*Store, error) {
 		pool.Close()
 		return nil, err
 	}
-	return &Store{pool: pool}, nil
+	return &Store{pool: pool, q: queries.New(pool)}, nil
 }
 
 func (s *Store) Close() { s.pool.Close() }
@@ -93,38 +97,23 @@ func (s *Store) LogHistory(ctx context.Context, query LogQuery) ([]LogRow, strin
 }
 
 func (s *Store) queryLogs(ctx context.Context, query LogQuery, paged bool) ([]LogRow, string, error) {
-	var args []any
-	var clauses []string
-	add := func(clause string, value any) {
-		args = append(args, value)
-		clauses = append(clauses, fmt.Sprintf(clause, len(args)))
-	}
-	if query.Service != "" {
-		add("service = $%d", query.Service)
-	}
-	if query.Level != "" {
-		add("level::text = $%d", query.Level)
+	// An empty filter is a null argument, which the query reads as no filter.
+	params := queries.LogsParams{
+		Service:  optional(query.Service),
+		Level:    optional(query.Level),
+		FromTime: query.From,
+		ToTime:   query.To,
 	}
 	if query.Search != "" {
-		add("message ILIKE $%d", "%"+escapeLike(query.Search)+"%")
-	}
-	if query.From != nil {
-		add("created_at >= $%d", *query.From)
-	}
-	if query.To != nil {
-		add("created_at <= $%d", *query.To)
+		pattern := "%" + escapeLike(query.Search) + "%"
+		params.Search = &pattern
 	}
 	if query.Cursor != "" {
 		cursor, err := DecodeCursor(query.Cursor)
 		if err != nil {
 			return nil, "", err
 		}
-		args = append(args, cursor.CreatedAt, cursor.ID)
-		clauses = append(clauses, fmt.Sprintf("(created_at, id) < ($%d, $%d)", len(args)-1, len(args)))
-	}
-	where := "TRUE"
-	if len(clauses) > 0 {
-		where = strings.Join(clauses, " AND ")
+		params.CursorCreatedAt, params.CursorID = &cursor.CreatedAt, &cursor.ID
 	}
 
 	// One row past the limit is how the walk learns there is another page
@@ -133,33 +122,18 @@ func (s *Store) queryLogs(ctx context.Context, query LogQuery, paged bool) ([]Lo
 	if paged {
 		fetch++
 	}
-	args = append(args, fetch)
-	statement := fmt.Sprintf(`
-		SELECT id, service, level::text, message, payload, created_at
-		FROM logger.logs
-		WHERE %s
-		ORDER BY created_at DESC, id DESC
-		LIMIT $%d
-	`, where, len(args))
+	params.RowLimit = int32(fetch)
 
-	found, err := s.pool.Query(ctx, statement, args...)
+	found, err := s.q.Logs(ctx, params)
 	if err != nil {
 		return nil, "", fmt.Errorf("query logs: %w", err)
 	}
-	defer found.Close()
-	logs := make([]LogRow, 0, query.Limit)
-	for found.Next() {
-		var row LogRow
-		var payload []byte
-		if err := found.Scan(&row.ID, &row.Service, &row.Level, &row.Message,
-			&payload, &row.CreatedAt); err != nil {
-			return nil, "", err
-		}
-		row.Payload = payload
-		logs = append(logs, row)
-	}
-	if err := found.Err(); err != nil {
-		return nil, "", err
+	logs := make([]LogRow, 0, len(found))
+	for _, row := range found {
+		logs = append(logs, LogRow{
+			ID: row.ID, Service: row.Service, Level: row.Level,
+			Message: row.Message, Payload: row.Payload, CreatedAt: row.CreatedAt,
+		})
 	}
 	if paged && len(logs) > query.Limit {
 		last := logs[query.Limit-1]
@@ -179,26 +153,17 @@ type HealthRow struct {
 }
 
 func (s *Store) HealthHistory(ctx context.Context, service string, since time.Time, limit int) ([]HealthRow, error) {
-	found, err := s.pool.Query(ctx, `
-		SELECT ok, COALESCE(detail, ''), checked_at
-		FROM logger.health_checks
-		WHERE service = $1 AND checked_at >= $2
-		ORDER BY checked_at DESC, id DESC
-		LIMIT $3
-	`, service, since, limit)
+	found, err := s.q.HealthHistory(ctx, queries.HealthHistoryParams{
+		Service: service, Since: since, RowLimit: int32(limit),
+	})
 	if err != nil {
 		return nil, fmt.Errorf("query health checks: %w", err)
 	}
-	defer found.Close()
-	checks := make([]HealthRow, 0, limit)
-	for found.Next() {
-		var row HealthRow
-		if err := found.Scan(&row.OK, &row.Detail, &row.CheckedAt); err != nil {
-			return nil, err
-		}
-		checks = append(checks, row)
+	checks := make([]HealthRow, 0, len(found))
+	for _, row := range found {
+		checks = append(checks, HealthRow{OK: row.Ok, Detail: row.Detail, CheckedAt: row.CheckedAt})
 	}
-	return checks, found.Err()
+	return checks, nil
 }
 
 // --- Access -----------------------------------------------------------------
@@ -247,11 +212,10 @@ type PermissionRow struct {
 
 func (s *Store) Access(ctx context.Context, appID string) (AccessReport, error) {
 	report := AccessReport{AppID: appID}
-	err := s.pool.QueryRow(ctx,
-		`SELECT name FROM oauth.apps WHERE id = $1`, appID).Scan(&report.AppName)
+	name, err := s.q.AppName(ctx, appID)
 	switch {
 	case err == nil:
-		report.AppFound = true
+		report.AppName, report.AppFound = name, true
 	case errors.Is(err, pgx.ErrNoRows):
 		// A missing app is an answer, not a failure: the model asked about
 		// something that is not registered, and should be told so.
@@ -280,84 +244,57 @@ func (s *Store) Access(ctx context.Context, appID string) (AccessReport, error) 
 const accessRowLimit = 500
 
 func (s *Store) permissions(ctx context.Context, appID string) ([]PermissionRow, error) {
-	found, err := s.pool.Query(ctx, `
-		SELECT key, label, description
-		FROM oauth.permissions WHERE app_id = $1 ORDER BY key
-		LIMIT $2
-	`, appID, accessRowLimit)
+	found, err := s.q.Permissions(ctx, queries.PermissionsParams{AppID: appID, RowLimit: accessRowLimit})
 	if err != nil {
 		return nil, fmt.Errorf("query permissions: %w", err)
 	}
-	defer found.Close()
-	permissions := []PermissionRow{}
-	for found.Next() {
-		var row PermissionRow
-		if err := found.Scan(&row.Key, &row.Label, &row.Description); err != nil {
-			return nil, err
-		}
-		permissions = append(permissions, row)
+	permissions := make([]PermissionRow, 0, len(found))
+	for _, row := range found {
+		permissions = append(permissions, PermissionRow(row))
 	}
-	return permissions, found.Err()
+	return permissions, nil
 }
 
 func (s *Store) grants(ctx context.Context, appID string) ([]GrantRow, error) {
-	// The permission row is joined outward: a grant whose catalog entry was
-	// deleted still admits the operator, so hiding it would understate access.
-	found, err := s.pool.Query(ctx, `
-		SELECT o.login, COALESCE(o.name, ''), g.permission_key,
-		       COALESCE(p.label, ''), o.is_manager, o.is_superuser, o.is_banned,
-		       g.created_at
-		FROM oauth.grants g
-		JOIN oauth.operators o ON o.github_id = g.operator_id
-		LEFT JOIN oauth.permissions p
-		       ON p.app_id = g.app_id AND p.key = g.permission_key
-		WHERE g.app_id = $1
-		ORDER BY lower(o.login), g.permission_key
-		LIMIT $2
-	`, appID, accessRowLimit)
+	found, err := s.q.Grants(ctx, queries.GrantsParams{AppID: appID, RowLimit: accessRowLimit})
 	if err != nil {
 		return nil, fmt.Errorf("query grants: %w", err)
 	}
-	defer found.Close()
-	grants := []GrantRow{}
-	for found.Next() {
-		var row GrantRow
-		if err := found.Scan(&row.Login, &row.Name, &row.PermissionKey, &row.Label,
-			&row.IsManager, &row.IsSuperuser, &row.IsBanned, &row.GrantedAt); err != nil {
-			return nil, err
-		}
-		grants = append(grants, row)
+	grants := make([]GrantRow, 0, len(found))
+	for _, row := range found {
+		grants = append(grants, GrantRow{
+			Login: row.Login, Name: row.Name, PermissionKey: row.PermissionKey,
+			Label: row.Label, IsManager: row.IsManager, IsSuperuser: row.IsSuperuser,
+			IsBanned: row.IsBanned, GrantedAt: row.CreatedAt,
+		})
 	}
-	return grants, found.Err()
+	return grants, nil
 }
 
 func (s *Store) privilegedOperators(ctx context.Context) ([]OperatorRow, []OperatorRow, error) {
-	found, err := s.pool.Query(ctx, `
-		SELECT login, COALESCE(name, ''), is_manager, is_superuser, is_banned
-		FROM oauth.operators
-		WHERE is_manager OR is_superuser
-		ORDER BY lower(login)
-		LIMIT $1
-	`, accessRowLimit)
+	found, err := s.q.PrivilegedOperators(ctx, accessRowLimit)
 	if err != nil {
 		return nil, nil, fmt.Errorf("query privileged operators: %w", err)
 	}
-	defer found.Close()
 	managers, superusers := []OperatorRow{}, []OperatorRow{}
-	for found.Next() {
-		var row OperatorRow
-		if err := found.Scan(&row.Login, &row.Name, &row.IsManager,
-			&row.IsSuperuser, &row.IsBanned); err != nil {
-			return nil, nil, err
+	for _, row := range found {
+		operator := OperatorRow(row)
+		if operator.IsSuperuser {
+			superusers = append(superusers, operator)
 		}
-		if row.IsSuperuser {
-			superusers = append(superusers, row)
-		}
-		if row.IsManager {
-			managers = append(managers, row)
+		if operator.IsManager {
+			managers = append(managers, operator)
 		}
 	}
-	return managers, superusers, found.Err()
+	return managers, superusers, nil
+}
+
+// optional is the null that means "no filter" for an empty string.
+func optional(value string) *string {
+	if value == "" {
+		return nil
+	}
+	return &value
 }
 
 // --- Cursors ----------------------------------------------------------------
