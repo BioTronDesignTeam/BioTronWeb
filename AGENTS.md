@@ -5,8 +5,9 @@ commands, and the devcontainer. This file holds the decisions that the code
 alone does not explain.
 
 Never write a real OAuth credential, ingestion token, guest key, or database
-password into this file or any tracked file. Deployment secrets live in Infisical; bootstrap credentials stay outside the
-checkout. Local development can use untracked `.env` files.
+password into this file or any tracked file. Deployment secrets live in
+Infisical; bootstrap credentials stay in root-only files outside any checkout.
+Local development can use untracked `.env` files.
 
 ## Where things are
 
@@ -36,9 +37,9 @@ names, such as `OAuthManager` and `exo-gui`. They mean the paths above.
 - Leave every commit buildable. Do not amend, squash, or reorder existing
   commits unless asked.
 - Each app has an optional untracked `.env` and a committed `.env.example`,
-  both beside its Compose file. Runtime deployment uses app-prefixed inputs
-  and `./launch --runtime`; see `infra/infisical/README.md`. `VITE_*` values go into the public browser bundle;
-  never put a secret there.
+  both beside its Compose file. Deployment uses app-prefixed inputs and
+  `./launch --runtime`; see `deploy/README.md`. `VITE_*` values go into the
+  public browser bundle; never put a secret there.
 - Prisma owns every Postgres schema and migration. Go code queries with `pgx`.
   Do not use a Prisma client from Go.
 - Run `./pr-precheck` inside the devcontainer before you open a pull request.
@@ -167,17 +168,25 @@ names, such as `OAuthManager` and `exo-gui`. They mean the paths above.
 
 - Path: Cloudflare edge, then Cloudflare Tunnel, then the `cloudflared`
   container, then Nginx, then the app containers. One Postgres and one Redis
-  per environment.
+  per instance.
 - Cloudflare Tunnel is the only public ingress. Tailscale SSH is the only
-  admin path. Never publish SSH, Nginx, app, Postgres, or Redis ports.
-- Two Docker networks: `biotron-edge` holds only `cloudflared` and Nginx.
-  `biotron` holds Nginx, the apps, Postgres, and Redis. Nginx is the only
-  bridge.
+  admin path. Never publish SSH, Nginx, app, Postgres, or Redis ports; a named
+  instance publishes no host ports at all.
+- Each instance (`staging`, `prod`) is its own Compose project,
+  `biotron-<instance>`, on its own network with its own Postgres, Redis,
+  volumes, and Infisical environment. Never let two instances share a
+  network, a database, or a Redis.
+- One edge per host: the `biotron-edge` project. Its Nginx joins every
+  instance's network and reaches apps by instance-qualified aliases such as
+  `prod-oauth-manager`. It is the only container on more than one network.
 - One app per hostname: `www`, `calendar`, `auth`, `exogui`, `status`
   (Logger), and `sprinter`. `infra/nginx` is the source of truth. Within a
   hostname, `/` goes to the frontend and `/api/` to the backend.
 - Staging uses `uwbiotron.dev` and its app subdomains. Production uses
-  `uwbiotron.ca`. Domains, secrets, and data differ; routing and containers do not.
+  `uwbiotron.ca`. Domains, secrets, and data differ; routing and containers do
+  not. Staging is marked `:noindex` in `EDGE_SITES`; production never is.
+- The host keeps no checkout and no `.env` files. Settings live in Infisical;
+  only bootstrap credentials sit in root-only files under `/etc/biotron`.
 - Every push to `main` deploys to staging. A `v*` tag on a `main` commit that
   staging deployed sends the same images to production. There is no staging
   branch. See `deploy/README.md`.
