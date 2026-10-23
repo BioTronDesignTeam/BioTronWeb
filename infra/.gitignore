@@ -4,3 +4,4 @@
 !/.env.example
 !/infisical/.env.example
 secrets/
+!/edge/.env.example

@@ -71,17 +71,18 @@ docker compose up -d                     # the whole platform (injected configur
 
 ### Starting and stopping
 
-`./launch` wraps the app, infra, and independent Infisical compose files, so nobody has to remember which one
-takes which flags. It only runs `docker compose`. It never pulls, edits an
-`.env`, or removes a volume.
+`./launch` wraps the data, app, edge, and Infisical compose files, so nobody
+has to remember which one takes which flags. It only runs `docker compose`,
+plus creating the external `biotron` network when it is missing. It never
+edits an `.env` or removes a volume.
 
 ```bash
-./launch infra --build               # Postgres, Redis, the edge Nginx, the tunnel
+./launch infra                       # Postgres and Redis
 ./launch web --build                 # every app
 ./launch web --no-sprinter --build   # every app but one; --no-<app> repeats
 ./launch all --build                 # infra, then web
-./launch infra --local               # a laptop: Postgres and Redis only, no tunnel
-./launch stop                        # stop everything and keep the data
+./launch edge --no-tunnel --build    # the edge Nginx alone; a host drops --no-tunnel
+./launch stop                        # stop the apps and data services, keep the data
 ./launch status
 ```
 

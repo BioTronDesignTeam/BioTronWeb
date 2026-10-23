@@ -45,11 +45,11 @@ names, such as `OAuthManager` and `exo-gui`. They mean the paths above.
 
 ## Run and verify
 
-- Use `./launch`. It wraps both compose files; `./launch --help` lists it all.
-- Start `infra` first. It owns Postgres, Redis, and the `biotron` Docker
-  network that every app joins. For local work: `./launch infra --local`.
-- Do not start `cloudflared` for local work. It opens a public tunnel.
-  `--local` leaves it out; a plain `./launch infra` starts it.
+- Use `./launch`. It wraps every compose file; `./launch --help` lists it all.
+- For local work, start Postgres and Redis with `./launch infra`. `./launch`
+  creates the external `biotron` network that infra and every app join.
+- Do not start `cloudflared` for local work. It opens a public tunnel. The
+  edge is its own target: `./launch edge --no-tunnel` starts Nginx alone.
 - Start the apps with `./launch web --build`, and leave one out with
   `--no-<app>`. For a single app, name its services to compose directly, for
   example `docker compose up -d --build calendar-migrate calendar-api calendar-web`.

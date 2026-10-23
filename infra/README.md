@@ -14,8 +14,9 @@ application services require a publicly reachable host port.
 
 | Path | What |
 |------|------|
-| `docker-compose.yml` | Nginx, cloudflared, the shared Postgres instance, Redis, and their Docker networks |
-| `.env.example` | Environment domain, tunnel-token path, image name, and shared data-service settings |
+| `docker-compose.yml` | Postgres and Redis |
+| `edge/docker-compose.yml` | Nginx and cloudflared, a Compose project of their own |
+| `.env.example`, `edge/.env.example` | Local data-service settings; the edge domain and tunnel token |
 | `nginx/` | The versioned edge image, hostname routing, proxy headers, and health endpoint |
 
 ## Networks
