@@ -1,121 +1,134 @@
 # Server
 
-Deployment and host operations for the BioTron platform. The personal staging
-server and Oracle production VM use the same container topology:
+Deployment and host operations for the BioTron platform. A host runs one or
+more instances of the platform, such as `staging` and `prod`, behind one edge:
 
 ```text
-Cloudflare -> cloudflared -> Nginx -> application containers -> Postgres/Redis
+Cloudflare -> cloudflared -> Nginx -> an instance's apps -> that instance's Postgres/Redis
 ```
 
 Tailscale SSH is the separate administrative path. None of the edge or
-application services require a publicly reachable host port.
+application services require a publicly reachable host port. How a host is set
+up, deployed, migrated, and rotated is in `deploy/README.md`.
 
 ## Layout
 
 | Path | What |
 |------|------|
-| `docker-compose.yml` | Postgres and Redis |
-| `edge/docker-compose.yml` | Nginx and cloudflared, a Compose project of their own |
-| `.env.example`, `edge/.env.example` | Local data-service settings; the edge domain and tunnel token |
-| `nginx/` | The versioned edge image, hostname routing, proxy headers, and health endpoint |
+| `docker-compose.yml` | Postgres and Redis of one instance; the root `docker-compose.yml` includes it |
+| `edge/docker-compose.yml` | Nginx and cloudflared, the `biotron-edge` project shared by every instance |
+| `infisical/` | The `biotron-secrets` project: Infisical with its own Postgres and Redis |
+| `no-host-ports.yml` | Drops every host port from a named instance |
+| `.env.example`, `edge/.env.example` | Local data-service settings; the edge's sites and tunnel token |
+| `nginx/` | The versioned edge image, per-instance hostname routing, proxy headers, and health endpoint |
+| `tests/` | Compose and launch regression checks; `python3 infra/tests/test-runtime-config.py` |
 
-## Networks
+## Instances and networks
 
-- `biotron-edge` contains only `cloudflared` and Nginx. It publishes no host
-  ports. `cloudflared` initiates the outbound connection to Cloudflare and
-  reaches Nginx at `http://nginx:8080`.
-- `biotron` contains Nginx, the application containers, Postgres, and Redis.
-  Nginx is the only service attached to both networks.
+An instance is one Compose project holding its Postgres, Redis, and six apps:
+`biotron` on a laptop, `biotron-<instance>` from
+`./launch --instance <instance>`. Each has its own network,
+`biotron-<instance>` (`biotron` on a laptop), its own volumes, and, when named,
+no host ports.
 
-Application stacks join the external `biotron` network. The frontends have
-stable aliases (`site-web`, `calendar-web`, `oauth-web`, `exo-web`,
-`logger-web`, and `sprinter-web`); APIs already have their own aliases.
+- Inside an instance's network the services keep their plain aliases:
+  `postgres`, `redis`, `oauth-manager`, `logger-api`, `calendar-api`,
+  `site-web`, and so on. Apps reach each other and their data services by
+  these names, and cannot see any other instance.
+- Every web and API service also carries an instance-qualified alias, such as
+  `staging-oauth-manager`, for the edge.
+- The edge project has a private network holding only cloudflared and Nginx.
+  `./launch edge` also attaches Nginx to the network of every instance named in
+  `EDGE_SITES`, where it answers to `edge-proxy`. Nginx is the only container
+  on more than one instance's network.
+
+`./launch` creates the external networks when they are missing, so the edge
+and the instances can start in any order.
 
 ## Hostname routing
 
-For `BASE_DOMAIN=uwbiotron.dev`, Nginx routes:
+`EDGE_SITES` in `/etc/biotron/edge.env` lists the instances this edge serves,
+as `<instance>=<domain>[:noindex]` pairs:
+
+```text
+EDGE_SITES="staging=uwbiotron.dev:noindex prod=uwbiotron.ca"
+```
+
+When Nginx starts, `nginx/docker-entrypoint.d/40-biotron-sites.sh` renders
+`nginx/sites/site.conf.template` once per instance. For `prod=uwbiotron.ca`:
 
 | Hostname | Frontend | `/api/` backend |
 |----------|----------|------------------|
-| `uwbiotron.dev` | `site-web:80` | none |
-| `calendar.uwbiotron.dev` | `calendar-web:80` | `calendar-api:8080` |
-| `auth.uwbiotron.dev` | `oauth-web:80` | `oauth-manager:8080` |
-| `exogui.uwbiotron.dev` | `exo-web:80` | `exo-api:8080` |
-| `status.uwbiotron.dev` | `logger-web:80` | `logger-api:8080` |
-| `sprinter.uwbiotron.dev` | `sprinter-web:80` | `sprinter:8080` |
+| `uwbiotron.ca` | `prod-site-web:80` | none |
+| `calendar.uwbiotron.ca` | `prod-calendar-web:80` | `prod-calendar-api:8080` |
+| `auth.uwbiotron.ca` | `prod-oauth-web:80` | `prod-oauth-manager:8080` |
+| `exogui.uwbiotron.ca` | `prod-exo-web:80` | `prod-exo-api:8080` |
+| `status.uwbiotron.ca` | `prod-logger-web:80` | `prod-logger-api:8080` |
+| `sprinter.uwbiotron.ca` | `prod-sprinter-web:80` | `prod-sprinter:8080` |
 
-`www` redirects to the apex. Unknown hostnames return `404`.
-`/api/` is removed before forwarding so an external request for `/api/health`
-reaches the Go service as `/health`. Calendar `/feeds/` is forwarded without
-removing the prefix.
+`www` redirects to the apex. Unknown hostnames return `404`. Upstreams are
+resolved per request, so an instance that is down answers `502` and the
+others are unaffected. `/api/` is removed before forwarding so an external
+request for `/api/health` reaches the Go service as `/health`. Calendar
+`/feeds/` is forwarded without removing the prefix.
 
-Frontend production builds should use relative API bases such as `/api`.
-OAuthManager's staging callback is therefore:
+`:noindex` marks an instance that search engines should leave alone, such as
+staging: every response from its hostnames, errors included, carries
+`X-Robots-Tag: noindex, nofollow`, and its `robots.txt` disallows everything.
+An unmarked instance sends no such header and serves the site's own
+`robots.txt`. This hides nothing from people; see "Search engines and access"
+in `deploy/README.md`.
 
-```text
-https://auth.uwbiotron.dev/api/auth/github/callback
-```
+Frontend production builds use relative API bases such as `/api`.
+OAuthManager's callback is therefore
+`https://auth.<domain>/api/auth/github/callback`, one GitHub OAuth app per
+instance.
 
-Production uses the same hostname layout under its own `BASE_DOMAIN`.
+## Cloudflare Tunnel
 
-## First-time setup
-
-### 1. Configure secrets and public settings
-
-For deployment, follow [Infisical setup](infisical/README.md). It describes the
-independent secrets stack, outside-checkout bootstrap file, environment-scoped
-machine identities, and migration from existing `.env` files. Copy public
-settings from `runtime-config.example.sh` and source them before deployment.
-The untracked `infra/.env` remains an optional local-development input.
-
-### 2. Create a Cloudflare Tunnel
-
-Create one remotely managed tunnel for each environment in Cloudflare Zero
-Trust. Do not reuse the staging tunnel in production.
-
-Add each hostname listed above, plus `www`, to the tunnel.
+One remotely managed tunnel per host, not per instance: the edge is shared.
+Add every hostname of every instance in `EDGE_SITES`, plus each `www`, to it.
 Every public hostname uses the same origin service:
 
 ```text
 http://nginx:8080
 ```
 
-Nginx selects the application from the original HTTP `Host` header.
+Nginx selects the instance and application from the original HTTP `Host`
+header. The tunnel token lives in `/etc/biotron/edge.env` as
+`CLOUDFLARE_TUNNEL_TOKEN`; Compose hands it to cloudflared as the read-only
+secret file `/run/secrets/cloudflare_tunnel_token`. Rotating it requires
+recreating cloudflared.
 
-### 3. Import the tunnel token
-
-Store the token in the environment's Infisical `/deploy` folder as
-`CLOUDFLARE_TUNNEL_TOKEN`. Compose exposes it to cloudflared as a read-only
-secret file at `/run/secrets/cloudflare_tunnel_token`. The old
-`CLOUDFLARE_TUNNEL_TOKEN_FILE` input has been replaced; import the contents of
-that file before removing it. Rotation requires recreating cloudflared.
-
-### 4. Start shared infrastructure and the edge
+## Local use
 
 ```bash
-infisical run --projectId=YOUR_PROJECT_ID --env=staging --path=/deploy -- \
-  ./launch infra --runtime --build
+./launch infra                       # Postgres and Redis, reading infra/.env
+./launch web --build                 # the apps
+cp infra/edge/.env.example infra/edge/.env
+./launch edge --no-tunnel --build    # Nginx alone, serving EDGE_SITES=local=localhost
+docker compose -p biotron-edge exec nginx wget -qO- --header 'Host: calendar.localhost' http://127.0.0.1:8080/
 ```
 
-Run this from the repository root after authenticating the CLI and sourcing
-public settings, as described in the setup guide. Then start each application stack. They discover the `biotron` network and
-their dependencies by Docker alias rather than host ports.
+Never start the tunnel on a laptop.
 
 ## Verification
 
 ```bash
-docker compose ps
-docker compose exec nginx nginx -t
-docker compose exec nginx wget -qO- http://127.0.0.1:8080/_edge/health
-docker compose logs --tail 100 nginx cloudflared
+sudo docker compose -p biotron-edge ps
+sudo docker compose -p biotron-edge exec nginx nginx -t
+sudo docker compose -p biotron-edge exec nginx wget -qSO- --header 'Host: uwbiotron.dev' http://127.0.0.1:8080/
+sudo docker compose -p biotron-edge logs --tail 100 nginx cloudflared
+sudo docker compose -p biotron-prod ps
 ```
 
-The Nginx health response is `ok`. Cloudflared exposes its readiness and
-metrics endpoint to the private edge network at `http://cloudflared:2000` for
-future Logger integration; it is not published on the host.
+The Nginx health response at `/_edge/health` is `ok`. Cloudflared exposes its
+readiness and metrics endpoint to the private edge network at
+`http://cloudflared:2000` for future Logger integration; it is not published
+on the host.
 
-Test each public hostname through Cloudflare after its application is running.
-A `502` means Nginx is reachable but that specific application alias is not.
+Test each public hostname through Cloudflare after its instance is running.
+A `502` means Nginx is reachable but that instance's application alias is not.
 
 ## Security boundary
 
@@ -125,19 +138,23 @@ A `502` means Nginx is reachable but that specific application alias is not.
   SSH using tailnet grants and SSH rules.
 - Nginx and cloudflared use read-only root filesystems and
   `no-new-privileges`. The tunnel token is a read-only Compose secret.
-- Nginx accepts only the selected application hostnames and forwards
+- Nginx accepts only the configured instances' hostnames and forwards
   `CF-Connecting-IP` as the client address. It does not expose Docker's socket.
-- Postgres and Redis are one instance each per environment. Their current host
-  bindings are loopback-only for administration and are never public.
+- Each instance has its own Postgres and Redis on its own network. A named
+  instance publishes no host ports; administer it with
+  `docker compose -p biotron-<instance> exec`.
+- Nginx is on every instance's network, so it could reach each instance's
+  Postgres and Redis; nothing in its configuration does.
 
 ## Startup and updates
 
 All containers use `restart: unless-stopped`, so Docker restores them after a
-cold boot. Enable Docker and Tailscale on the host; cloudflared is not installed
-as a native systemd service.
+cold boot with the settings they were deployed with. Enable Docker and
+Tailscale on the host; cloudflared is not installed as a native systemd
+service.
 
 The local edge image is `biotron-edge-nginx:local`. See `deploy/README.md`
-for the staged deployment workflow and GHCR image tags.
+for the deployment workflow and GHCR image tags.
 
 ## Data service major upgrades: Postgres 16 to 18, Redis 7 to 8
 
@@ -279,8 +296,12 @@ A fresh cluster gets the role from
 volume is empty. An existing cluster needs the same script run by hand:
 
 ```bash
-docker compose -f infra/docker-compose.yml --env-file infra/.env exec -T -e SPRINTER_READER_PASSWORD postgres bash < infra/postgres/init/10-sprinter-reader.sh
+docker compose exec -T postgres bash < infra/postgres/init/10-sprinter-reader.sh
 ```
+
+The Postgres container already has `SPRINTER_READER_PASSWORD` in its
+environment. For a named instance on a host, add `-p biotron-<instance>` and
+use the copy in `/opt/biotron/<instance>/infra/postgres/init/`.
 
 Rerun this command after Auth's first migration on a fresh cluster. At init
 time the `oauth` schema has no tables yet, so the script's oauth grants have
@@ -295,4 +316,5 @@ plaintext, so it must never be readable outside Auth.
 ## Releases
 
 Pushes to `main` build commit-tagged images for staging, and release tags
-send those same images to production. See `deploy/README.md`.
+send those same images to production, each to its own instance. See
+`deploy/README.md`.
