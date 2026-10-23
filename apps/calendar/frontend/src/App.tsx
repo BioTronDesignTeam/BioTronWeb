@@ -18,7 +18,7 @@ export function App() {
   const [auth, setAuth] = useState<AuthStatus>({ can_write: false });
   const [scopes, setScopes] = useState<Scope[]>([]);
   const [occurrences, setOccurrences] = useState<Occurrence[]>([]);
-  const [view, setView] = useState<CalendarView>('month');
+  const [view, setView] = useState<CalendarView>('week');
   // A day inside the range on screen. The arrows move it by the view's own unit.
   const [anchor, setAnchor] = useState(() => todayAnchor());
   const [selectedScopes, setSelectedScopes] = useState<string[]>([]);
