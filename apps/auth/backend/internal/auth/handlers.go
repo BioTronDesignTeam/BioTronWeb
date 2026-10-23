@@ -106,24 +106,26 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	member, err := h.GitHub.IsOrgMember(ctx, tok)
+	// The user token lives only in this function: it names the user, and the
+	// membership is asked with the App's own token.
+	user, err := h.GitHub.FetchUser(ctx, tok)
+	if err != nil {
+		h.signInFailed(r, err, "user", "auth: fetch user")
+		httpx.Text(w, http.StatusBadGateway, "authentication failed, please try again")
+		return
+	}
+
+	member, err := h.GitHub.IsOrgMember(ctx, user.Login)
 	if err != nil {
 		h.signInFailed(r, err, "membership", "auth: org membership check")
 		httpx.Text(w, http.StatusBadGateway, "authentication failed, please try again")
 		return
 	}
 	if !member {
-		// The login is unknown here: refusing before /user is fetched is what
-		// keeps a non-member's name out of the store.
+		// A non-member's name is never stored or sent: the refusal carries
+		// only the reason.
 		h.Events.LogAsync(logclient.Warning, "Sign-in refused", map[string]any{"reason": "not a member"})
 		httpx.Redirect(w, dest+"/?auth=denied")
-		return
-	}
-
-	user, err := h.GitHub.FetchUser(ctx, tok)
-	if err != nil {
-		h.signInFailed(r, err, "user", "auth: fetch user")
-		httpx.Text(w, http.StatusBadGateway, "authentication failed, please try again")
 		return
 	}
 

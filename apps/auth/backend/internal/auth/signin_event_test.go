@@ -42,32 +42,17 @@ func fakeLogger(t *testing.T) chan event {
 func TestSignInRefusedIsReportedWhenTheCallerIsNotAnOrgMember(t *testing.T) {
 	received := fakeLogger(t)
 
-	github := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/token":
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"access_token":"test","token_type":"bearer"}`))
-		default:
-			// GitHub answers 404 for the membership of a caller who is not in
-			// the org, which the client reports as "not a member" and not as a
-			// failure of the handshake.
-			w.WriteHeader(http.StatusNotFound)
-		}
-	}))
-	defer github.Close()
+	// GitHub answers 404 for the membership of a caller who is not in the
+	// org, which the client reports as "not a member" and not as a failure of
+	// the handshake.
+	github := newStubGitHub(t, http.StatusNotFound)
 
 	h := &Handler{
-		GitHub: NewGitHubClient(GitHubOptions{
-			ClientID:     "id",
-			ClientSecret: "secret",
-			Org:          "BioTronDesignTeam",
-			APIBase:      github.URL,
-			TokenURL:     github.URL + "/token",
-		}),
+		GitHub: github.client(),
 		Events: logclient.NewFromEnv("oauth-manager"),
 		Cfg:    Config{FrontendURL: "http://localhost:5173"},
 	}
-	request := httptest.NewRequest(http.MethodGet, "/auth/github/callback?state=s&code=c", nil)
+	request := httptest.NewRequest(http.MethodGet, "/auth/github/callback?state=s&code=good", nil)
 	request.AddCookie(&http.Cookie{Name: stateCookie, Value: "s"})
 	response := httptest.NewRecorder()
 	h.Callback(response, request)
