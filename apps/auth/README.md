@@ -19,7 +19,7 @@ name Auth reports to Logger.
 
 | Path | What |
 |------|------|
-| `backend/` | Go Fiber API. Postgres through pgx. Redis caches grant sets. |
+| `backend/` | Go Fiber API. Postgres through pgx and sqlc. Redis caches grant sets. |
 | `frontend/` | Vite and React UI, served by Nginx. |
 | `prisma/` | Schema and migrations. The Go service runs its own queries. |
 | `docker-compose.yml` | `auth-migrate`, `auth-api`, `auth-web` on the `biotron` network. |
@@ -190,3 +190,21 @@ and nothing else.
 To create a migration in the devcontainer, source `apps/auth/.env` and run
 `npm run --prefix apps/auth/prisma migrate`. The `auth-migrate` service
 applies the migrations as the image's `node` user.
+
+### Queries
+
+The backend's SQL lives in `backend/internal/store/queries/queries.sql`.
+sqlc 1.31.1 turns it into Go in the same folder, reading the schema straight
+from the Prisma migrations, so a migration and a query cannot disagree
+without the generate step failing. After changing a query or adding a
+migration, regenerate and commit the result:
+
+```bash
+cd apps/auth/backend
+docker run --rm -v "$PWD/..:/src" -w /src/backend sqlc/sqlc:1.31.1 generate
+```
+
+`internal/store/store_live_test.go` runs every query against a real
+database. Set `AUTH_TEST_DATABASE_URL` to a throwaway database with the
+migrations applied, such as the devcontainer's with `?schema=oauth`, and run
+`go test ./internal/store/ -run Live -v`. Without it the tests skip.
