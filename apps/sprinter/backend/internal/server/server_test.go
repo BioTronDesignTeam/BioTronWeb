@@ -291,9 +291,38 @@ func TestHealthReportsDatabaseAndDiscord(t *testing.T) {
 		t.Fatalf("body = %s", body)
 	}
 
+	if !strings.Contains(body, `"discord_enabled":false`) {
+		t.Fatalf("body = %s", body)
+	}
+
 	down := newTestApp(t, fakeAuth{}, &fakeStore{pingErr: errors.New("no connection")})
 	status, body = down.do(http.MethodGet, "/health", "", nil)
 	if status != http.StatusServiceUnavailable || !strings.Contains(body, `"database":"unavailable"`) {
 		t.Fatalf("status = %d body = %s", status, body)
+	}
+}
+
+// With Discord off the admin API keeps working, and both the health probe and
+// the page's status call say so, so nobody mistakes "off" for "broken".
+func TestDiscordFlagIsReported(t *testing.T) {
+	for _, enabled := range []bool{false, true} {
+		app := &fiberApp{t: t, app: New(
+			config.Config{Discord: enabled}, &fakeStore{guards: []store.Guard{}},
+			fakeAuth{status: admin()}, &logclient.Client{}, nil,
+		)}
+		want := `"discord_enabled":` + map[bool]string{true: "true", false: "false"}[enabled]
+
+		status, body := app.do(http.MethodGet, "/health", "", nil)
+		if status != http.StatusOK || !strings.Contains(body, want) {
+			t.Fatalf("health: status = %d body = %s", status, body)
+		}
+		status, body = app.do(http.MethodGet, "/v1/auth/status", "", withCookie(nil))
+		if status != http.StatusOK || !strings.Contains(body, want) || !strings.Contains(body, `"can_admin":true`) {
+			t.Fatalf("auth status: status = %d body = %s", status, body)
+		}
+		status, body = app.do(http.MethodGet, "/v1/admin/guards", "", withCookie(nil))
+		if status != http.StatusOK {
+			t.Fatalf("guards: status = %d body = %s", status, body)
+		}
 	}
 }

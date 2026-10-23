@@ -28,14 +28,23 @@ Start the shared Postgres once, from the monorepo root, then Sprinter:
 
 ```bash
 docker compose -f infra/docker-compose.yml --env-file infra/.env up -d
-cp apps/sprinter/.env.example apps/sprinter/.env   # DISCORD_TOKEN may stay empty
+cp apps/sprinter/.env.example apps/sprinter/.env   # Discord stays off
 docker compose up -d --build sprinter-migrate sprinter-bot sprinter-web
 ```
 
 The UI is at http://localhost:5178 and the API at http://localhost:8084.
-An empty `DISCORD_TOKEN` runs the admin API alone. With a token, the bot
-opens a gateway session and registers its commands in `DISCORD_GUILD_ID`.
-If the session cannot open, the process exits.
+`SPRINTER_DISCORD_ENABLED` decides whether the bot runs at all. Off, the
+default, runs the admin API alone: no gateway session, no commands, no
+scheduler, and the Discord variables are never read. Production runs this
+way, because the bot has no Discord permissions there. Staging turns it on.
+On, the backend refuses to start without `DISCORD_TOKEN` and
+`DISCORD_GUILD_ID`, opens a gateway session, and registers its commands in
+that guild. If the session cannot open, the process exits.
+
+With Discord off, every admin route still works: guards and automations are
+rows in Postgres, and editing them needs no gateway. Nothing acts on them
+until the bot is turned on, so `/health` and `/v1/auth/status` report
+`discord_enabled` and the admin page says so above the panels.
 
 ## Develop
 
@@ -209,8 +218,8 @@ that automation for the tick; it is never read as "nothing is scheduled".
 
 | Method | Path | Notes |
 |--------|------|-------|
-| GET | `/health` | `503` when the database is down. Reports `discord_connected`. |
-| GET | `/v1/auth/status` | `operator` and `can_admin` for the cookie sent |
+| GET | `/health` | `503` when the database is down. Reports `discord_enabled` and `discord_connected`. |
+| GET | `/v1/auth/status` | `operator` and `can_admin` for the cookie sent, and `discord_enabled` |
 | GET | `/v1/admin/guards` | every guard |
 | GET | `/v1/admin/guards/:subject` | one guard |
 | PUT | `/v1/admin/guards/:subject` | writes the whole guard |
@@ -246,9 +255,14 @@ and Prisma. Do not add environment files below it. `go run .` reads
 - `VITE_API_URL`, `VITE_AUTH_URL`, `VITE_CALENDAR_URL`. Compiled into the
   admin page: the bot's API, Auth for login, and Calendar for the scope
   list. Never secrets.
-- `DISCORD_TOKEN`. Empty means no gateway session and no commands.
-- `DISCORD_GUILD_ID`. The guild commands are registered in. The backend
-  refuses to start with a token and no guild.
+- `SPRINTER_DISCORD_ENABLED`. `true` runs the bot; anything empty or
+  `false` runs the admin API alone. A value that is not a boolean stops
+  the backend at start rather than guessing. Staging `true`, production
+  `false`.
+- `DISCORD_TOKEN`. The bot's token. Required, and only read, when the bot
+  is enabled.
+- `DISCORD_GUILD_ID`. The guild commands are registered in. Required, and
+  only read, when the bot is enabled.
 - `DATABASE_URL`. The `sprinter` schema. The `?schema=` becomes the
   connection's `search_path`.
 - `READ_DATABASE_URL`. The read-only role the four SQL tools use. Empty
@@ -285,7 +299,7 @@ operator's business, what it said is not.
 |---------|-------|---------|
 | `Sprinter started` | info | `port`, `discord` |
 | `Sprinter stopping` | info | — |
-| `Discord token unset` | warning | — |
+| `Discord disabled` | info | — |
 | `Model unset` | warning | — |
 | `Model ready` | info | `model`, `tools` |
 | `Model unavailable` | error | `error` |
