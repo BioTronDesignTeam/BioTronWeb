@@ -1,0 +1,104 @@
+# CodeQL code scanning of the whole repository: the TypeScript of every
+# frontend and packages/style, the Go of the five backends and go/logclient,
+# and the GitHub Actions workflows themselves. The results go to the
+# repository's Security tab (code scanning) and to each pull request.
+#
+# This is the "advanced setup" of code scanning. GitHub refuses its uploads
+# while the "default setup" is on, so default setup must stay off in the
+# repository settings.
+name: codeql
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Each Monday, so that new CodeQL queries also look at code that did not
+    # change.
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+# A new push to a pull request replaces the run before it. Every other run is
+# alone in its group, so no run cancels it.
+concurrency:
+  group: codeql-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: analyze (${{ matrix.language }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      # Upload the results to code scanning.
+      security-events: write
+      # Read the workflow run, as code scanning needs in a private repository.
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        # CodeQL reads these two from the source alone, with no build.
+        language: [actions, javascript-typescript]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: github/codeql-action/init@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+          queries: security-and-quality
+      - uses: github/codeql-action/analyze@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
+        with:
+          category: /language:${{ matrix.language }}
+
+  # CodeQL has no build-mode none for Go: it reads Go while the compiler
+  # runs, so this job compiles every module on the runner itself (a build
+  # inside docker run would hide the compiler from it). Its own job, because
+  # only Go needs a build.
+  analyze-go:
+    name: analyze (go)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # No cache: the Go jobs of ci.yml keep theirs, and a second one would
+      # only push them out of the cache budget.
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.work
+          cache: false
+      # init wraps the `go` that setup-go put on the PATH, so the build below
+      # runs through it.
+      - uses: github/codeql-action/init@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
+        with:
+          languages: go
+          build-mode: manual
+          queries: security-and-quality
+      # Every module of go.work, with its test files too: `go test -c` builds
+      # each test binary and runs nothing. Each binary is named after its
+      # import path, since several packages share a short name.
+      - name: build every Go module
+        run: |
+          for module in $(go work edit -json | jq -r '.Use[].DiskPath'); do
+            (cd "$module" &&
+              go build ./... &&
+              go list -f '{{if or .TestGoFiles .XTestGoFiles}}{{.ImportPath}}{{end}}' ./... |
+                while read -r package; do
+                  [[ -n $package ]] || continue
+                  go test -c -o "$RUNNER_TEMP/codeql-test-binaries/${package//\//_}.test" "$package"
+                done)
+          done
+      - uses: github/codeql-action/analyze@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
+        with:
+          category: /language:go
