@@ -18,12 +18,14 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"github.com/BioTronDesignTeam/Logger/backend/internal/model"
+	"github.com/BioTronDesignTeam/Logger/backend/internal/store/queries"
 )
 
 var schemaPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 type Store struct {
 	db       *pgxpool.Pool
+	queries  *queries.Queries
 	cache    *redis.Client
 	tailSize int64
 }
@@ -54,7 +56,7 @@ func New(ctx context.Context, databaseURL, redisURL string, tailSize int) (*Stor
 		return nil, fmt.Errorf("ping redis: %w", err)
 	}
 
-	return &Store{db: db, cache: cache, tailSize: int64(tailSize)}, nil
+	return &Store{db: db, queries: queries.New(db), cache: cache, tailSize: int64(tailSize)}, nil
 }
 
 func (s *Store) Close() {
@@ -75,23 +77,16 @@ func (s *Store) PingPostgres(ctx context.Context) error { return s.db.Ping(ctx) 
 func (s *Store) PingRedis(ctx context.Context) error    { return s.cache.Ping(ctx).Err() }
 
 func (s *Store) InsertLog(ctx context.Context, input model.NewLog) (model.Log, error) {
-	var entry model.Log
-	var id int64
-	var level string
-	var payload []byte
-	err := s.db.QueryRow(ctx, `
-		INSERT INTO logs (service, level, message, payload)
-		VALUES ($1, $2::log_level, $3, $4::jsonb)
-		RETURNING id, service, level::text, message, payload, created_at
-	`, input.Service, string(input.Level), input.Message, nullableJSON(input.Payload)).Scan(
-		&id, &entry.Service, &level, &entry.Message, &payload, &entry.CreatedAt,
-	)
+	row, err := s.queries.InsertLog(ctx, queries.InsertLogParams{
+		Service: input.Service,
+		Level:   string(input.Level),
+		Message: input.Message,
+		Payload: nullableJSON(input.Payload),
+	})
 	if err != nil {
 		return model.Log{}, fmt.Errorf("insert log: %w", err)
 	}
-	entry.ID = strconv.FormatInt(id, 10)
-	entry.Level = model.LogLevel(level)
-	entry.Payload = payload
+	entry := toLog(row.ID, row.Service, row.Level, row.Message, row.Payload, row.CreatedAt)
 
 	if err := s.cacheLog(ctx, entry); err != nil {
 		// Postgres is the warehouse and remains authoritative. A cache failure must
@@ -150,79 +145,42 @@ func (s *Store) QueryLogs(ctx context.Context, query model.HistoryQuery) (model.
 		query.Limit = 100
 	}
 
-	args := []any{query.Services}
-	clauses := []string{"service = ANY($1)"}
-	add := func(clause string, value any) {
-		args = append(args, value)
-		clauses = append(clauses, fmt.Sprintf(clause, len(args)))
+	// Each filter left out travels as NULL, which switches its clause off.
+	params := queries.QueryLogsParams{
+		Services:    query.Services,
+		CreatedFrom: query.From,
+		CreatedTo:   query.To,
+		RowLimit:    int32(query.Limit + 1),
 	}
-
-	if len(query.Levels) > 0 {
-		levels := make([]string, 0, len(query.Levels))
-		for _, level := range query.Levels {
-			levels = append(levels, string(level))
-		}
-		add("level::text = ANY($%d)", levels)
-	}
-	if query.From != nil {
-		add("created_at >= $%d", *query.From)
-	}
-	if query.To != nil {
-		add("created_at <= $%d", *query.To)
+	for _, level := range query.Levels {
+		params.Levels = append(params.Levels, string(level))
 	}
 	if query.Search != "" {
-		args = append(args, "%"+query.Search+"%")
-		position := len(args)
-		clauses = append(clauses, fmt.Sprintf("(message ILIKE $%d OR COALESCE(payload::text, '') ILIKE $%d)", position, position))
+		pattern := "%" + query.Search + "%"
+		params.Pattern = &pattern
 	}
 	if query.Cursor != "" {
 		cursor, err := decodeCursor(query.Cursor)
 		if err != nil {
 			return model.LogPage{}, err
 		}
-		args = append(args, cursor.CreatedAt, cursor.ID)
-		clauses = append(clauses, fmt.Sprintf("(created_at, id) < ($%d, $%d)", len(args)-1, len(args)))
+		params.CursorCreatedAt = &cursor.CreatedAt
+		params.CursorID = &cursor.ID
 	}
 
-	args = append(args, query.Limit+1)
-	statement := fmt.Sprintf(`
-		SELECT id, service, level::text, message, payload, created_at
-		FROM logs
-		WHERE %s
-		ORDER BY created_at DESC, id DESC
-		LIMIT $%d
-	`, strings.Join(clauses, " AND "), len(args))
-
-	rows, err := s.db.Query(ctx, statement, args...)
+	rows, err := s.queries.QueryLogs(ctx, params)
 	if err != nil {
 		return model.LogPage{}, fmt.Errorf("query logs: %w", err)
 	}
-	defer rows.Close()
-
-	entries := make([]model.Log, 0, query.Limit+1)
-	ids := make([]int64, 0, query.Limit+1)
-	for rows.Next() {
-		var entry model.Log
-		var id int64
-		var level string
-		var payload []byte
-		if err := rows.Scan(&id, &entry.Service, &level, &entry.Message, &payload, &entry.CreatedAt); err != nil {
-			return model.LogPage{}, fmt.Errorf("scan log: %w", err)
-		}
-		entry.ID = strconv.FormatInt(id, 10)
-		entry.Level = model.LogLevel(level)
-		entry.Payload = payload
-		entries = append(entries, entry)
-		ids = append(ids, id)
-	}
-	if err := rows.Err(); err != nil {
-		return model.LogPage{}, fmt.Errorf("iterate logs: %w", err)
+	entries := make([]model.Log, 0, len(rows))
+	for _, row := range rows {
+		entries = append(entries, toLog(row.ID, row.Service, row.Level, row.Message, row.Payload, row.CreatedAt))
 	}
 
 	page := model.LogPage{Logs: entries}
 	if len(entries) > query.Limit {
 		last := entries[query.Limit-1]
-		page.NextCursor = encodeCursor(logCursor{CreatedAt: last.CreatedAt, ID: ids[query.Limit-1]})
+		page.NextCursor = encodeCursor(logCursor{CreatedAt: last.CreatedAt, ID: rows[query.Limit-1].ID})
 		page.Logs = entries[:query.Limit]
 	}
 	return page, nil
@@ -237,10 +195,12 @@ func (s *Store) SetLatestHealth(ctx context.Context, health model.Health) error 
 }
 
 func (s *Store) InsertHealth(ctx context.Context, health model.Health) error {
-	_, err := s.db.Exec(ctx, `
-		INSERT INTO health_checks (service, ok, detail, checked_at)
-		VALUES ($1, $2, $3, $4)
-	`, health.Service, health.OK, nullableString(health.Detail), health.CheckedAt)
+	err := s.queries.InsertHealth(ctx, queries.InsertHealthParams{
+		Service:   health.Service,
+		Ok:        health.OK,
+		Detail:    nullableString(health.Detail),
+		CheckedAt: health.CheckedAt,
+	})
 	if err != nil {
 		return fmt.Errorf("insert health check: %w", err)
 	}
@@ -278,25 +238,16 @@ func (s *Store) LatestHealth(ctx context.Context, services []string) (map[string
 		return result, nil
 	}
 
-	rows, err := s.db.Query(ctx, `
-		SELECT DISTINCT ON (service) service, ok, COALESCE(detail, ''), checked_at
-		FROM health_checks
-		WHERE service = ANY($1)
-		ORDER BY service, checked_at DESC
-	`, missing)
+	rows, err := s.queries.LatestHealth(ctx, missing)
 	if err != nil {
 		return nil, fmt.Errorf("query latest health: %w", err)
 	}
-	defer rows.Close()
-	for rows.Next() {
-		var health model.Health
-		if err := rows.Scan(&health.Service, &health.OK, &health.Detail, &health.CheckedAt); err != nil {
-			return nil, fmt.Errorf("scan latest health: %w", err)
-		}
+	for _, row := range rows {
+		health := model.Health{Service: row.Service, OK: row.Ok, Detail: row.Detail, CheckedAt: row.CheckedAt}
 		result[health.Service] = health
 		_ = s.SetLatestHealth(ctx, health)
 	}
-	return result, rows.Err()
+	return result, nil
 }
 
 // HealthHistory returns the health observations needed to walk uptime across
@@ -332,50 +283,23 @@ func (s *Store) LatestHealth(ctx context.Context, services []string) (map[string
 // Detail is deliberately not selected. It carries raw dial errors and internal
 // hostnames, and its only consumer here is a public endpoint.
 func (s *Store) HealthHistory(ctx context.Context, services []string, from, to time.Time, gapTolerance time.Duration) (map[string][]model.HealthPoint, error) {
-	rows, err := s.db.Query(ctx, `
-		WITH window_rows AS (
-			SELECT service, ok, checked_at,
-				lag(ok) OVER w AS previous_ok,
-				lag(checked_at) OVER w AS previous_at,
-				lead(checked_at) OVER w AS next_at
-			FROM health_checks
-			WHERE service = ANY($1) AND checked_at > $2 AND checked_at <= $3
-			WINDOW w AS (PARTITION BY service ORDER BY checked_at)
-		)
-		(
-			SELECT DISTINCT ON (service) service, ok, checked_at, false AS continuous
-			FROM health_checks
-			WHERE service = ANY($1) AND checked_at <= $2
-			ORDER BY service, checked_at DESC
-		)
-		UNION ALL
-		(
-			SELECT service, ok, checked_at,
-				next_at IS NOT NULL AND next_at - checked_at <= $4 AS continuous
-			FROM window_rows
-			WHERE previous_ok IS DISTINCT FROM ok
-				OR checked_at - previous_at > $4
-				OR next_at - checked_at > $4
-				OR next_at IS NULL
-		)
-		ORDER BY service, checked_at
-	`, services, from, to, interval(gapTolerance))
+	rows, err := s.queries.HealthHistory(ctx, queries.HealthHistoryParams{
+		Services:     services,
+		WindowStart:  from,
+		WindowEnd:    to,
+		GapTolerance: interval(gapTolerance),
+	})
 	if err != nil {
 		return nil, fmt.Errorf("query health history: %w", err)
 	}
-	defer rows.Close()
 
 	history := make(map[string][]model.HealthPoint, len(services))
-	for rows.Next() {
-		var service string
-		var point model.HealthPoint
-		if err := rows.Scan(&service, &point.OK, &point.CheckedAt, &point.Continuous); err != nil {
-			return nil, fmt.Errorf("scan health history: %w", err)
-		}
-		history[service] = append(history[service], point)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate health history: %w", err)
+	for _, row := range rows {
+		history[row.Service] = append(history[row.Service], model.HealthPoint{
+			OK:         row.Ok,
+			CheckedAt:  row.CheckedAt,
+			Continuous: row.Continuous,
+		})
 	}
 	return history, nil
 }
@@ -468,18 +392,29 @@ func sortLogs(entries []model.Log) {
 	}
 }
 
-func nullableJSON(value json.RawMessage) any {
+func toLog(id int64, service, level, message string, payload []byte, createdAt time.Time) model.Log {
+	return model.Log{
+		ID:        strconv.FormatInt(id, 10),
+		Service:   service,
+		Level:     model.LogLevel(level),
+		Message:   message,
+		Payload:   payload,
+		CreatedAt: createdAt,
+	}
+}
+
+func nullableJSON(value json.RawMessage) []byte {
 	if len(value) == 0 || string(value) == "null" {
 		return nil
 	}
 	return value
 }
 
-func nullableString(value string) any {
+func nullableString(value string) *string {
 	if value == "" {
 		return nil
 	}
-	return value
+	return &value
 }
 
 // interval encodes a Go duration as a Postgres interval. Comparing intervals
