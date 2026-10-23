@@ -18,21 +18,27 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# Every job only reads the repository, and no step pushes, so no checkout
+# keeps the token. Each action is pinned by commit SHA with its release in
+# a comment; Dependabot moves both (.github/dependabot.yml).
 permissions:
   contents: read
 
 jobs:
   changes:
     name: what changed
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
     outputs:
       frontends: ${{ steps.plan.outputs.frontends }}
       backends: ${{ steps.plan.outputs.backends }}
       logclient: ${{ steps.plan.outputs.logclient }}
       golangci-lint: ${{ steps.tools.outputs.golangci-lint }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         id: filter
         with:
           filters: |
@@ -104,14 +110,17 @@ jobs:
     name: frontend ${{ matrix.app }}
     needs: changes
     if: needs.changes.outputs.frontends != '[]'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
         app: ${{ fromJSON(needs.changes.outputs.frontends) }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
           cache: npm
@@ -128,7 +137,8 @@ jobs:
     name: backend ${{ matrix.app }}
     needs: changes
     if: needs.changes.outputs.backends != '[]'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -137,12 +147,14 @@ jobs:
       run:
         working-directory: apps/${{ matrix.app }}/backend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: apps/${{ matrix.app }}/backend/go.mod
           cache-dependency-path: apps/${{ matrix.app }}/backend/go.sum
-      - uses: golangci/golangci-lint-action@v8
+      - uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
         with:
           version: ${{ needs.changes.outputs.golangci-lint }}
           working-directory: apps/${{ matrix.app }}/backend
@@ -153,17 +165,20 @@ jobs:
     name: go/logclient
     needs: changes
     if: needs.changes.outputs.logclient == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: go/logclient
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go/logclient/go.mod
           cache-dependency-path: go/logclient/go.sum
-      - uses: golangci/golangci-lint-action@v8
+      - uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
         with:
           version: ${{ needs.changes.outputs.golangci-lint }}
           working-directory: go/logclient
@@ -172,10 +187,12 @@ jobs:
 
   secrets:
     name: secrets (TruffleHog)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           fetch-depth: 0
       # Scans the commits the change adds and fails on any verified live
       # credential, or one whose check errored (unknown). Unverified results
@@ -185,20 +202,23 @@ jobs:
       # can never resolve, so a placeholder and a real one look the same to
       # the scanner. The token types that matter (GitHub, Cloudflare,
       # Discord, AWS) verify against their provider and do gate.
-      - uses: trufflesecurity/trufflehog@main
+      - uses: trufflesecurity/trufflehog@363923b901c911a9164f50b6c423f47c15372b1c # v3.97.4
         with:
           extra_args: --results=verified,unknown
 
   vulnerabilities:
     name: vulnerabilities (Trivy)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       # Lockfiles, go.sum files, Dockerfiles, and compose files. Fails on a
       # fixable HIGH or CRITICAL finding; unfixable ones are reported only.
       # Accepted findings live in .trivyignore.yaml with their reasons; Trivy
       # only reads the YAML form when it is named explicitly.
-      - uses: aquasecurity/trivy-action@v0.36.0
+      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: fs
           scan-ref: .
