@@ -1,5 +1,5 @@
 // Package logclient sends structured events to Logger's ingest route and,
-// when configured, to Grafana Cloud.
+// when configured, to Grafana Cloud, with audit events also sent to PostHog.
 //
 // Every BioTron Go service uses this one client. The service name is passed
 // in code so that the binary and its Logger catalog id cannot drift apart.
@@ -38,10 +38,13 @@ type Client struct {
 	httpClient *http.Client
 	slots      chan struct{}
 	grafana    *grafana
+	posthog    *posthog
 }
 
 // NewFromEnv reads LOGGER_URL, LOGGER_INGEST_TOKEN, and LOG_LEVEL for Logger,
-// and the GRAFANA_OTLP_* variables for Grafana. It never fails: an invalid
+// the GRAFANA_OTLP_* variables for Grafana, and the POSTHOG_* variables for
+// PostHog. BIOTRON_ENV, when set, tags Grafana and PostHog events with the
+// environment that sent them. It never fails: an invalid
 // LOG_LEVEL means info, and a destination missing its variables is disabled.
 func NewFromEnv(service string) *Client {
 	minimum, ok := severity(Level(strings.ToLower(getenv("LOG_LEVEL", string(Info)))))
@@ -57,12 +60,13 @@ func NewFromEnv(service string) *Client {
 		httpClient: &http.Client{Timeout: 2 * time.Second},
 		slots:      make(chan struct{}, 32),
 		grafana:    newGrafanaFromEnv(service),
+		posthog:    newPostHogFromEnv(service),
 	}
 }
 
 // Enabled reports whether any destination is configured.
 func (c *Client) Enabled() bool {
-	return c != nil && (c.token != "" || c.grafana != nil)
+	return c != nil && (c.token != "" || c.grafana != nil || c.posthog != nil)
 }
 
 // LoggerEnabled reports whether events reach Logger, the destination a
@@ -72,8 +76,9 @@ func (c *Client) LoggerEnabled() bool {
 }
 
 // Log sends one event and waits for Logger's answer. Events below LOG_LEVEL
-// are dropped before any request is made. Grafana is never waited on: the
-// event joins its background queue, and the error is Logger's alone.
+// are dropped before any request is made. Grafana and PostHog are never
+// waited on: the event joins their background queues, and the error is
+// Logger's alone.
 func (c *Client) Log(ctx context.Context, level Level, message string, payload any) error {
 	if !c.Enabled() {
 		return nil
@@ -82,6 +87,7 @@ func (c *Client) Log(ctx context.Context, level Level, message string, payload a
 	if !ok {
 		return fmt.Errorf("invalid log level %q", level)
 	}
+	c.audit(level, message, payload)
 	if current < c.minimum {
 		return nil
 	}
@@ -91,8 +97,8 @@ func (c *Client) Log(ctx context.Context, level Level, message string, payload a
 
 // LogAsync sends in the background with a two-second timeout and at most 32
 // events in flight. Past that it drops the event and says so on the standard
-// log, so a slow Logger can never stall the service. Grafana has its own
-// bounded queue with the same promise.
+// log, so a slow Logger can never stall the service. Grafana and PostHog have
+// their own bounded queues with the same promise.
 func (c *Client) LogAsync(level Level, message string, payload any) {
 	if !c.Enabled() {
 		return
@@ -102,6 +108,7 @@ func (c *Client) LogAsync(level Level, message string, payload any) {
 		log.Printf("structured log delivery failed: invalid log level %q", level)
 		return
 	}
+	c.audit(level, message, payload)
 	if current < c.minimum {
 		return
 	}
@@ -140,7 +147,32 @@ func (c *Client) Close(ctx context.Context) error {
 	if c.grafana != nil {
 		errs = append(errs, c.grafana.batch.close(ctx))
 	}
+	if c.posthog != nil {
+		errs = append(errs, c.posthog.batch.close(ctx))
+	}
 	return errors.Join(errs...)
+}
+
+// Capture sends one product event to PostHog only, for something worth
+// counting that is not a log line. distinctID is the operator's login, or
+// empty when the service itself acted. It never blocks and is a no-op
+// without PostHog. Never put a secret or a session in the properties.
+func (c *Client) Capture(distinctID, event string, properties map[string]any) {
+	if c == nil || c.posthog == nil {
+		return
+	}
+	c.posthog.add(distinctID, event, properties)
+}
+
+// audit also sends an audit event to PostHog, whatever LOG_LEVEL says: the
+// level filters diagnostics, and these are a record of who did what.
+func (c *Client) audit(level Level, message string, payload any) {
+	if c.posthog == nil {
+		return
+	}
+	if login, ok := auditActor(level, payload); ok {
+		c.posthog.add(login, message, payload.(map[string]any))
+	}
 }
 
 // export hands the event to every background destination.
