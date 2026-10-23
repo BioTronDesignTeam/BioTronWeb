@@ -64,6 +64,12 @@ func main() {
 			log.Printf("structured shutdown log: %v", err)
 		}
 	})
+	// After the server has stopped, so the last request events are queued.
+	closeCtx, cancelClose := context.WithTimeout(context.Background(), 5*time.Second)
+	if closeErr := events.Close(closeCtx); closeErr != nil {
+		log.Printf("log export flush: %v", closeErr)
+	}
+	cancelClose()
 	if err != nil {
 		log.Fatalf("serve: %v", err)
 	}
