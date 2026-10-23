@@ -1,0 +1,4 @@
+# Go files stay LF in every checkout, Windows with core.autocrlf included:
+# the gofmt and goimports formatters of .golangci.yml, and sqlc diff, read a
+# CRLF file as unformatted or changed.
+*.go text eol=lf
