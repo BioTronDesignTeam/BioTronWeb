@@ -26,13 +26,9 @@ func (h *Handler) RequireSession(next http.Handler) http.Handler {
 			httpx.Error(w, r, http.StatusUnauthorized)
 			return
 		}
-		var op *store.SessionOperator
-		var err error
-		if h.Cache != nil {
-			op, err = h.Cache.GetSessionOperator(r.Context(), hashToken(token))
-		} else {
-			op, err = h.Store.GetSessionOperator(r.Context(), hashToken(token))
-		}
+		// Roles and bans are read from Postgres on every request, never from
+		// the cache, so a session always carries its operator's standing.
+		op, err := h.Store.GetSessionOperator(r.Context(), hashToken(token))
 		if err != nil {
 			if errors.Is(err, store.ErrNotFound) || errors.Is(err, store.ErrBanned) {
 				httpx.Error(w, r, http.StatusUnauthorized)

@@ -14,8 +14,6 @@ import (
 type Config struct {
 	Port               string
 	DatabaseURL        string
-	RedisURL           string
-	CacheTTL           time.Duration
 	GitHubClientID     string
 	GitHubClientSecret string
 	GitHubOrg          string
@@ -35,8 +33,6 @@ func Load() Config {
 	return Config{
 		Port:               getenv("PORT", "8080"),
 		DatabaseURL:        os.Getenv("DATABASE_URL"),
-		RedisURL:           getenv("REDIS_URL", "redis://127.0.0.1:6379/0"),
-		CacheTTL:           time.Duration(getint("CACHE_TTL_SECONDS", 300)) * time.Second,
 		GitHubClientID:     os.Getenv("GITHUB_CLIENT_ID"),
 		GitHubClientSecret: os.Getenv("GITHUB_CLIENT_SECRET"),
 		GitHubOrg:          getenv("GITHUB_ORG", "BioTronDesignTeam"),
