@@ -31,12 +31,12 @@ Start the shared Postgres once, from the monorepo root, then Auth:
 
 ```bash
 docker compose -f infra/docker-compose.yml --env-file infra/.env up -d
-cp apps/auth/.env.example apps/auth/.env    # set the GitHub OAuth values
+cp apps/auth/.env.example apps/auth/.env    # set the GitHub App values
 docker compose up -d --build auth-migrate auth-api auth-web
 ```
 
 The UI is at http://localhost:5173 and the API at http://localhost:8080.
-The API port must stay 8080: the GitHub OAuth callback is registered as
+The API port must stay 8080: the GitHub App's callback is registered as
 `http://localhost:8080/auth/github/callback`. Put your GitHub user id in
 `SUPERUSER_GITHUB_IDS` so that the first login can grant permissions.
 
@@ -70,6 +70,51 @@ Prisma. Do not add environment files below it.
   limit keys on `Cf-Connecting-Ip`, which the API reads only from a trusted
   proxy.
 - `LOGGER_INGEST_TOKEN` must match Logger's. Leave it empty to send nothing.
+
+## The GitHub App
+
+Sign-in is the user authorization of a GitHub App, not an OAuth App. The
+user token only names the operator (`GET /user`) and is then dropped: it is
+never stored or logged. Membership of the organization is asked with the
+App's own installation token, which holds Members: read and nothing else, so
+operators are never asked to grant an organization scope. The backend refuses
+to start without the App's four values.
+
+Create one App per environment (local, staging, production), so that a key
+or secret from one never works in another:
+
+1. In the `BioTronDesignTeam` organization: Settings, Developer settings,
+   GitHub Apps, New GitHub App. Name it, for example, `BioTron Auth (staging)`.
+2. Homepage URL: the Auth frontend, such as `https://auth.uwbiotron.dev`.
+3. Callback URL, exactly what `OAUTH_CALLBACK_URL` says:
+   - local: `http://localhost:8080/auth/github/callback`
+   - staging: `https://auth.uwbiotron.dev/api/auth/github/callback`
+   - production: `https://auth.uwbiotron.ca/api/auth/github/callback`
+4. Leave "Expire user authorization tokens" on, and "Request user
+   authorization (OAuth) during installation" and "Enable Device Flow" off.
+5. Webhook: untick Active. Auth needs no events.
+6. Permissions: Organization permissions, Members: Read-only. Nothing else;
+   reading `/user` needs no permission.
+7. Where can this App be installed: Only on this account.
+8. Create it. Note the App ID (a number) and the Client ID (`Iv...`).
+   Generate a client secret and a private key (a `.pem` download).
+9. Install App, on `BioTronDesignTeam`. An owner must approve the install,
+   and must approve again whenever the App's permissions change.
+
+Then set, in `apps/auth/.env` locally and in the environment's secrets on a
+server:
+
+| Variable | Value |
+|---|---|
+| `GITHUB_APP_ID` | The App ID, a number. |
+| `GITHUB_APP_CLIENT_ID` | The Client ID. |
+| `GITHUB_APP_CLIENT_SECRET` | The client secret. |
+| `GITHUB_APP_PRIVATE_KEY` | The whole `.pem`, in double quotes across its lines, or on one line with each line break written as `\n`. |
+
+A sign-in that GitHub refuses is logged as `GitHub sign-in failed` with its
+stage. `membership` with a status 302 or 422 means the installation lacks
+Members: read; a 404 on the installation means the App is not installed on
+the organization.
 
 ## API
 
@@ -128,12 +173,11 @@ session names its operator as `actor`.
 |---|---|---|
 | `OAuthManager started` | info | `port` |
 | `OAuthManager stopping` | info | — |
-| `GitHub OAuth not configured` | warning | — |
 | `HTTP request completed` | info, warning on 4xx, error on 5xx | `method`, `path`, `status`, `duration_ms`, `actor`, `error` |
 | `Operator signed in` | info | `operator_id`, `operator_login`, `new_operator` |
 | `Operator signed out` | info | `operator_id`, `operator_login` |
 | `Sign-in refused` | warning | `reason` (`not a member` or `banned`), `login` when known |
-| `GitHub sign-in failed` | error | `stage` (`exchange`, `membership`, `user`), `error` |
+| `GitHub sign-in failed` | error | `stage` (`exchange`, `user`, `membership`), `error` |
 | `Guest signed in` | info | `app_id` |
 | `Guest key refused` | warning | `app_id` |
 | `Permission granted`, `Permission revoked` | info | `target_id`, `app`, `permission` |
