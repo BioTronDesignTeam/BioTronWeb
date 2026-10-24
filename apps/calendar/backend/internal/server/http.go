@@ -58,12 +58,13 @@ func writeError(w http.ResponseWriter, err error) {
 	status := http.StatusInternalServerError
 	message := "internal server error"
 	var refusal *httpError
-	if errors.As(err, &refusal) {
+	switch {
+	case errors.As(err, &refusal):
 		status = refusal.status
 		message = strings.ToLower(refusal.message)
-	} else if errors.Is(err, store.ErrNotFound) {
+	case errors.Is(err, store.ErrNotFound):
 		status, message = http.StatusNotFound, "not found"
-	} else if errors.Is(err, store.ErrConflict) {
+	case errors.Is(err, store.ErrConflict):
 		status, message = http.StatusConflict, "the requested change conflicts with existing calendar data"
 	}
 	if status >= 500 {
