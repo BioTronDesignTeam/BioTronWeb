@@ -37,9 +37,13 @@ for tool in docker curl jq tar flock; do
 done
 
 # One deploy per target at a time; staging, prod, and the edge never wait on
-# each other.
-mkdir -p /run/lock
-exec 9>"/run/lock/biotron-deploy-$target.lock"
+# each other. The locks live in a directory only root can enter, not the
+# world-writable /run/lock, where another account could create or hold the
+# lock file first.
+rundir=/run/biotron-deploy
+install -d -o root -g root -m 0700 "$rundir"
+[[ ! -L $rundir && $(stat -c '%u %a' "$rundir") == '0 700' ]] || die "$rundir must be a directory owned by root with mode 0700"
+exec 9>"$rundir/$target.lock"
 flock -w 600 9 || die "another deploy of $target is still running"
 
 # A bootstrap file holds credentials, so it must be root's alone.
