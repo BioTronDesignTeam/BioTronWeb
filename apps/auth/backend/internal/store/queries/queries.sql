@@ -70,6 +70,22 @@ WHERE id = sqlc.arg(app_id) AND daily_key_enabled = true
 ON CONFLICT (app_id, day) DO UPDATE SET key = guest_keys.key
 RETURNING app_id, day::text AS day, key;
 
+-- name: RotateProductDailyKey :one
+-- Replaces the key of one enabled app for one Eastern day, which ends every
+-- guest session that used the old one.
+INSERT INTO guest_keys (app_id, day, key)
+SELECT id, sqlc.arg(day)::text::date, sqlc.arg(key)::text FROM apps
+WHERE id = sqlc.arg(app_id) AND daily_key_enabled = true
+ON CONFLICT (app_id, day) DO UPDATE SET key = EXCLUDED.key
+RETURNING app_id, day::text AS day, key;
+
+-- name: GetGuestKey :one
+-- The key a guest session must still match: none once the app stops using
+-- daily keys.
+SELECT gk.key FROM guest_keys gk JOIN apps a ON a.id = gk.app_id
+WHERE gk.app_id = sqlc.arg(app_id) AND gk.day = sqlc.arg(day)::text::date
+  AND a.daily_key_enabled = true;
+
 -- name: ListDailyKeyApps :many
 SELECT id, name, description, daily_key_enabled
 FROM apps WHERE daily_key_enabled = true ORDER BY name;

@@ -3,9 +3,10 @@ package auth
 // The session cookie and the state cookie of a sign-in are JWTs signed with
 // HMAC-SHA256 and SESSION_SIGNING_KEY. There is no session store: the
 // signature is the check. A session names only the operator's GitHub id (and,
-// for a guest, the tool whose key it used); roles, bans, and grants are read
-// on every request through the cache, so a JWT never carries a privilege
-// that could outlive its revocation.
+// for a guest, the tool, the day, and an HMAC of the key it used); roles,
+// bans, grants, and the guest key are read on every request through the
+// cache, so a JWT never carries a privilege that could outlive its
+// revocation.
 //
 // The two kinds have their own audience, so one can never pass as the other.
 // Only HS256 is accepted, and the issuer, the audience, and the expiry are
@@ -14,6 +15,9 @@ package auth
 // Never log or return a cookie value or the key.
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
 	"errors"
 	"strconv"
 	"time"
@@ -45,10 +49,17 @@ type Session struct {
 	GitHubID int64
 	// GuestAppID is the tool of a guest session; empty for an operator.
 	GuestAppID string
+	// GuestDay and GuestKeyID name the daily key a guest session signed in
+	// with: its Eastern day and GuestKeyID of the key. Every request checks
+	// they still match, so rotating the key ends the session.
+	GuestDay   string
+	GuestKeyID string
 }
 
 type sessionClaims struct {
 	GuestApp string `json:"guest_app,omitempty"`
+	GuestDay string `json:"guest_day,omitempty"`
+	GuestKey string `json:"guest_key,omitempty"`
 	jwt.RegisteredClaims
 }
 
@@ -62,13 +73,15 @@ type stateClaims struct {
 func (s *Signer) Session(session Session, expires time.Time) (string, error) {
 	return s.sign(&sessionClaims{
 		GuestApp:         session.GuestAppID,
+		GuestDay:         session.GuestDay,
+		GuestKey:         session.GuestKeyID,
 		RegisteredClaims: s.registered(strconv.FormatInt(session.GitHubID, 10), sessionAudience, expires),
 	})
 }
 
 // ReadSession returns the session of a cookie value; ok is false when it is
 // not one this key signed, or has expired. A guest session must name its
-// tool, and an operator's must not.
+// tool and its key, and an operator's must name neither.
 func (s *Signer) ReadSession(value string) (Session, bool) {
 	var claims sessionClaims
 	if !s.read(value, sessionAudience, &claims) {
@@ -78,10 +91,23 @@ func (s *Signer) ReadSession(value string) (Session, bool) {
 	if err != nil || id < 0 || strconv.FormatInt(id, 10) != claims.Subject {
 		return Session{}, false
 	}
-	if (id == 0) != (claims.GuestApp != "") {
+	guest := claims.GuestApp != "" || claims.GuestDay != "" || claims.GuestKey != ""
+	if guest && (claims.GuestApp == "" || claims.GuestDay == "" || claims.GuestKey == "") {
 		return Session{}, false
 	}
-	return Session{GitHubID: id, GuestAppID: claims.GuestApp}, true
+	if (id == 0) != guest {
+		return Session{}, false
+	}
+	return Session{GitHubID: id, GuestAppID: claims.GuestApp, GuestDay: claims.GuestDay, GuestKeyID: claims.GuestKey}, true
+}
+
+// GuestKeyID returns what a guest session records of the daily key it used: an
+// HMAC of the app, the day, and the key, so the cookie never carries the key
+// and a guess at the key cannot be checked against it.
+func (s *Signer) GuestKeyID(appID, day, key string) string {
+	mac := hmac.New(sha256.New, s.key)
+	mac.Write([]byte("guest-key|" + appID + "|" + day + "|" + key))
+	return base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
 }
 
 // State returns a state cookie value for one sign-in: the random state and

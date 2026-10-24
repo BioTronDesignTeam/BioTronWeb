@@ -21,7 +21,7 @@ func TestSessionRoundTrip(t *testing.T) {
 	s := newTestSigner(now)
 	for _, session := range []Session{
 		{GitHubID: 42},
-		{GitHubID: 0, GuestAppID: "exo-gui"},
+		{GitHubID: 0, GuestAppID: "exo-gui", GuestDay: "2026-10-23", GuestKeyID: "key-id"},
 	} {
 		value, err := s.Session(session, now.Add(time.Hour))
 		if err != nil {
@@ -76,6 +76,13 @@ func TestSessionRefusals(t *testing.T) {
 	guestWithoutApp.Subject = "0"
 	memberWithApp := valid()
 	memberWithApp.GuestApp = "exo-gui"
+	guestWithoutKey := valid()
+	guestWithoutKey.Subject = "0"
+	guestWithoutKey.GuestApp = "exo-gui"
+	guestWithoutKey.GuestDay = "2026-10-23"
+	memberWithKey := valid()
+	memberWithKey.GuestDay = "2026-10-23"
+	memberWithKey.GuestKey = "key-id"
 	notANumber := valid()
 	notANumber.Subject = "042"
 
@@ -89,6 +96,8 @@ func TestSessionRefusals(t *testing.T) {
 		"issued in the future":      sign(jwt.SigningMethodHS256, testSigningKey, future),
 		"a guest without a tool":    sign(jwt.SigningMethodHS256, testSigningKey, guestWithoutApp),
 		"an operator with a tool":   sign(jwt.SigningMethodHS256, testSigningKey, memberWithApp),
+		"a guest without its key":   sign(jwt.SigningMethodHS256, testSigningKey, guestWithoutKey),
+		"an operator with a key":    sign(jwt.SigningMethodHS256, testSigningKey, memberWithKey),
 		"a subject that is unusual": sign(jwt.SigningMethodHS256, testSigningKey, notANumber),
 		"an old opaque session":     "Zm9vYmFyYmF6cXV4cXV1eGNvcmdlZ3JhdWx0Z2FycGx5",
 		"empty":                     "",

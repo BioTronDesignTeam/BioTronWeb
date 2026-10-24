@@ -51,7 +51,11 @@ func (h *Handler) RequireSession(next http.Handler) http.Handler {
 			httpx.Error(w, r, http.StatusUnauthorized)
 			return
 		}
-		if session.GuestAppID == "" && !h.stillMember(w, r, member.GitHubID, member.Login) {
+		if session.GuestAppID != "" {
+			if !h.guestKeyStands(w, r, session) {
+				return
+			}
+		} else if !h.stillMember(w, r, member.GitHubID, member.Login) {
 			return
 		}
 		op := &store.SessionOperator{

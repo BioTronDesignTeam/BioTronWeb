@@ -7,7 +7,8 @@ queue: an operator asks a manager in person or on Discord, and the manager
 grants the permission in the Org tab.
 
 A tool can opt in to a daily guest key. The key rotates at Eastern midnight.
-Staff read it in the Keys tab. A guest session ends with the key and works in
+Staff read it in the Keys tab, and can rotate it early there. A guest session
+ends with the key, whether at midnight or by an early rotation, and works in
 that tool only. Exo is the only tool with a guest key.
 
 This app was the `OAuthManager` repository. The old name remains where a
@@ -131,6 +132,7 @@ the organization.
 | POST | `/auth/logout` | session | removes the session cookie |
 | GET | `/auth/me` | session | current operator; a guest must pass its `?app=` |
 | GET | `/auth/guest-keys` | staff | today's key for each opted-in tool |
+| POST | `/auth/guest-keys/:app/rotate` | staff | replaces today's key of one tool, which signs out its guests |
 | GET | `/apps`, `/permissions` | session | the catalog |
 | POST | `/apps` | superuser | registers a tool |
 | GET | `/me/grants` | session | my grants; `full_access` is true for staff |
@@ -157,10 +159,12 @@ The cookie is `oauth_session`: a JWT signed with HMAC-SHA256 and
 `SESSION_SIGNING_KEY`, with its own issuer and audience, and it lasts
 `SESSION_TTL_HOURS` (a guest's ends at the next Eastern midnight). There is
 no session table: the signature is the check. The cookie names only the
-operator's GitHub id, and a guest's tool. Roles, bans, and grants are read
+operator's GitHub id, and for a guest its tool, the day, and an HMAC of the
+key it signed in with. Roles, bans, grants, and the daily keys are read
 from Postgres through an in-memory cache of at most 30 seconds, and every
 grant, revoke, ban, and manager change clears that operator from the cache,
-so it applies to the very next request. The sign-in state cookie,
+and every key rotation that tool's keys, so it applies to the very next
+request. The sign-in state cookie,
 `oauth_state`, is signed the same way for another audience and also carries
 the origin to return to.
 
@@ -168,6 +172,10 @@ What that means in practice:
 
 - A ban refuses the operator's next request on every device. An unban lets
   their unexpired cookies in again.
+- A guest session is checked on every request against its tool's current
+  key. Rotating the key in the Keys tab, or turning the tool's daily key off
+  in `apps.daily_key_enabled`, refuses every guest of that tool at their next
+  request (a change by hand in psql within 30 seconds).
 - Sign-out removes the cookie from that browser only. A copy of the cookie
   stays valid until it expires; ban the operator to end it everywhere.
 - Changing `SESSION_SIGNING_KEY` signs everyone out.
@@ -223,10 +231,12 @@ session names its operator as `actor`.
 | `Operator banned`, `Operator unbanned` | info | `target_id`, `target_login` |
 | `Manager flag set`, `Manager flag removed` | info | `target_id`, `target_login` |
 | `Tool registered` | info | `app_id` |
+| `Guest key rotated` | info | `app_id` |
 | `Stale guest keys pruned` | info | `count` |
 | `Guest key prune failed` | error | `error` |
 
-The grant, revoke, ban, unban, manager, and tool rows are the audit trail.
+The grant, revoke, ban, unban, manager, tool, and key rotation rows are the
+audit trail.
 Each also names the actor as `actor_id` and `actor_login`. These events are
 the only record of who changed what. The hourly prune reports only what it
 deleted, so an idle hour sends nothing.
@@ -243,6 +253,8 @@ hides on phones. Each operator sees:
   green chips with a check. A member who is not staff sees only this panel,
   with no tab bar.
 - **Keys** (staff). Each opted-in tool's daily key, hidden until revealed.
+  Rotate opens a confirmation dialog, then replaces today's key and signs out
+  every guest who used the old one.
 - **Org** (staff). Every operator who has signed in. Select one to see and
   change their grants. Ban and the manager flag open a confirmation dialog
   that says what will happen. The manager flag is superuser-only. A staff

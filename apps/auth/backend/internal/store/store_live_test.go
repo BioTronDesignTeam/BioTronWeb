@@ -272,3 +272,41 @@ func TestLiveReconcileSuperusers(t *testing.T) {
 		t.Fatalf("after an empty list: member = %v, manager = %v", member, manager)
 	}
 }
+
+// Rotating replaces today's key, and the key a guest session checks against
+// disappears once its app stops using daily keys.
+func TestLiveRotateAndGetGuestKey(t *testing.T) {
+	st, ctx := liveStore(t)
+	day := time.Now().Format("2006-01-02")
+	t.Cleanup(func() {
+		_, _ = st.pool.Exec(ctx, `UPDATE apps SET daily_key_enabled = true WHERE id = 'exo-gui'`)
+	})
+
+	before, err := st.RotateProductDailyKey(ctx, "exo-gui", day, "LIVEROTATE01")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rotated, err := st.RotateProductDailyKey(ctx, "exo-gui", day, "LIVEROTATE02")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rotated.Key != "LIVEROTATE02" || rotated.Key == before.Key || rotated.Day != day {
+		t.Fatalf("rotated = %+v after %+v", rotated, before)
+	}
+	if key, err := st.GetGuestKey(ctx, "exo-gui", day); err != nil || key != "LIVEROTATE02" {
+		t.Fatalf("GetGuestKey = %q, %v", key, err)
+	}
+	if again, _ := st.EnsureProductDailyKey(ctx, "exo-gui", day, "LIVEROTATE03"); again.Key != "LIVEROTATE02" {
+		t.Fatalf("the rotated key did not stick: %+v", again)
+	}
+	if _, err := st.RotateProductDailyKey(ctx, "logger", day, "LIVEROTATE04"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("rotating an app without daily keys: err = %v, want ErrNotFound", err)
+	}
+
+	if _, err := st.pool.Exec(ctx, `UPDATE apps SET daily_key_enabled = false WHERE id = 'exo-gui'`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.GetGuestKey(ctx, "exo-gui", day); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("GetGuestKey with daily keys off: err = %v, want ErrNotFound", err)
+	}
+}

@@ -198,4 +198,20 @@ func TestLiveGuestSessionIsScopedToItsTool(t *testing.T) {
 			t.Errorf("GET %s = %d, want %d", target, got.Code, want)
 		}
 	}
+
+	// Rotating today's key ends the session at its next request.
+	rotate := httptest.NewRequest(http.MethodPost, "/auth/guest-keys/exo-gui/rotate", nil)
+	rotate.SetPathValue("app", "exo-gui")
+	rotated := httptest.NewRecorder()
+	h.RotateProductDailyKey(rotated, withOperator(rotate, &store.SessionOperator{GitHubID: 7, Login: "manager", IsManager: true}))
+	if rotated.Code != http.StatusOK || strings.Contains(rotated.Body.String(), formatGuestKey(key.Key)) {
+		t.Fatalf("rotate = %d %s", rotated.Code, rotated.Body)
+	}
+	me := httptest.NewRequest(http.MethodGet, "/auth/me?app=exo-gui", nil)
+	me.AddCookie(session)
+	after := httptest.NewRecorder()
+	h.RequireSession(http.HandlerFunc(h.Me)).ServeHTTP(after, me)
+	if after.Code != http.StatusUnauthorized {
+		t.Fatalf("a guest after a rotation = %d, want 401", after.Code)
+	}
 }

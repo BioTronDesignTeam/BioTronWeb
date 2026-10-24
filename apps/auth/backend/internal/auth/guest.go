@@ -146,7 +146,12 @@ func (h *Handler) GuestLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	expiry := guestSessionExpiry(now)
-	token, err := h.Signer.Session(Session{GitHubID: store.GuestGitHubID, GuestAppID: gk.AppID}, expiry)
+	token, err := h.Signer.Session(Session{
+		GitHubID:   store.GuestGitHubID,
+		GuestAppID: gk.AppID,
+		GuestDay:   gk.Day,
+		GuestKeyID: h.Signer.GuestKeyID(gk.AppID, gk.Day, gk.Key),
+	}, expiry)
 	if err != nil {
 		fail(r, err, "auth: sign guest session")
 		httpx.Status(w, http.StatusInternalServerError)
@@ -156,4 +161,56 @@ func (h *Handler) GuestLogin(w http.ResponseWriter, r *http.Request) {
 	setSessionCookie(w, token, h.Cfg.CookieSecure, h.Cfg.CookieSameSite, h.Cfg.CookieDomain, time.Until(expiry))
 	h.Events.LogAsync(logclient.Info, "Guest signed in", map[string]any{"app_id": gk.AppID})
 	httpx.Status(w, http.StatusNoContent)
+}
+
+// RotateProductDailyKey replaces today's key of one product. Every guest
+// session checks its key on each request, so the sessions that used the old
+// key end at their next request; staff hand out the new one.
+func (h *Handler) RotateProductDailyKey(w http.ResponseWriter, r *http.Request) {
+	appID := r.PathValue("app")
+	candidate, err := newGuestKey()
+	if err != nil {
+		fail(r, err, "auth: generate guest key")
+		httpx.Status(w, http.StatusInternalServerError)
+		return
+	}
+	key, err := h.Store.RotateProductDailyKey(r.Context(), appID, easternDay(time.Now()), candidate)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			httpx.JSON(w, http.StatusNotFound, map[string]any{"error": "no daily key for this product"})
+			return
+		}
+		fail(r, err, "auth: rotate product daily key")
+		httpx.Status(w, http.StatusInternalServerError)
+		return
+	}
+	if h.Cache != nil {
+		h.Cache.InvalidateGuestKeys(appID)
+	}
+	h.audit("Guest key rotated", OperatorFrom(r), map[string]any{"app_id": appID})
+	key.Key = formatGuestKey(key.Key)
+	httpx.JSON(w, http.StatusOK, key)
+}
+
+// guestKeyStands reports whether a guest session's key is still the current
+// key of its tool and day, and the tool still uses daily keys. It answers the
+// request and returns false otherwise: 401 for a rotated or withdrawn key,
+// 503 when the store cannot say.
+func (h *Handler) guestKeyStands(w http.ResponseWriter, r *http.Request, session Session) bool {
+	key, err := h.Cache.GuestKey(r.Context(), session.GuestAppID, session.GuestDay)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			httpx.Error(w, r, http.StatusUnauthorized)
+			return false
+		}
+		fail(r, err, "auth: guest key lookup")
+		httpx.Status(w, http.StatusServiceUnavailable)
+		return false
+	}
+	want := h.Signer.GuestKeyID(session.GuestAppID, session.GuestDay, key)
+	if subtle.ConstantTimeCompare([]byte(want), []byte(session.GuestKeyID)) != 1 {
+		httpx.Error(w, r, http.StatusUnauthorized)
+		return false
+	}
+	return true
 }

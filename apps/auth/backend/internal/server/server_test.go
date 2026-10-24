@@ -69,6 +69,7 @@ func TestMutatingRoutesRefuseRequestsWithoutTheXHRHeader(t *testing.T) {
 		target string
 	}{
 		{http.MethodPost, "/auth/logout"},
+		{http.MethodPost, "/auth/guest-keys/exo-gui/rotate"},
 		{http.MethodPost, "/apps"},
 		{http.MethodPost, "/grants"},
 		{http.MethodDelete, "/grants"},

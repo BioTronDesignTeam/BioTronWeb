@@ -4,7 +4,8 @@
 //
 // One process serves Auth, so the cache is a map, not Redis. Every change
 // Auth makes to an operator (a grant, a revoke, a ban, the manager flag)
-// invalidates that operator at once, so the change applies to the very next
+// invalidates that operator at once, and rotating a daily guest key
+// invalidates that app's keys, so the change applies to the very next
 // request. The TTL only bounds how long a change made outside this process,
 // such as by hand in psql, can go unseen.
 package cache
@@ -24,6 +25,9 @@ const TTL = 30 * time.Second
 type Source interface {
 	GetOperator(ctx context.Context, githubID int64) (*store.OrgMember, error)
 	ListGrantsForOperator(ctx context.Context, operatorID int64) ([]store.Grant, error)
+	// GetGuestKey returns the daily key of an app for one Eastern day, or
+	// store.ErrNotFound when there is none or the app no longer has daily keys.
+	GetGuestKey(ctx context.Context, appID, day string) (string, error)
 }
 
 type kept[T any] struct {
@@ -44,16 +48,25 @@ type Cache struct {
 	// raced an invalidation is not kept, so a revoke can never be undone by
 	// a read that started before it.
 	generation map[int64]uint64
+	// guestKeys holds each app's daily key by app and day, so every request
+	// of a guest session can check that its key still stands, and
+	// guestKeyGeneration counts the invalidations of each app's keys.
+	guestKeys          map[guestKeyID]kept[string]
+	guestKeyGeneration map[string]uint64
 }
+
+type guestKeyID struct{ app, day string }
 
 func New(src Source) *Cache {
 	return &Cache{
-		src:        src,
-		ttl:        TTL,
-		now:        time.Now,
-		operators:  map[int64]kept[store.OrgMember]{},
-		grants:     map[int64]kept[[]store.Grant]{},
-		generation: map[int64]uint64{},
+		src:                src,
+		ttl:                TTL,
+		now:                time.Now,
+		operators:          map[int64]kept[store.OrgMember]{},
+		grants:             map[int64]kept[[]store.Grant]{},
+		generation:         map[int64]uint64{},
+		guestKeys:          map[guestKeyID]kept[string]{},
+		guestKeyGeneration: map[string]uint64{},
 	}
 }
 
@@ -102,6 +115,53 @@ func (c *Cache) HasGrant(ctx context.Context, operatorID int64, appID, permissio
 		}
 	}
 	return false, nil
+}
+
+// GuestKey returns an app's daily key for one Eastern day, from the last TTL
+// or from the store. A missing key is store.ErrNotFound, and is not kept.
+func (c *Cache) GuestKey(ctx context.Context, appID, day string) (string, error) {
+	id := guestKeyID{app: appID, day: day}
+	c.mu.Lock()
+	entry, ok := c.guestKeys[id]
+	if ok {
+		if age := c.now().Sub(entry.loadedAt); age >= 0 && age < c.ttl {
+			c.mu.Unlock()
+			return entry.value, nil
+		}
+		delete(c.guestKeys, id)
+	}
+	gen := c.guestKeyGeneration[appID]
+	c.mu.Unlock()
+
+	key, err := c.src.GetGuestKey(ctx, appID, day)
+	if err != nil {
+		return "", err
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.guestKeyGeneration[appID] == gen {
+		now := c.now()
+		for k, entry := range c.guestKeys {
+			if now.Sub(entry.loadedAt) >= c.ttl {
+				delete(c.guestKeys, k)
+			}
+		}
+		c.guestKeys[id] = kept[string]{value: key, loadedAt: now}
+	}
+	return key, nil
+}
+
+// InvalidateGuestKeys forgets every daily key of one app, so the next guest
+// request reads the store. A load that raced it is not kept.
+func (c *Cache) InvalidateGuestKeys(appID string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for id := range c.guestKeys {
+		if id.app == appID {
+			delete(c.guestKeys, id)
+		}
+	}
+	c.guestKeyGeneration[appID]++
 }
 
 // Invalidate forgets one operator, so the next request reads the store.
