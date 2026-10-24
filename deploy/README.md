@@ -78,8 +78,10 @@ git push origin v1.4.0
 
 Production refuses a tag that is not on `main` or whose commit has no
 successful staging deployment, and it reuses that commit's images without
-rebuilding: `biotron-deploy prod <commit>`. While both instances share a host,
-a release also redeploys the shared edge from the same commit, so a change to
+rebuilding: `biotron-deploy prod <commit>`. The host checks again, through the
+GitHub API, that the commit is on `main` and that a `v*` tag names it, so
+`biotron-deploy prod` refuses any other commit, whoever asks. While both
+instances share a host, a release also redeploys the shared edge from the same commit, so a change to
 `infra/nginx` reaches staging's hostnames with the next release, not with the
 merge. Staging deploys one commit at a time, so when several merges land
 together only the newest may deploy; tag that one. A fix must reach
@@ -92,7 +94,8 @@ It redeploys that tag's commit to production, Compose files and images both.
 Database migrations may not be reversible; check what the newer release
 migrated before rolling back across it.
 
-From the host, the same thing is `sudo biotron-deploy prod <older-commit>`.
+From the host, the same thing is `sudo biotron-deploy prod <older-commit>`,
+for the commit of an older release tag.
 Staging rolls back the same way, by redeploying an older `main` commit.
 
 ## Search engines and access
@@ -128,9 +131,22 @@ variable once the host runs from Infisical.
 Add a tag ruleset for `v*` so only release managers can create, move or
 delete release tags. A release tag is the production deploy button.
 
-Configure the Tailscale federated identity with `auth_keys` write permission
-and `tag:biotron-ci`; allow the tag to reach only the deployment hosts on port
-22 and log in as `deploy`. No public SSH port is needed.
+Each Environment has its own Tailscale federated identity, with `auth_keys`
+write permission and its own tag: `tag:biotron-ci-staging` for `staging` and
+`tag:biotron-ci-prod` for `production`. In the tailnet policy, let each tag
+reach only the deployment hosts on port 22 and log in only as its own
+account, so a staging run, or a leak of staging's credentials, cannot reach
+production:
+
+```json
+"ssh": [
+  { "action": "accept", "src": ["tag:biotron-ci-staging"], "dst": ["tag:biotron-host"], "users": ["deploy-staging"] },
+  { "action": "accept", "src": ["tag:biotron-ci-prod"], "dst": ["tag:biotron-host"], "users": ["deploy-prod"] }
+]
+```
+
+`tag:biotron-host` stands for however the policy names the deployment hosts.
+No public SSH port is needed.
 
 ## What Infisical holds
 
@@ -196,18 +212,32 @@ host: without its `ENCRYPTION_KEY` nothing in Infisical can be read again.
    [Infisical CLI](https://infisical.com/docs/cli/overview). Check that the
    filesystem holding `/var/lib/docker` has room for two sets of images, about
    10 GB free; see "Disk space" below.
-2. Create the `deploy` account CI logs in as. It needs no Docker group, only
-   permission to run the deploy script as root:
+2. Create the two accounts CI logs in as, one per Environment. Neither needs
+   the Docker group. Each may run the deploy script as root for its own
+   targets and nothing else: `deploy-staging` for staging, `deploy-prod` for
+   production and the shared edge. Infisical itself (`secrets`) is deployed by
+   an administrator by hand, never by CI. The script refuses anything but
+   exactly a target and a 40-character commit, so the trailing `*` cannot
+   smuggle in a second target.
 
    ```sh
-   sudo useradd --create-home --shell /bin/bash deploy
-   echo 'deploy ALL=(root) NOPASSWD: /usr/local/sbin/biotron-deploy' |
+   sudo useradd --create-home --shell /bin/bash deploy-staging
+   sudo useradd --create-home --shell /bin/bash deploy-prod
+   printf '%s\n' \
+     'deploy-staging ALL=(root) NOPASSWD: /usr/local/sbin/biotron-deploy staging *' \
+     'deploy-prod ALL=(root) NOPASSWD: /usr/local/sbin/biotron-deploy prod *, /usr/local/sbin/biotron-deploy edge *' |
      sudo install -o root -g root -m 0440 /dev/stdin /etc/sudoers.d/biotron-deploy
    sudo visudo -c
    ```
 
-3. Install the deploy script from a `main` commit, root-owned so the `deploy`
-   account cannot change it. Reinstall it the same way whenever
+   A host that serves staging alone, as haimekena will once production moves
+   (see below), also lets `deploy-staging` run `biotron-deploy edge *`.
+   A host set up with the old single `deploy` account: create the two
+   accounts, replace `/etc/sudoers.d/biotron-deploy` as above, move the
+   Tailscale policy to the two tags, then `sudo userdel -r deploy`.
+
+3. Install the deploy script from a `main` commit, root-owned so neither CI
+   account can change it. Reinstall it the same way whenever
    `deploy/biotron-deploy` changes; a deploy prints a warning when the copy on
    the host differs from the commit it deploys.
 
@@ -288,7 +318,7 @@ copied, because two copies must not both take writes.
 2. **Merge to `main`.** Only commits on `main` deploy. The first staging deploy
    job fails because the host is not ready; that changes nothing on the host.
    Rerun it after step 8.
-3. **Install tools and the deploy account:** steps 1–4 of the fresh-host setup.
+3. **Install tools and the deploy accounts:** steps 1–4 of the fresh-host setup.
 4. **Start Infisical** (step 5) and **fill it** (step 6). For production,
    take `LOGGER_INGEST_TOKEN` and the optional Sprinter keys from the current
    `apps/*/.env` files, and create a GitHub App for
@@ -306,6 +336,9 @@ copied, because two copies must not both take writes.
    migrated, and unreachable from outside, because the old edge still serves
    `uwbiotron.dev`.
 7. **Deploy production the same way:** `sudo biotron-deploy prod <commit>`.
+   Production deploys only a commit that a `v*` tag names, so tag `<commit>`
+   as a release first (see "Releasing"); the tag's own workflow run fails
+   until the cutover is done, which changes nothing on the host.
    Then stop its apps, keeping its Postgres and Redis running, and pull the
    edge image so the cutover does not wait for it. Run these from a directory
    with no Compose file, such as `/`, so Compose goes by the project name alone:
@@ -422,7 +455,8 @@ and a switch of hosts:
 3. Move the `uwbiotron.ca` hostnames from haimekena's tunnel to the VM's,
    then stop `biotron-prod` on haimekena.
 4. In GitHub, set `DEPLOY_HOST` in the `production` Environment to the VM and
-   `DEPLOY_EDGE=true` in both Environments. On haimekena, set
+   `DEPLOY_EDGE=true` in both Environments. On haimekena, let
+   `deploy-staging` run `biotron-deploy edge *` too (step 2 of the setup), set
    `EDGE_SITES="staging=uwbiotron.dev:noindex"` and redeploy its edge.
 5. Once production on the VM has run for a while, remove `biotron-prod` and
    its volumes from haimekena.

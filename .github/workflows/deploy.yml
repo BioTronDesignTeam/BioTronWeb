@@ -121,22 +121,28 @@ jobs:
     env:
       DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
       INSTANCE: ${{ startsWith(github.ref, 'refs/tags/') && 'prod' || 'staging' }}
+      # deploy-staging may deploy only staging, deploy-prod only prod and the
+      # edge (deploy/README.md), so a staging run cannot touch production.
+      DEPLOY_USER: deploy-${{ startsWith(github.ref, 'refs/tags/') && 'prod' || 'staging' }}
       REVISION: ${{ needs.candidate.outputs.revision }}
     steps:
       - uses: tailscale/github-action@99a8333667fff04fdd6cffb46dfd409f8329a7bf # v4.3.0
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           audience: ${{ secrets.TS_AUDIENCE }}
-          tags: tag:biotron-ci
+          # Each environment has its own Tailscale identity and tag, which may
+          # log in only as that environment's account on the host.
+          tags: tag:biotron-ci-${{ env.INSTANCE }}
       # The host keeps no checkout and no .env files. biotron-deploy downloads
-      # this commit's Compose files, checks the commit is on main, fetches the
-      # instance's settings from Infisical, and pulls the tested images.
+      # this commit's Compose files, checks the commit is on main (and, for
+      # prod, that a v* tag names it), fetches the instance's settings from
+      # Infisical, and pulls the tested images.
       - name: Deploy the instance
         run: |
           [[ $DEPLOY_HOST =~ ^[a-zA-Z0-9.-]+$ && $REVISION =~ ^[0-9a-f]{40}$ ]] || exit 1
-          tailscale ssh "deploy@$DEPLOY_HOST" sudo /usr/local/sbin/biotron-deploy "$INSTANCE" "$REVISION"
+          tailscale ssh "$DEPLOY_USER@$DEPLOY_HOST" sudo /usr/local/sbin/biotron-deploy "$INSTANCE" "$REVISION"
       # One edge serves every instance on a host, so only one environment per
       # host updates it: production while staging and production share a host.
       - name: Deploy the shared edge
         if: vars.DEPLOY_EDGE == 'true'
-        run: tailscale ssh "deploy@$DEPLOY_HOST" sudo /usr/local/sbin/biotron-deploy edge "$REVISION"
+        run: tailscale ssh "$DEPLOY_USER@$DEPLOY_HOST" sudo /usr/local/sbin/biotron-deploy edge "$REVISION"

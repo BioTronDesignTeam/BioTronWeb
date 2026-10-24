@@ -289,5 +289,45 @@ class RuntimeConfigTests(unittest.TestCase):
         self.run_command('bash', 'deploy/instance-defaults.sh', './launch', 'all',
                          '--instance', 'prod', '--runtime', '--pull', '--dry-run')
 
+class DeployTests(unittest.TestCase):
+    """The deploy script and workflow keep staging and production apart."""
+
+    SHA = '0123456789abcdef0123456789abcdef01234567'
+
+    def test_deploy_workflow_logs_in_per_environment(self):
+        workflow = (ROOT / '.github/workflows/deploy.yml').read_text()
+        self.assertIn("tags: tag:biotron-ci-${{ env.INSTANCE }}", workflow)
+        self.assertIn("DEPLOY_USER: deploy-${{ startsWith(github.ref, 'refs/tags/') && 'prod' || 'staging' }}",
+                      workflow)
+        self.assertEqual(workflow.count('tailscale ssh "$DEPLOY_USER@$DEPLOY_HOST"'), 2)
+        self.assertNotIn('deploy@', workflow)
+        self.assertNotIn('tag:biotron-ci\n', workflow)
+
+    def test_deploy_refuses_malformed_calls_before_anything_else(self):
+        # These checks run before the script asks for root, so they hold for
+        # whatever a sudoers wildcard lets through.
+        for args in [('prod', 'abc'), ('staging', self.SHA, 'prod'), ('Prod', self.SHA),
+                     ('local', self.SHA), ('staging', self.SHA.upper()), ()]:
+            result = subprocess.run(['bash', str(ROOT / 'deploy/biotron-deploy'), *args],
+                                    capture_output=True, text=True)
+            self.assertNotEqual(result.returncode, 0, args)
+            self.assertNotIn('run as root', result.stderr, args)
+
+    @unittest.skipUnless(shutil.which('jq'), 'jq is not installed')
+    def test_prod_needs_a_release_tag_on_the_commit(self):
+        script = (ROOT / 'deploy/biotron-deploy').read_text()
+        self.assertIn('[[ $target != prod ]] || check_release_tag', script)
+        jq_filter = re.search(r"jq -e --arg commit \"\$revision\" \\\n\s*'([^']+)'", script).group(1)
+        tags = [
+            {'name': 'v1.4.0', 'commit': {'sha': self.SHA}},
+            {'name': 'nightly', 'commit': {'sha': 'f' * 40}},
+            {'name': 'v1.5.0; rm', 'commit': {'sha': 'e' * 40}},
+        ]
+        for commit, tagged in [(self.SHA, True), ('f' * 40, False), ('e' * 40, False), ('d' * 40, False)]:
+            result = subprocess.run(['jq', '-e', '--arg', 'commit', commit, jq_filter],
+                                    input=json.dumps(tags), capture_output=True, text=True)
+            self.assertEqual(result.returncode == 0, tagged, commit)
+
+
 if __name__ == '__main__':
     unittest.main()
