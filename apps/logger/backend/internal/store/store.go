@@ -2,15 +2,11 @@ package store
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"net/url"
 	"regexp"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -24,13 +20,12 @@ import (
 var schemaPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 type Store struct {
-	db       *pgxpool.Pool
-	queries  *queries.Queries
-	cache    *redis.Client
-	tailSize int64
+	db      *pgxpool.Pool
+	queries *queries.Queries
+	cache   *redis.Client
 }
 
-func New(ctx context.Context, databaseURL, redisURL string, tailSize int) (*Store, error) {
+func New(ctx context.Context, databaseURL, redisURL string) (*Store, error) {
 	databaseConfig, err := databaseConfig(databaseURL)
 	if err != nil {
 		return nil, err
@@ -56,7 +51,7 @@ func New(ctx context.Context, databaseURL, redisURL string, tailSize int) (*Stor
 		return nil, fmt.Errorf("ping redis: %w", err)
 	}
 
-	return &Store{db: db, queries: queries.New(db), cache: cache, tailSize: int64(tailSize)}, nil
+	return &Store{db: db, queries: queries.New(db), cache: cache}, nil
 }
 
 func (s *Store) Close() {
@@ -75,124 +70,6 @@ func (s *Store) Ping(ctx context.Context) error {
 // the shared database and cache as separate components on the status page.
 func (s *Store) PingPostgres(ctx context.Context) error { return s.db.Ping(ctx) }
 func (s *Store) PingRedis(ctx context.Context) error    { return s.cache.Ping(ctx).Err() }
-
-func (s *Store) InsertLog(ctx context.Context, input model.NewLog) (model.Log, error) {
-	row, err := s.queries.InsertLog(ctx, queries.InsertLogParams{
-		Service: input.Service,
-		Level:   string(input.Level),
-		Message: input.Message,
-		Payload: nullableJSON(input.Payload),
-	})
-	if err != nil {
-		return model.Log{}, fmt.Errorf("insert log: %w", err)
-	}
-	entry := toLog(row.ID, row.Service, row.Level, row.Message, row.Payload, row.CreatedAt)
-
-	if err := s.cacheLog(ctx, entry); err != nil {
-		// Postgres is the warehouse and remains authoritative. A cache failure must
-		// not encourage a client retry that would duplicate the durable row.
-		log.Printf("logger cache write for %s: %v", entry.Service, err)
-	}
-	return entry, nil
-}
-
-func (s *Store) RecentLogs(ctx context.Context, services []string, levels []model.LogLevel, search string, limit int) ([]model.Log, error) {
-	entries := make([]model.Log, 0, limit)
-	cacheComplete := true
-	for _, service := range services {
-		rows, err := s.cache.LRange(ctx, logKey(service), 0, s.tailSize-1).Result()
-		if err != nil {
-			cacheComplete = false
-			break
-		}
-		for _, raw := range rows {
-			var entry model.Log
-			if err := json.Unmarshal([]byte(raw), &entry); err != nil {
-				cacheComplete = false
-				break
-			}
-			if matches(entry, levels, search) {
-				entries = append(entries, entry)
-			}
-		}
-		if !cacheComplete {
-			break
-		}
-	}
-
-	if !cacheComplete || len(entries) == 0 {
-		page, err := s.QueryLogs(ctx, model.HistoryQuery{
-			Services: services,
-			Levels:   levels,
-			Search:   search,
-			Limit:    limit,
-		})
-		if err != nil {
-			return nil, err
-		}
-		return page.Logs, nil
-	}
-
-	sortLogs(entries)
-	if len(entries) > limit {
-		entries = entries[:limit]
-	}
-	return entries, nil
-}
-
-func (s *Store) QueryLogs(ctx context.Context, query model.HistoryQuery) (model.LogPage, error) {
-	// The API asks for at most 200 rows. The cap keeps any other caller's
-	// limit, with the row that tells whether a next page exists, in an int32.
-	limit := query.Limit
-	if limit <= 0 {
-		limit = 100
-	}
-	limit = min(limit, 1000)
-
-	// Each filter left out travels as NULL, which switches its clause off.
-	params := queries.QueryLogsParams{
-		Services:    query.Services,
-		CreatedFrom: query.From,
-		CreatedTo:   query.To,
-		RowLimit:    int32(limit + 1),
-	}
-	for _, level := range query.Levels {
-		params.Levels = append(params.Levels, string(level))
-	}
-	if query.Search != "" {
-		pattern := "%" + query.Search + "%"
-		params.Pattern = &pattern
-	}
-	if query.Cursor != "" {
-		cursor, err := decodeCursor(query.Cursor)
-		if err != nil {
-			return model.LogPage{}, err
-		}
-		params.CursorCreatedAt = &cursor.CreatedAt
-		params.CursorID = &cursor.ID
-	}
-
-	rows, err := s.queries.QueryLogs(ctx, params)
-	if err != nil {
-		return model.LogPage{}, fmt.Errorf("query logs: %w", err)
-	}
-	entries := make([]model.Log, 0, len(rows))
-	for _, row := range rows {
-		entries = append(entries, toLog(row.ID, row.Service, row.Level, row.Message, row.Payload, row.CreatedAt))
-	}
-
-	page := model.LogPage{Logs: entries}
-	if len(entries) > limit {
-		last := entries[limit-1]
-		next, err := encodeCursor(logCursor{CreatedAt: last.CreatedAt, ID: rows[limit-1].ID})
-		if err != nil {
-			return model.LogPage{}, err
-		}
-		page.NextCursor = next
-		page.Logs = entries[:limit]
-	}
-	return page, nil
-}
 
 func (s *Store) SetLatestHealth(ctx context.Context, health model.Health) error {
 	raw, err := json.Marshal(health)
@@ -313,19 +190,6 @@ func (s *Store) HealthHistory(ctx context.Context, services []string, from, to t
 	return history, nil
 }
 
-func (s *Store) cacheLog(ctx context.Context, entry model.Log) error {
-	raw, err := json.Marshal(entry)
-	if err != nil {
-		return err
-	}
-	_, err = s.cache.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
-		pipe.LPush(ctx, logKey(entry.Service), raw)
-		pipe.LTrim(ctx, logKey(entry.Service), 0, s.tailSize-1)
-		return nil
-	})
-	return err
-}
-
 func databaseConfig(raw string) (*pgxpool.Config, error) {
 	u, err := url.Parse(raw)
 	if err != nil {
@@ -351,77 +215,6 @@ func databaseConfig(raw string) (*pgxpool.Config, error) {
 	return config, nil
 }
 
-type logCursor struct {
-	CreatedAt time.Time `json:"created_at"`
-	ID        int64     `json:"id"`
-}
-
-func encodeCursor(cursor logCursor) (string, error) {
-	raw, err := json.Marshal(cursor)
-	if err != nil {
-		return "", fmt.Errorf("encode cursor: %w", err)
-	}
-	return base64.RawURLEncoding.EncodeToString(raw), nil
-}
-
-func decodeCursor(encoded string) (logCursor, error) {
-	raw, err := base64.RawURLEncoding.DecodeString(encoded)
-	if err != nil {
-		return logCursor{}, errors.New("invalid cursor")
-	}
-	var cursor logCursor
-	if err := json.Unmarshal(raw, &cursor); err != nil || cursor.ID < 1 || cursor.CreatedAt.IsZero() {
-		return logCursor{}, errors.New("invalid cursor")
-	}
-	return cursor, nil
-}
-
-func matches(entry model.Log, levels []model.LogLevel, search string) bool {
-	if len(levels) > 0 {
-		matched := false
-		for _, level := range levels {
-			if entry.Level == level {
-				matched = true
-				break
-			}
-		}
-		if !matched {
-			return false
-		}
-	}
-	if search == "" {
-		return true
-	}
-	needle := strings.ToLower(search)
-	return strings.Contains(strings.ToLower(entry.Message), needle) || strings.Contains(strings.ToLower(string(entry.Payload)), needle)
-}
-
-func sortLogs(entries []model.Log) {
-	for i := 1; i < len(entries); i++ {
-		for j := i; j > 0 && entries[j].CreatedAt.After(entries[j-1].CreatedAt); j-- {
-			entries[j], entries[j-1] = entries[j-1], entries[j]
-		}
-	}
-}
-
-func toLog(id int64, service, level, message string, payload []byte, createdAt time.Time) model.Log {
-	return model.Log{
-		ID:        strconv.FormatInt(id, 10),
-		Service:   service,
-		Level:     model.LogLevel(level),
-		Message:   message,
-		Payload:   payload,
-		CreatedAt: createdAt,
-	}
-}
-
-func nullableJSON(value json.RawMessage) []byte {
-	if len(value) == 0 || string(value) == "null" {
-		return nil
-	}
-	return value
-}
-
 func nullableString(value string) *string {
 	if value == "" {
 		return nil
@@ -436,5 +229,4 @@ func interval(duration time.Duration) pgtype.Interval {
 	return pgtype.Interval{Microseconds: duration.Microseconds(), Valid: true}
 }
 
-func logKey(service string) string    { return "logger:logs:" + service }
 func healthKey(service string) string { return "logger:health:" + service }

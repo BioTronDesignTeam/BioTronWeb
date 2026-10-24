@@ -1,7 +1,6 @@
 package api
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -9,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/BioTronDesignTeam/Logger/backend/internal/auth"
 	"github.com/BioTronDesignTeam/Logger/backend/internal/catalog"
 	"github.com/BioTronDesignTeam/Logger/backend/internal/model"
 )
@@ -28,21 +26,13 @@ const statusCatalog = `[
 
 var statusNow = time.Date(2026, 9, 3, 21, 40, 0, 0, time.UTC)
 
-// deniedAuthorizer stands in for a signed-in user without logger/view.
-type deniedAuthorizer struct{ decision auth.Decision }
-
-func (a deniedAuthorizer) Authorize(context.Context, string) (auth.Decision, error) {
-	return a.decision, nil
-}
-
-func statusApp(t *testing.T, store *fakeStore, authorizer auth.Authorizer) http.Handler {
+func statusApp(t *testing.T, store *fakeStore) http.Handler {
 	t.Helper()
 	serviceCatalog, err := catalog.Load(statusCatalog)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return New(store, serviceCatalog, authorizer, Options{
-		IngestToken:           "secret",
+	return New(store, serviceCatalog, Options{
 		HealthInterval:        15 * time.Second,
 		HealthHistoryInterval: 5 * time.Minute,
 		Now:                   func() time.Time { return statusNow },
@@ -82,7 +72,7 @@ func TestStatusIsPublicAndHidesOperationalDetail(t *testing.T) {
 		},
 	}
 	// An authorizer that would refuse everything proves the route needs nobody.
-	app := statusApp(t, store, deniedAuthorizer{})
+	app := statusApp(t, store)
 
 	var payload statusResponse
 	response := getJSON(t, app, "/v1/status", &payload)
@@ -125,7 +115,7 @@ func TestStatusReportsTimeWeightedUptimeAndNullWithoutData(t *testing.T) {
 		},
 		history: map[string][]model.HealthPoint{"calendar-api": history},
 	}
-	app := statusApp(t, store, auth.AllowAll{})
+	app := statusApp(t, store)
 
 	var payload statusResponse
 	getJSON(t, app, "/v1/status", &payload)
@@ -163,7 +153,7 @@ func TestStatusRollsComponentUptimeUpToTheApplication(t *testing.T) {
 		"calendar-api": heartbeats(dayAgo, statusNow, true),
 		"calendar-web": append(heartbeats(dayAgo, sixHoursAgo, true), heartbeats(sixHoursAgo, statusNow, false)...),
 	}}
-	app := statusApp(t, store, deniedAuthorizer{})
+	app := statusApp(t, store)
 
 	var payload statusResponse
 	getJSON(t, app, "/v1/status", &payload)
@@ -186,7 +176,7 @@ func TestStatusRollsComponentUptimeUpToTheApplication(t *testing.T) {
 // An application with no observed component in a window reports null, exactly
 // as a component does. Unknown time never becomes a reassuring number.
 func TestStatusApplicationWithoutHistoryIsNull(t *testing.T) {
-	app := statusApp(t, &fakeStore{}, deniedAuthorizer{})
+	app := statusApp(t, &fakeStore{})
 
 	var payload statusResponse
 	getJSON(t, app, "/v1/status", &payload)
@@ -200,7 +190,7 @@ func TestStatusMarksStaleHealthUnknown(t *testing.T) {
 	store := &fakeStore{health: map[string]model.Health{
 		"calendar-api": {Service: "calendar-api", OK: true, CheckedAt: statusNow.Add(-time.Hour)},
 	}}
-	app := statusApp(t, store, auth.AllowAll{})
+	app := statusApp(t, store)
 
 	var payload statusResponse
 	getJSON(t, app, "/v1/status", &payload)
@@ -216,7 +206,7 @@ func TestHistoryReturnsFixedWidthDailyBuckets(t *testing.T) {
 	store := &fakeStore{history: map[string][]model.HealthPoint{
 		"calendar-api": heartbeats(statusNow.Add(-48*time.Hour), statusNow, true),
 	}}
-	app := statusApp(t, store, deniedAuthorizer{})
+	app := statusApp(t, store)
 
 	var payload historyResponse
 	response := getJSON(t, app, "/v1/status/history?days=90", &payload)
@@ -261,7 +251,7 @@ func TestHistoryRollsComponentDaysUpToTheApplication(t *testing.T) {
 		"calendar-api": heartbeats(twoDaysAgo, statusNow, true),
 		"calendar-web": heartbeats(twoDaysAgo, statusNow, false),
 	}}
-	app := statusApp(t, store, deniedAuthorizer{})
+	app := statusApp(t, store)
 
 	var payload historyResponse
 	getJSON(t, app, "/v1/status/history?days=90", &payload)
@@ -288,7 +278,7 @@ func TestHistoryRollsComponentDaysUpToTheApplication(t *testing.T) {
 }
 
 func TestHistoryClampsDaysAndNeverEchoesIt(t *testing.T) {
-	app := statusApp(t, &fakeStore{}, auth.AllowAll{})
+	app := statusApp(t, &fakeStore{})
 	cases := []struct {
 		query string
 		want  int
@@ -316,7 +306,7 @@ func TestStatusRoutesShareOneCachedHistoryFetch(t *testing.T) {
 	store := &fakeStore{history: map[string][]model.HealthPoint{
 		"calendar-api": heartbeats(statusNow.Add(-24*time.Hour), statusNow, true),
 	}}
-	app := statusApp(t, store, auth.AllowAll{})
+	app := statusApp(t, store)
 
 	getJSON(t, app, "/v1/status", nil)
 	getJSON(t, app, "/v1/status", nil)
@@ -334,50 +324,12 @@ func TestStatusRoutesShareOneCachedHistoryFetch(t *testing.T) {
 	}
 }
 
-func TestSessionIsPublicAndSeparatesSignedOutFromUnpermitted(t *testing.T) {
-	cases := []struct {
-		name     string
-		decision auth.Decision
-	}{
-		{name: "signed out", decision: auth.Decision{}},
-		{name: "signed in without logger view", decision: auth.Decision{Authenticated: true}},
-		{name: "signed in with logger view", decision: auth.Decision{Authenticated: true, Allowed: true}},
-	}
-
-	for _, testCase := range cases {
-		t.Run(testCase.name, func(t *testing.T) {
-			app := statusApp(t, &fakeStore{}, deniedAuthorizer{decision: testCase.decision})
-			var payload struct {
-				Authenticated bool `json:"authenticated"`
-				Allowed       bool `json:"allowed"`
-			}
-			// Always 200: a 401 or 403 here cannot distinguish the first two
-			// cases, and that is exactly what caused the sign-in loop.
-			getJSON(t, app, "/v1/session", &payload)
-			if payload.Authenticated != testCase.decision.Authenticated || payload.Allowed != testCase.decision.Allowed {
-				t.Fatalf("session = %#v, want %#v", payload, testCase.decision)
-			}
-		})
-	}
-}
-
-func TestLogRoutesStayBehindLoggerView(t *testing.T) {
-	app := statusApp(t, &fakeStore{}, deniedAuthorizer{decision: auth.Decision{Authenticated: true}})
-	for _, path := range []string{"/v1/apps", "/v1/apps/calendar/logs/recent", "/v1/apps/calendar/logs/history"} {
-		response := serve(app, httptest.NewRequest(http.MethodGet, path, nil))
-		if response.Code != http.StatusForbidden {
-			t.Fatalf("GET %s status = %d, want 403 without logger/view", path, response.Code)
-		}
-	}
-}
-
 func TestPublicStatusIsRateLimited(t *testing.T) {
 	serviceCatalog, err := catalog.Load(statusCatalog)
 	if err != nil {
 		t.Fatal(err)
 	}
-	app := New(&fakeStore{}, serviceCatalog, auth.AllowAll{}, Options{
-		IngestToken:     "secret",
+	app := New(&fakeStore{}, serviceCatalog, Options{
 		StatusRateLimit: 3,
 		Now:             func() time.Time { return statusNow },
 	})
@@ -401,8 +353,7 @@ func TestPublicStatusLimitIsPerClientBehindTheEdge(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	app := New(&fakeStore{}, serviceCatalog, auth.AllowAll{}, Options{
-		IngestToken:     "secret",
+	app := New(&fakeStore{}, serviceCatalog, Options{
 		StatusRateLimit: 1,
 		// httptest requests come from 192.0.2.1, standing in for the edge proxy.
 		TrustedProxies: []string{"192.0.2.1"},

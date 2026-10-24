@@ -111,49 +111,6 @@ func (q *Queries) InsertHealth(ctx context.Context, arg InsertHealthParams) erro
 	return err
 }
 
-const insertLog = `-- name: InsertLog :one
-INSERT INTO logs (service, level, message, payload)
-VALUES ($1, $2::text::log_level, $3, $4::jsonb)
-RETURNING id, service, level::text AS level, message, payload, created_at
-`
-
-type InsertLogParams struct {
-	Service string
-	Level   string
-	Message string
-	Payload []byte
-}
-
-type InsertLogRow struct {
-	ID        int64
-	Service   string
-	Level     string
-	Message   string
-	Payload   []byte
-	CreatedAt time.Time
-}
-
-// Stores one event. The level travels as text and is cast here, so the Go
-// side never needs the enum's type.
-func (q *Queries) InsertLog(ctx context.Context, arg InsertLogParams) (InsertLogRow, error) {
-	row := q.db.QueryRow(ctx, insertLog,
-		arg.Service,
-		arg.Level,
-		arg.Message,
-		arg.Payload,
-	)
-	var i InsertLogRow
-	err := row.Scan(
-		&i.ID,
-		&i.Service,
-		&i.Level,
-		&i.Message,
-		&i.Payload,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
 const latestHealth = `-- name: LatestHealth :many
 SELECT DISTINCT ON (service) service, ok, COALESCE(detail, '')::text AS detail, checked_at
 FROM health_checks
@@ -183,81 +140,6 @@ func (q *Queries) LatestHealth(ctx context.Context, services []string) ([]Latest
 			&i.Ok,
 			&i.Detail,
 			&i.CheckedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const queryLogs = `-- name: QueryLogs :many
-SELECT id, service, level::text AS level, message, payload, created_at
-FROM logs
-WHERE service = ANY($1::text[])
-	AND ($2::text[] IS NULL OR level::text = ANY($2::text[]))
-	AND ($3::timestamptz IS NULL OR created_at >= $3)
-	AND ($4::timestamptz IS NULL OR created_at <= $4)
-	AND ($5::text IS NULL
-		OR message ILIKE $5 OR COALESCE(payload::text, '') ILIKE $5)
-	AND ($6::timestamptz IS NULL
-		OR (created_at, id) < ($6, $7::bigint))
-ORDER BY created_at DESC, id DESC
-LIMIT $8
-`
-
-type QueryLogsParams struct {
-	Services        []string
-	Levels          []string
-	CreatedFrom     *time.Time
-	CreatedTo       *time.Time
-	Pattern         *string
-	CursorCreatedAt *time.Time
-	CursorID        *int64
-	RowLimit        int32
-}
-
-type QueryLogsRow struct {
-	ID        int64
-	Service   string
-	Level     string
-	Message   string
-	Payload   []byte
-	CreatedAt time.Time
-}
-
-// One page of the log explorer, newest first. Every filter but the services
-// is optional: a NULL argument switches its clause off. The cursor is the
-// (created_at, id) of the last row of the previous page, both or neither.
-// Ask for one row more than a page to learn whether another page follows.
-func (q *Queries) QueryLogs(ctx context.Context, arg QueryLogsParams) ([]QueryLogsRow, error) {
-	rows, err := q.db.Query(ctx, queryLogs,
-		arg.Services,
-		arg.Levels,
-		arg.CreatedFrom,
-		arg.CreatedTo,
-		arg.Pattern,
-		arg.CursorCreatedAt,
-		arg.CursorID,
-		arg.RowLimit,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []QueryLogsRow
-	for rows.Next() {
-		var i QueryLogsRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.Service,
-			&i.Level,
-			&i.Message,
-			&i.Payload,
-			&i.CreatedAt,
 		); err != nil {
 			return nil, err
 		}

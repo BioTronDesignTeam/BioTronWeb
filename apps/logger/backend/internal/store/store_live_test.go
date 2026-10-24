@@ -2,7 +2,6 @@ package store
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"testing"
@@ -35,7 +34,7 @@ func liveStore(t *testing.T) (*Store, context.Context, string) {
 		t.Skip("LOGGER_TEST_DATABASE_URL or LOGGER_TEST_REDIS_URL is not set")
 	}
 	ctx := context.Background()
-	store, err := New(ctx, databaseURL, redisURL, 500)
+	store, err := New(ctx, databaseURL, redisURL)
 	if err != nil {
 		t.Fatalf("connect: %v", err)
 	}
@@ -45,145 +44,15 @@ func liveStore(t *testing.T) (*Store, context.Context, string) {
 	// with other work and the tests never see each other's rows.
 	service := fmt.Sprintf("live-test-%d", time.Now().UnixNano())
 	clean := func() {
-		if _, err := store.db.Exec(ctx, `DELETE FROM logs WHERE service = $1`, service); err != nil {
-			t.Errorf("clean logs: %v", err)
-		}
 		if _, err := store.db.Exec(ctx, `DELETE FROM health_checks WHERE service = $1`, service); err != nil {
 			t.Errorf("clean health checks: %v", err)
 		}
-		if err := store.cache.Del(ctx, logKey(service), healthKey(service)).Err(); err != nil {
+		if err := store.cache.Del(ctx, healthKey(service)).Err(); err != nil {
 			t.Errorf("clean cache: %v", err)
 		}
 	}
 	t.Cleanup(clean)
 	return store, ctx, service
-}
-
-func TestLiveInsertLogRoundTrip(t *testing.T) {
-	store, ctx, service := liveStore(t)
-
-	entry, err := store.InsertLog(ctx, model.NewLog{
-		Service: service, Level: model.LevelWarning, Message: "disk filling",
-		Payload: json.RawMessage(`{"used": 91}`),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if entry.ID == "" || entry.Service != service || entry.Level != model.LevelWarning || entry.Message != "disk filling" {
-		t.Fatalf("entry = %#v", entry)
-	}
-	if string(entry.Payload) != `{"used": 91}` || entry.CreatedAt.IsZero() {
-		t.Fatalf("payload %s, created_at %v", entry.Payload, entry.CreatedAt)
-	}
-
-	// A JSON null payload is stored as SQL NULL, so the row carries none.
-	bare, err := store.InsertLog(ctx, model.NewLog{Service: service, Level: model.LevelInfo, Message: "bare", Payload: json.RawMessage(`null`)})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if bare.Payload != nil {
-		t.Fatalf("null payload came back as %q", bare.Payload)
-	}
-
-	// The insert also lands on the Redis tail, newest first.
-	recent, err := store.RecentLogs(ctx, []string{service}, nil, "", 10)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(recent) != 2 || recent[0].ID != bare.ID || recent[1].ID != entry.ID {
-		t.Fatalf("recent = %#v", recent)
-	}
-}
-
-func TestLiveQueryLogsFiltersAndPages(t *testing.T) {
-	store, ctx, service := liveStore(t)
-	base := time.Date(2026, time.September, 1, 12, 0, 0, 0, time.UTC)
-	rows := []struct {
-		level   string
-		message string
-		payload string
-		at      time.Time
-	}{
-		{"info", "boot", "", base},
-		{"warning", "slow probe", `{"component": "exo-api"}`, base.Add(time.Minute)},
-		{"error", "probe failed", `{"component": "calendar-api"}`, base.Add(2 * time.Minute)},
-		{"debug", "tick", "", base.Add(3 * time.Minute)},
-		{"info", "recovered", `{"component": "Calendar-API"}`, base.Add(4 * time.Minute)},
-	}
-	ids := make([]string, len(rows))
-	for i, row := range rows {
-		var payload any
-		if row.payload != "" {
-			payload = row.payload
-		}
-		var id int64
-		if err := store.db.QueryRow(ctx, `
-			INSERT INTO logs (service, level, message, payload, created_at)
-			VALUES ($1, $2::log_level, $3, $4::jsonb, $5) RETURNING id
-		`, service, row.level, row.message, payload, row.at).Scan(&id); err != nil {
-			t.Fatal(err)
-		}
-		ids[i] = fmt.Sprint(id)
-	}
-
-	query := func(q model.HistoryQuery) []string {
-		t.Helper()
-		q.Services = []string{service}
-		page, err := store.QueryLogs(ctx, q)
-		if err != nil {
-			t.Fatal(err)
-		}
-		got := make([]string, 0, len(page.Logs))
-		for _, entry := range page.Logs {
-			got = append(got, entry.ID)
-		}
-		return got
-	}
-	expect := func(name string, got []string, want ...string) {
-		t.Helper()
-		if fmt.Sprint(got) != fmt.Sprint(want) {
-			t.Errorf("%s = %v, want %v", name, got, want)
-		}
-	}
-
-	expect("all", query(model.HistoryQuery{}), ids[4], ids[3], ids[2], ids[1], ids[0])
-	expect("levels", query(model.HistoryQuery{Levels: []model.LogLevel{model.LevelWarning, model.LevelError}}), ids[2], ids[1])
-	from, to := base.Add(time.Minute), base.Add(3*time.Minute)
-	expect("from", query(model.HistoryQuery{From: &from}), ids[4], ids[3], ids[2], ids[1])
-	expect("to", query(model.HistoryQuery{To: &to}), ids[3], ids[2], ids[1], ids[0])
-	expect("from and to", query(model.HistoryQuery{From: &from, To: &to}), ids[3], ids[2], ids[1])
-	// The search is case-insensitive and reaches into the payload.
-	expect("search", query(model.HistoryQuery{Search: "calendar-api"}), ids[4], ids[2])
-	expect("search message", query(model.HistoryQuery{Search: "PROBE"}), ids[2], ids[1])
-	expect("other service", func() []string {
-		page, err := store.QueryLogs(ctx, model.HistoryQuery{Services: []string{service + "-none"}})
-		if err != nil {
-			t.Fatal(err)
-		}
-		return make([]string, len(page.Logs))
-	}())
-
-	// Two rows a page: the cursor walks the rest without repeating a row.
-	var walked []string
-	cursor := ""
-	for range 5 {
-		page, err := store.QueryLogs(ctx, model.HistoryQuery{Services: []string{service}, Limit: 2, Cursor: cursor})
-		if err != nil {
-			t.Fatal(err)
-		}
-		for _, entry := range page.Logs {
-			walked = append(walked, entry.ID)
-		}
-		if page.NextCursor == "" {
-			break
-		}
-		cursor = page.NextCursor
-	}
-	expect("paged", walked, ids[4], ids[3], ids[2], ids[1], ids[0])
-
-	if _, err := store.QueryLogs(ctx, model.HistoryQuery{Services: []string{service}, Cursor: "not-a-cursor"}); err == nil || err.Error() != "invalid cursor" {
-		t.Fatalf("bad cursor error = %v", err)
-	}
 }
 
 func TestLiveLatestHealthFallsBackToPostgres(t *testing.T) {

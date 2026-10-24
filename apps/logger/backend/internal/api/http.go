@@ -19,7 +19,7 @@ import (
 // The plumbing net/http leaves to the app: handlers that return an error, one
 // JSON error shape, the client address behind the edge, and a per-address
 // limiter. Each piece answers exactly as the Fiber app it replaced did, so the
-// status page, the log explorer, and every logclient sender see no change.
+// status page sees no change.
 
 // httpError is an error with the status and message the client receives.
 // Anything else a handler returns is a 500 whose cause stays in the log.
@@ -38,11 +38,7 @@ func newError(code int, message ...string) *httpError {
 	return err
 }
 
-var (
-	errUnauthorized = newError(http.StatusUnauthorized)
-	errForbidden    = newError(http.StatusForbidden)
-	errNotFound     = newError(http.StatusNotFound)
-)
+var errNotFound = newError(http.StatusNotFound)
 
 // handlerFunc is a handler that may fail. The adapter turns the failure into
 // the JSON error and hands its cause to the request log.

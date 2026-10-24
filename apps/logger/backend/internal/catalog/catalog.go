@@ -41,8 +41,6 @@ type Application struct {
 
 type Catalog struct {
 	applications []Application
-	byID         map[string]Application
-	services     map[string]struct{}
 }
 
 func Load(override string) (*Catalog, error) {
@@ -59,16 +57,13 @@ func Load(override string) (*Catalog, error) {
 		return nil, errors.New("service catalog must contain at least one application")
 	}
 
-	c := &Catalog{
-		applications: applications,
-		byID:         make(map[string]Application, len(applications)),
-		services:     make(map[string]struct{}),
-	}
+	appIDs := make(map[string]struct{}, len(applications))
+	services := make(map[string]struct{})
 	for _, app := range applications {
 		if app.ID == "" || app.Name == "" || len(app.Components) == 0 {
 			return nil, errors.New("every application needs an id, name, and component")
 		}
-		if _, exists := c.byID[app.ID]; exists {
+		if _, exists := appIDs[app.ID]; exists {
 			return nil, fmt.Errorf("duplicate application id %q", app.ID)
 		}
 		for i := range app.Components {
@@ -79,14 +74,14 @@ func Load(override string) (*Catalog, error) {
 			if err := normaliseCheck(component); err != nil {
 				return nil, fmt.Errorf("application %q: %w", app.ID, err)
 			}
-			if _, exists := c.services[component.ID]; exists {
+			if _, exists := services[component.ID]; exists {
 				return nil, fmt.Errorf("duplicate component id %q", component.ID)
 			}
-			c.services[component.ID] = struct{}{}
+			services[component.ID] = struct{}{}
 		}
-		c.byID[app.ID] = app
+		appIDs[app.ID] = struct{}{}
 	}
-	return c, nil
+	return &Catalog{applications: applications}, nil
 }
 
 // normaliseCheck fills in the default check and refuses the combinations that
@@ -111,16 +106,6 @@ func normaliseCheck(component *Component) error {
 
 func (c *Catalog) Applications() []Application {
 	return append([]Application(nil), c.applications...)
-}
-
-func (c *Catalog) Application(id string) (Application, bool) {
-	app, ok := c.byID[id]
-	return app, ok
-}
-
-func (c *Catalog) HasService(id string) bool {
-	_, ok := c.services[id]
-	return ok
 }
 
 func ServiceIDs(app Application) []string {

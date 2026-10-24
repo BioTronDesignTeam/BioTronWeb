@@ -37,7 +37,7 @@
   {
     "id": "logger",
     "name": "Logger",
-    "description": "Platform health and structured logs",
+    "description": "Platform status and uptime",
     "components": [
       { "id": "logger-web", "name": "Web", "health_url": "http://logger-web/" },
       { "id": "logger-api", "name": "API", "health_url": "http://127.0.0.1:8080/health" }

@@ -10,11 +10,17 @@ func TestDefaultCatalogHasUniqueServices(t *testing.T) {
 	if len(catalog.Applications()) != 7 {
 		t.Fatalf("applications = %d", len(catalog.Applications()))
 	}
-	if !catalog.HasService("logger-api") {
+	services := make(map[string]bool)
+	for _, app := range catalog.Applications() {
+		for _, id := range ServiceIDs(app) {
+			services[id] = true
+		}
+	}
+	if !services["logger-api"] {
 		t.Fatal("default catalog is missing logger-api")
 	}
 	for _, shared := range []string{"postgres", "redis", "edge-proxy"} {
-		if !catalog.HasService(shared) {
+		if !services[shared] {
 			t.Fatalf("default catalog is missing the shared %s", shared)
 		}
 	}
@@ -41,9 +47,6 @@ func TestCatalogChecksDefaultToHTTPAndValidateTheirShape(t *testing.T) {
 	}
 	if components[2].Check != CheckHTTP {
 		t.Fatalf("an unspecified check should default to http, got %q", components[2].Check)
-	}
-	if app, _ := catalog.Application("infra"); app.Components[2].Check != CheckHTTP {
-		t.Fatal("the normalised check must be visible through Application() too")
 	}
 
 	rejected := map[string]string{

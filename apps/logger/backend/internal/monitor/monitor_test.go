@@ -13,7 +13,6 @@ import (
 
 	"github.com/BioTronDesignTeam/Logger/backend/internal/catalog"
 	"github.com/BioTronDesignTeam/Logger/backend/internal/model"
-	"github.com/BioTronDesignTeam/Logger/backend/internal/selflog"
 )
 
 type recordedEvent struct {
@@ -66,7 +65,7 @@ func TestPollCachesAndPersistsHealth(t *testing.T) {
 		t.Fatal(err)
 	}
 	dataStore := &memoryStore{}
-	monitor := New(dataStore, serviceCatalog, selflog.Discard{}, time.Second, time.Hour, time.Second)
+	monitor := New(dataStore, serviceCatalog, nil, time.Second, time.Hour, time.Second)
 	monitor.poll(context.Background())
 
 	if len(dataStore.latest) != 1 || !dataStore.latest[0].OK {
@@ -91,7 +90,7 @@ func TestPollPingsSharedInfrastructureThroughTheStore(t *testing.T) {
 		t.Fatal(err)
 	}
 	dataStore := &memoryStore{redisErr: errors.New("dial tcp redis:6379: connection refused")}
-	monitor := New(dataStore, serviceCatalog, selflog.Discard{}, time.Second, time.Hour, time.Second)
+	monitor := New(dataStore, serviceCatalog, nil, time.Second, time.Hour, time.Second)
 	monitor.poll(context.Background())
 
 	byService := make(map[string]model.Health)

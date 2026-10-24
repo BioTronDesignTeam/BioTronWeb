@@ -13,10 +13,9 @@ import (
 
 	"github.com/BioTronDesignTeam/Logger/backend/internal/catalog"
 	"github.com/BioTronDesignTeam/Logger/backend/internal/model"
-	"github.com/BioTronDesignTeam/Logger/backend/internal/selflog"
 )
 
-// Recorder receives the events the monitor raises. *selflog.Recorder satisfies
+// Recorder receives the events the monitor raises. *logclient.Client satisfies
 // it; the tests pass a collector that keeps them in memory.
 type Recorder interface {
 	LogAsync(level logclient.Level, message string, payload any)
@@ -62,7 +61,8 @@ type observation struct {
 
 func New(store Store, serviceCatalog *catalog.Catalog, events Recorder, interval, historyInterval, timeout time.Duration) *Monitor {
 	if events == nil {
-		events = selflog.Discard{}
+		// A nil client drops every event.
+		events = (*logclient.Client)(nil)
 	}
 	return &Monitor{
 		store:           store,
@@ -135,10 +135,6 @@ func (m *Monitor) poll(ctx context.Context) {
 // already down when Logger starts is reported once; one already up says
 // nothing, because a fleet of "everything is fine" rows at boot buries the one
 // line that matters.
-//
-// An event about the database or the cache is written to that same database,
-// so the two components that can least afford to go unreported are the two
-// whose event may not land. Stdout still carries the store failure.
 func (m *Monitor) note(health model.Health) {
 	previous, seen := m.observed[health.Service]
 	switch {
@@ -173,7 +169,7 @@ func (m *Monitor) probe(ctx context.Context, component catalog.Component) model.
 
 // probeDependency judges a shared dependency by whether Logger's own connection
 // to it answers a ping inside the health timeout. The detail keeps the same
-// "in Nms" shape as an HTTP probe so the explorer reads the same either way.
+// "in Nms" shape as an HTTP probe so the Component down event reads the same either way.
 func (m *Monitor) probeDependency(ctx context.Context, component catalog.Component, ping func(context.Context) error) model.Health {
 	started := time.Now()
 	health := model.Health{Service: component.ID, CheckedAt: started}

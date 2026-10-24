@@ -1,7 +1,6 @@
 package api
 
 import (
-	"bytes"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -12,7 +11,6 @@ import (
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient/httplog"
 
-	"github.com/BioTronDesignTeam/Logger/backend/internal/auth"
 	"github.com/BioTronDesignTeam/Logger/backend/internal/catalog"
 )
 
@@ -26,10 +24,7 @@ func compatApp(t *testing.T, options Options) http.Handler {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if options.IngestToken == "" {
-		options.IngestToken = "secret"
-	}
-	return New(&fakeStore{}, serviceCatalog, auth.AllowAll{}, options)
+	return New(&fakeStore{}, serviceCatalog, options)
 }
 
 func errorBody(t *testing.T, response *httptest.ResponseRecorder) string {
@@ -46,7 +41,7 @@ func errorBody(t *testing.T, response *httptest.ResponseRecorder) string {
 
 func TestUnknownRouteIsAJSONNotFound(t *testing.T) {
 	app := compatApp(t, Options{})
-	for _, path := range []string{"/nope", "/v1", "/v1/nope", "/v1/apps/nope/logs/recent"} {
+	for _, path := range []string{"/nope", "/v1", "/v1/nope", "/v1/apps", "/v1/logs", "/v1/session"} {
 		response := serve(app, httptest.NewRequest(http.MethodGet, path, nil))
 		if response.Code != http.StatusNotFound {
 			t.Fatalf("GET %s = %d, want 404", path, response.Code)
@@ -60,10 +55,9 @@ func TestUnknownRouteIsAJSONNotFound(t *testing.T) {
 func TestWrongMethodIsAJSONMethodNotAllowed(t *testing.T) {
 	app := compatApp(t, Options{})
 	cases := map[string]string{
-		"GET /v1/logs":                  "POST",
-		"POST /v1/status":               "GET, HEAD",
-		"DELETE /health":                "GET, HEAD",
-		"POST /v1/apps/exo/logs/recent": "GET, HEAD",
+		"POST /v1/status":        "GET, HEAD",
+		"DELETE /health":         "GET, HEAD",
+		"PUT /v1/status/history": "GET, HEAD",
 	}
 	for request, allow := range cases {
 		method, path, _ := strings.Cut(request, " ")
@@ -82,64 +76,24 @@ func TestWrongMethodIsAJSONMethodNotAllowed(t *testing.T) {
 
 func TestTrailingSlashReachesTheRoute(t *testing.T) {
 	app := compatApp(t, Options{})
-	response := serve(app, httptest.NewRequest(http.MethodGet, "/v1/session/", nil))
-	if response.Code != http.StatusOK || response.Header().Get("Cache-Control") != "no-store" {
-		t.Fatalf("GET /v1/session/ = %d, Cache-Control %q", response.Code, response.Header().Get("Cache-Control"))
+	response := serve(app, httptest.NewRequest(http.MethodGet, "/v1/status/", nil))
+	if response.Code != http.StatusOK || response.Header().Get("Cache-Control") != "public, max-age=30" {
+		t.Fatalf("GET /v1/status/ = %d, Cache-Control %q", response.Code, response.Header().Get("Cache-Control"))
 	}
 }
 
 func TestErrorsUseOneJSONShape(t *testing.T) {
 	app := compatApp(t, Options{})
-
-	request := httptest.NewRequest(http.MethodPost, "/v1/logs", strings.NewReader(`{}`))
-	request.Header.Set("Content-Type", "application/json")
-	response := serve(app, request)
-	if response.Code != http.StatusUnauthorized || errorBody(t, response) != "Unauthorized" {
-		t.Fatalf("ingest without a token = %d", response.Code)
-	}
-
-	response = serve(app, httptest.NewRequest(http.MethodGet, "/v1/apps/exo/logs/history?from=yesterday", nil))
-	if response.Code != http.StatusBadRequest || errorBody(t, response) != "from must be an RFC3339 timestamp" {
-		t.Fatalf("bad from = %d", response.Code)
-	}
-}
-
-func TestIngestNeedsAJSONBodyWithinTheLimit(t *testing.T) {
-	app := compatApp(t, Options{})
-	post := func(contentType string, body []byte) *httptest.ResponseRecorder {
-		request := httptest.NewRequest(http.MethodPost, "/v1/logs", bytes.NewReader(body))
-		request.Header.Set("Authorization", "Bearer secret")
-		if contentType != "" {
-			request.Header.Set("Content-Type", contentType)
-		}
-		return serve(app, request)
-	}
-	event := []byte(`{"service":"exo-api","level":"info","message":"ok"}`)
-
-	if response := post("application/json; charset=utf-8", event); response.Code != http.StatusCreated {
-		t.Fatalf("JSON with a charset = %d, want 201", response.Code)
-	}
-	for _, contentType := range []string{"", "text/plain"} {
-		response := post(contentType, event)
-		if response.Code != http.StatusBadRequest || errorBody(t, response) != "invalid JSON body" {
-			t.Fatalf("Content-Type %q = %d, want 400", contentType, response.Code)
-		}
-	}
-	if response := post("application/json", []byte(`{"service":`)); response.Code != http.StatusBadRequest {
-		t.Fatalf("truncated JSON = %d, want 400", response.Code)
-	}
-
-	huge := []byte(`{"service":"exo-api","level":"info","message":"` + strings.Repeat("x", bodyLimit) + `"}`)
-	response := post("application/json", huge)
-	if response.Code != http.StatusRequestEntityTooLarge || errorBody(t, response) != "Request Entity Too Large" {
-		t.Fatalf("oversized body = %d, want 413", response.Code)
+	response := serve(app, httptest.NewRequest(http.MethodPost, "/v1/status", nil))
+	if response.Code != http.StatusMethodNotAllowed || errorBody(t, response) != "Method Not Allowed" {
+		t.Fatalf("POST /v1/status = %d", response.Code)
 	}
 }
 
 func TestLimiterSendsRateLimitHeaders(t *testing.T) {
 	app := compatApp(t, Options{StatusRateLimit: 2})
 	get := func() *httptest.ResponseRecorder {
-		return serve(app, httptest.NewRequest(http.MethodGet, "/v1/session", nil))
+		return serve(app, httptest.NewRequest(http.MethodGet, "/v1/status", nil))
 	}
 
 	first := get()
@@ -163,23 +117,16 @@ func TestLimiterSendsRateLimitHeaders(t *testing.T) {
 	}
 }
 
-// Fiber mounted the public limiter on all of /v1 after the ingest route, so
-// the log explorer shares the status page's bucket and ingest does not.
-func TestPublicLimitCoversTheExplorerButNotIngest(t *testing.T) {
+// The public limiter covers every /v1 path, unknown ones included, but never
+// /health, which the monitor and the container healthcheck poll.
+func TestPublicLimitCoversV1ButNotHealth(t *testing.T) {
 	app := compatApp(t, Options{StatusRateLimit: 1})
 	serve(app, httptest.NewRequest(http.MethodGet, "/v1/status", nil))
-	if response := serve(app, httptest.NewRequest(http.MethodGet, "/v1/apps", nil)); response.Code != http.StatusTooManyRequests {
-		t.Fatalf("explorer after the status bucket emptied = %d, want 429", response.Code)
+	if response := serve(app, httptest.NewRequest(http.MethodGet, "/v1/nope", nil)); response.Code != http.StatusTooManyRequests {
+		t.Fatalf("unknown /v1 path after the bucket emptied = %d, want 429", response.Code)
 	}
 	if response := serve(app, httptest.NewRequest(http.MethodGet, "/health", nil)); response.Code != http.StatusOK {
 		t.Fatalf("health = %d, want 200", response.Code)
-	}
-
-	request := httptest.NewRequest(http.MethodPost, "/v1/logs", strings.NewReader(`{"service":"exo-api","level":"info","message":"ok"}`))
-	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("Authorization", "Bearer secret")
-	if response := serve(app, request); response.Code != http.StatusCreated {
-		t.Fatalf("ingest = %d, want 201", response.Code)
 	}
 }
 
@@ -190,7 +137,7 @@ func TestPanicIsAJSONInternalErrorInTheRequestLog(t *testing.T) {
 	}))
 	app := httplog.New(events, httplog.Options{})(handler)
 
-	response := serve(app, httptest.NewRequest(http.MethodGet, "/v1/apps", nil))
+	response := serve(app, httptest.NewRequest(http.MethodGet, "/v1/status", nil))
 	if response.Code != http.StatusInternalServerError || errorBody(t, response) != "internal server error" {
 		t.Fatalf("panic = %d", response.Code)
 	}

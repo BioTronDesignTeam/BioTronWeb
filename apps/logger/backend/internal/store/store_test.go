@@ -1,24 +1,6 @@
 package store
 
-import (
-	"testing"
-	"time"
-)
-
-func TestCursorRoundTrip(t *testing.T) {
-	want := logCursor{CreatedAt: time.Date(2026, time.August, 30, 12, 0, 0, 0, time.UTC), ID: 42}
-	encoded, err := encodeCursor(want)
-	if err != nil {
-		t.Fatal(err)
-	}
-	got, err := decodeCursor(encoded)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !got.CreatedAt.Equal(want.CreatedAt) || got.ID != want.ID {
-		t.Fatalf("cursor = %#v, want %#v", got, want)
-	}
-}
+import "testing"
 
 func TestDatabaseConfigUsesPrismaSchemaAsSearchPath(t *testing.T) {
 	config, err := databaseConfig("postgresql://user:pass@localhost:5432/biotron?schema=logger")
