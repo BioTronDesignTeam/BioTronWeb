@@ -28,7 +28,8 @@ type recorder struct {
 func (r *recorder) LogAsync(level logclient.Level, _ string, payload any) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.events = append(r.events, event{level, payload.(map[string]any)})
+	fields, _ := payload.(map[string]any)
+	r.events = append(r.events, event{level, fields})
 }
 
 func (r *recorder) take() []event {
@@ -89,7 +90,11 @@ func TestHealth(t *testing.T) {
 	// the length, as Fiber did.
 	srv := httptest.NewServer(handler)
 	t.Cleanup(srv.Close)
-	head, err := http.Head(srv.URL + "/health")
+	headRequest, err := http.NewRequestWithContext(t.Context(), http.MethodHead, srv.URL+"/health", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	head, err := http.DefaultClient.Do(headRequest)
 	if err != nil {
 		t.Fatal(err)
 	}
