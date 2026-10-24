@@ -319,10 +319,7 @@ func TestAdminEventNamesTheOperator(t *testing.T) {
 		w.WriteHeader(http.StatusCreated)
 	}))
 
-	response, err := serveTest(app, editorRequest(http.MethodPost, "/v1/admin/scopes"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	response := serveTest(app, editorRequest(http.MethodPost, "/v1/admin/scopes"))
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusCreated {
 		t.Fatalf("editor request returned %d", response.StatusCode)
@@ -413,10 +410,7 @@ func TestRequireWriteKeepsItsStatusMapping(t *testing.T) {
 		if test.omitXHR {
 			request.Header.Del("X-Requested-With")
 		}
-		response, err := serveTest(app, request)
-		if err != nil {
-			t.Fatalf("%s: %v", test.name, err)
-		}
+		response := serveTest(app, request)
 		response.Body.Close()
 		if response.StatusCode != test.want {
 			t.Fatalf("%s returned %d, want %d", test.name, response.StatusCode, test.want)
@@ -453,10 +447,7 @@ func TestRefusedRequestIsLoggedWithTheStatusTheClientGot(t *testing.T) {
 		nil, nil, logclient.NewFromEnv("calendar-api"), time.UTC,
 	)
 
-	response, err := serveTest(app, httptest.NewRequest(http.MethodGet, "/v1/nope", nil))
-	if err != nil {
-		t.Fatal(err)
-	}
+	response := serveTest(app, httptest.NewRequest(http.MethodGet, "/v1/nope", nil))
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusNotFound {
 		t.Fatalf("unknown route returned %d", response.StatusCode)
@@ -476,8 +467,8 @@ func TestRefusedRequestIsLoggedWithTheStatusTheClientGot(t *testing.T) {
 
 // serveTest runs one request through handler and returns the response the
 // client would have received.
-func serveTest(handler http.Handler, request *http.Request) (*http.Response, error) {
+func serveTest(handler http.Handler, request *http.Request) *http.Response {
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, request)
-	return recorder.Result(), nil
+	return recorder.Result()
 }

@@ -115,10 +115,7 @@ func liveSeed(t *testing.T, calendarStore *store.Store, ctx context.Context, uid
 
 func liveGet(t *testing.T, app http.Handler, target string) []model.Occurrence {
 	t.Helper()
-	response, err := serveTest(app, httptest.NewRequest(http.MethodGet, target, nil))
-	if err != nil {
-		t.Fatal(err)
-	}
+	response := serveTest(app, httptest.NewRequest(http.MethodGet, target, nil))
 	defer response.Body.Close()
 	body, err := io.ReadAll(response.Body)
 	if err != nil {

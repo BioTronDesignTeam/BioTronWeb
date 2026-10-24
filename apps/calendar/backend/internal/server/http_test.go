@@ -29,7 +29,8 @@ type answer struct {
 
 func checkAnswer(t *testing.T, app http.Handler, request *http.Request, want answer) {
 	t.Helper()
-	response, _ := serveTest(app, request)
+	response := serveTest(app, request)
+	defer response.Body.Close()
 	body, _ := io.ReadAll(response.Body)
 	if response.StatusCode != want.status {
 		t.Fatalf("%s %s returned %d, want %d: %s", request.Method, request.URL, response.StatusCode, want.status, body)
