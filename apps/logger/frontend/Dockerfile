@@ -11,9 +11,7 @@ FROM node:24-bookworm-slim AS build
 WORKDIR /repo
 
 ARG VITE_API_URL
-ARG VITE_IDP_URL
 ENV VITE_API_URL=${VITE_API_URL}
-ENV VITE_IDP_URL=${VITE_IDP_URL}
 
 COPY package.json package-lock.json ./
 COPY packages/style/package.json packages/style/

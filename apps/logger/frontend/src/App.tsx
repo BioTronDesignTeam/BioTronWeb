@@ -1,5 +1,4 @@
 import {
-  FormEvent,
   KeyboardEvent,
   useCallback,
   useEffect,
@@ -10,32 +9,17 @@ import {
   type CSSProperties,
   type ReactNode,
 } from 'react';
-import { Brand, Button, ThemeToggle, UserMenu } from '@biotron/style';
+import { Brand, ThemeToggle } from '@biotron/style';
 import {
-  type ApplicationStatus,
-  type HealthState,
   type HistoryBucket,
-  type Identity,
-  type LogEntry,
-  type LogLevel,
-  type Session,
   type StatusApplication,
   type StatusHistoryResponse,
   type StatusResponse,
   type StatusState,
-  accessManagerURL,
-  checkSession,
-  getIdentity,
-  getApplications,
-  getHistoricalLogs,
-  getRecentLogs,
   getStatus,
   getStatusHistory,
-  loginURL,
-  logout,
 } from './api';
 
-const levels: LogLevel[] = ['debug', 'info', 'warning', 'error'];
 const HISTORY_DAYS = 90;
 
 // Building an Intl formatter is expensive, so the shared instances live here
@@ -47,8 +31,6 @@ const longDateFormatter = new Intl.DateTimeFormat(undefined, {
 const rangeFormatter = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 const monthFormatter = new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric' });
 const weekdayFormatter = new Intl.DateTimeFormat(undefined, { weekday: 'short' });
-
-type LogMode = 'recent' | 'history';
 
 /**
  * Status is never conveyed by colour alone: every state carries its own glyph
@@ -76,12 +58,6 @@ const statusMeta: Record<StatusState, { label: string; headline: string; descrip
     headline: 'Status is not being observed',
     description: 'Logger has no recent health checks to report.',
   },
-};
-
-const healthMeta: Record<HealthState, { label: string; state: StatusState }> = {
-  healthy: { label: 'Operational', state: 'operational' },
-  unhealthy: { label: 'Unavailable', state: 'down' },
-  unknown: { label: 'Awaiting check', state: 'unknown' },
 };
 
 function relativeTime(timestamp?: string | null) {
@@ -322,22 +298,10 @@ function UptimeBar({ buckets, days, label }: { buckets: HistoryBucket[]; days: n
 
 /* Shared chrome ---------------------------------------------------------- */
 
-function Shell({
-  children,
-  session,
-  user,
-  onLogout,
-  narrow = false,
-}: {
-  children: ReactNode;
-  session: Session;
-  user?: Identity;
-  onLogout: () => void | Promise<void>;
-  narrow?: boolean;
-}) {
+function Shell({ children }: { children: ReactNode }) {
   return (
     <div className="shell">
-      <header className={`topbar ${narrow ? 'topbar--narrow' : ''}`}>
+      <header className="topbar topbar--narrow">
         <a className="brand" href="/">
           <Brand className="brand__mark" />
           <span className="brand__divider" aria-hidden="true" />
@@ -345,21 +309,6 @@ function Shell({
         </a>
         <div className="topbar-actions">
           <ThemeToggle />
-          {session.authenticated ? (
-            <UserMenu
-              user={user ? {
-                name: user.name,
-                login: user.login,
-                avatarUrl: user.avatar_url,
-                detail: `@${user.login}${user.is_guest ? ' · guest' : user.is_staff ? ' · staff' : ''}`,
-              } : undefined}
-              onLogout={onLogout}
-            />
-          ) : (
-            <Button tone="primary" onClick={() => { window.location.href = loginURL(); }}>
-              Sign in
-            </Button>
-          )}
         </div>
       </header>
       {children}
@@ -367,33 +316,10 @@ function Shell({
   );
 }
 
-/**
- * Shown to a real session that lacks logger/view. It deliberately offers no
- * sign-in button: they are already signed in, and sending them back to the IdP
- * is the loop this page exists to end.
- */
-function AccessNotice() {
-  return (
-    <section className="access-notice">
-      <h2>You do not have Logger access</h2>
-      <p>
-        You are signed in, but your account does not hold the <code>logger</code> ·{' '}
-        <code>view</code> permission, so the log explorer stays hidden. Ask a manager in a meeting
-        or on Discord to grant it. Everything on this status page is public and needs no
-        permission at all.
-      </p>
-      <a className="button button--secondary" href={accessManagerURL()}>
-        See your permissions in OAuth Manager
-      </a>
-    </section>
-  );
-}
-
 /* Public status data ----------------------------------------------------- */
 
 /**
- * Both requests are unauthenticated, so this runs identically for a signed-out
- * visitor and never depends on a session being resolved first.
+ * Both requests are unauthenticated: the page is public and has no sign-in.
  */
 function usePlatformStatus(poll: boolean) {
   const [status, setStatus] = useState<StatusResponse>();
@@ -486,13 +412,11 @@ function ApplicationGroup({
   applicationBuckets,
   componentBuckets,
   days,
-  explorable,
 }: {
   application: StatusApplication;
   applicationBuckets: HistoryBucket[];
   componentBuckets: Map<string, HistoryBucket[]>;
   days: number;
-  explorable: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const count = application.components.length;
@@ -527,11 +451,6 @@ function ApplicationGroup({
               key={component.id}
             />
           ))}
-          {explorable && (
-            <a className="group__logs" href={`/applications/${application.id}`}>
-              Open logs <span aria-hidden="true">→</span>
-            </a>
-          )}
         </div>
       )}
 
@@ -544,15 +463,7 @@ function ApplicationGroup({
   );
 }
 
-function StatusPage({
-  session,
-  user,
-  onLogout,
-}: {
-  session: Session;
-  user?: Identity;
-  onLogout: () => void | Promise<void>;
-}) {
+function StatusPage() {
   const { status, history, error, loading } = usePlatformStatus(true);
   const days = useVisibleDays();
 
@@ -568,10 +479,8 @@ function StatusPage({
   }, [history]);
 
   return (
-    <Shell session={session} user={user} onLogout={onLogout} narrow>
+    <Shell>
       <main className="column">
-        {session.authenticated && !session.allowed && <AccessNotice />}
-
         <StatusBanner overall={status?.overall} loading={loading} />
 
         {error && <div className="inline-error">{error}</div>}
@@ -588,7 +497,6 @@ function StatusPage({
                 applicationBuckets={applicationBuckets.get(application.id) ?? []}
                 componentBuckets={componentBuckets}
                 days={days}
-                explorable={session.allowed}
                 key={application.id}
               />
             ))}
@@ -727,279 +635,15 @@ function HistoryPage() {
   );
 }
 
-/* Log explorer (logger/view only) ---------------------------------------- */
-
-function LevelFilter({ selected, onChange }: { selected: Set<LogLevel>; onChange: (next: Set<LogLevel>) => void }) {
-  return (
-    <fieldset className="level-filter">
-      <legend>Log levels</legend>
-      {levels.map((level) => (
-        <label className={`level-toggle level-toggle--${level}`} key={level}>
-          <input
-            checked={selected.has(level)}
-            type="checkbox"
-            onChange={() => {
-              const next = new Set(selected);
-              if (next.has(level)) next.delete(level); else next.add(level);
-              onChange(next);
-            }}
-          />
-          <span>{level}</span>
-        </label>
-      ))}
-    </fieldset>
-  );
-}
-
-function LogRow({ entry }: { entry: LogEntry }) {
-  const hasPayload = entry.payload !== undefined && entry.payload !== null;
-  return (
-    <article className="log-row">
-      <div className="log-row__meta">
-        <span className={`log-level log-level--${entry.level}`}>{entry.level}</span>
-        <span className="service-name">{entry.service}</span>
-        <time dateTime={entry.created_at} title={new Date(entry.created_at).toLocaleString()}>
-          {relativeTime(entry.created_at)}
-        </time>
-      </div>
-      <p>{entry.message}</p>
-      {hasPayload && (
-        <details>
-          <summary>Structured payload</summary>
-          <pre>{JSON.stringify(entry.payload, null, 2)}</pre>
-        </details>
-      )}
-    </article>
-  );
-}
-
-function HealthBadge({ state }: { state: HealthState }) {
-  const meta = healthMeta[state];
-  return (
-    <span className={`health-badge health-badge--${meta.state}`}>
-      <StatusIcon state={meta.state} label="" />
-      <span>{meta.label}</span>
-    </span>
-  );
-}
-
-function ApplicationDetail({ application }: { application: ApplicationStatus }) {
-  const [mode, setMode] = useState<LogMode>('recent');
-  // Lazy initialiser: the Set is built once, not thrown away on every render.
-  const [selectedLevels, setSelectedLevels] = useState<Set<LogLevel>>(() => new Set(levels));
-  const [search, setSearch] = useState('');
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
-  const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [nextCursor, setNextCursor] = useState<string>();
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-
-  const filters = useMemo(() => ({
-    levels: Array.from(selectedLevels),
-    search,
-    from: from ? new Date(from).toISOString() : undefined,
-    to: to ? new Date(to).toISOString() : undefined,
-    limit: 100,
-  }), [from, search, selectedLevels, to]);
-  const [appliedFilters, setAppliedFilters] = useState(filters);
-
-  const load = useCallback(async (append = false, cursor?: string) => {
-    setLoading(true);
-    setError('');
-    try {
-      const page = mode === 'recent'
-        ? await getRecentLogs(application.id, appliedFilters)
-        : await getHistoricalLogs(application.id, { ...appliedFilters, cursor });
-      setLogs((current) => append ? [...current, ...page.logs] : page.logs);
-      setNextCursor(page.next_cursor);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Unable to load logs');
-    } finally {
-      setLoading(false);
-    }
-  }, [application.id, appliedFilters, mode]);
-
-  useEffect(() => {
-    void load();
-    if (mode !== 'recent') return;
-    const timer = window.setInterval(() => void load(), 5000);
-    return () => window.clearInterval(timer);
-  }, [load, mode]);
-
-  function applyFilters(event: FormEvent) {
-    event.preventDefault();
-    setAppliedFilters(filters);
-  }
-
-  return (
-    <main className="page detail-page">
-      <a className="back-link" href="/">← Platform status</a>
-      <section className="detail-header">
-        <div>
-          <div className="detail-title">
-            <h1>{application.name}</h1>
-            <HealthBadge state={application.state} />
-          </div>
-          <p>{application.description}</p>
-        </div>
-      </section>
-
-      <section className="component-strip" aria-label="Component health">
-        {application.components.map((component) => (
-          <div className="component-tile" key={component.id}>
-            <div><HealthBadge state={component.state} /><strong>{component.name}</strong></div>
-            <span>{component.detail || healthMeta[component.state].label}</span>
-            <small>Checked {relativeTime(component.checked_at)}</small>
-          </div>
-        ))}
-      </section>
-
-      <section className="logs-panel">
-        <div className="logs-panel__heading">
-          <div>
-            <p className="eyebrow">Application events</p>
-            <h2>Logs</h2>
-          </div>
-          <fieldset className="mode-switch">
-            <legend className="visually-hidden">Log source</legend>
-            <button type="button" className={mode === 'recent' ? 'active' : ''} onClick={() => setMode('recent')}>Recent</button>
-            <button type="button" className={mode === 'history' ? 'active' : ''} onClick={() => setMode('history')}>History</button>
-          </fieldset>
-        </div>
-
-        <form className="filters" onSubmit={applyFilters}>
-          <LevelFilter selected={selectedLevels} onChange={setSelectedLevels} />
-          <label className="search-field">
-            <span>Search messages and payloads</span>
-            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search logs…" />
-          </label>
-          {mode === 'history' && (
-            <div className="date-fields">
-              <label><span>From</span><input type="datetime-local" value={from} onChange={(event) => setFrom(event.target.value)} /></label>
-              <label><span>To</span><input type="datetime-local" value={to} onChange={(event) => setTo(event.target.value)} /></label>
-            </div>
-          )}
-          <button className="button button--secondary" type="submit">Apply filters</button>
-        </form>
-
-        <div className="log-stream" aria-live="polite">
-          {error && <div className="inline-error">{error}</div>}
-          {!loading && !error && logs.length === 0 && (
-            <div className="empty-state"><strong>No matching logs</strong><span>Try another level, time range, or search.</span></div>
-          )}
-          {logs.map((entry) => <LogRow entry={entry} key={entry.id} />)}
-          {loading && <div className="stream-loading">Loading logs…</div>}
-        </div>
-        {mode === 'history' && nextCursor && !loading && (
-          <button className="button button--secondary load-more" onClick={() => void load(true, nextCursor)}>Load older logs</button>
-        )}
-      </section>
-    </main>
-  );
-}
-
-function ExplorerRoute({
-  applicationID,
-  session,
-  sessionReady,
-  user,
-  onLogout,
-}: {
-  applicationID: string;
-  session: Session;
-  sessionReady: boolean;
-  user?: Identity;
-  onLogout: () => void | Promise<void>;
-}) {
-  const [application, setApplication] = useState<ApplicationStatus>();
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    if (!session.allowed) return;
-    void getApplications()
-      .then((response) => {
-        const match = response.applications.find((candidate) => candidate.id === applicationID);
-        if (match) setApplication(match);
-        else setError('That application is not in the service catalog.');
-      })
-      .catch((reason: unknown) => setError(reason instanceof Error ? reason.message : 'Unable to load the application'));
-  }, [applicationID, session.allowed]);
-
-  return (
-    <Shell session={session} user={user} onLogout={onLogout}>
-      {!sessionReady && <main className="page"><div className="stream-loading">Checking your access…</div></main>}
-      {sessionReady && !session.allowed && (
-        <main className="page">
-          <a className="back-link" href="/">← Platform status</a>
-          <AccessNotice />
-        </main>
-      )}
-      {sessionReady && session.allowed && !application && (
-        <main className="page">
-          <a className="back-link" href="/">← Platform status</a>
-          {error ? <div className="inline-error">{error}</div> : <div className="stream-loading">Loading application…</div>}
-        </main>
-      )}
-      {sessionReady && session.allowed && application && <ApplicationDetail application={application} />}
-    </Shell>
-  );
-}
-
 /* Routing ---------------------------------------------------------------- */
 
-const signedOut: Session = { authenticated: false, allowed: false };
-
 export function App() {
-  const [session, setSession] = useState<Session>(signedOut);
-  const [sessionReady, setSessionReady] = useState(false);
-  const [user, setUser] = useState<Identity>();
-
-  useEffect(() => {
-    // /v1/session always answers 200, so a failure here means the network or
-    // the API is down, not that the visitor is unwelcome. Either way the public
-    // status page below still renders.
-    void checkSession()
-      .then(setSession)
-      .catch(() => setSession(signedOut))
-      .finally(() => setSessionReady(true));
-  }, []);
-
-  useEffect(() => {
-    if (!session.authenticated) {
-      setUser(undefined);
-      return;
-    }
-    void getIdentity().then(setUser).catch(() => setUser(undefined));
-  }, [session.authenticated]);
-
-  const onLogout = useCallback(async () => {
-    await logout();
-    setUser(undefined);
-    setSession(signedOut);
-  }, []);
-
-  const path = window.location.pathname;
-  const detailMatch = path.match(/^\/applications\/([^/]+)\/?$/);
-  if (detailMatch) {
+  if (/^\/history\/?$/.test(window.location.pathname)) {
     return (
-      <ExplorerRoute
-        applicationID={decodeURIComponent(detailMatch[1])}
-        onLogout={onLogout}
-        session={session}
-        sessionReady={sessionReady}
-        user={user}
-      />
-    );
-  }
-
-  if (/^\/history\/?$/.test(path)) {
-    return (
-      <Shell session={session} user={user} onLogout={onLogout} narrow>
+      <Shell>
         <HistoryPage />
       </Shell>
     );
   }
-
-  return <StatusPage session={session} user={user} onLogout={onLogout} />;
+  return <StatusPage />;
 }

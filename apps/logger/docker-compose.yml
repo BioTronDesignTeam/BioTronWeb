@@ -53,7 +53,6 @@ services:
       dockerfile: apps/logger/frontend/Dockerfile
       args:
         VITE_API_URL: ${LOGGER_VITE_API_URL:-${VITE_API_URL:-/api}}
-        VITE_IDP_URL: ${LOGGER_VITE_IDP_URL:-${VITE_IDP_URL:-http://localhost:8080}}
     ports:
       - "127.0.0.1:${LOGGER_WEB_PORT:-${WEB_PORT:-5175}}:80"
     networks:

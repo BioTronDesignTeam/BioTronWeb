@@ -72,7 +72,6 @@ jobs:
             VITE_API_BASE=/api
             VITE_API_URL=/api
             VITE_AUTH_URL=https://auth.__BASE_DOMAIN__/api
-            VITE_IDP_URL=https://auth.__BASE_DOMAIN__/api
             VITE_CALENDAR_URL=${{ matrix.image.name == 'sprinter-web' && 'https://calendar.__BASE_DOMAIN__/api' || 'https://calendar.__BASE_DOMAIN__' }}
       - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
