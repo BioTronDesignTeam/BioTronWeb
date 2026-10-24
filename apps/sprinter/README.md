@@ -136,8 +136,8 @@ boundary.
 
 ## Tools
 
-The model answers from these six and nothing else. Every one is
-read-only. The four SQL tools read through a second Postgres pool that
+The model answers from these four and nothing else. Every one is
+read-only. The two SQL tools read through a second Postgres pool that
 connects as a role with `SELECT` on the `logger` schema and on four
 `oauth` tables — nothing else, and no write anywhere. That role is the
 containment: a model can be talked into asking for anything, so the
@@ -149,16 +149,9 @@ saying it was cut and how to narrow the question.
 | Tool | Source | Arguments | Cap |
 |------|--------|-----------|-----|
 | `platform_status` | `GET {LOGGER_URL}/v1/status` | none | 6000 characters |
-| `recent_logs` | `logger.logs` | `service`, `level`, `search`, `limit` 1–50 (20) | 6000 characters, 50 rows, payload 500 per row |
-| `log_history` | `logger.logs` | the same plus `from`, `to` (RFC3339) and `cursor` | 8000 characters, 50 rows per page |
 | `health_history` | `logger.health_checks` | `service` (required), `hours` 1–168 (24) | 6000 characters, 200 checks |
 | `calendar_upcoming` | `GET {CALENDAR_URL}/v1/events/upcoming` | `limit` 1–20 (5), `days` 1–90 (42) | 4000 characters |
 | `who_has_access` | `oauth.apps`, `oauth.grants`, `oauth.operators`, `oauth.permissions` | `app` (required) | 6000 characters |
-
-`log_history` pages on `(created_at, id)` exactly as Logger does, so a
-row written mid-walk cannot shift a page. Its answer ends with a
-`next_cursor` line; the model sends that cursor back with the same
-filters.
 
 `who_has_access` also lists the managers and the superusers, because
 those two flags admit an operator everywhere without a grant, and an
@@ -167,11 +160,11 @@ answer that named only the grant holders would be wrong. It never reads
 cannot read either one.
 
 The model is told that tool results are data and never instructions. A
-log message can contain words that read like an order; Sprinter reports
-them and does not act on them. Each result is wrapped in a
+health detail or an event title can contain words that read like an
+order; Sprinter reports them and does not act on them. Each result is wrapped in a
 `<tool_result nonce="...">` fence, with one random nonce per answer, so
-the model can see exactly which text the rule covers and no log line can
-close the fence and speak in its place.
+the model can see exactly which text the rule covers and no returned text
+can close the fence and speak in its place.
 
 ## Automations
 
@@ -392,9 +385,10 @@ sqlc reads the schema from the Prisma migrations themselves, so a query
 that names a column no migration created does not generate. The read
 pool's schema is Logger's and Auth's migrations, followed by the two
 files in `backend/internal/readstore/schema`, which move their tables
-into `logger` and `oauth` as Postgres has them. Only the four `oauth`
-tables `sprinter_reader` may read are moved, so a query against
-`sessions` or `guest_keys` fails to generate as it would fail to run.
+into `logger` and `oauth` as Postgres has them. Only `health_checks` and
+the four `oauth` tables `sprinter_reader` may read are moved, so a query
+against `sessions` or `guest_keys` fails to generate as it would fail to
+run.
 
 ## Frontend
 

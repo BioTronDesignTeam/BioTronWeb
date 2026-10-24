@@ -82,6 +82,7 @@ func (q *Queries) Grants(ctx context.Context, arg GrantsParams) ([]GrantsRow, er
 }
 
 const healthHistory = `-- name: HealthHistory :many
+
 SELECT ok, COALESCE(detail, '')::text AS detail, checked_at
 FROM logger.health_checks
 WHERE service = $1 AND checked_at >= $2
@@ -101,6 +102,8 @@ type HealthHistoryRow struct {
 	CheckedAt time.Time
 }
 
+// What the agent's tools read through the read-only pool. Every table is
+// named with its schema, because the pool has no search_path of its own.
 func (q *Queries) HealthHistory(ctx context.Context, arg HealthHistoryParams) ([]HealthHistoryRow, error) {
 	rows, err := q.db.Query(ctx, healthHistory, arg.Service, arg.Since, arg.RowLimit)
 	if err != nil {
@@ -111,83 +114,6 @@ func (q *Queries) HealthHistory(ctx context.Context, arg HealthHistoryParams) ([
 	for rows.Next() {
 		var i HealthHistoryRow
 		if err := rows.Scan(&i.Ok, &i.Detail, &i.CheckedAt); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const logs = `-- name: Logs :many
-
-SELECT id, service, level::text AS level, message, payload, created_at
-FROM logger.logs
-WHERE ($1::text IS NULL OR service = $1::text)
-    AND ($2::text IS NULL OR level::text = $2::text)
-    AND ($3::text IS NULL OR message ILIKE $3::text)
-    AND ($4::timestamptz IS NULL OR created_at >= $4::timestamptz)
-    AND ($5::timestamptz IS NULL OR created_at <= $5::timestamptz)
-    AND ($6::timestamptz IS NULL
-        OR (created_at, id) < ($6::timestamptz, $7::bigint))
-ORDER BY created_at DESC, id DESC
-LIMIT $8
-`
-
-type LogsParams struct {
-	Service         *string
-	Level           *string
-	Search          *string
-	FromTime        *time.Time
-	ToTime          *time.Time
-	CursorCreatedAt *time.Time
-	CursorID        *int64
-	RowLimit        int32
-}
-
-type LogsRow struct {
-	ID        int64
-	Service   string
-	Level     string
-	Message   string
-	Payload   []byte
-	CreatedAt time.Time
-}
-
-// What the agent's tools read through the read-only pool. Every table is
-// named with its schema, because the pool has no search_path of its own.
-// Newest first. Every filter is optional: a null argument is no filter. The
-// cursor is the keyset position (created_at, id) of the last row a page
-// returned, as Logger's own history pages, so a row written mid-walk cannot
-// shift a page.
-func (q *Queries) Logs(ctx context.Context, arg LogsParams) ([]LogsRow, error) {
-	rows, err := q.db.Query(ctx, logs,
-		arg.Service,
-		arg.Level,
-		arg.Search,
-		arg.FromTime,
-		arg.ToTime,
-		arg.CursorCreatedAt,
-		arg.CursorID,
-		arg.RowLimit,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []LogsRow
-	for rows.Next() {
-		var i LogsRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.Service,
-			&i.Level,
-			&i.Message,
-			&i.Payload,
-			&i.CreatedAt,
-		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

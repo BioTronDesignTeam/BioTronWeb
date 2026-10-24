@@ -23,8 +23,8 @@ func (t PlatformStatus) Spec() model.ToolSpec {
 		Description: "Current health of every BioTron application and component: " +
 			"the overall state, each application's state, each component's state, " +
 			"and uptime over 24 hours, 7 days and 90 days. This is the live " +
-			"picture. Use health_history for what happened earlier, and " +
-			"recent_logs for why. Takes no arguments.",
+			"picture. Use health_history for what happened earlier and why. " +
+			"Takes no arguments.",
 		Schema: json.RawMessage(`{"type":"object","properties":{}}`),
 	}
 }

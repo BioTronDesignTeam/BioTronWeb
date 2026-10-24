@@ -32,63 +32,6 @@ func liveStore(t *testing.T) (*Store, context.Context) {
 	return store, ctx
 }
 
-func TestLiveLogQueriesRunAndPage(t *testing.T) {
-	store, ctx := liveStore(t)
-
-	rows, err := store.RecentLogs(ctx, LogQuery{Limit: 5})
-	if err != nil {
-		t.Fatalf("recent logs: %v", err)
-	}
-	for i := 1; i < len(rows); i++ {
-		if rows[i].CreatedAt.After(rows[i-1].CreatedAt) {
-			t.Fatal("rows must come back newest first")
-		}
-	}
-
-	// Every filter is exercised together, because each one is a fragment
-	// concatenated into the statement and a wrong placeholder number only
-	// shows up when the fragments are combined.
-	from := time.Now().Add(-90 * 24 * time.Hour)
-	to := time.Now()
-	filtered, err := store.RecentLogs(ctx, LogQuery{
-		Service: "logger-api", Level: "info", Search: "e",
-		From: &from, To: &to, Limit: 3,
-	})
-	if err != nil {
-		t.Fatalf("filtered logs: %v", err)
-	}
-	for _, row := range filtered {
-		if row.Service != "logger-api" || row.Level != "info" {
-			t.Fatalf("filter leaked: %+v", row)
-		}
-	}
-
-	page, next, err := store.LogHistory(ctx, LogQuery{Limit: 1})
-	if err != nil {
-		t.Fatalf("log history: %v", err)
-	}
-	if len(page) == 0 {
-		t.Skip("the logger schema has no rows to page through")
-	}
-	if next == "" {
-		t.Skip("only one log row exists, so there is no second page")
-	}
-	second, _, err := store.LogHistory(ctx, LogQuery{Limit: 1, Cursor: next})
-	if err != nil {
-		t.Fatalf("second page: %v", err)
-	}
-	if len(second) == 1 && second[0].ID == page[0].ID {
-		t.Fatal("the cursor returned the row it was meant to move past")
-	}
-}
-
-func TestLiveLogHistoryRefusesABadCursor(t *testing.T) {
-	store, ctx := liveStore(t)
-	if _, _, err := store.LogHistory(ctx, LogQuery{Limit: 1, Cursor: "not-a-cursor"}); err == nil {
-		t.Fatal("a cursor this package did not write must be refused")
-	}
-}
-
 func TestLiveHealthHistoryRuns(t *testing.T) {
 	store, ctx := liveStore(t)
 	rows, err := store.HealthHistory(ctx, "logger-api", time.Now().Add(-24*time.Hour), 200)
@@ -161,9 +104,9 @@ func TestLiveReadRoleCannotSeeGuestKeys(t *testing.T) {
 func TestLiveReadRoleCannotWrite(t *testing.T) {
 	store, ctx := liveStore(t)
 	_, err := store.pool.Exec(ctx,
-		`INSERT INTO logger.logs (service, level, message) VALUES ('sprinter', 'info', 'live test')`)
+		`INSERT INTO logger.health_checks (service, ok, checked_at) VALUES ('sprinter', true, now())`)
 	if err == nil {
-		t.Fatal("the read role wrote a log row; it must not be able to")
+		t.Fatal("the read role wrote a health check; it must not be able to")
 	}
 	// Two different settings can stop the write — a missing INSERT grant, or a
 	// role whose transactions are read-only. Either is the containment working,
