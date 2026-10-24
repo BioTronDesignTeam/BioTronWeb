@@ -14,6 +14,7 @@ import (
 	"net"
 	"net/http"
 	"runtime/debug"
+	"strings"
 	"sync"
 	"time"
 
@@ -103,7 +104,10 @@ func New(sink Sink, options Options) func(http.Handler) http.Handler {
 				recovered := recover()
 				if recovered != nil {
 					if !IsAbort(recovered) {
-						log.Printf("panic serving %s %s: %v\n%s", r.Method, r.URL.Path, recovered, debug.Stack())
+						// The path is decoded, so it can hold a line break.
+						// Escaped, it cannot forge a line of its own.
+						request := strings.ReplaceAll(strings.ReplaceAll(r.Method+" "+r.URL.Path, "\r", `\r`), "\n", `\n`)
+						log.Printf("panic serving %s: %v\n%s", request, recovered, debug.Stack())
 					}
 					s.mu.Lock()
 					s.err = fmt.Sprint(recovered)
