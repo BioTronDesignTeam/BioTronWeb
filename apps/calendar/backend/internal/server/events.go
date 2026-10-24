@@ -66,8 +66,8 @@ const (
 // GET /v1/events, already filtered to occurrences still running or still to
 // come, ordered by start, and truncated to limit.
 func (h *Handler) listUpcoming(w http.ResponseWriter, r *http.Request) error {
-	limit := clampQuery(r.URL.Query().Get("limit"), upcomingDefaultLimit, 1, upcomingMaxLimit)
-	days := clampQuery(r.URL.Query().Get("days"), upcomingDefaultDays, 1, upcomingMaxDays)
+	limit := clampQuery(r.URL.Query().Get("limit"), upcomingDefaultLimit, upcomingMaxLimit)
+	days := clampQuery(r.URL.Query().Get("days"), upcomingDefaultDays, upcomingMaxDays)
 	now := h.now().In(h.location)
 	until := now.AddDate(0, 0, days)
 	series, err := h.store.ListSeries(r.Context(), "", false, h.window(now, until))
@@ -137,14 +137,15 @@ func latestChange(series []model.EventSeries) time.Time {
 }
 
 // clampQuery clamps rather than rejects, so a consumer asking for more than the
-// API will give gets the maximum instead of an error it has to handle.
-func clampQuery(raw string, fallback, minimum, maximum int) int {
+// API will give gets the maximum instead of an error it has to handle. Every
+// count it reads is at least 1.
+func clampQuery(raw string, fallback, maximum int) int {
 	value, err := strconv.Atoi(strings.TrimSpace(raw))
 	if err != nil {
 		return fallback
 	}
-	if value < minimum {
-		return minimum
+	if value < 1 {
+		return 1
 	}
 	if value > maximum {
 		return maximum

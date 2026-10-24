@@ -32,11 +32,11 @@ func TestClampQueryClampsInsteadOfRejecting(t *testing.T) {
 		{raw: "5000", want: upcomingMaxLimit},
 	}
 	for _, test := range tests {
-		if got := clampQuery(test.raw, upcomingDefaultLimit, 1, upcomingMaxLimit); got != test.want {
+		if got := clampQuery(test.raw, upcomingDefaultLimit, upcomingMaxLimit); got != test.want {
 			t.Fatalf("clampQuery(%q) = %d, want %d", test.raw, got, test.want)
 		}
 	}
-	if got := clampQuery("91", upcomingDefaultDays, 1, upcomingMaxDays); got != upcomingMaxDays {
+	if got := clampQuery("91", upcomingDefaultDays, upcomingMaxDays); got != upcomingMaxDays {
 		t.Fatalf("clampQuery days = %d, want %d", got, upcomingMaxDays)
 	}
 }
