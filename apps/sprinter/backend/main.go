@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"os/signal"
@@ -28,10 +28,19 @@ import (
 )
 
 func main() {
+	if err := run(); err != nil {
+		log.Fatal(err)
+	}
+}
+
+// run starts Sprinter and serves until SIGINT or SIGTERM. It returns instead
+// of exiting, so its deferred calls run on every path: a startup failure
+// still flushes the event that names it to Logger.
+func run() error {
 	_ = godotenv.Load("../.env")
 	cfg := config.Load()
 	if err := cfg.Validate(); err != nil {
-		log.Fatalf("config: %v", err)
+		return fmt.Errorf("config: %w", err)
 	}
 	// The event client is built before anything can block, so a warning still
 	// reaches Logger when the database never comes up and the process dies in
@@ -52,7 +61,7 @@ func main() {
 
 	sprinterStore, err := connectStore(cfg.DatabaseURL)
 	if err != nil {
-		log.Fatalf("connect database: %v", err)
+		return fmt.Errorf("connect database: %w", err)
 	}
 	defer sprinterStore.Close()
 
@@ -64,14 +73,17 @@ func main() {
 		reader, err = readstore.New(context.Background(), cfg.ReadDatabaseURL)
 		if err != nil {
 			events.LogAsync(logclient.Error, "Read pool failed", map[string]any{"error": err.Error()})
-			log.Fatalf("connect read database: %v", err)
+			return fmt.Errorf("connect read database: %w", err)
 		}
 		defer reader.Close()
 	} else {
 		events.LogAsync(logclient.Warning, "Read database unset", nil)
 	}
 
-	modelName, runner, answering := buildRunner(cfg, reader, events)
+	modelName, runner, answering, err := buildRunner(cfg, reader, events)
+	if err != nil {
+		return err
+	}
 
 	var bot *discord.Bot
 	if !cfg.DiscordEnabled() {
@@ -90,13 +102,13 @@ func main() {
 			events.LogAsync(logclient.Error, "Discord session failed", map[string]any{
 				"stage": "create", "error": err.Error(),
 			})
-			log.Fatalf("create Discord session: %v", err)
+			return fmt.Errorf("create Discord session: %w", err)
 		}
 		if err := bot.Open(); err != nil {
 			events.LogAsync(logclient.Error, "Discord session failed", map[string]any{
 				"stage": "open", "error": err.Error(),
 			})
-			log.Fatalf("open Discord session: %v", err)
+			return fmt.Errorf("open Discord session: %w", err)
 		}
 		defer func() {
 			if err := bot.Close(); err != nil {
@@ -109,7 +121,7 @@ func main() {
 		// which is how an admin change takes effect without a restart.
 		location, err := time.LoadLocation("America/Toronto")
 		if err != nil {
-			log.Fatalf("load location: %v", err)
+			return fmt.Errorf("load location: %w", err)
 		}
 		sched := scheduler.New(scheduler.Deps{
 			Store:    sprinterStore,
@@ -143,16 +155,19 @@ func main() {
 		"port": cfg.Port, "discord": cfg.DiscordEnabled(),
 	})
 
+	served := make(chan error, 1)
 	go func() {
 		log.Printf("Sprinter admin API listening on %s", httpServer.Addr)
-		if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Fatalf("listen: %v", err)
-		}
+		served <- httpServer.ListenAndServe()
 	}()
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
-	<-ctx.Done()
+	select {
+	case err := <-served:
+		return fmt.Errorf("listen: %w", err)
+	case <-ctx.Done():
+	}
 	log.Println("shutting down")
 	shutdownLogCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	if err := events.Log(shutdownLogCtx, logclient.Info, "Sprinter stopping", nil); err != nil {
@@ -165,22 +180,23 @@ func main() {
 	if err := httpServer.Shutdown(shutdownCtx); err != nil {
 		log.Printf("shutdown: %v", err)
 	}
+	return nil
 }
 
 // buildRunner picks what answers questions, names it for the agent_threads
 // row, and hands the bare model to the scheduler for nudge drafts. Without a key the echo runner stands in, and the warning
 // says so: an operator reading the log must be able to tell "the model is
 // broken" from "there is no model".
-func buildRunner(cfg config.Config, reader *readstore.Store, events *logclient.Client) (string, discord.Runner, model.Model) {
+func buildRunner(cfg config.Config, reader *readstore.Store, events *logclient.Client) (string, discord.Runner, model.Model, error) {
 	if !cfg.ModelEnabled() {
 		events.LogAsync(logclient.Warning, "Model unset", nil)
 		log.Println("warning: GEMINI_API_KEY unset — every answer is an echo")
-		return "echo", discord.EchoRunner{}, nil
+		return "echo", discord.EchoRunner{}, nil, nil
 	}
 	answering, err := gemini.New(context.Background(), cfg.GeminiAPIKey, cfg.GeminiModel)
 	if err != nil {
 		events.LogAsync(logclient.Error, "Model unavailable", map[string]any{"error": err.Error()})
-		log.Fatalf("build model: %v", err)
+		return "", nil, nil, fmt.Errorf("build model: %w", err)
 	}
 	// A nil reader is passed on purpose: tools.All leaves out the SQL tools
 	// rather than building tools with nothing to read.
@@ -197,7 +213,7 @@ func buildRunner(cfg config.Config, reader *readstore.Store, events *logclient.C
 	events.LogAsync(logclient.Info, "Model ready", map[string]any{
 		"model": loop.Model(), "tools": names,
 	})
-	return loop.Model(), agent.NewRunner(loop), answering
+	return loop.Model(), agent.NewRunner(loop), answering, nil
 }
 
 func connectStore(databaseURL string) (*store.Store, error) {
