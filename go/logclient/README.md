@@ -76,7 +76,7 @@ stays off and warns, naming the missing variables but never a value.
   - anything sent with `Capture(distinctID, event, properties)`, which goes
     to PostHog only. An empty distinct id means the service itself acted, and
     PostHog makes no person profile for it.
-  - never warnings or errors, `httplog`/`fiberlog` request lines, or events
+  - never warnings or errors, `httplog` request lines, or events
     with no person behind them.
 
   The payload goes to PostHog as it is, so the rule that holds for Logger
@@ -95,10 +95,7 @@ handler = httplog.New(events, httplog.Options{Quiet: []string{"/api/session"}})(
 httplog.SetActor(r, operator.Login)
 httplog.SetError(r, err)
 ```
-
-`fiberlog` is the same middleware for Fiber. It stays until every backend has
-moved to `net/http`, then goes.
-
+
 ## Moving off Logger
 
 Logger stays the source of truth until Grafana and PostHog are checked.

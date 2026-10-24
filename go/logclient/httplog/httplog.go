@@ -1,8 +1,8 @@
 // Package httplog sends one event to Logger for each request a net/http
 // server serves: method, path, status, and duration, plus the cause when the
-// request failed and the operator when the app names one. It is the net/http
-// twin of fiberlog, so the events read the same in the log explorer whichever
-// router a service uses.
+// request failed and the operator when the app names one. Every backend
+// mounts it, so request events read the same in the log explorer whichever
+// service sent them.
 package httplog
 
 import (
