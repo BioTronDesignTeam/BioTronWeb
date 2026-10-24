@@ -331,7 +331,7 @@ func TestSnowflakeAfter(t *testing.T) {
 	// 2026-09-10T00:00:00Z is a known instant; the formula is Discord's own
 	// (ms since the Discord epoch) << 22.
 	when := time.Date(2026, 9, 10, 0, 0, 0, 0, time.UTC)
-	want := strconv.FormatUint(uint64(when.UnixMilli()-discordEpochMillis)<<22, 10)
+	want := strconv.FormatInt((when.UnixMilli()-discordEpochMillis)<<22, 10)
 	got := snowflakeAfter(when)
 	if got != want {
 		t.Fatalf("snowflakeAfter(%v) = %s, want %s", when, got, want)

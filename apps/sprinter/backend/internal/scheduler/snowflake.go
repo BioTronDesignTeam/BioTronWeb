@@ -17,7 +17,7 @@ const discordEpochMillis = 1420070400000
 func snowflakeAfter(t time.Time) string {
 	millis := t.UnixMilli() - discordEpochMillis
 	if millis < 0 {
-		millis = 0
+		return "0"
 	}
 	return strconv.FormatUint(uint64(millis)<<22, 10)
 }
