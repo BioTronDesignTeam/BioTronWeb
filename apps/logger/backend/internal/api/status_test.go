@@ -383,7 +383,7 @@ func TestPublicStatusIsRateLimited(t *testing.T) {
 	})
 
 	var lastStatus int
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		response := serve(app, httptest.NewRequest(http.MethodGet, "/v1/status", nil))
 		lastStatus = response.Code
 	}

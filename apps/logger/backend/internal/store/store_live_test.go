@@ -166,7 +166,7 @@ func TestLiveQueryLogsFiltersAndPages(t *testing.T) {
 	// Two rows a page: the cursor walks the rest without repeating a row.
 	var walked []string
 	cursor := ""
-	for pages := 0; pages < 5; pages++ {
+	for range 5 {
 		page, err := store.QueryLogs(ctx, model.HistoryQuery{Services: []string{service}, Limit: 2, Cursor: cursor})
 		if err != nil {
 			t.Fatal(err)
