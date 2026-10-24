@@ -133,9 +133,9 @@ the organization.
 | GET | `/auth/me` | session | current operator; a guest must pass its `?app=` |
 | GET | `/auth/guest-keys` | staff | today's key for each opted-in tool |
 | POST | `/auth/guest-keys/:app/rotate` | staff | replaces today's key of one tool, which signs out its guests |
-| GET | `/apps`, `/permissions` | session | the catalog |
+| GET | `/apps`, `/permissions` | member | the catalog |
 | POST | `/apps` | superuser | registers a tool |
-| GET | `/me/grants` | session | my grants; `full_access` is true for staff |
+| GET | `/me/grants` | member | my grants; `full_access` is true for staff |
 | POST, DELETE | `/grants` | staff | grants or revokes one permission |
 | GET | `/org/members` | staff | every operator who has signed in |
 | GET | `/org/members/:id/grants` | staff | one member's grants |
@@ -143,6 +143,7 @@ the organization.
 | PATCH | `/org/members/:id/manager` | superuser | sets the manager flag, effective at once |
 | GET | `/v1/check?app=&permission=` | session | allow or deny |
 
+Member means a signed-in operator who is not a guest; a guest gets `403`.
 Staff means a manager or a superuser. Every mutating route requires the
 `X-Requested-With` header, which blocks cross-site form posts. Nobody can ban
 or change themself or the guest account. Only a superuser can ban a superuser.

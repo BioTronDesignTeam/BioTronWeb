@@ -292,7 +292,8 @@ func (h *Handler) MyGrants(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// grantBody is the body of POST and DELETE /grants.
+// grantBody is the body of POST and DELETE /grants. The operator is a GitHub id,
+// always positive: the guest account (0) never holds a grant.
 type grantBody struct {
 	OperatorID    *int64 `json:"operator_id"`
 	AppID         string `json:"app_id"`
@@ -301,7 +302,7 @@ type grantBody struct {
 
 func readGrantBody(w http.ResponseWriter, r *http.Request) (grantBody, bool) {
 	var body grantBody
-	if err := httpx.Decode(w, r, &body); err != nil || body.OperatorID == nil || *body.OperatorID < 0 || body.AppID == "" || body.PermissionKey == "" {
+	if err := httpx.Decode(w, r, &body); err != nil || body.OperatorID == nil || *body.OperatorID <= 0 || body.AppID == "" || body.PermissionKey == "" {
 		httpx.JSON(w, http.StatusBadRequest, map[string]any{"error": "operator_id, app_id, permission_key required"})
 		return body, false
 	}

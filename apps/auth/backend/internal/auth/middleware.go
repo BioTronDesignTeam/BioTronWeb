@@ -111,6 +111,19 @@ func (h *Handler) RequireXHR(next http.Handler) http.Handler {
 	})
 }
 
+// RequireNotGuest refuses a guest session with 403. A guest holds one tool's
+// telemetry and needs nothing of Auth but /auth/me and /v1/check.
+func (h *Handler) RequireNotGuest(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		op := OperatorFrom(r)
+		if op == nil || op.IsGuest() {
+			httpx.Error(w, r, http.StatusForbidden)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 func (h *Handler) RequireSuperuser(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		op := OperatorFrom(r)
