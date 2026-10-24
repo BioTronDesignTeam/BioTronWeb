@@ -1,14 +1,17 @@
 #!/usr/bin/env bash
 # Deploys one commit of BioTronWeb on this host. Installed root-owned at
-# /usr/local/sbin/biotron-deploy; the CI `deploy` account may run it through
-# sudo and nothing else. See deploy/README.md.
+# /usr/local/sbin/biotron-deploy. Each CI account may run it through sudo for
+# its own targets only: `deploy-staging` for staging, `deploy-prod` for prod
+# and the edge. Infisical itself (`secrets`) is deployed by an administrator
+# by hand. See deploy/README.md.
 #
 #   biotron-deploy <instance> <commit>   an instance, such as staging or prod
 #   biotron-deploy edge <commit>         the shared edge Nginx and tunnel
 #   biotron-deploy secrets <commit>      the shared Infisical stack
 #
 # There is no checkout on the host. The script downloads the commit's Compose
-# files from GitHub, after checking that the commit is on main, into
+# files from GitHub, after checking that the commit is on main (and, for
+# prod, that a v* release tag names it), into
 # /opt/biotron/<target>, and pulls that commit's images from GHCR. An
 # instance's settings come from Infisical at deploy time, fetched with the
 # machine identity in /etc/biotron/<instance>/identity.env; nothing secret is
@@ -72,6 +75,24 @@ check_on_main() {
   status=$(curl -fsSL --retry 3 "https://api.github.com/repos/$repo/compare/$revision...main" | jq -r '.status') ||
     die "cannot ask GitHub whether $revision is on main"
   [[ $status == ahead || $status == identical ]] || die "$revision is not a commit on main"
+}
+
+# Production deploys only a release: a commit that a v* tag names. The
+# workflow checks the same before it calls, but the host does not trust its
+# caller, so a stolen CI credential cannot send an untagged commit of main to
+# production. GitHub lists each tag with the commit it names, annotated or not.
+check_release_tag() {
+  local page tags
+  for ((page = 1; page <= 20; page++)); do
+    tags=$(curl -fsSL --retry 3 "https://api.github.com/repos/$repo/tags?per_page=100&page=$page") ||
+      die "cannot ask GitHub for the release tags"
+    if jq -e --arg commit "$revision" \
+      'any(.[]; (.name | test("^v[0-9A-Za-z.-]+$")) and .commit.sha == $commit)' <<<"$tags" >/dev/null; then
+      return 0
+    fi
+    [[ $(jq length <<<"$tags") -eq 100 ]] || break
+  done
+  die "$revision is not a release: no v* tag names it"
 }
 
 # Downloads just the files a deploy runs from into $base/$target, replacing the
@@ -168,6 +189,7 @@ deploy_instance() {
   command -v infisical >/dev/null 2>&1 || die 'the Infisical CLI is not installed'
 
   check_on_main
+  [[ $target != prod ]] || check_release_tag
   fetch_release
 
   # The Infisical CLI keeps an offline copy of the secrets it fetches, under
