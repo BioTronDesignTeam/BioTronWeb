@@ -104,14 +104,14 @@ func decode(args json.RawMessage, into any) error {
 	return nil
 }
 
-// clampInt applies a default and a range. It reports the value it used, so a
-// tool never has to decide whether zero meant "none" or "unset".
-func clampInt(value *int, fallback, low, high int) (int, error) {
+// clampInt applies a default and a range from 1 to high. It reports the value
+// it used, so a tool never has to decide whether zero meant "none" or "unset".
+func clampInt(value *int, fallback, high int) (int, error) {
 	if value == nil {
 		return fallback, nil
 	}
-	if *value < low || *value > high {
-		return 0, fmt.Errorf("must be between %d and %d, got %d", low, high, *value)
+	if *value < 1 || *value > high {
+		return 0, fmt.Errorf("must be between 1 and %d, got %d", high, *value)
 	}
 	return *value, nil
 }

@@ -109,7 +109,7 @@ func (t RecentLogs) Run(ctx context.Context, args json.RawMessage) (string, erro
 	if err := decode(args, &parsed); err != nil {
 		return "", err
 	}
-	limit, err := clampInt(parsed.Limit, 20, 1, 50)
+	limit, err := clampInt(parsed.Limit, 20, 50)
 	if err != nil {
 		return "", fmt.Errorf("limit %w", err)
 	}
@@ -170,7 +170,7 @@ func (t LogHistory) Run(ctx context.Context, args json.RawMessage) (string, erro
 	if err := decode(args, &parsed); err != nil {
 		return "", err
 	}
-	limit, err := clampInt(parsed.Limit, 20, 1, 50)
+	limit, err := clampInt(parsed.Limit, 20, 50)
 	if err != nil {
 		return "", fmt.Errorf("limit %w", err)
 	}
