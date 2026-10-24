@@ -170,18 +170,30 @@ deploy_instance() {
   check_on_main
   fetch_release
 
+  # The Infisical CLI keeps an offline copy of the secrets it fetches, under
+  # ~/.infisical/secrets-backup, only for a signed-in user; with a machine
+  # identity's token, as here, it writes none (packages/util/secrets.go of
+  # Infisical/cli). Should a later CLI write one anyway, it gets a HOME of its
+  # own on the /run tmpfs, removed when the deploy ends, so nothing it writes
+  # reaches the disk or outlives the deploy. Compose keeps root's HOME, where
+  # a GHCR login lives.
+  local infisical_home
+  infisical_home=$(mktemp -d "$rundir/infisical.XXXXXX")
+  # shellcheck disable=SC2064 # the path is fixed now, on purpose
+  trap "rm -rf '$infisical_home'" EXIT
+
   # The client secret goes through the environment, never the command line,
   # where other users could read it in the process list.
-  token=$(clean_env INFISICAL_API_URL="$api" INFISICAL_DISABLE_UPDATE_CHECK=true \
+  token=$(clean_env HOME="$infisical_home" INFISICAL_API_URL="$api" INFISICAL_DISABLE_UPDATE_CHECK=true \
     INFISICAL_UNIVERSAL_AUTH_CLIENT_ID="$client_id" INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET="$client_secret" \
     infisical login --method=universal-auth --silent --plain) || die "cannot log in to Infisical at $api"
   [[ -n $token ]] || die 'Infisical returned no token'
   unset client_secret file_INFISICAL_CLIENT_SECRET
 
   log "deploying $revision as $target"
-  clean_env INFISICAL_API_URL="$api" INFISICAL_DISABLE_UPDATE_CHECK=true INFISICAL_TOKEN="$token" \
+  clean_env HOME="$infisical_home" INFISICAL_API_URL="$api" INFISICAL_DISABLE_UPDATE_CHECK=true INFISICAL_TOKEN="$token" \
     infisical run --projectId="$project_id" --env="$environment" --path="$path" --silent -- \
-    env -u INFISICAL_TOKEN -u INFISICAL_API_URL \
+    env -u INFISICAL_TOKEN -u INFISICAL_API_URL HOME=/root \
     bash deploy/instance-defaults.sh ./launch all --instance "$target" --runtime --pull
   wait_healthy "biotron-$target"
 }
