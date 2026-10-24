@@ -231,3 +231,44 @@ func TestLiveProductDailyKeys(t *testing.T) {
 		t.Fatalf("today's key was pruned: %d left", left)
 	}
 }
+
+// The stored superuser flag mirrors SUPERUSER_GITHUB_IDS: startup sets it on
+// the listed operators and clears it on every other one, in the whole table,
+// which Auth sets again from its own list when it starts.
+func TestLiveReconcileSuperusers(t *testing.T) {
+	st, ctx := liveStore(t)
+	if err := st.UpsertOperator(ctx, Operator{GitHubID: liveMember, Login: "live-member"}, true); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.UpsertOperator(ctx, Operator{GitHubID: liveManager, Login: "live-manager"}, false); err != nil {
+		t.Fatal(err)
+	}
+	flags := func() (member, manager bool) {
+		t.Helper()
+		m, err := st.GetOperator(ctx, liveMember)
+		if err != nil {
+			t.Fatal(err)
+		}
+		n, err := st.GetOperator(ctx, liveManager)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return m.IsSuperuser, n.IsSuperuser
+	}
+
+	if _, err := st.ReconcileSuperusers(ctx, []int64{liveManager}); err != nil {
+		t.Fatal(err)
+	}
+	if member, manager := flags(); member || !manager {
+		t.Fatalf("after listing only the manager: member = %v, manager = %v", member, manager)
+	}
+	if n, err := st.ReconcileSuperusers(ctx, []int64{liveManager}); err != nil || n != 0 {
+		t.Fatalf("a second reconcile changed %d rows, err = %v, want none", n, err)
+	}
+	if _, err := st.ReconcileSuperusers(ctx, nil); err != nil {
+		t.Fatal(err)
+	}
+	if member, manager := flags(); member || manager {
+		t.Fatalf("after an empty list: member = %v, manager = %v", member, manager)
+	}
+}

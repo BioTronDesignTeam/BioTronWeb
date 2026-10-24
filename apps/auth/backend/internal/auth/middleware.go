@@ -35,7 +35,8 @@ func (h *Handler) RequireSession(next http.Handler) http.Handler {
 		}
 		// The cookie only names the operator. Roles and the ban come from the
 		// store through the cache, which every change invalidates, so a ban
-		// refuses the very next request.
+		// refuses the very next request. The superuser flag comes from
+		// SUPERUSER_GITHUB_IDS, so removing an id and redeploying applies too.
 		member, err := h.Cache.Operator(r.Context(), session.GitHubID)
 		if err != nil {
 			if errors.Is(err, store.ErrNotFound) {
@@ -58,7 +59,7 @@ func (h *Handler) RequireSession(next http.Handler) http.Handler {
 			Login:       member.Login,
 			Name:        member.Name,
 			AvatarURL:   member.AvatarURL,
-			IsSuperuser: member.IsSuperuser,
+			IsSuperuser: h.isSuperuser(member.GitHubID),
 			IsManager:   member.IsManager,
 			GuestAppID:  session.GuestAppID,
 		}

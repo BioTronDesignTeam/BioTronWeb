@@ -353,6 +353,22 @@ func (q *Queries) ListPermissions(ctx context.Context) ([]Permission, error) {
 	return items, nil
 }
 
+const reconcileSuperusers = `-- name: ReconcileSuperusers :execrows
+UPDATE operators SET is_superuser = (github_id = ANY($1::bigint[]))
+WHERE is_superuser IS DISTINCT FROM (github_id = ANY($1::bigint[]))
+`
+
+// SUPERUSER_GITHUB_IDS decides who is a superuser on every request; the
+// column mirrors it for readers of the table, such as Sprinter, and is set
+// from it at startup.
+func (q *Queries) ReconcileSuperusers(ctx context.Context, ids []int64) (int64, error) {
+	result, err := q.db.Exec(ctx, reconcileSuperusers, ids)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const setBanned = `-- name: SetBanned :execrows
 UPDATE operators SET is_banned = $2 WHERE github_id = $1
 `
