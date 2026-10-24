@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -27,6 +28,14 @@ type stubGitHub struct {
 	mu                 sync.Mutex
 	installationTokens int
 	memberAuth         string
+	// rejected is an installation token the membership check answers 401
+	// for, as GitHub does for a revoked one.
+	rejected string
+	// rejectAll answers 401 for every installation token.
+	rejectAll bool
+	// tokenGate, when set, holds every installation token answer until it
+	// is closed.
+	tokenGate chan struct{}
 }
 
 func newStubGitHub(t *testing.T, membership int) *stubGitHub {
@@ -70,14 +79,29 @@ func (s *stubGitHub) serve(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.mu.Lock()
+		gate := s.tokenGate
+		s.mu.Unlock()
+		if gate != nil {
+			<-gate
+		}
+		s.mu.Lock()
 		s.installationTokens++
+		token := "installation-token"
+		if s.installationTokens > 1 {
+			token += "-" + strconv.Itoa(s.installationTokens)
+		}
 		s.mu.Unlock()
 		expires := time.Now().Add(time.Hour).UTC().Format(time.RFC3339)
-		_, _ = w.Write([]byte(`{"token":"installation-token","expires_at":"` + expires + `"}`))
+		_, _ = w.Write([]byte(`{"token":"` + token + `","expires_at":"` + expires + `"}`))
 	case strings.HasPrefix(r.URL.Path, "/orgs/BioTronDesignTeam/members/"):
 		s.mu.Lock()
 		s.memberAuth = r.Header.Get("Authorization")
+		rejected := s.rejectAll || (s.rejected != "" && s.memberAuth == "Bearer "+s.rejected)
 		s.mu.Unlock()
+		if rejected {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
 		if s.membership == http.StatusFound {
 			w.Header().Set("Location", "/orgs/BioTronDesignTeam/public_members/octo")
 		}
@@ -172,5 +196,79 @@ func TestMembershipAnswers(t *testing.T) {
 		if member != tc.member || (err != nil) != tc.wantErr {
 			t.Errorf("status %d: member = %v, err = %v", tc.status, member, err)
 		}
+	}
+}
+
+// GitHub refuses an installation token that was revoked before it expired.
+// The kept token is dropped and the check asked once more, so a revoked
+// token costs one request its retry rather than an hour of failed checks.
+func TestMembershipRetriesOnceWithANewTokenAfterA401(t *testing.T) {
+	stub := newStubGitHub(t, http.StatusNoContent)
+	g := stub.client()
+	ctx := context.Background()
+	if member, err := g.IsOrgMember(ctx, "octo"); err != nil || !member {
+		t.Fatalf("first check: member = %v, err = %v", member, err)
+	}
+
+	stub.mu.Lock()
+	stub.rejected = "installation-token"
+	stub.mu.Unlock()
+	if member, err := g.IsOrgMember(ctx, "octo"); err != nil || !member {
+		t.Fatalf("check with a revoked token: member = %v, err = %v", member, err)
+	}
+	if stub.installationTokens != 2 || stub.memberAuth != "Bearer installation-token-2" {
+		t.Fatalf("tokens = %d, last Authorization = %q, want a second token used", stub.installationTokens, stub.memberAuth)
+	}
+
+	// A new token GitHub refuses too is an error, not an endless retry.
+	stub.mu.Lock()
+	stub.rejectAll = true
+	stub.mu.Unlock()
+	if _, err := g.IsOrgMember(ctx, "octo"); err == nil || !strings.Contains(err.Error(), "status 401") {
+		t.Fatalf("a token refused twice: err = %v, want status 401", err)
+	}
+	if stub.installationTokens != 3 {
+		t.Fatalf("tokens = %d, want exactly one more fetch", stub.installationTokens)
+	}
+}
+
+// Requests that find no usable token share one fetch, and none of them holds
+// the lock while GitHub answers: a request that gives up returns at once.
+func TestInstallationTokenIsFetchedOnceForConcurrentChecks(t *testing.T) {
+	stub := newStubGitHub(t, http.StatusNoContent)
+	gate := make(chan struct{})
+	stub.tokenGate = gate
+	g := stub.client()
+
+	var wg sync.WaitGroup
+	errs := make(chan error, 8)
+	for range 8 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, err := g.IsOrgMember(context.Background(), "octo"); err != nil {
+				errs <- err
+			}
+		}()
+	}
+
+	cancelled, cancel := context.WithCancel(context.Background())
+	cancel()
+	start := time.Now()
+	if _, err := g.installationToken(cancelled); err == nil {
+		t.Fatal("a cancelled request got a token while the fetch was held")
+	}
+	if waited := time.Since(start); waited > time.Second {
+		t.Fatalf("a cancelled request waited %s for the lock", waited)
+	}
+
+	close(gate)
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		t.Fatal(err)
+	}
+	if stub.installationTokens != 1 {
+		t.Fatalf("installation tokens = %d, want one shared fetch", stub.installationTokens)
 	}
 }
