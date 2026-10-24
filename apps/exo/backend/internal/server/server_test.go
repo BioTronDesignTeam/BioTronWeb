@@ -201,14 +201,13 @@ func TestPanicIsAnswered500AndLogged(t *testing.T) {
 func TestOversizedBodyIsRefused(t *testing.T) {
 	var read int
 	handler := testHandler(&recorder{}, nil, func(mux *http.ServeMux) {
-		mux.HandleFunc("POST /echo", func(w http.ResponseWriter, r *http.Request) {
+		mux.HandleFunc("POST /upload", func(w http.ResponseWriter, r *http.Request) {
 			body, _ := io.ReadAll(r.Body)
 			read = len(body)
-			_, _ = w.Write(body)
 		})
 	})
 
-	req := httptest.NewRequest(http.MethodPost, "/echo", strings.NewReader(strings.Repeat("a", bodyLimit+1)))
+	req := httptest.NewRequest(http.MethodPost, "/upload", strings.NewReader(strings.Repeat("a", bodyLimit+1)))
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 	if rec.Code != http.StatusRequestEntityTooLarge || rec.Body.String() != "Request Entity Too Large" {
@@ -219,7 +218,7 @@ func TestOversizedBodyIsRefused(t *testing.T) {
 	}
 
 	// A body that hides its length is cut off at the limit instead.
-	req = httptest.NewRequest(http.MethodPost, "/echo", strings.NewReader(strings.Repeat("a", bodyLimit+1)))
+	req = httptest.NewRequest(http.MethodPost, "/upload", strings.NewReader(strings.Repeat("a", bodyLimit+1)))
 	req.ContentLength = -1
 	handler.ServeHTTP(httptest.NewRecorder(), req)
 	if read != bodyLimit {
@@ -268,16 +267,16 @@ func TestGatedRouteThroughTheStack(t *testing.T) {
 
 // resolvedIP serves one request through a real listener — the trusted-proxy
 // check is entirely about who the peer is — and reports the client IP the
-// server resolved.
+// server resolved, which the test route sends back in a header.
 func resolvedIP(t *testing.T, trustedProxies []string, proxyHeader string) string {
 	t.Helper()
 	handler := newHandler(frontend, trustedProxies, &recorder{}, auth.NewClient("http://oauth-manager:8080"), func(mux *http.ServeMux) {
-		mux.HandleFunc("GET /who", func(w http.ResponseWriter, r *http.Request) { _, _ = io.WriteString(w, ClientIP(r)) })
+		mux.HandleFunc("GET /who", func(w http.ResponseWriter, r *http.Request) { w.Header().Set("X-Client-Ip", ClientIP(r)) })
 	})
 	srv := httptest.NewServer(handler)
 	t.Cleanup(srv.Close)
 
-	request, err := http.NewRequest(http.MethodGet, srv.URL+"/who", nil)
+	request, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.URL+"/who", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -286,12 +285,8 @@ func resolvedIP(t *testing.T, trustedProxies []string, proxyHeader string) strin
 	if err != nil {
 		t.Fatalf("request: %v", err)
 	}
-	defer response.Body.Close()
-	body, err := io.ReadAll(response.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return string(body)
+	_ = response.Body.Close()
+	return response.Header.Get("X-Client-Ip")
 }
 
 // Per-IP rate limiting is only per-IP if the server resolves the real client
