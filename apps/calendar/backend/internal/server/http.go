@@ -216,10 +216,13 @@ func recoverJSON(next http.Handler) http.Handler {
 			if recovered == nil {
 				return
 			}
-			if recovered == http.ErrAbortHandler {
+			if httplog.IsAbort(recovered) {
 				panic(recovered)
 			}
-			log.Printf("panic serving %s %s: %v\n%s", r.Method, r.URL.Path, recovered, debug.Stack())
+			// The path is decoded, so it can hold a line break. Escaped, it
+			// cannot forge a line of its own.
+			request := strings.ReplaceAll(strings.ReplaceAll(r.Method+" "+r.URL.Path, "\r", `\r`), "\n", `\n`)
+			log.Printf("panic serving %s: %v\n%s", request, recovered, debug.Stack())
 			err := fmt.Errorf("panic: %v", recovered)
 			httplog.SetError(r, err)
 			writeError(w, err)
