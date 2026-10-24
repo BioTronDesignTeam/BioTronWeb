@@ -22,20 +22,28 @@ import (
 )
 
 func main() {
+	if err := run(); err != nil {
+		log.Fatal(err)
+	}
+}
+
+// run serves until SIGINT or SIGTERM. It returns instead of exiting, so its
+// deferred calls, the store's Close among them, run on every path.
+func run() error {
 	cfg := config.Load()
 	if err := cfg.Validate(); err != nil {
-		log.Fatal(err)
+		return err
 	}
 	serviceCatalog, err := catalog.Load(cfg.CatalogJSON)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	dataStore, err := store.New(ctx, cfg.DatabaseURL, cfg.RedisURL, cfg.TailSize)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	defer dataStore.Close()
 
@@ -96,4 +104,5 @@ func main() {
 	if err := server.Shutdown(shutdownCtx); err != nil {
 		log.Printf("Logger API shutdown: %v", err)
 	}
+	return nil
 }
