@@ -10,6 +10,9 @@ on:
     tags: ['v*']
   workflow_dispatch:
 
+# Each action is pinned by commit SHA with its release in a comment, as in
+# ci.yml; Dependabot moves both. The images job pushes to GHCR and the deploy
+# job reaches the host, so a moved action tag must never run in either.
 permissions:
   contents: read
 
