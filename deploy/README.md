@@ -10,7 +10,12 @@ The host keeps no checkout and no `.env` files. Each deploy downloads the
 commit's Compose files from GitHub, pulls that commit's images from GHCR, and
 takes its settings from Infisical at the moment it starts the containers.
 Only a handful of bootstrap credentials, which cannot live in Infisical, sit
-on disk in root-only files under `/etc/biotron`.
+on disk in root-only files under `/etc/biotron`. The Infisical CLI keeps an
+offline copy of fetched secrets only for a signed-in user, never for the
+machine identity a deploy uses, and a deploy runs it with a throwaway `HOME`
+on the `/run` tmpfs, so the CLI leaves no copy of them on disk. The settings
+of running containers still sit in Docker's own state under
+`/var/lib/docker`, readable by root only.
 
 ## How it fits together
 
