@@ -18,7 +18,7 @@ func TestServeDrainsInFlightRequestsOnShutdown(t *testing.T) {
 		<-release
 		_, _ = io.WriteString(w, "done")
 	})
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	listener, err := new(net.ListenConfig).Listen(t.Context(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -32,7 +32,12 @@ func TestServeDrainsInFlightRequestsOnShutdown(t *testing.T) {
 
 	body := make(chan string, 1)
 	go func() {
-		response, err := http.Get("http://" + listener.Addr().String() + "/")
+		request, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "http://"+listener.Addr().String()+"/", nil)
+		if err != nil {
+			body <- "error: " + err.Error()
+			return
+		}
+		response, err := http.DefaultClient.Do(request)
 		if err != nil {
 			body <- "error: " + err.Error()
 			return
@@ -62,7 +67,7 @@ func TestServeDrainsInFlightRequestsOnShutdown(t *testing.T) {
 
 // A listener that fails is reported, not mistaken for a shutdown.
 func TestServeReportsAServeFailure(t *testing.T) {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	listener, err := new(net.ListenConfig).Listen(t.Context(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}

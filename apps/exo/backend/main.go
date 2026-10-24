@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -23,9 +24,17 @@ import (
 const shutdownTimeout = 10 * time.Second
 
 func main() {
+	if err := run(); err != nil {
+		log.Fatal(err)
+	}
+}
+
+// run serves until SIGINT or SIGTERM. It returns instead of exiting, so its
+// deferred calls run on every path.
+func run() error {
 	loc, err := time.LoadLocation("America/Toronto")
 	if err != nil {
-		log.Fatalf("load America/Toronto timezone: %v", err)
+		return fmt.Errorf("load America/Toronto timezone: %w", err)
 	}
 	time.Local = loc
 
@@ -47,15 +56,15 @@ func main() {
 	handler := server.New(cfg.FrontendURL, cfg.TrustedProxies, events, authz)
 	addr := ":" + cfg.Port
 
-	listener, err := net.Listen("tcp", addr)
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+	listener, err := new(net.ListenConfig).Listen(ctx, "tcp", addr)
 	if err != nil {
-		log.Fatalf("listen: %v", err)
+		return fmt.Errorf("listen: %w", err)
 	}
 	events.LogAsync(logclient.Info, "Exo API started", map[string]any{"port": cfg.Port})
 	log.Printf("backend listening on %s", addr)
 
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
 	err = serve(ctx, newHTTPServer(handler), listener, func() {
 		log.Println("shutting down")
 		shutdownLogCtx, cancelShutdownLog := context.WithTimeout(context.Background(), 2*time.Second)
@@ -71,8 +80,9 @@ func main() {
 	}
 	cancelClose()
 	if err != nil {
-		log.Fatalf("serve: %v", err)
+		return fmt.Errorf("serve: %w", err)
 	}
+	return nil
 }
 
 // newHTTPServer carries the timeouts the Fiber app had. There is no write
