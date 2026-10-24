@@ -6,7 +6,9 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
@@ -26,6 +28,9 @@ type Config struct {
 	CookieDomain   string
 	SessionTTL     time.Duration
 	IsSuperuserID  func(int64) bool
+	// StateCookiePath scopes the sign-in state cookie to the sign-in routes
+	// as the browser sees them; see StateCookiePath. Empty means "/".
+	StateCookiePath string
 }
 
 type Handler struct {
@@ -71,9 +76,19 @@ func (h *Handler) LoginRedirect(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, r, http.StatusInternalServerError)
 		return
 	}
-	// The state and the origin to return to travel together in one signed
-	// cookie, so neither can be swapped on the way back from GitHub.
-	value, err := h.Signer.State(state, h.safeReturn(r.URL.Query().Get("redirect")))
+	verifier, err := newToken()
+	if err != nil {
+		httpx.Error(w, r, http.StatusInternalServerError)
+		return
+	}
+	// The state, the origin to return to, and the PKCE verifier travel
+	// together in one signed cookie, so none can be swapped on the way back
+	// from GitHub.
+	value, err := h.Signer.State(SignIn{
+		State:    state,
+		Return:   h.safeReturn(r.URL.Query().Get("redirect")),
+		Verifier: verifier,
+	})
 	if err != nil {
 		fail(r, err, "auth: sign state")
 		httpx.Status(w, http.StatusInternalServerError)
@@ -82,24 +97,24 @@ func (h *Handler) LoginRedirect(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     stateCookie,
 		Value:    value,
-		Path:     "/",
+		Path:     h.Cfg.stateCookiePath(),
 		HttpOnly: true,
 		Secure:   h.Cfg.CookieSecure,
 		SameSite: http.SameSiteLaxMode,
 		Expires:  time.Now().Add(stateLifetime),
 	})
-	httpx.Redirect(w, h.GitHub.AuthCodeURL(state))
+	httpx.Redirect(w, h.GitHub.AuthCodeURL(state, verifier))
 }
 
 func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 	state := r.URL.Query().Get("state")
 	code := r.URL.Query().Get("code")
 	// One state serves one callback, whatever its result.
-	cookieState, returnTo, ok := h.Signer.ReadState(cookieValue(r, stateCookie))
-	dest := h.safeReturn(returnTo)
+	signIn, ok := h.Signer.ReadState(cookieValue(r, stateCookie))
+	dest := h.safeReturn(signIn.Return)
 	clearStateCookie(w, h.Cfg)
 
-	if !ok || state == "" || subtle.ConstantTimeCompare([]byte(state), []byte(cookieState)) != 1 {
+	if !ok || state == "" || subtle.ConstantTimeCompare([]byte(state), []byte(signIn.State)) != 1 {
 		httpx.Text(w, http.StatusBadRequest, "invalid OAuth state")
 		return
 	}
@@ -109,7 +124,7 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	tok, err := h.GitHub.Exchange(ctx, code)
+	tok, err := h.GitHub.Exchange(ctx, code, signIn.Verifier)
 	if err != nil {
 		h.signInFailed(r, err, "exchange", "auth: oauth exchange")
 		httpx.Text(w, http.StatusBadGateway, "authentication failed, please try again")
@@ -503,7 +518,7 @@ func clearStateCookie(w http.ResponseWriter, cfg Config) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     stateCookie,
 		Value:    "",
-		Path:     "/",
+		Path:     cfg.stateCookiePath(),
 		HttpOnly: true,
 		Secure:   cfg.CookieSecure,
 		SameSite: http.SameSiteLaxMode,
@@ -536,4 +551,28 @@ func (h *Handler) invalidate(githubID int64) {
 	if h.Cache != nil {
 		h.Cache.Invalidate(githubID)
 	}
+}
+
+// StateCookiePath returns the path to scope the sign-in state cookie to: the
+// folder of the callback as the browser reaches it, such as
+// /api/auth/github behind the edge's /api/ prefix or /auth/github on
+// localhost, so the cookie goes only to the login and the callback. A
+// callback URL of another shape gets "/".
+func StateCookiePath(callbackURL string) string {
+	u, err := url.Parse(callbackURL)
+	if err != nil {
+		return "/"
+	}
+	folder, ok := strings.CutSuffix(u.Path, "/callback")
+	if !ok || !strings.HasPrefix(folder, "/") {
+		return "/"
+	}
+	return folder
+}
+
+func (cfg Config) stateCookiePath() string {
+	if cfg.StateCookiePath == "" {
+		return "/"
+	}
+	return cfg.StateCookiePath
 }

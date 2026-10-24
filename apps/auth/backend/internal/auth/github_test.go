@@ -28,6 +28,8 @@ type stubGitHub struct {
 	mu                 sync.Mutex
 	installationTokens int
 	memberAuth         string
+	// verifier is the code_verifier of the last token exchange.
+	verifier string
 	// rejected is an installation token the membership check answers 401
 	// for, as GitHub does for a revoked one.
 	rejected string
@@ -56,6 +58,9 @@ func (s *stubGitHub) serve(w http.ResponseWriter, r *http.Request) {
 	case r.URL.Path == "/login/oauth/access_token":
 		var body map[string]string
 		_ = json.NewDecoder(r.Body).Decode(&body)
+		s.mu.Lock()
+		s.verifier = body["code_verifier"]
+		s.mu.Unlock()
 		if body["code"] != "good" || body["client_secret"] != "secret" {
 			_, _ = w.Write([]byte(`{"error":"bad_verification_code"}`))
 			return
@@ -133,14 +138,15 @@ func (s *stubGitHub) client() *GitHubClient {
 
 func TestAuthCodeURLNamesTheAppAndTheCallback(t *testing.T) {
 	g := NewGitHubClient(GitHubOptions{ClientID: "Iv1.abc", CallbackURL: "http://localhost:8080/auth/github/callback"})
-	u, err := url.Parse(g.AuthCodeURL("the-state"))
+	u, err := url.Parse(g.AuthCodeURL("the-state", "the-verifier"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	q := u.Query()
 	if u.Host != "github.com" || u.Path != "/login/oauth/authorize" || q.Get("client_id") != "Iv1.abc" ||
 		q.Get("redirect_uri") != "http://localhost:8080/auth/github/callback" || q.Get("state") != "the-state" ||
-		q.Get("allow_signup") != "false" || q.Has("scope") {
+		q.Get("allow_signup") != "false" || q.Has("scope") ||
+		q.Get("code_challenge") != pkceChallenge("the-verifier") || q.Get("code_challenge_method") != "S256" {
 		t.Fatalf("authorize URL = %s", u)
 	}
 }
@@ -150,12 +156,15 @@ func TestSignInStepsAgainstGitHub(t *testing.T) {
 	g := stub.client()
 	ctx := context.Background()
 
-	if _, err := g.Exchange(ctx, "used"); err == nil || !strings.Contains(err.Error(), "bad_verification_code") {
+	if _, err := g.Exchange(ctx, "used", "the-verifier"); err == nil || !strings.Contains(err.Error(), "bad_verification_code") {
 		t.Fatalf("a refused code: err = %v", err)
 	}
-	token, err := g.Exchange(ctx, "good")
+	token, err := g.Exchange(ctx, "good", "the-verifier")
 	if err != nil {
 		t.Fatal(err)
+	}
+	if stub.verifier != "the-verifier" {
+		t.Fatalf("code_verifier = %q, want the sign-in's verifier", stub.verifier)
 	}
 	user, err := g.FetchUser(ctx, token)
 	if err != nil {
@@ -270,5 +279,12 @@ func TestInstallationTokenIsFetchedOnceForConcurrentChecks(t *testing.T) {
 	}
 	if stub.installationTokens != 1 {
 		t.Fatalf("installation tokens = %d, want one shared fetch", stub.installationTokens)
+	}
+}
+
+// RFC 7636, appendix B: the S256 challenge of its example verifier.
+func TestPKCEChallengeIsS256(t *testing.T) {
+	if got := pkceChallenge("dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"); got != "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM" {
+		t.Fatalf("challenge = %q", got)
 	}
 }

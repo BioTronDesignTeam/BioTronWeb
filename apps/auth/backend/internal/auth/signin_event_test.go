@@ -54,7 +54,7 @@ func TestSignInRefusedIsReportedWhenTheCallerIsNotAnOrgMember(t *testing.T) {
 		Cfg:    Config{FrontendURL: "http://localhost:5173"},
 	}
 	request := httptest.NewRequest(http.MethodGet, "/auth/github/callback?state=s&code=good", nil)
-	state, err := h.Signer.State("s", "")
+	state, err := h.Signer.State(SignIn{State: "s", Verifier: "v"})
 	if err != nil {
 		t.Fatal(err)
 	}

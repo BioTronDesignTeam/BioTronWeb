@@ -172,7 +172,10 @@ grant, revoke, ban, and manager change clears that operator from the cache,
 and every key rotation that tool's keys, so it applies to the very next
 request. The sign-in state cookie,
 `oauth_state`, is signed the same way for another audience and also carries
-the origin to return to.
+the origin to return to and the PKCE verifier, whose S256 challenge goes to
+GitHub, so a stolen code is useless without this browser's cookie. Its path
+is the folder of `OAUTH_CALLBACK_URL` (`/api/auth/github` behind the edge,
+`/auth/github` locally), so it is sent only to the login and the callback.
 
 What that means in practice:
 

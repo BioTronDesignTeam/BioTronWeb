@@ -62,7 +62,7 @@ func TestSessionRefusals(t *testing.T) {
 		return sessionClaims{RegisteredClaims: s.registered("42", sessionAudience, now.Add(time.Hour))}
 	}
 
-	state, err := s.State("random", "http://localhost:5173")
+	state, err := s.State(SignIn{State: "random", Return: "http://localhost:5173", Verifier: "v"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,23 +110,32 @@ func TestSessionRefusals(t *testing.T) {
 
 func TestStateRoundTripAndAudience(t *testing.T) {
 	s := newTestSigner(time.Unix(1_800_000_000, 0))
-	value, err := s.State("random", "http://localhost:5174")
+	signIn := SignIn{State: "random", Return: "http://localhost:5174", Verifier: "the-verifier"}
+	value, err := s.State(signIn)
 	if err != nil {
 		t.Fatal(err)
 	}
-	state, returnTo, ok := s.ReadState(value)
-	if !ok || state != "random" || returnTo != "http://localhost:5174" {
-		t.Fatalf("ReadState = %q, %q, %v", state, returnTo, ok)
+	if got, ok := s.ReadState(value); !ok || got != signIn {
+		t.Fatalf("ReadState = %+v, %v", got, ok)
+	}
+	// A state cookie from before PKCE has no verifier and cannot finish a
+	// sign-in.
+	noVerifier, err := s.State(SignIn{State: "random"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := s.ReadState(noVerifier); ok {
+		t.Fatal("a state cookie without a verifier was accepted")
 	}
 	session, err := s.Session(Session{GitHubID: 42}, s.now().Add(time.Hour))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, ok := s.ReadState(session); ok {
+	if _, ok := s.ReadState(session); ok {
 		t.Fatal("a session cookie was accepted as a state cookie")
 	}
 	s.now = func() time.Time { return time.Unix(1_800_000_000, 0).Add(stateLifetime) }
-	if _, _, ok := s.ReadState(value); ok {
+	if _, ok := s.ReadState(value); ok {
 		t.Fatal("an expired state was accepted")
 	}
 	if strings.Count(value, ".") != 2 {
