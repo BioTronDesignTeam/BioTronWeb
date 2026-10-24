@@ -65,7 +65,11 @@ func TestCapResultSaysItCut(t *testing.T) {
 		t.Fatalf("a capped result must say it was cut and how to narrow: %q", got)
 	}
 	// The cut lands on a line boundary, so the model never reads half a row.
-	body := got[:strings.Index(got, "\n[Cut here")]
+	cut := strings.Index(got, "\n[Cut here")
+	if cut < 0 {
+		t.Fatalf("the cut marker must start a line of its own: %q", got)
+	}
+	body := got[:cut]
 	if strings.HasSuffix(body, "row of tex") {
 		t.Fatal("the cut split a line")
 	}
@@ -359,7 +363,7 @@ func TestCalendarUpcomingValidatesItsArguments(t *testing.T) {
 // model needs, so the cursor line must survive the cap.
 func TestLogHistoryKeepsItsCursorWhenCut(t *testing.T) {
 	var rows []readstore.LogRow
-	for i := 0; i < 50; i++ {
+	for i := range 50 {
 		rows = append(rows, readstore.LogRow{
 			ID: int64(i), Service: "exo-api", Level: "info",
 			Message: strings.Repeat("x", 400),
