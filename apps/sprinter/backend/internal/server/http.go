@@ -233,6 +233,8 @@ func recoverJSON(next http.Handler) http.Handler {
 // accessLog prints one console line per request, for `docker logs`. The
 // client address is the Cf-Connecting-Ip header only when the peer is one of
 // trustedProxies; from anyone else the header is a claim, not an address.
+// Line breaks are escaped: the path is decoded and the address can come from
+// a header, so either could otherwise forge a line of its own.
 func accessLog(trustedProxies []string) func(http.Handler) http.Handler {
 	trusted := parseProxies(trustedProxies)
 	return func(next http.Handler) http.Handler {
