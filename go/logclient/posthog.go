@@ -80,7 +80,7 @@ func (p *posthog) add(distinctID, event string, properties map[string]any) {
 }
 
 func (p *posthog) send(ctx context.Context, events []posthogEvent) error {
-	raw, err := json.Marshal(struct {
+	raw, err := json.Marshal(struct { //nolint:gosec // G117: PostHog's batch API takes the project key in the body, and that key is public by design: browsers send it too.
 		APIKey string         `json:"api_key"`
 		Batch  []posthogEvent `json:"batch"`
 	}{p.apiKey, events})
