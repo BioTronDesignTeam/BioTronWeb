@@ -107,20 +107,21 @@ func (p *posthog) send(ctx context.Context, events []posthogEvent) error {
 // auditActor decides which log events also go to PostHog: an info event
 // whose map payload names who acted, as actor_login (admin and audit changes)
 // or operator_login (sign-in and sign-out). The login becomes PostHog's
-// distinct id and the message the event name. Warnings and errors, request
-// lines, and events with no person behind them stay in the logs only.
-func auditActor(level Level, payload any) (string, bool) {
+// distinct id, the message the event name, and the map its properties.
+// Warnings and errors, request lines, and events with no person behind them
+// stay in the logs only.
+func auditActor(level Level, payload any) (string, map[string]any, bool) {
 	if level != Info {
-		return "", false
+		return "", nil, false
 	}
 	fields, ok := payload.(map[string]any)
 	if !ok {
-		return "", false
+		return "", nil, false
 	}
 	for _, key := range []string{"actor_login", "operator_login"} {
 		if login, ok := fields[key].(string); ok && login != "" {
-			return login, true
+			return login, fields, true
 		}
 	}
-	return "", false
+	return "", nil, false
 }

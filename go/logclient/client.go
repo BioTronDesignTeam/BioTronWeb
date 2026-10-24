@@ -170,8 +170,8 @@ func (c *Client) audit(level Level, message string, payload any) {
 	if c.posthog == nil {
 		return
 	}
-	if login, ok := auditActor(level, payload); ok {
-		c.posthog.add(login, message, payload.(map[string]any))
+	if login, fields, ok := auditActor(level, payload); ok {
+		c.posthog.add(login, message, fields)
 	}
 }
 
