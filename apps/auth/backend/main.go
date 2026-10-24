@@ -82,13 +82,14 @@ func main() {
 		Signer:  auth.NewSigner([]byte(cfg.SessionSigningKey)),
 		Events:  events,
 		Cfg: auth.Config{
-			FrontendURL:    cfg.FrontendURL,
-			AllowedOrigins: cfg.AllowedOrigins,
-			CookieSecure:   cfg.CookieSecure,
-			CookieSameSite: cfg.CookieSameSite,
-			CookieDomain:   cfg.CookieDomain,
-			SessionTTL:     cfg.SessionTTL,
-			IsSuperuserID:  cfg.IsSuperuserID,
+			FrontendURL:     cfg.FrontendURL,
+			AllowedOrigins:  cfg.AllowedOrigins,
+			CookieSecure:    cfg.CookieSecure,
+			CookieSameSite:  cfg.CookieSameSite,
+			CookieDomain:    cfg.CookieDomain,
+			SessionTTL:      cfg.SessionTTL,
+			IsSuperuserID:   cfg.IsSuperuserID,
+			StateCookiePath: auth.StateCookiePath(cfg.CallbackURL),
 		},
 	}
 

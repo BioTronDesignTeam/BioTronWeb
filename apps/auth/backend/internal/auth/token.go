@@ -63,9 +63,21 @@ type sessionClaims struct {
 	jwt.RegisteredClaims
 }
 
+// SignIn is what a state cookie holds for one sign-in.
+type SignIn struct {
+	// State is the random state sent to GitHub and back.
+	State string
+	// Return is the origin to return to.
+	Return string
+	// Verifier is the PKCE code verifier, whose S256 challenge went to
+	// GitHub; only this browser's cookie can finish the sign-in with it.
+	Verifier string
+}
+
 type stateClaims struct {
-	State  string `json:"state"`
-	Return string `json:"return"`
+	State    string `json:"state"`
+	Return   string `json:"return"`
+	Verifier string `json:"verifier"`
 	jwt.RegisteredClaims
 }
 
@@ -110,24 +122,24 @@ func (s *Signer) GuestKeyID(appID, day, key string) string {
 	return base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
 }
 
-// State returns a state cookie value for one sign-in: the random state and
-// the origin to return to.
-func (s *Signer) State(state, returnTo string) (string, error) {
+// State returns a state cookie value for one sign-in.
+func (s *Signer) State(signIn SignIn) (string, error) {
 	return s.sign(&stateClaims{
-		State:            state,
-		Return:           returnTo,
+		State:            signIn.State,
+		Return:           signIn.Return,
+		Verifier:         signIn.Verifier,
 		RegisteredClaims: s.registered("", stateAudience, s.now().Add(stateLifetime)),
 	})
 }
 
 // ReadState returns what a state cookie holds; ok is false when it is not
-// valid or has expired.
-func (s *Signer) ReadState(value string) (state, returnTo string, ok bool) {
+// valid, has expired, or lacks the state or the verifier.
+func (s *Signer) ReadState(value string) (SignIn, bool) {
 	var claims stateClaims
-	if !s.read(value, stateAudience, &claims) || claims.State == "" {
-		return "", "", false
+	if !s.read(value, stateAudience, &claims) || claims.State == "" || claims.Verifier == "" {
+		return SignIn{}, false
 	}
-	return claims.State, claims.Return, true
+	return SignIn{State: claims.State, Return: claims.Return, Verifier: claims.Verifier}, true
 }
 
 func (s *Signer) registered(subject, audience string, expires time.Time) jwt.RegisteredClaims {

@@ -3,22 +3,26 @@ package auth
 // Sign-in with GitHub is the user authorization of the BioTron GitHub App:
 //
 //  1. AuthCodeURL sends the browser to GitHub with the App's client id, the
-//     callback URL, and a random state.
+//     callback URL, a random state, and the S256 challenge of a PKCE verifier.
 //  2. GitHub sends the browser back with a code. Exchange trades it for a user
-//     token, with the client secret.
+//     token, with the client secret and the verifier, so a code stolen on its
+//     way back is worth nothing without this browser's state cookie.
 //  3. FetchUser reads the user with that token. The token then goes out of
 //     scope: it is never stored, logged, or returned.
 //  4. IsOrgMember asks whether the user is a member of the organization with
 //     the App's own installation token, which holds Members: read and nothing
 //     else. The user is never asked for an organization scope.
 //
-// Never log or return the client secret, the code, the state, a token, or the
-// App's key. Errors name the step and GitHub's status, never GitHub's text.
+// Never log or return the client secret, the code, the state, the verifier, a
+// token, or the App's key. Errors name the step and GitHub's status, never
+// GitHub's text.
 
 import (
 	"bytes"
 	"context"
 	"crypto/rsa"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -125,19 +129,23 @@ func NewGitHubClient(opts GitHubOptions) *GitHubClient {
 	}
 }
 
-// AuthCodeURL returns GitHub's sign-in page for one sign-in with state.
-func (g *GitHubClient) AuthCodeURL(state string) string {
+// AuthCodeURL returns GitHub's sign-in page for one sign-in with state and
+// the PKCE verifier, of which only the S256 challenge is sent.
+func (g *GitHubClient) AuthCodeURL(state, verifier string) string {
 	query := url.Values{
-		"client_id":    {g.clientID},
-		"redirect_uri": {g.callbackURL},
-		"state":        {state},
-		"allow_signup": {"false"},
+		"client_id":             {g.clientID},
+		"redirect_uri":          {g.callbackURL},
+		"state":                 {state},
+		"allow_signup":          {"false"},
+		"code_challenge":        {pkceChallenge(verifier)},
+		"code_challenge_method": {"S256"},
 	}
 	return g.oauthBase + "/login/oauth/authorize?" + query.Encode()
 }
 
-// Exchange trades the code of the callback for a user token.
-func (g *GitHubClient) Exchange(ctx context.Context, code string) (string, error) {
+// Exchange trades the code of the callback, and the PKCE verifier of its
+// sign-in, for a user token.
+func (g *GitHubClient) Exchange(ctx context.Context, code, verifier string) (string, error) {
 	var answer struct {
 		AccessToken string `json:"access_token"`
 		Error       string `json:"error"`
@@ -147,6 +155,7 @@ func (g *GitHubClient) Exchange(ctx context.Context, code string) (string, error
 		"client_secret": g.clientSecret,
 		"code":          code,
 		"redirect_uri":  g.callbackURL,
+		"code_verifier": verifier,
 	}, &answer)
 	if err != nil {
 		return "", err
@@ -370,6 +379,12 @@ func (g *GitHubClient) call(ctx context.Context, method, target, token string, b
 		return fmt.Errorf("github %s %s: unreadable answer", method, req.URL.Path)
 	}
 	return nil
+}
+
+// pkceChallenge returns the S256 challenge of a PKCE verifier (RFC 7636).
+func pkceChallenge(verifier string) string {
+	sum := sha256.Sum256([]byte(verifier))
+	return base64.RawURLEncoding.EncodeToString(sum[:])
 }
 
 // redact drops the URL from a transport error, keeping only its cause.
