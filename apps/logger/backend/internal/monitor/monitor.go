@@ -103,7 +103,6 @@ func (m *Monitor) poll(ctx context.Context) {
 	results := make(chan result, len(components))
 	var wait sync.WaitGroup
 	for _, component := range components {
-		component := component
 		wait.Add(1)
 		go func() {
 			defer wait.Done()
