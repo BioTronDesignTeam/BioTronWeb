@@ -15,13 +15,17 @@ import (
 // these tests exercise the real router that New() builds rather than a
 // stand-in.
 
-const allowedOrigin = "http://localhost:5174"
+// allowedOrigin is a sibling tool's frontend, ownOrigin Auth's own.
+const (
+	allowedOrigin = "http://localhost:5174"
+	ownOrigin     = "http://localhost:5173"
+)
 
 // newTestApp builds the production router. The handler has no store, which is
 // fine: every assertion here is about a gate that answers before any handler
 // would reach the database.
 func newTestApp(trustedProxies []string) http.Handler {
-	return New(&auth.Handler{}, []string{allowedOrigin}, trustedProxies, nil)
+	return New(&auth.Handler{Cfg: auth.Config{FrontendURL: ownOrigin}}, []string{ownOrigin, allowedOrigin}, trustedProxies, nil)
 }
 
 func serve(app http.Handler, request *http.Request) *httptest.ResponseRecorder {
@@ -147,10 +151,10 @@ func TestCORSAnswersOnlyListedOriginsAndKeepsCredentials(t *testing.T) {
 	app := newTestApp(nil)
 
 	request := httptest.NewRequest(http.MethodGet, "/health", nil)
-	request.Header.Set("Origin", allowedOrigin)
+	request.Header.Set("Origin", ownOrigin)
 	response := serve(app, request)
-	if got := response.Header().Get("Access-Control-Allow-Origin"); got != allowedOrigin {
-		t.Errorf("Access-Control-Allow-Origin = %q, want the exact origin %q", got, allowedOrigin)
+	if got := response.Header().Get("Access-Control-Allow-Origin"); got != ownOrigin {
+		t.Errorf("Access-Control-Allow-Origin = %q, want the exact origin %q", got, ownOrigin)
 	}
 	if got := response.Header().Get("Access-Control-Allow-Credentials"); got != "true" {
 		t.Errorf("Access-Control-Allow-Credentials = %q, want true", got)
@@ -166,12 +170,53 @@ func TestCORSAnswersOnlyListedOriginsAndKeepsCredentials(t *testing.T) {
 	}
 }
 
+// Another tool's frontend gets credentialed CORS only for what the tools
+// call: /auth/me, /v1/check, sign-out, and the guest sign-in. Script on a
+// sibling hostname cannot read the roster or send a staff action with a staff
+// member's cookie; only Auth's own frontend can.
+func TestCORSLimitsSiblingOriginsToTheRoutesTheyCall(t *testing.T) {
+	app := newTestApp(nil)
+	for _, tc := range []struct {
+		origin, method, path string
+		allowed              bool
+	}{
+		{allowedOrigin, http.MethodGet, "/auth/me", true},
+		{allowedOrigin, http.MethodGet, "/v1/check", true},
+		{allowedOrigin, http.MethodPost, "/auth/logout", true},
+		{allowedOrigin, http.MethodPost, "/auth/guest", true},
+		{allowedOrigin, http.MethodGet, "/org/members", false},
+		{allowedOrigin, http.MethodGet, "/auth/guest-keys", false},
+		{allowedOrigin, http.MethodPost, "/grants", false},
+		{allowedOrigin, http.MethodDelete, "/grants", false},
+		{allowedOrigin, http.MethodPost, "/org/members/1/ban", false},
+		{allowedOrigin, http.MethodPatch, "/org/members/1/manager", false},
+		{allowedOrigin, http.MethodPost, "/auth/guest-keys/exo-gui/rotate", false},
+		{allowedOrigin, http.MethodPost, "/apps", false},
+		{ownOrigin, http.MethodGet, "/org/members", true},
+		{ownOrigin, http.MethodDelete, "/grants", true},
+		{ownOrigin, http.MethodPost, "/org/members/1/ban", true},
+	} {
+		preflight := httptest.NewRequest(http.MethodOptions, tc.path, nil)
+		preflight.Header.Set("Origin", tc.origin)
+		preflight.Header.Set("Access-Control-Request-Method", tc.method)
+		preflight.Header.Set("Access-Control-Request-Headers", "content-type, x-requested-with")
+		if got := serve(app, preflight).Header().Get("Access-Control-Allow-Origin") != ""; got != tc.allowed {
+			t.Errorf("preflight %s %s from %s allowed = %v, want %v", tc.method, tc.path, tc.origin, got, tc.allowed)
+		}
+		request := httptest.NewRequest(tc.method, tc.path, nil)
+		request.Header.Set("Origin", tc.origin)
+		if got := serve(app, request).Header().Get("Access-Control-Allow-Origin") != ""; got != tc.allowed {
+			t.Errorf("%s %s from %s allowed = %v, want %v", tc.method, tc.path, tc.origin, got, tc.allowed)
+		}
+	}
+}
+
 // A preflight is answered by the CORS layer with 204 and the allowed methods
 // and headers; it never reaches the session check of the route behind it.
 func TestCORSPreflightIsAnsweredBeforeTheRoute(t *testing.T) {
 	app := newTestApp(nil)
 	request := httptest.NewRequest(http.MethodOptions, "/grants", nil)
-	request.Header.Set("Origin", allowedOrigin)
+	request.Header.Set("Origin", ownOrigin)
 	request.Header.Set("Access-Control-Request-Method", http.MethodDelete)
 	request.Header.Set("Access-Control-Request-Headers", "content-type, x-requested-with")
 	response := serve(app, request)
@@ -179,7 +224,7 @@ func TestCORSPreflightIsAnsweredBeforeTheRoute(t *testing.T) {
 		t.Fatalf("preflight = %d, want 204", response.Code)
 	}
 	header := response.Header()
-	if got := header.Get("Access-Control-Allow-Origin"); got != allowedOrigin {
+	if got := header.Get("Access-Control-Allow-Origin"); got != ownOrigin {
 		t.Errorf("Access-Control-Allow-Origin = %q", got)
 	}
 	if got := header.Get("Access-Control-Allow-Methods"); got != "GET, POST, DELETE, PATCH, OPTIONS" {

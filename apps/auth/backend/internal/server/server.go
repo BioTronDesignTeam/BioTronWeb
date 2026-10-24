@@ -23,6 +23,8 @@ func chain(h http.HandlerFunc, middlewares ...middleware) http.Handler {
 
 // New returns the API. trustedProxies are the addresses (or CIDR ranges)
 // whose Cf-Connecting-Ip header names the client for the guest-login limit.
+// allowedOrigins may call the routes other tools need with credentials;
+// h.Cfg.FrontendURL, Auth's own frontend, may call every route.
 func New(h *auth.Handler, allowedOrigins []string, trustedProxies []string, events *logclient.Client) http.Handler {
 	mux := http.NewServeMux()
 
@@ -67,5 +69,5 @@ func New(h *auth.Handler, allowedOrigins []string, trustedProxies []string, even
 	// when they fail, so the log stays a record of what happened rather than
 	// a tally of who is still signed in.
 	logged := httplog.New(events, httplog.Options{Quiet: []string{"/v1/check", "/auth/me"}})
-	return logged(cors(allowedOrigins)(mux))
+	return logged(cors(h.Cfg.FrontendURL, allowedOrigins)(mux))
 }

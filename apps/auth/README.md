@@ -66,7 +66,12 @@ Prisma. Do not add environment files below it.
 - `COOKIE_SECURE=true` is required when the callback URL is https or
   `COOKIE_DOMAIN` is set. The backend refuses to start without it.
 - `CORS_ORIGINS` must list each tool frontend as both `localhost` and
-  `127.0.0.1`. Browsers treat them as different origins.
+  `127.0.0.1`. Browsers treat them as different origins. These origins get
+  credentialed CORS only for what the tools call: `GET /auth/me`,
+  `GET /v1/check`, `POST /auth/logout`, and `POST /auth/guest`. Every other
+  route, and every staff action, answers cross-origin only to
+  `FRONTEND_URL`, Auth's own frontend. A tool that needs another route of
+  Auth adds it to `siblingRoutes` in `backend/internal/server/cors.go`.
 - `TRUSTED_PROXIES` must include the edge Nginx network. The per-IP rate
   limit keys on `Cf-Connecting-Ip`, which the API reads only from a trusted
   proxy.
