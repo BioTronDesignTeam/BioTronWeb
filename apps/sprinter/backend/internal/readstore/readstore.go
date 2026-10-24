@@ -15,6 +15,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -122,6 +123,9 @@ func (s *Store) queryLogs(ctx context.Context, query LogQuery, paged bool) ([]Lo
 	if paged {
 		fetch++
 	}
+	if fetch < 0 || fetch > math.MaxInt32 {
+		return nil, "", fmt.Errorf("limit %d is out of range", query.Limit)
+	}
 	params.RowLimit = int32(fetch)
 
 	found, err := s.q.Logs(ctx, params)
@@ -137,7 +141,11 @@ func (s *Store) queryLogs(ctx context.Context, query LogQuery, paged bool) ([]Lo
 	}
 	if paged && len(logs) > query.Limit {
 		last := logs[query.Limit-1]
-		return logs[:query.Limit], EncodeCursor(Cursor{CreatedAt: last.CreatedAt, ID: last.ID}), nil
+		next, err := EncodeCursor(Cursor{CreatedAt: last.CreatedAt, ID: last.ID})
+		if err != nil {
+			return nil, "", err
+		}
+		return logs[:query.Limit], next, nil
 	}
 	return logs, "", nil
 }
@@ -153,6 +161,9 @@ type HealthRow struct {
 }
 
 func (s *Store) HealthHistory(ctx context.Context, service string, since time.Time, limit int) ([]HealthRow, error) {
+	if limit < 0 || limit > math.MaxInt32 {
+		return nil, fmt.Errorf("limit %d is out of range", limit)
+	}
 	found, err := s.q.HealthHistory(ctx, queries.HealthHistoryParams{
 		Service: service, Since: since, RowLimit: int32(limit),
 	})
@@ -305,9 +316,12 @@ type Cursor struct {
 	ID        int64     `json:"id"`
 }
 
-func EncodeCursor(cursor Cursor) string {
-	raw, _ := json.Marshal(cursor)
-	return base64.RawURLEncoding.EncodeToString(raw)
+func EncodeCursor(cursor Cursor) (string, error) {
+	raw, err := json.Marshal(cursor)
+	if err != nil {
+		return "", fmt.Errorf("encode cursor: %w", err)
+	}
+	return base64.RawURLEncoding.EncodeToString(raw), nil
 }
 
 // DecodeCursor rejects anything it did not write. The cursor reaches this
