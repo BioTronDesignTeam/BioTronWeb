@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
@@ -56,9 +57,10 @@ func (h *Handler) audit(message string, actor *store.SessionOperator, payload ma
 
 // fail records one failure twice: on stdout, which is all `docker logs` has
 // when Logger is unreachable, and on the request's completion event, which
-// then names the cause instead of a bare status.
+// then names the cause instead of a bare status. An error can quote a path,
+// which can hold a line break, so line breaks are escaped on stdout.
 func fail(r *http.Request, err error, what string) {
-	log.Printf("%s: %v", what, err)
+	log.Printf("%s: %s", what, strings.ReplaceAll(strings.ReplaceAll(err.Error(), "\r", `\r`), "\n", `\n`))
 	httplog.SetError(r, err)
 }
 
