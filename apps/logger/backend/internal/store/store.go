@@ -141,16 +141,20 @@ func (s *Store) RecentLogs(ctx context.Context, services []string, levels []mode
 }
 
 func (s *Store) QueryLogs(ctx context.Context, query model.HistoryQuery) (model.LogPage, error) {
-	if query.Limit <= 0 {
-		query.Limit = 100
+	// The API asks for at most 200 rows. The cap keeps any other caller's
+	// limit, with the row that tells whether a next page exists, in an int32.
+	limit := query.Limit
+	if limit <= 0 {
+		limit = 100
 	}
+	limit = min(limit, 1000)
 
 	// Each filter left out travels as NULL, which switches its clause off.
 	params := queries.QueryLogsParams{
 		Services:    query.Services,
 		CreatedFrom: query.From,
 		CreatedTo:   query.To,
-		RowLimit:    int32(query.Limit + 1),
+		RowLimit:    int32(limit + 1),
 	}
 	for _, level := range query.Levels {
 		params.Levels = append(params.Levels, string(level))
@@ -178,10 +182,14 @@ func (s *Store) QueryLogs(ctx context.Context, query model.HistoryQuery) (model.
 	}
 
 	page := model.LogPage{Logs: entries}
-	if len(entries) > query.Limit {
-		last := entries[query.Limit-1]
-		page.NextCursor = encodeCursor(logCursor{CreatedAt: last.CreatedAt, ID: rows[query.Limit-1].ID})
-		page.Logs = entries[:query.Limit]
+	if len(entries) > limit {
+		last := entries[limit-1]
+		next, err := encodeCursor(logCursor{CreatedAt: last.CreatedAt, ID: rows[limit-1].ID})
+		if err != nil {
+			return model.LogPage{}, err
+		}
+		page.NextCursor = next
+		page.Logs = entries[:limit]
 	}
 	return page, nil
 }
@@ -348,9 +356,12 @@ type logCursor struct {
 	ID        int64     `json:"id"`
 }
 
-func encodeCursor(cursor logCursor) string {
-	raw, _ := json.Marshal(cursor)
-	return base64.RawURLEncoding.EncodeToString(raw)
+func encodeCursor(cursor logCursor) (string, error) {
+	raw, err := json.Marshal(cursor)
+	if err != nil {
+		return "", fmt.Errorf("encode cursor: %w", err)
+	}
+	return base64.RawURLEncoding.EncodeToString(raw), nil
 }
 
 func decodeCursor(encoded string) (logCursor, error) {

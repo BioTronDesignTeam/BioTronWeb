@@ -7,7 +7,11 @@ import (
 
 func TestCursorRoundTrip(t *testing.T) {
 	want := logCursor{CreatedAt: time.Date(2026, time.August, 30, 12, 0, 0, 0, time.UTC), ID: 42}
-	got, err := decodeCursor(encodeCursor(want))
+	encoded, err := encodeCursor(want)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := decodeCursor(encoded)
 	if err != nil {
 		t.Fatal(err)
 	}
