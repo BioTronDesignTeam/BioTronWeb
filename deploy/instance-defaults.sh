@@ -5,9 +5,10 @@
 #
 # Infisical holds what differs between instances and cannot be derived:
 # BASE_DOMAIN, the Postgres passwords, LOGGER_INGEST_TOKEN, the GitHub App
-# and session key, and Sprinter's Discord and Gemini keys. Everything below follows from
-# those, so it is computed here instead of being copied into Infisical, where
-# the copies could drift. A value Infisical does set always wins.
+# and session key, and Sprinter's Discord and Gemini keys. Everything below
+# follows from those, so it is computed here instead of being copied into
+# Infisical, where the copies could drift. A value Infisical does set always
+# wins.
 set -euo pipefail
 
 : "${BASE_DOMAIN:?set BASE_DOMAIN in this environment in Infisical}"
