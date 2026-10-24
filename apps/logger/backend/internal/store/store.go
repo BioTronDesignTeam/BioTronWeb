@@ -214,16 +214,17 @@ func (s *Store) LatestHealth(ctx context.Context, services []string) (map[string
 		keys = append(keys, healthKey(service))
 	}
 
+	// MGET answers one value per key, in order, so values[i] is services[i].
 	values, cacheErr := s.cache.MGet(ctx, keys...).Result()
-	if cacheErr == nil {
-		for i, value := range values {
-			raw, ok := value.(string)
+	if cacheErr == nil && len(values) == len(services) {
+		for i, service := range services {
+			raw, ok := values[i].(string)
 			if !ok {
 				continue
 			}
 			var health model.Health
 			if json.Unmarshal([]byte(raw), &health) == nil {
-				result[services[i]] = health
+				result[service] = health
 			}
 		}
 	}
