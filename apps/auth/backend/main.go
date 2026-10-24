@@ -65,11 +65,12 @@ func main() {
 	})
 
 	h := &auth.Handler{
-		Store:  st,
-		Cache:  cache.New(st),
-		GitHub: gh,
-		Signer: auth.NewSigner([]byte(cfg.SessionSigningKey)),
-		Events: events,
+		Store:   st,
+		Cache:   cache.New(st),
+		GitHub:  gh,
+		Members: auth.NewMembership(gh.IsOrgMember),
+		Signer:  auth.NewSigner([]byte(cfg.SessionSigningKey)),
+		Events:  events,
 		Cfg: auth.Config{
 			FrontendURL:    cfg.FrontendURL,
 			AllowedOrigins: cfg.AllowedOrigins,

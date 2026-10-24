@@ -18,8 +18,9 @@ func withOperator(r *http.Request, op *store.SessionOperator) *http.Request {
 }
 
 // RequireSession accepts a session cookie this service signed that has not
-// expired, of an operator who is not banned. Org membership is not
-// re-checked here — see DEFERRED.md (C2) before shipping a control path.
+// expired, of an operator who is not banned and who is still a member of the
+// organization, asked of GitHub at most once per MembershipTTL. A guest has
+// no GitHub identity and skips the membership check.
 func (h *Handler) RequireSession(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		token := cookieValue(r, SessionCookie)
@@ -49,6 +50,9 @@ func (h *Handler) RequireSession(next http.Handler) http.Handler {
 			httpx.Error(w, r, http.StatusUnauthorized)
 			return
 		}
+		if session.GuestAppID == "" && !h.stillMember(w, r, member.GitHubID, member.Login) {
+			return
+		}
 		op := &store.SessionOperator{
 			GitHubID:    member.GitHubID,
 			Login:       member.Login,
@@ -63,6 +67,33 @@ func (h *Handler) RequireSession(next http.Handler) http.Handler {
 		httplog.SetActor(r, op.Login)
 		next.ServeHTTP(w, withOperator(r, op))
 	})
+}
+
+// stillMember answers the request and returns false unless the operator is
+// still a member of the organization. Someone removed from it is refused
+// with 401, as a ban is, so every tool sends them to sign in, where GitHub
+// refuses them. When GitHub cannot answer and no answer of the last
+// MembershipTTL is kept, the request fails closed with 503. The check goes
+// by login, so an operator who renamed their GitHub account must sign in
+// again to store the new one.
+func (h *Handler) stillMember(w http.ResponseWriter, r *http.Request, githubID int64, login string) bool {
+	if h.Members == nil {
+		fail(r, errors.New("no membership check configured"), "auth: membership")
+		httpx.Status(w, http.StatusServiceUnavailable)
+		return false
+	}
+	member, err := h.Members.Member(r.Context(), githubID, login)
+	if err != nil {
+		fail(r, err, "auth: membership re-check")
+		httpx.Status(w, http.StatusServiceUnavailable)
+		return false
+	}
+	if !member {
+		httplog.SetError(r, errors.New("no longer a member of the organization"))
+		httpx.Error(w, r, http.StatusUnauthorized)
+		return false
+	}
+	return true
 }
 
 func (h *Handler) RequireXHR(next http.Handler) http.Handler {

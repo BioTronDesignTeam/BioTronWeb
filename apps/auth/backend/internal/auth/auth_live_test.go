@@ -34,11 +34,13 @@ func liveHandler(t *testing.T) (*Handler, *store.Store) {
 		t.Fatalf("connect: %v", err)
 	}
 	t.Cleanup(st.Close)
+	github := newStubGitHub(t, http.StatusNoContent).client()
 	return &Handler{
-		Store:  st,
-		Cache:  cache.New(st),
-		GitHub: newStubGitHub(t, http.StatusNoContent).client(),
-		Signer: NewSigner(testSigningKey),
+		Store:   st,
+		Cache:   cache.New(st),
+		GitHub:  github,
+		Members: NewMembership(github.IsOrgMember),
+		Signer:  NewSigner(testSigningKey),
 		Cfg: Config{
 			FrontendURL:    "http://localhost:5173",
 			AllowedOrigins: []string{"http://localhost:5173", "http://localhost:5174"},

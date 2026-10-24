@@ -165,8 +165,13 @@ What that means in practice:
 - Sign-out removes the cookie from that browser only. A copy of the cookie
   stays valid until it expires; ban the operator to end it everywhere.
 - Changing `SESSION_SIGNING_KEY` signs everyone out.
-- Membership is checked at login only, so a removed member keeps access
-  until the cookie ends or staff ban them.
+- Membership of the organization is asked again, with the App's
+  installation token, at most every 15 minutes per operator. Someone removed
+  from `BioTronDesignTeam` is refused with `401` within 15 minutes, on
+  `/v1/check` too. When GitHub cannot answer and the last answer is older
+  than that, the request fails closed with `503`. The check goes by login, so
+  an operator who renames their GitHub account signs in again. A sign-in
+  records its own answer. Guests have no GitHub identity and are not checked.
 
 Sessions from before signed cookies were opaque tokens in the `sessions`
 table. Those cookies no longer validate, so everyone signs in once more
@@ -180,7 +185,8 @@ cookie. The status code carries the verdict:
 
 | Situation | Response |
 |---|---|
-| No cookie, or an unsigned, expired, or banned session | `401` |
+| No cookie, or an unsigned, expired, or banned session, or an operator no longer in the organization | `401` |
+| GitHub cannot confirm the membership, and no answer of the last 15 minutes is kept | `503` |
 | `app` or `permission` missing | `400` |
 | Valid session | `200` with `{"allowed": true}` or `{"allowed": false}` |
 
