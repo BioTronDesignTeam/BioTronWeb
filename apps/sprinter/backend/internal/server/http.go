@@ -66,15 +66,16 @@ func writeError(w http.ResponseWriter, r *http.Request, err error) {
 	message := "internal server error"
 	logged := err
 	var known *httpError
-	if errors.As(err, &known) {
+	switch {
+	case errors.As(err, &known):
 		status = known.status
 		message = strings.ToLower(known.message)
 		if known.cause != nil {
 			logged = known.cause
 		}
-	} else if errors.Is(err, store.ErrNotFound) {
+	case errors.Is(err, store.ErrNotFound):
 		status, message = http.StatusNotFound, "not found"
-	} else if errors.Is(err, store.ErrConflict) {
+	case errors.Is(err, store.ErrConflict):
 		status, message = http.StatusConflict, "the requested change conflicts with existing data"
 	}
 	if status >= 500 {
