@@ -279,6 +279,31 @@ func (s *Store) EnsureProductDailyKey(ctx context.Context, appID, day, candidate
 	return ProductDailyKey{AppID: row.AppID, Day: row.Day, Key: row.Key}, nil
 }
 
+// RotateProductDailyKey replaces the key of one enabled product for one Eastern
+// day with candidate, creating it if there was none.
+func (s *Store) RotateProductDailyKey(ctx context.Context, appID, day, candidate string) (ProductDailyKey, error) {
+	row, err := s.q.RotateProductDailyKey(ctx, queries.RotateProductDailyKeyParams{
+		AppID: appID, Day: day, Key: candidate,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ProductDailyKey{}, ErrNotFound
+		}
+		return ProductDailyKey{}, err
+	}
+	return ProductDailyKey{AppID: row.AppID, Day: row.Day, Key: row.Key}, nil
+}
+
+// GetGuestKey returns the key of one product and Eastern day, or ErrNotFound
+// when there is none or the product no longer has daily keys.
+func (s *Store) GetGuestKey(ctx context.Context, appID, day string) (string, error) {
+	key, err := s.q.GetGuestKey(ctx, queries.GetGuestKeyParams{AppID: appID, Day: day})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", ErrNotFound
+	}
+	return key, err
+}
+
 func (s *Store) ListDailyKeyApps(ctx context.Context) ([]App, error) {
 	rows, err := s.q.ListDailyKeyApps(ctx)
 	if err != nil {

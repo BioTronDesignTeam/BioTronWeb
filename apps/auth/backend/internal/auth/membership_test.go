@@ -36,6 +36,9 @@ func (f *fakeGitHubMembers) set(member bool, err error) {
 	f.err = err
 }
 
+// testGuestKey is every app's daily key in fakeOperators.
+const testGuestKey = "GUESTKEY0001"
+
 // fakeOperators is the store behind the cache: every id but the guest's is
 // the operator octo, and none is banned.
 type fakeOperators struct{}
@@ -46,6 +49,10 @@ func (fakeOperators) GetOperator(_ context.Context, githubID int64) (*store.OrgM
 		login = "octo"
 	}
 	return &store.OrgMember{GitHubID: githubID, Login: login}, nil
+}
+
+func (fakeOperators) GetGuestKey(context.Context, string, string) (string, error) {
+	return testGuestKey, nil
 }
 
 func (fakeOperators) ListGrantsForOperator(context.Context, int64) ([]store.Grant, error) {
@@ -189,9 +196,13 @@ func TestRequireSessionRechecksMembership(t *testing.T) {
 
 	// The guest never reaches GitHub; it has no login to ask about.
 	calls := github.calls
-	guest := guestSession(t, h)
-	h.RequireSession(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})).
-		ServeHTTP(httptest.NewRecorder(), guest)
+	guest := httptest.NewRecorder()
+	h.RequireSession(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})).ServeHTTP(guest, guestSession(t, h))
+	if guest.Code != http.StatusOK {
+		t.Fatalf("a guest during a GitHub outage = %d, want 200", guest.Code)
+	}
 	if github.calls != calls {
 		t.Fatal("a guest session asked GitHub for a membership")
 	}
@@ -201,7 +212,13 @@ func TestRequireSessionRechecksMembership(t *testing.T) {
 func guestSession(t *testing.T, h *Handler) *http.Request {
 	const appID = "exo-gui"
 	t.Helper()
-	value, err := h.Signer.Session(Session{GitHubID: store.GuestGitHubID, GuestAppID: appID}, time.Now().Add(time.Hour))
+	const day = "2026-10-23"
+	value, err := h.Signer.Session(Session{
+		GitHubID:   store.GuestGitHubID,
+		GuestAppID: appID,
+		GuestDay:   day,
+		GuestKeyID: h.Signer.GuestKeyID(appID, day, testGuestKey),
+	}, time.Now().Add(time.Hour))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -5,6 +5,7 @@ import {
   createGrant,
   deleteGrant,
   logout,
+  rotateProductDailyKey,
   setManager,
   unbanMember,
 } from './api';
@@ -86,6 +87,12 @@ export default function App() {
       await reloadMemberGrants();
     });
 
+  const onRotateKey = (appId: string) =>
+    void runAction('Rotate failed', async () => {
+      await rotateProductDailyKey(appId);
+      await refresh();
+    });
+
   const onLogout = async () => {
     await logout();
     clear();
@@ -133,6 +140,7 @@ export default function App() {
             copiedAppId={keyReveal.copiedAppId}
             onToggle={keyReveal.toggle}
             onCopy={(key) => void keyReveal.copy(key)}
+            onRotate={onRotateKey}
           />
         )}
 

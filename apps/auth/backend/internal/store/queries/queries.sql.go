@@ -111,6 +111,26 @@ func (q *Queries) EnsureProductDailyKey(ctx context.Context, arg EnsureProductDa
 	return i, err
 }
 
+const getGuestKey = `-- name: GetGuestKey :one
+SELECT gk.key FROM guest_keys gk JOIN apps a ON a.id = gk.app_id
+WHERE gk.app_id = $1 AND gk.day = $2::text::date
+  AND a.daily_key_enabled = true
+`
+
+type GetGuestKeyParams struct {
+	AppID string
+	Day   string
+}
+
+// The key a guest session must still match: none once the app stops using
+// daily keys.
+func (q *Queries) GetGuestKey(ctx context.Context, arg GetGuestKeyParams) (string, error) {
+	row := q.db.QueryRow(ctx, getGuestKey, arg.AppID, arg.Day)
+	var key string
+	err := row.Scan(&key)
+	return key, err
+}
+
 const getOperator = `-- name: GetOperator :one
 SELECT github_id, login, COALESCE(name, '') AS name, COALESCE(avatar_url, '') AS avatar_url,
        is_superuser, is_manager, is_banned, last_login_at
@@ -367,6 +387,35 @@ func (q *Queries) ReconcileSuperusers(ctx context.Context, ids []int64) (int64, 
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const rotateProductDailyKey = `-- name: RotateProductDailyKey :one
+INSERT INTO guest_keys (app_id, day, key)
+SELECT id, $1::text::date, $2::text FROM apps
+WHERE id = $3 AND daily_key_enabled = true
+ON CONFLICT (app_id, day) DO UPDATE SET key = EXCLUDED.key
+RETURNING app_id, day::text AS day, key
+`
+
+type RotateProductDailyKeyParams struct {
+	Day   string
+	Key   string
+	AppID string
+}
+
+type RotateProductDailyKeyRow struct {
+	AppID string
+	Day   string
+	Key   string
+}
+
+// Replaces the key of one enabled app for one Eastern day, which ends every
+// guest session that used the old one.
+func (q *Queries) RotateProductDailyKey(ctx context.Context, arg RotateProductDailyKeyParams) (RotateProductDailyKeyRow, error) {
+	row := q.db.QueryRow(ctx, rotateProductDailyKey, arg.Day, arg.Key, arg.AppID)
+	var i RotateProductDailyKeyRow
+	err := row.Scan(&i.AppID, &i.Day, &i.Key)
+	return i, err
 }
 
 const setBanned = `-- name: SetBanned :execrows

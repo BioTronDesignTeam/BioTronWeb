@@ -37,6 +37,7 @@ func New(h *auth.Handler, allowedOrigins []string, trustedProxies []string, even
 	mux.Handle("POST /auth/logout", chain(h.Logout, h.RequireXHR, h.RequireSession))
 	mux.Handle("GET /auth/me", chain(h.Me, h.RequireSession))
 	mux.Handle("GET /auth/guest-keys", chain(h.StaffProductDailyKeys, h.RequireSession, h.RequireStaff))
+	mux.Handle("POST /auth/guest-keys/{app}/rotate", chain(h.RotateProductDailyKey, h.RequireXHR, h.RequireSession, h.RequireStaff))
 
 	mux.Handle("GET /apps", chain(h.ListApps, h.RequireSession))
 	mux.Handle("GET /permissions", chain(h.ListPermissions, h.RequireSession))

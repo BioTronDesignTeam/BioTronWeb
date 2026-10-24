@@ -14,6 +14,7 @@ type fakeSource struct {
 	operator    store.OrgMember
 	grants      []store.Grant
 	loads       int
+	guestKey    string
 	beforeGrant func()
 }
 
@@ -32,6 +33,14 @@ func (f *fakeSource) ListGrantsForOperator(context.Context, int64) ([]store.Gran
 		f.beforeGrant()
 	}
 	return f.grants, nil
+}
+
+func (f *fakeSource) GetGuestKey(context.Context, string, string) (string, error) {
+	f.loads++
+	if f.guestKey == "" {
+		return "", store.ErrNotFound
+	}
+	return f.guestKey, nil
 }
 
 func newTestCache(src Source) (*Cache, *time.Time) {
@@ -107,5 +116,35 @@ func TestALoadThatRacedAnInvalidationIsNotKept(t *testing.T) {
 	src.grants = nil
 	if ok, _ := c.HasGrant(ctx, 7, "logger", "view"); ok {
 		t.Fatal("a stale load was kept after the invalidation it raced")
+	}
+}
+
+// A guest key is kept for the TTL, and rotating it applies to the next guest
+// request: InvalidateGuestKeys drops it and refuses a load that raced it.
+func TestGuestKeyIsKeptUntilInvalidated(t *testing.T) {
+	src := &fakeSource{guestKey: "OLD"}
+	c, now := newTestCache(src)
+	ctx := context.Background()
+
+	for range 3 {
+		if key, err := c.GuestKey(ctx, "exo-gui", "2026-10-23"); err != nil || key != "OLD" {
+			t.Fatalf("key = %q, err = %v", key, err)
+		}
+	}
+	if src.loads != 1 {
+		t.Fatalf("loads = %d, want one within the TTL", src.loads)
+	}
+
+	src.guestKey = "NEW"
+	c.InvalidateGuestKeys("exo-gui")
+	if key, _ := c.GuestKey(ctx, "exo-gui", "2026-10-23"); key != "NEW" {
+		t.Fatalf("after a rotation key = %q, want NEW", key)
+	}
+
+	// Turned off by hand in the database: seen once the TTL ends.
+	src.guestKey = ""
+	*now = now.Add(TTL)
+	if _, err := c.GuestKey(ctx, "exo-gui", "2026-10-23"); !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("after the TTL err = %v, want ErrNotFound", err)
 	}
 }

@@ -86,6 +86,8 @@ export const loginURL = `${API_BASE}/auth/github/login`;
 
 export const getMe = () => api<Me>('/auth/me');
 export const getProductDailyKeys = () => api<ProductDailyKey[]>('/auth/guest-keys');
+export const rotateProductDailyKey = (appId: string) =>
+  api<ProductDailyKey>(`/auth/guest-keys/${encodeURIComponent(appId)}/rotate`, { method: 'POST' });
 export const logout = () => api<void>('/auth/logout', { method: 'POST' });
 export const listApps = () => api<AppInfo[]>('/apps');
 export const listPermissions = () => api<Permission[]>('/permissions');
