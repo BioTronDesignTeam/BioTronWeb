@@ -33,8 +33,11 @@ type Handler struct {
 	Store  *store.Store
 	Cache  *cache.Cache
 	GitHub *GitHubClient
-	Signer *Signer
-	Cfg    Config
+	// Members re-checks each operator's organization membership on their
+	// requests, at most once per MembershipTTL.
+	Members *Membership
+	Signer  *Signer
+	Cfg     Config
 	// Events carries the audit trail to Logger. Access is asked for in a
 	// meeting or on Discord and granted by hand, so the grant, the revoke, the
 	// ban, and the manager flag are the only record of who decided what; each
@@ -129,6 +132,9 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 		h.signInFailed(r, err, "membership", "auth: org membership check")
 		httpx.Text(w, http.StatusBadGateway, "authentication failed, please try again")
 		return
+	}
+	if h.Members != nil {
+		h.Members.Keep(user.ID, member)
 	}
 	if !member {
 		// A non-member's name is never stored or sent: the refusal carries
