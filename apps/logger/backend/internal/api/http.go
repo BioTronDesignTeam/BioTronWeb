@@ -64,7 +64,10 @@ func writeError(w http.ResponseWriter, r *http.Request, err error) {
 		code = known.code
 		message = known.message
 	} else {
-		log.Printf("request %s %s: %v", r.Method, r.URL.Path, err)
+		// The path is decoded, so it can hold a line break. Escaped, it
+		// cannot forge a line of its own.
+		request := strings.ReplaceAll(strings.ReplaceAll(r.Method+" "+r.URL.Path, "\r", `\r`), "\n", `\n`)
+		log.Printf("request %s: %v", request, err)
 	}
 	httplog.SetError(r, err)
 	writeJSON(w, code, map[string]any{"error": message})
