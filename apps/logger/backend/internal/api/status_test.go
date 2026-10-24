@@ -57,11 +57,11 @@ func heartbeats(from, to time.Time, ok bool) []model.HealthPoint {
 	return points
 }
 
-func getJSON(t *testing.T, app http.Handler, path string, into any) *http.Response {
+func getJSON(t *testing.T, app http.Handler, path string, into any) *httptest.ResponseRecorder {
 	t.Helper()
 	response := serve(app, httptest.NewRequest(http.MethodGet, path, nil))
-	if response.StatusCode != http.StatusOK {
-		t.Fatalf("GET %s status = %d", path, response.StatusCode)
+	if response.Code != http.StatusOK {
+		t.Fatalf("GET %s status = %d", path, response.Code)
 	}
 	if into != nil {
 		if err := json.NewDecoder(response.Body).Decode(into); err != nil {
@@ -86,7 +86,7 @@ func TestStatusIsPublicAndHidesOperationalDetail(t *testing.T) {
 
 	var payload statusResponse
 	response := getJSON(t, app, "/v1/status", &payload)
-	if got := response.Header.Get("Cache-Control"); got != "public, max-age=30" {
+	if got := response.Header().Get("Cache-Control"); got != "public, max-age=30" {
 		t.Fatalf("Cache-Control = %q", got)
 	}
 	if payload.Overall.State != stateDegraded {
@@ -220,7 +220,7 @@ func TestHistoryReturnsFixedWidthDailyBuckets(t *testing.T) {
 
 	var payload historyResponse
 	response := getJSON(t, app, "/v1/status/history?days=90", &payload)
-	if got := response.Header.Get("Cache-Control"); got != "public, max-age=30" {
+	if got := response.Header().Get("Cache-Control"); got != "public, max-age=30" {
 		t.Fatalf("Cache-Control = %q", got)
 	}
 	if payload.Days != 90 || payload.Timezone != "America/Toronto" {
@@ -365,8 +365,8 @@ func TestLogRoutesStayBehindLoggerView(t *testing.T) {
 	app := statusApp(t, &fakeStore{}, deniedAuthorizer{decision: auth.Decision{Authenticated: true}})
 	for _, path := range []string{"/v1/apps", "/v1/apps/calendar/logs/recent", "/v1/apps/calendar/logs/history"} {
 		response := serve(app, httptest.NewRequest(http.MethodGet, path, nil))
-		if response.StatusCode != http.StatusForbidden {
-			t.Fatalf("GET %s status = %d, want 403 without logger/view", path, response.StatusCode)
+		if response.Code != http.StatusForbidden {
+			t.Fatalf("GET %s status = %d, want 403 without logger/view", path, response.Code)
 		}
 	}
 }
@@ -385,7 +385,7 @@ func TestPublicStatusIsRateLimited(t *testing.T) {
 	var lastStatus int
 	for i := 0; i < 5; i++ {
 		response := serve(app, httptest.NewRequest(http.MethodGet, "/v1/status", nil))
-		lastStatus = response.StatusCode
+		lastStatus = response.Code
 	}
 	if lastStatus != http.StatusTooManyRequests {
 		t.Fatalf("status after exceeding the limit = %d, want 429", lastStatus)
@@ -413,7 +413,7 @@ func TestPublicStatusLimitIsPerClientBehindTheEdge(t *testing.T) {
 		request := httptest.NewRequest(http.MethodGet, "/v1/status", nil)
 		request.Header.Set("Cf-Connecting-Ip", clientIP)
 		response := serve(app, request)
-		return response.StatusCode
+		return response.Code
 	}
 
 	if got := get("203.0.113.7"); got != http.StatusOK {

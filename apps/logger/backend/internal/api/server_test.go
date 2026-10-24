@@ -18,10 +18,10 @@ import (
 
 // serve runs one request through the API in process and returns what the
 // client would receive.
-func serve(app http.Handler, request *http.Request) *http.Response {
+func serve(app http.Handler, request *http.Request) *httptest.ResponseRecorder {
 	recorder := httptest.NewRecorder()
 	app.ServeHTTP(recorder, request)
-	return recorder.Result()
+	return recorder
 }
 
 type recordedEvent struct {
@@ -93,7 +93,7 @@ func TestIngestIsRateLimitedPerSender(t *testing.T) {
 		request.Header.Set("Authorization", "Bearer "+token)
 		request.Header.Set("Cf-Connecting-Ip", senderIP)
 		response := serve(app, request)
-		return response.StatusCode
+		return response.Code
 	}
 
 	if got := post("203.0.113.7", "secret"); got != http.StatusCreated {
@@ -124,16 +124,16 @@ func TestIngestRequiresTokenAndAcceptsStructuredLog(t *testing.T) {
 	request := httptest.NewRequest(http.MethodPost, "/v1/logs", bytes.NewReader(body))
 	request.Header.Set("Content-Type", "application/json")
 	response := serve(app, request)
-	if response.StatusCode != http.StatusUnauthorized {
-		t.Fatalf("unauthorized status = %d", response.StatusCode)
+	if response.Code != http.StatusUnauthorized {
+		t.Fatalf("unauthorized status = %d", response.Code)
 	}
 
 	request = httptest.NewRequest(http.MethodPost, "/v1/logs", bytes.NewReader(body))
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("Authorization", "Bearer secret")
 	response = serve(app, request)
-	if response.StatusCode != http.StatusCreated {
-		t.Fatalf("created status = %d", response.StatusCode)
+	if response.Code != http.StatusCreated {
+		t.Fatalf("created status = %d", response.Code)
 	}
 	if dataStore.inserted.Service != "exo-api" || dataStore.inserted.Level != model.LevelWarning {
 		t.Fatalf("unexpected inserted log: %#v", dataStore.inserted)
@@ -152,8 +152,8 @@ func TestApplicationsAggregateComponentHealth(t *testing.T) {
 	app := New(dataStore, serviceCatalog, auth.AllowAll{}, Options{IngestToken: "secret"})
 
 	response := serve(app, httptest.NewRequest(http.MethodGet, "/v1/apps", nil))
-	if response.StatusCode != http.StatusOK {
-		t.Fatalf("status = %d", response.StatusCode)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d", response.Code)
 	}
 	var payload struct {
 		Applications []applicationStatus `json:"applications"`
@@ -173,8 +173,8 @@ func TestHistoryRejectsUnknownLevel(t *testing.T) {
 	}
 	app := New(&fakeStore{}, serviceCatalog, auth.AllowAll{}, Options{IngestToken: "secret"})
 	response := serve(app, httptest.NewRequest(http.MethodGet, "/v1/apps/exo/logs/history?levels=critical", nil))
-	if response.StatusCode != http.StatusBadRequest {
-		t.Fatalf("status = %d", response.StatusCode)
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d", response.Code)
 	}
 }
 
@@ -205,7 +205,7 @@ func TestIngestRequestLogRecordsOnlyOurOwnMistakes(t *testing.T) {
 		request.Header.Set("Authorization", "Bearer "+token)
 		request.Header.Set("Cf-Connecting-Ip", senderIP)
 		response := serve(app, request)
-		return response.StatusCode
+		return response.Code
 	}
 
 	accepted := `{"service":"exo-api","level":"info","message":"telemetry batch stored"}`
