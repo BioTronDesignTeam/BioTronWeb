@@ -4,7 +4,7 @@
 // question per request: may the operator behind this session cookie use this
 // permission of this app? The answer comes from
 // GET {OAUTH_MANAGER_URL}/v1/check?app=exo-gui&permission=<key>, the same
-// contract Logger and BiotronCalendar use.
+// contract BiotronCalendar uses.
 //
 // Exo is the only product with a guest tier, so the invariant this package
 // exists to hold is: a daily guest may use Live and Historical, never Commands.

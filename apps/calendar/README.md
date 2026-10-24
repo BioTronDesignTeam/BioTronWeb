@@ -85,7 +85,6 @@ frontend, and Prisma. Do not add environment files below it.
   each feed's `URL` line, only needed for a separate subscriber address.
   Existing overrides continue to work. In an existing `.env`, remove it if
   it matches `VITE_API_URL`; remove the unused `VITE_SITE_URL` as well.
-- `LOGGER_INGEST_TOKEN` must match Logger's. Leave it empty to send nothing.
 
 ## API
 
@@ -131,9 +130,9 @@ is no "this and future" edit.
 
 ### Logging
 
-Calendar reports to Logger as `calendar-api`. Every admin event names the
-operator as `actor_id` and `actor_login`, so a change can be traced to the
-person who made it.
+Calendar reports to Grafana and PostHog as `calendar-api`, through
+`go/logclient`. Every admin event names the operator as `actor_id` and
+`actor_login`, so a change can be traced to the person who made it.
 
 | Message | Level | Payload |
 |---------|-------|---------|

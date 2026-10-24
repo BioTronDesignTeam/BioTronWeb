@@ -281,19 +281,21 @@ and Prisma. Do not add environment files below it. `go run .` reads
 - `FRONTEND_URL` and `CORS_ORIGINS`. The origins that may make
   credentialed admin requests. List each host as `localhost` and
   `127.0.0.1`.
-- `LOGGER_URL`, `LOGGER_INGEST_TOKEN`. Where events go, and where
-  `platform_status` reads. An empty token sends no events.
+- `LOGGER_URL`. Logger's status API, where `platform_status` reads.
+- `LOG_LEVEL` and the optional Grafana and PostHog variables listed in
+  `go/logclient/README.md`. Where events go.
 
 Tests read two more: `SPRINTER_TEST_DATABASE_URL` and
 `SPRINTER_TEST_READ_DATABASE_URL`. Neither belongs in `.env`.
 
-## Events to Logger
+## Events
 
-Sprinter reports to Logger as `sprinter`. Every admin change names the
-operator as `actor_id` and `actor_login`. A refused command records the
-subject and a reason code, never the question text. No event carries a
-question, an answer, or a tool result: what a question cost is an
-operator's business, what it said is not.
+Sprinter reports to Grafana and PostHog as `sprinter`, through
+`go/logclient`. Every admin change names the operator as `actor_id` and
+`actor_login`. A refused command records the subject and a reason code,
+never the question text. No event carries a question, an answer, or a tool
+result: what a question cost is an operator's business, what it said is
+not.
 
 | Message | Level | Payload |
 |---------|-------|---------|

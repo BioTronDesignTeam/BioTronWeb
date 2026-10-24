@@ -14,7 +14,7 @@ that tool only. Exo is the only tool with a guest key.
 This app was the `OAuthManager` repository. The old name remains where a
 change would break something: the Go module path, the Compose project name
 `biotron-oauth-manager`, the network alias `oauth-manager`, and the service
-name Auth reports to Logger.
+name Auth reports its events under.
 
 ## Layout
 
@@ -75,7 +75,6 @@ Prisma. Do not add environment files below it.
 - `TRUSTED_PROXIES` must include the edge Nginx network. The per-IP rate
   limit keys on `Cf-Connecting-Ip`, which the API reads only from a trusted
   proxy.
-- `LOGGER_INGEST_TOKEN` must match Logger's. Leave it empty to send nothing.
 - `SESSION_SIGNING_KEY` signs the session and sign-in cookies. Generate one
   per environment with `openssl rand -base64 48` and keep it secret: anyone
   holding it can sign in as anyone. The backend refuses a key shorter than 32
@@ -218,12 +217,13 @@ in but not permitted", so that a stricter middleware can be added later
 without sending anyone into a sign-in loop. A ban applies to the next
 check, which refuses.
 
-### Events to Logger
+### Events
 
-Auth reports to Logger as `oauth-manager`. Every completed request is one
-event. `/health` is never logged, and `/v1/check` and `/auth/me` are logged
-only when they fail, because every page polls them. A request made with a
-session names its operator as `actor`.
+Auth reports to Grafana and PostHog as `oauth-manager`, through
+`go/logclient`. Every completed request is one event. `/health` is never
+logged, and `/v1/check` and `/auth/me` are logged only when they fail,
+because every page polls them. A request made with a session names its
+operator as `actor`.
 
 | Message | Level | Payload |
 |---|---|---|

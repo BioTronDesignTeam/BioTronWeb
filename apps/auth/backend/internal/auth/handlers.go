@@ -42,7 +42,7 @@ type Handler struct {
 	Members *Membership
 	Signer  *Signer
 	Cfg     Config
-	// Events carries the audit trail to Logger. Access is asked for in a
+	// Events carries the audit trail to Grafana and PostHog. Access is asked for in a
 	// meeting or on Discord and granted by hand, so the grant, the revoke, the
 	// ban, and the manager flag are the only record of who decided what; each
 	// one is logged with the actor and the target. Nil disables delivery
@@ -63,7 +63,7 @@ func (h *Handler) audit(message string, actor *store.SessionOperator, payload ma
 }
 
 // fail records one failure twice: on stdout, which is all `docker logs` has
-// when Logger is unreachable, and on the request's completion event, which
+// when no event destination is reachable, and on the request's completion event, which
 // then names the cause instead of a bare status. An error can quote a path,
 // which can hold a line break, so line breaks are escaped on stdout.
 func fail(r *http.Request, err error, what string) {

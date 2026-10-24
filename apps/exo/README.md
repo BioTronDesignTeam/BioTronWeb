@@ -8,7 +8,7 @@ that posts telemetry, is not in this repository.
 
 This app was the `exo-gui` repository. `exo-gui` is still its app id in Auth,
 its Go module path, and its Compose project name `biotron-exo-gui`. It reports
-to Logger as `exo-api`. The code is MIT licensed; see `LICENSE`.
+its events as `exo-api`. The code is MIT licensed; see `LICENSE`.
 
 ## Layout
 
@@ -56,15 +56,14 @@ The backend defaults to port 8080, which Auth uses, so pass `PORT=8081`.
 One file, `apps/exo/.env`, feeds Compose, the backend, the frontend, and
 Prisma. Do not add environment files below it. The backend reads `PORT`,
 `FRONTEND_URL`, `TRUSTED_PROXIES`, and `OAUTH_MANAGER_URL` in
-`backend/internal/config`. The shared `go/logclient` reads `LOGGER_URL`,
-`LOGGER_INGEST_TOKEN`, and `LOG_LEVEL`, plus the optional Grafana and PostHog
-variables listed in `go/logclient/README.md`.
+`backend/internal/config`. The shared `go/logclient` reads `LOG_LEVEL`
+and the optional Grafana and PostHog variables listed in
+`go/logclient/README.md`.
 
 - `FRONTEND_URL` is the one CORS origin.
 - `TRUSTED_PROXIES` must include the edge Nginx network. The API reads
   `Cf-Connecting-Ip` only from a trusted proxy.
 - `OAUTH_MANAGER_URL` unset or unreachable: every gated route answers `503`.
-- `LOGGER_INGEST_TOKEN` must match Logger's. Leave it empty to send nothing.
 - `DATABASE_URL` reaches `exo-migrate` and `exo-api`. Only Prisma reads it.
 
 `VITE_API_URL` and `VITE_AUTH_URL` are compiled into the frontend bundle;
@@ -106,7 +105,7 @@ does. CORS allows `FRONTEND_URL` only, with `GET`, `POST`, and `OPTIONS`. One
 route exists: `GET /health` answers `{"status":"ok"}` to anyone. Logger's
 monitor polls it. Routes match exactly: `/health/` and `/HEALTH` are `404`.
 
-Exo reports to Logger as `exo-api`. `/health` is never sent.
+Exo reports to Grafana and PostHog as `exo-api`. `/health` is never sent.
 
 | Message | Level | Payload |
 |---|---|---|
