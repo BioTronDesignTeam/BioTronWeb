@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
+	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient/logclienttest"
 	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/auth"
 	calendarlogic "github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/calendar"
 	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/config"
@@ -260,37 +261,9 @@ func fakeAuth(t *testing.T, answer authAnswer) *auth.Client {
 	return auth.NewClient(server.URL)
 }
 
-type sentEvent struct {
-	Level   string         `json:"level"`
-	Message string         `json:"message"`
-	Payload map[string]any `json:"payload"`
-}
-
-// captureEvents stands a Logger in front of the real client, so the assertions
-// below run over the JSON that would reach the ingest route rather than over an
-// interface the production code does not use.
-func captureEvents(t *testing.T) chan sentEvent {
-	t.Helper()
-	sent := make(chan sentEvent, 32)
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var event sentEvent
-		if err := json.NewDecoder(r.Body).Decode(&event); err == nil {
-			select {
-			case sent <- event:
-			default:
-			}
-		}
-		w.WriteHeader(http.StatusAccepted)
-	}))
-	t.Cleanup(server.Close)
-	t.Setenv("LOGGER_URL", server.URL)
-	t.Setenv("LOGGER_INGEST_TOKEN", "test-token")
-	return sent
-}
-
 // waitForEvent picks one message out of the stream, because every request also
 // produces the middleware's completion event.
-func waitForEvent(t *testing.T, sent chan sentEvent, message string) sentEvent {
+func waitForEvent(t *testing.T, sent <-chan logclienttest.Event, message string) logclienttest.Event {
 	t.Helper()
 	deadline := time.After(5 * time.Second)
 	for {
@@ -309,8 +282,8 @@ func waitForEvent(t *testing.T, sent chan sentEvent, message string) sentEvent {
 // whole chain: requireWrite resolves the operator from Auth, parks it on the
 // request, and adminEvent puts it in the payload.
 func TestAdminEventNamesTheOperator(t *testing.T) {
-	sent := captureEvents(t)
-	handler := &Handler{auth: fakeAuth(t, signedInEditor), events: logclient.NewFromEnv("calendar-api")}
+	events, sent := logclienttest.New(t, "calendar-api")
+	handler := &Handler{auth: fakeAuth(t, signedInEditor), events: events}
 
 	app := handler.requireWrite(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		handler.adminEvent(r, "Scope created", map[string]any{
@@ -326,7 +299,7 @@ func TestAdminEventNamesTheOperator(t *testing.T) {
 	}
 
 	event := waitForEvent(t, sent, "Scope created")
-	if event.Level != string(logclient.Info) {
+	if event.Level != logclient.Info {
 		t.Fatalf("Scope created was sent at %q", event.Level)
 	}
 	if got := event.Payload["actor_login"]; got != "ada" {
@@ -343,7 +316,7 @@ func TestAdminEventNamesTheOperator(t *testing.T) {
 // Learning the operator must not change who is let in, so every branch of the
 // old CanWrite mapping is pinned here.
 func TestRequireWriteKeepsItsStatusMapping(t *testing.T) {
-	sent := captureEvents(t)
+	events, sent := logclienttest.New(t, "calendar-api")
 	tests := []struct {
 		name    string
 		answer  authAnswer
@@ -397,7 +370,7 @@ func TestRequireWriteKeepsItsStatusMapping(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		handler := &Handler{auth: fakeAuth(t, test.answer), events: logclient.NewFromEnv("calendar-api")}
+		handler := &Handler{auth: fakeAuth(t, test.answer), events: events}
 		app := handler.requireWrite(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusCreated)
 		}))
@@ -418,9 +391,9 @@ func TestRequireWriteKeepsItsStatusMapping(t *testing.T) {
 	}
 
 	// An unreachable Auth is the one refusal an operator cannot diagnose from
-	// the response, so it has to reach Logger as well as stdout.
+	// the response, so it has to be exported as well as written to stdout.
 	event := waitForEvent(t, sent, "Authorization service unavailable")
-	if event.Level != string(logclient.Error) {
+	if event.Level != logclient.Error {
 		t.Fatalf("Authorization service unavailable was sent at %q", event.Level)
 	}
 	if _, ok := event.Payload["error"]; !ok {
@@ -435,16 +408,16 @@ func editorRequest(method, target string) *http.Request {
 	return request
 }
 
-// A refused request must reach Logger as the status the client got. The
+// A refused request must be logged as the status the client got. The
 // middleware runs the app's error handler itself, so store.ErrNotFound and
 // store.ErrConflict are logged as 404 and 409 rather than guessed at from the
 // error's type. This drives the real app so the middleware order is part of
 // what is pinned.
 func TestRefusedRequestIsLoggedWithTheStatusTheClientGot(t *testing.T) {
-	sent := captureEvents(t)
+	events, sent := logclienttest.New(t, "calendar-api")
 	app := New(
 		config.Config{FrontendURL: "http://localhost:5176"},
-		nil, nil, logclient.NewFromEnv("calendar-api"), time.UTC,
+		nil, nil, events, time.UTC,
 	)
 
 	response := serveTest(app, httptest.NewRequest(http.MethodGet, "/v1/nope", nil))
@@ -454,7 +427,7 @@ func TestRefusedRequestIsLoggedWithTheStatusTheClientGot(t *testing.T) {
 	}
 
 	event := waitForEvent(t, sent, "HTTP request completed")
-	if event.Level != string(logclient.Warning) {
+	if event.Level != logclient.Warning {
 		t.Fatalf("a 404 was logged at %q", event.Level)
 	}
 	if got := event.Payload["status"]; got != float64(http.StatusNotFound) {

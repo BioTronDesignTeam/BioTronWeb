@@ -19,7 +19,7 @@ type event struct {
 	payload map[string]any
 }
 
-// recorder stands in for Logger.
+// recorder stands in for the event client.
 type recorder struct {
 	mu     sync.Mutex
 	events []event
@@ -186,7 +186,7 @@ func TestCORS(t *testing.T) {
 }
 
 // A panicking handler answers 500 with the panic as text, as Fiber's recover
-// did, and Logger hears about it as an error.
+// did, and the event client hears about it as an error.
 func TestPanicIsAnswered500AndLogged(t *testing.T) {
 	sink := &recorder{}
 	handler := testHandler(sink, nil, func(mux *http.ServeMux) {
@@ -232,7 +232,7 @@ func TestOversizedBodyIsRefused(t *testing.T) {
 }
 
 // The gate's answers pass through the stack unchanged, and an Auth outage
-// reaches Logger as an error carrying its cause.
+// is logged as an error carrying its cause.
 func TestGatedRouteThroughTheStack(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Cookie") == "s=ok" {

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
+	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient/logclienttest"
 	"github.com/BioTronDesignTeam/Sprinter/backend/internal/auth"
 	"github.com/BioTronDesignTeam/Sprinter/backend/internal/config"
 	"github.com/BioTronDesignTeam/Sprinter/backend/internal/store"
@@ -435,28 +436,14 @@ func TestPanicIsAJSON500(t *testing.T) {
 	}
 }
 
-type loggedEvent struct {
-	Message string         `json:"message"`
-	Level   string         `json:"level"`
-	Payload map[string]any `json:"payload"`
-}
-
-// eventsTo returns a client that posts to a stand-in Logger, and a function
+// eventsTo returns a client that exports to a stand-in Grafana, and a function
 // that waits for the request event naming path.
-func eventsTo(t *testing.T) (*logclient.Client, func(path string) loggedEvent) {
+func eventsTo(t *testing.T) (*logclient.Client, func(path string) logclienttest.Event) {
 	t.Helper()
-	received := make(chan loggedEvent, 32)
-	logger := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var event loggedEvent
-		_ = json.NewDecoder(r.Body).Decode(&event)
-		received <- event
-	}))
-	t.Cleanup(logger.Close)
-	t.Setenv("LOGGER_URL", logger.URL)
-	t.Setenv("LOGGER_INGEST_TOKEN", "test")
-	wait := func(path string) loggedEvent {
+	events, received := logclienttest.New(t, "sprinter")
+	wait := func(path string) logclienttest.Event {
 		t.Helper()
-		timeout := time.After(2 * time.Second)
+		timeout := time.After(5 * time.Second)
 		for {
 			select {
 			case event := <-received:
@@ -468,7 +455,7 @@ func eventsTo(t *testing.T) (*logclient.Client, func(path string) loggedEvent) {
 			}
 		}
 	}
-	return logclient.NewFromEnv("sprinter"), wait
+	return events, wait
 }
 
 // The request log names the operator behind an admin call, and the cause
