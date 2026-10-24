@@ -26,7 +26,7 @@ func TestMeRequiresMatchingProductForGuest(t *testing.T) {
 		{path: "/me", want: http.StatusForbidden},
 	} {
 		response := httptest.NewRecorder()
-		h.Me(response, withOperator(httptest.NewRequest("GET", tc.path, nil), guest))
+		h.Me(response, withOperator(httptest.NewRequest(http.MethodGet, tc.path, nil), guest))
 		if response.Code != tc.want {
 			t.Errorf("GET %s status = %d, want %d", tc.path, response.Code, tc.want)
 		}

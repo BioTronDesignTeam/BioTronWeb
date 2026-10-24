@@ -20,7 +20,7 @@ func TestCheckAnswersUnauthorizedWithoutSession(t *testing.T) {
 	handler := h.RequireSession(http.HandlerFunc(h.Check))
 
 	response := httptest.NewRecorder()
-	handler.ServeHTTP(response, httptest.NewRequest("GET", "/v1/check?app=logger&permission=view", nil))
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/v1/check?app=logger&permission=view", nil))
 	if response.Code != http.StatusUnauthorized {
 		t.Fatalf("status = %d, want 401 so callers can tell signed-out from unpermitted", response.Code)
 	}
@@ -67,7 +67,7 @@ func TestCheckAnswersOKWithVerdictForValidSessions(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// RequireSession is covered above; here the operator it would have
 			// loaded is injected directly so the verdict needs no database.
-			request := withOperator(httptest.NewRequest("GET", "/v1/check?"+tc.query, nil), tc.operator)
+			request := withOperator(httptest.NewRequest(http.MethodGet, "/v1/check?"+tc.query, nil), tc.operator)
 			response := httptest.NewRecorder()
 			h.Check(response, request)
 			if response.Code != tc.wantStatus {
