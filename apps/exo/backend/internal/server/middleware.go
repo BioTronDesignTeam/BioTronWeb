@@ -274,7 +274,7 @@ func recoverPanic(next http.Handler) http.Handler {
 			if recovered == nil {
 				return
 			}
-			if recovered == http.ErrAbortHandler {
+			if httplog.IsAbort(recovered) {
 				panic(recovered)
 			}
 			// Not "panic: ": the panic was recovered.
