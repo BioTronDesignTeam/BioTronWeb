@@ -16,7 +16,7 @@ func New(frontendURL string, trustedProxies []string, events httplog.Sink, authz
 
 // newHandler is New with a hook for tests to mount extra routes inside the
 // same middleware stack.
-func newHandler(frontendURL string, trustedProxies []string, events httplog.Sink, authz *auth.Client, extra func(*http.ServeMux)) http.Handler {
+func newHandler(frontendURL string, trustedProxies []string, events httplog.Sink, authz *auth.Client, extra func(*http.ServeMux)) http.Handler { //nolint:unparam // authz gates the first data or command route, mounted as the comment below shows; Exo has none yet.
 	mux := http.NewServeMux()
 
 	// /health is public on purpose: the container healthcheck and Logger's
