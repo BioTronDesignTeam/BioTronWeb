@@ -43,7 +43,6 @@ linters:
         - (io.ReadCloser).Close
         - (github.com/jackc/pgx/v5.Tx).Rollback
         - (*github.com/bwmarrin/discordgo.Session).Close
-        - (*github.com/BioTronDesignTeam/oauth-manager/backend/internal/cache.Cache).Close
     nolintlint:
       # A nolint comment must name its linter and give a reason.
       require-specific: true
