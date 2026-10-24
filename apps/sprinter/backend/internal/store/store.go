@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/url"
 	"regexp"
 	"time"
@@ -129,21 +130,25 @@ func (s *Store) CreateAutomation(ctx context.Context, automation Automation) (Au
 	if automation.ID == "" {
 		automation.ID = uuid.NewString()
 	}
-	err := s.q.CreateAutomation(ctx, queries.CreateAutomationParams{
+	var counts int4s
+	params := queries.CreateAutomationParams{
 		ID:            automation.ID,
 		Kind:          automation.Kind,
 		Name:          automation.Name,
 		ScopeID:       automation.ScopeID,
 		ChannelID:     automation.ChannelID,
 		LeadUserID:    automation.LeadUserID,
-		LeadHours:     int32(automation.LeadHours),
-		LookbackHours: int32(automation.LookbackHours),
+		LeadHours:     counts.of("lead_hours", automation.LeadHours),
+		LookbackHours: counts.of("lookback_hours", automation.LookbackHours),
 		AnyAuthor:     automation.AnyAuthor,
-		PostHour:      int32Pointer(automation.PostHour),
+		PostHour:      counts.pointer("post_hour", automation.PostHour),
 		Deliver:       automation.Deliver,
 		Enabled:       automation.Enabled,
-	})
-	if err != nil {
+	}
+	if counts.err != nil {
+		return Automation{}, counts.err
+	}
+	if err := s.q.CreateAutomation(ctx, params); err != nil {
 		return Automation{}, mapConstraintError(err)
 	}
 	return s.GetAutomation(ctx, automation.ID)
@@ -153,20 +158,25 @@ func (s *Store) CreateAutomation(ctx context.Context, automation Automation) (Au
 // and a PATCH that merged nulls could not tell "clear the lead" from "leave
 // the lead alone".
 func (s *Store) UpdateAutomation(ctx context.Context, automation Automation) (Automation, error) {
-	updated, err := s.q.UpdateAutomation(ctx, queries.UpdateAutomationParams{
+	var counts int4s
+	params := queries.UpdateAutomationParams{
 		ID:            automation.ID,
 		Kind:          automation.Kind,
 		Name:          automation.Name,
 		ScopeID:       automation.ScopeID,
 		ChannelID:     automation.ChannelID,
 		LeadUserID:    automation.LeadUserID,
-		LeadHours:     int32(automation.LeadHours),
-		LookbackHours: int32(automation.LookbackHours),
+		LeadHours:     counts.of("lead_hours", automation.LeadHours),
+		LookbackHours: counts.of("lookback_hours", automation.LookbackHours),
 		AnyAuthor:     automation.AnyAuthor,
-		PostHour:      int32Pointer(automation.PostHour),
+		PostHour:      counts.pointer("post_hour", automation.PostHour),
 		Deliver:       automation.Deliver,
 		Enabled:       automation.Enabled,
-	})
+	}
+	if counts.err != nil {
+		return Automation{}, counts.err
+	}
+	updated, err := s.q.UpdateAutomation(ctx, params)
 	if err != nil {
 		return Automation{}, mapConstraintError(err)
 	}
@@ -190,14 +200,19 @@ func (s *Store) DeleteAutomation(ctx context.Context, id string) error {
 // --- Threads and transcripts ------------------------------------------------
 
 func (s *Store) CreateThread(ctx context.Context, thread Thread) (Thread, error) {
-	row, err := s.q.CreateThread(ctx, queries.CreateThreadParams{
+	var counts int4s
+	params := queries.CreateThreadParams{
 		ThreadID:  thread.ThreadID,
 		GuildID:   thread.GuildID,
 		ChannelID: thread.ChannelID,
 		OpenerID:  thread.OpenerID,
 		Model:     thread.Model,
-		TurnCount: int32(thread.TurnCount),
-	})
+		TurnCount: counts.of("turn_count", thread.TurnCount),
+	}
+	if counts.err != nil {
+		return Thread{}, counts.err
+	}
+	row, err := s.q.CreateThread(ctx, params)
 	if err != nil {
 		return Thread{}, mapConstraintError(mapNotFound(err))
 	}
@@ -226,12 +241,17 @@ func (s *Store) TouchThread(ctx context.Context, threadID string) (Thread, error
 // the unique index on (thread_id, sequence) turns a replayed Discord event
 // into a conflict rather than a duplicated turn.
 func (s *Store) AppendMessage(ctx context.Context, threadID string, sequence int, role string, content json.RawMessage) (Message, error) {
-	row, err := s.q.AppendMessage(ctx, queries.AppendMessageParams{
+	var counts int4s
+	params := queries.AppendMessageParams{
 		ThreadID: threadID,
-		Sequence: int32(sequence),
+		Sequence: counts.of("sequence", sequence),
 		Role:     role,
 		Content:  []byte(content),
-	})
+	}
+	if counts.err != nil {
+		return Message{}, counts.err
+	}
+	row, err := s.q.AppendMessage(ctx, params)
 	if err != nil {
 		// The unique index on (thread_id, sequence) is what turns a replayed
 		// Discord event into a conflict, so the caller has to be able to tell
@@ -325,11 +345,26 @@ func intPointer(value *int32) *int {
 	return &converted
 }
 
-func int32Pointer(value *int) *int32 {
+// int4s converts counts for int4 columns. A value that does not fit is not
+// wrapped into a different one: the first such value becomes err, which the
+// caller checks once the query's arguments are built.
+type int4s struct{ err error }
+
+func (c *int4s) of(column string, value int) int32 {
+	if value < math.MinInt32 || value > math.MaxInt32 {
+		if c.err == nil {
+			c.err = fmt.Errorf("%s %d does not fit in an int4 column", column, value)
+		}
+		return 0
+	}
+	return int32(value)
+}
+
+func (c *int4s) pointer(column string, value *int) *int32 {
 	if value == nil {
 		return nil
 	}
-	converted := int32(*value)
+	converted := c.of(column, *value)
 	return &converted
 }
 

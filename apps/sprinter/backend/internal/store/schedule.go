@@ -82,16 +82,21 @@ func (s *Store) ListEnabledAutomations(ctx context.Context) ([]Automation, error
 // every call, which is what lets ListSeenFuture tell a still-fetched
 // occurrence from one that stopped coming back.
 func (s *Store) UpsertSeen(ctx context.Context, automationID string, occ SeenOccurrence) (SeenOccurrence, error) {
-	row, err := s.q.UpsertSeen(ctx, queries.UpsertSeenParams{
+	var counts int4s
+	params := queries.UpsertSeenParams{
 		AutomationID:      automationID,
 		Uid:               occ.UID,
 		RecurrenceIDLocal: occ.RecurrenceIDLocal,
-		Sequence:          int32(occ.Sequence),
+		Sequence:          counts.of("sequence", occ.Sequence),
 		StartsAt:          occ.StartsAt,
 		EndsAt:            occ.EndsAt,
 		Title:             occ.Title,
 		ScopeID:           occ.ScopeID,
-	})
+	}
+	if counts.err != nil {
+		return SeenOccurrence{}, counts.err
+	}
+	row, err := s.q.UpsertSeen(ctx, params)
 	if err != nil {
 		return SeenOccurrence{}, mapConstraintError(mapNotFound(err))
 	}
@@ -153,14 +158,19 @@ func (s *Store) GetPosted(ctx context.Context, automationID, uid, recurrenceIDLo
 // updates the row in place: an announcement is posted once and edited after
 // that, never posted twice.
 func (s *Store) UpsertPosted(ctx context.Context, automationID, uid, recurrenceIDLocal string, sequence int, channelID, messageID string) (PostedOccurrence, error) {
-	row, err := s.q.UpsertPosted(ctx, queries.UpsertPostedParams{
+	var counts int4s
+	params := queries.UpsertPostedParams{
 		AutomationID:      automationID,
 		Uid:               uid,
 		RecurrenceIDLocal: recurrenceIDLocal,
-		Sequence:          int32(sequence),
+		Sequence:          counts.of("sequence", sequence),
 		ChannelID:         channelID,
 		MessageID:         messageID,
-	})
+	}
+	if counts.err != nil {
+		return PostedOccurrence{}, counts.err
+	}
+	row, err := s.q.UpsertPosted(ctx, params)
 	if err != nil {
 		return PostedOccurrence{}, mapConstraintError(mapNotFound(err))
 	}
@@ -171,28 +181,38 @@ func (s *Store) UpsertPosted(ctx context.Context, automationID, uid, recurrenceI
 // sequence, and trigger, so the scheduler never nudges the same trigger
 // twice.
 func (s *Store) HasNudge(ctx context.Context, automationID, uid, recurrenceIDLocal string, sequence int, trigger string) (bool, error) {
-	return s.q.HasNudge(ctx, queries.HasNudgeParams{
+	var counts int4s
+	params := queries.HasNudgeParams{
 		AutomationID:      automationID,
 		Uid:               uid,
 		RecurrenceIDLocal: recurrenceIDLocal,
-		Sequence:          int32(sequence),
+		Sequence:          counts.of("sequence", sequence),
 		Trigger:           trigger,
-	})
+	}
+	if counts.err != nil {
+		return false, counts.err
+	}
+	return s.q.HasNudge(ctx, params)
 }
 
 // InsertNudge records one nudge outcome. The primary key on (automation_id,
 // uid, recurrence_id_local, sequence, trigger) is what turns a second attempt
 // at the same nudge into ErrConflict rather than a duplicate row.
 func (s *Store) InsertNudge(ctx context.Context, automationID, uid, recurrenceIDLocal string, sequence int, trigger, status string, messageID *string) (Nudge, error) {
-	row, err := s.q.InsertNudge(ctx, queries.InsertNudgeParams{
+	var counts int4s
+	params := queries.InsertNudgeParams{
 		AutomationID:      automationID,
 		Uid:               uid,
 		RecurrenceIDLocal: recurrenceIDLocal,
-		Sequence:          int32(sequence),
+		Sequence:          counts.of("sequence", sequence),
 		Trigger:           trigger,
 		Status:            status,
 		MessageID:         messageID,
-	})
+	}
+	if counts.err != nil {
+		return Nudge{}, counts.err
+	}
+	row, err := s.q.InsertNudge(ctx, params)
 	if err != nil {
 		return Nudge{}, mapConstraintError(mapNotFound(err))
 	}
