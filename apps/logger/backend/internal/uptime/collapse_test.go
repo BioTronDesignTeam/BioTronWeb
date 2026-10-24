@@ -16,18 +16,18 @@ import (
 // A row survives when it is a state transition, when it ends a silence, when it
 // starts one, or when it is the last row in the window. A surviving row is
 // marked continuous when observation carried on to the next row within the
-// tolerance, which is the fact the collapse would otherwise destroy.
-func collapse(samples []model.HealthPoint, tolerance time.Duration) []model.HealthPoint {
+// tolerance, maxGap, which is the fact the collapse would otherwise destroy.
+func collapse(samples []model.HealthPoint) []model.HealthPoint {
 	kept := make([]model.HealthPoint, 0, len(samples))
 	for i, sample := range samples {
 		transition := i == 0 || samples[i-1].OK != sample.OK
-		endsSilence := i > 0 && sample.CheckedAt.Sub(samples[i-1].CheckedAt) > tolerance
-		startsSilence := i+1 < len(samples) && samples[i+1].CheckedAt.Sub(sample.CheckedAt) > tolerance
+		endsSilence := i > 0 && sample.CheckedAt.Sub(samples[i-1].CheckedAt) > maxGap
+		startsSilence := i+1 < len(samples) && samples[i+1].CheckedAt.Sub(sample.CheckedAt) > maxGap
 		last := i == len(samples)-1
 		if !transition && !endsSilence && !startsSilence && !last {
 			continue
 		}
-		sample.Continuous = i+1 < len(samples) && samples[i+1].CheckedAt.Sub(sample.CheckedAt) <= tolerance
+		sample.Continuous = i+1 < len(samples) && samples[i+1].CheckedAt.Sub(sample.CheckedAt) <= maxGap
 		kept = append(kept, sample)
 	}
 	return kept
@@ -58,7 +58,7 @@ func ninetyDaySeries(start time.Time) []model.HealthPoint {
 func TestCollapsedSamplesYieldIdenticalUptime(t *testing.T) {
 	start := time.Date(2026, 6, 5, 13, 0, 0, 0, time.UTC)
 	full := ninetyDaySeries(start)
-	collapsed := collapse(full, maxGap)
+	collapsed := collapse(full)
 
 	if len(collapsed) >= len(full)/100 {
 		t.Fatalf("collapse kept %d of %d rows, expected a drastic reduction", len(collapsed), len(full))
@@ -87,7 +87,7 @@ func TestCollapseWithoutContinuityWouldLoseObservedTime(t *testing.T) {
 	full := ninetyDaySeries(start)
 	window := Window{Start: start, End: start.Add(90 * 24 * time.Hour)}
 
-	stripped := collapse(full, maxGap)
+	stripped := collapse(full)
 	for i := range stripped {
 		stripped[i].Continuous = false
 	}
@@ -113,7 +113,7 @@ func TestCollapseWithoutContinuityWouldLoseObservedTime(t *testing.T) {
 func TestContinuityDoesNotHideRealSilence(t *testing.T) {
 	start := time.Date(2026, 6, 5, 13, 0, 0, 0, time.UTC)
 	full := ninetyDaySeries(start)
-	collapsed := collapse(full, maxGap)
+	collapsed := collapse(full)
 	window := Window{Start: start, End: start.Add(90 * 24 * time.Hour)}
 
 	result := Compute(collapsed, window, maxGap)
@@ -146,7 +146,7 @@ func TestCollapseIsLosslessAcrossToleranceBoundaries(t *testing.T) {
 	for i, offset := range offsets {
 		full = append(full, model.HealthPoint{OK: states[i], CheckedAt: start.Add(offset)})
 	}
-	collapsed := collapse(full, maxGap)
+	collapsed := collapse(full)
 	window := Window{Start: start, End: start.Add(time.Hour)}
 
 	if Compute(full, window, maxGap) != Compute(collapsed, window, maxGap) {
