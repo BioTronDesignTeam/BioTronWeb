@@ -25,7 +25,7 @@ func fixedNow(t time.Time) func() time.Time {
 	return func() time.Time { return t }
 }
 
-func nudgeAutomation(now time.Time) store.Automation {
+func nudgeAutomation() store.Automation {
 	lead := "lead-user"
 	return store.Automation{
 		ID: "auto-nudge", Kind: store.KindNudge, Name: "nudge",
@@ -45,7 +45,7 @@ func announceAutomation() store.Automation {
 // 1. An upcoming event with no lead message sends a nudge with the draft.
 func TestTickNudgeSendsDraftWhenNoLeadMessage(t *testing.T) {
 	now := time.Date(2026, 9, 10, 12, 0, 0, 0, time.UTC)
-	automation := nudgeAutomation(now)
+	automation := nudgeAutomation()
 	occ := calendar.Occurrence{
 		UID: "uid-1", RecurrenceID: "2026-09-10T18:00:00", SeriesSequence: 1,
 		Title: "Kickoff", StartsAt: now.Add(6 * time.Hour), EndsAt: now.Add(7 * time.Hour),
@@ -82,7 +82,7 @@ func TestTickNudgeSendsDraftWhenNoLeadMessage(t *testing.T) {
 // and sends nothing.
 func TestTickNudgeSatisfiedWhenLeadAlreadyPosted(t *testing.T) {
 	now := time.Date(2026, 9, 10, 12, 0, 0, 0, time.UTC)
-	automation := nudgeAutomation(now)
+	automation := nudgeAutomation()
 	occ := calendar.Occurrence{
 		UID: "uid-2", RecurrenceID: "2026-09-10T18:00:00", SeriesSequence: 1,
 		Title: "Kickoff", StartsAt: now.Add(6 * time.Hour), EndsAt: now.Add(7 * time.Hour),
@@ -114,7 +114,7 @@ func TestTickNudgeSatisfiedWhenLeadAlreadyPosted(t *testing.T) {
 // already posted about it).
 func TestTickVanishedOccurrenceTriggersCancellation(t *testing.T) {
 	now := time.Date(2026, 9, 10, 12, 0, 0, 0, time.UTC)
-	nudgeAuto := nudgeAutomation(now)
+	nudgeAuto := nudgeAutomation()
 	announceAuto := announceAutomation()
 	starts := now.Add(6 * time.Hour)
 
@@ -174,7 +174,7 @@ func TestTickVanishedOccurrenceTriggersCancellation(t *testing.T) {
 // 4. A Calendar fetch error changes nothing for that automation.
 func TestTickCalendarFetchErrorChangesNothing(t *testing.T) {
 	now := time.Date(2026, 9, 10, 12, 0, 0, 0, time.UTC)
-	automation := nudgeAutomation(now)
+	automation := nudgeAutomation()
 	fs := newFakeStore(automation)
 	preExisting := store.SeenOccurrence{
 		AutomationID: automation.ID, UID: "uid-4", RecurrenceIDLocal: "2026-09-10T18:00:00",
@@ -286,7 +286,7 @@ func TestAnnouncementEditsOriginalChannelAfterDestinationChanges(t *testing.T) {
 // none of the above: no repeated posts, edits, DMs, or nudges.
 func TestTickSecondRunRepeatsNothing(t *testing.T) {
 	now := time.Date(2026, 9, 10, 12, 0, 0, 0, time.UTC)
-	nudgeAuto := nudgeAutomation(now)
+	nudgeAuto := nudgeAutomation()
 	announceAuto := announceAutomation()
 	nudgeOcc := calendar.Occurrence{
 		UID: "uid-6n", RecurrenceID: "2026-09-10T18:00:00", SeriesSequence: 1,
@@ -350,7 +350,7 @@ func TestSnowflakeAfterClampsBeforeTheDiscordEpoch(t *testing.T) {
 // would miss it and nudge a lead who had already announced.
 func TestNudgeFindsTheLeadBehindTwoPagesOfChatter(t *testing.T) {
 	now := time.Date(2026, 9, 5, 12, 0, 0, 0, toronto)
-	automation := nudgeAutomation(now)
+	automation := nudgeAutomation()
 	occ := calendar.Occurrence{
 		UID: "uid-page", RecurrenceID: "2026-09-10T18:00:00", SeriesSequence: 1,
 		Title: "Kickoff", StartsAt: now.Add(6 * time.Hour), EndsAt: now.Add(7 * time.Hour),
@@ -363,7 +363,7 @@ func TestNudgeFindsTheLeadBehindTwoPagesOfChatter(t *testing.T) {
 	// count, then two full pages of chatter, then the lead's announcement as
 	// the newest message, which a forward walk reaches only on page three.
 	history = append(history, Message{ID: snowflakeAt(now.Add(-30*time.Hour), 1), AuthorID: "lead-user", Timestamp: now.Add(-30 * time.Hour)})
-	for i := 0; i < 2*channelHistoryPageLimit; i++ {
+	for i := range 2 * channelHistoryPageLimit {
 		at := now.Add(-20*time.Hour + time.Duration(i)*time.Minute)
 		history = append(history, Message{ID: snowflakeAt(at, i+2), AuthorID: "someone-else", Timestamp: at})
 	}
@@ -434,7 +434,7 @@ func TestTickDoesNotCancelOccurrencesBeyondTheLeadWindow(t *testing.T) {
 // stopped coming back is still a cancellation.
 func TestTickStillCancelsInsideTheFetchWindow(t *testing.T) {
 	now := time.Date(2026, 9, 10, 12, 0, 0, 0, time.UTC)
-	automation := nudgeAutomation(now)
+	automation := nudgeAutomation()
 	starts := now.Add(5 * 24 * time.Hour)
 	fs := newFakeStore(automation)
 	fs.seen[seenKey(automation.ID, "uid-gone", "2026-09-15T18:00:00")] = store.SeenOccurrence{
@@ -472,7 +472,7 @@ func TestTickStillCancelsInsideTheFetchWindow(t *testing.T) {
 // nudge, which silenced the only message that could correct it.
 func TestTickCancelledNudgeIgnoresTheEarlierAnnouncement(t *testing.T) {
 	now := time.Date(2026, 9, 10, 12, 0, 0, 0, time.UTC)
-	automation := nudgeAutomation(now)
+	automation := nudgeAutomation()
 	starts := now.Add(6 * time.Hour)
 	fs := newFakeStore(automation)
 	fs.seen[seenKey(automation.ID, "uid-c", "2026-09-10T18:00:00")] = store.SeenOccurrence{
@@ -505,7 +505,7 @@ func TestTickCancelledNudgeIgnoresTheEarlierAnnouncement(t *testing.T) {
 // the one exception, and it names that one id.
 func TestOutgoingMessagesPingOnlyTheLead(t *testing.T) {
 	now := time.Date(2026, 9, 10, 12, 0, 0, 0, time.UTC)
-	nudgeAuto := nudgeAutomation(now)
+	nudgeAuto := nudgeAutomation()
 	nudgeAuto.Deliver = store.DeliverChannel
 	announceAuto := announceAutomation()
 	nudgeOcc := calendar.Occurrence{
