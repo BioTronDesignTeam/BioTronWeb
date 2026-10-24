@@ -240,7 +240,10 @@ host: without its `ENCRYPTION_KEY` nothing in Infisical can be read again.
    ```
 
    Each deploy waits until every container is running and healthy and every
-   migration has finished, and fails with the logs of what is not.
+   migration has finished. Otherwise it fails, naming each service that is
+   not ready and its state, and writes their logs to
+   `/var/log/biotron-deploy/<target>-<commit>-<time>.log`, readable by root
+   only: the Actions logs of this public repository never show them.
 9. Check every hostname of both domains through Cloudflare, and that only
    staging's responses carry `X-Robots-Tag`.
 

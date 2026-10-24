@@ -100,8 +100,13 @@ fetch_release() {
 # Waits until every container of a project is running, healthy where it has a
 # health check, and every one-shot migration has exited 0. It asks Docker, not
 # Compose, so no Compose file in the working directory can narrow the answer.
+#
+# The repository is public, and so are its Actions logs, where this output
+# lands. A container's logs can hold anything, so they go to a root-only file
+# under /var/log/biotron-deploy, and the output names only each service, its
+# state, and that file.
 wait_healthy() {
-  local project=$1 deadline=$((SECONDS + 180)) bad ids id service state health code
+  local project=$1 deadline=$((SECONDS + 180)) bad ids id service state health code logfile entry
   while :; do
     bad=()
     mapfile -t ids < <(docker ps -aq --filter "label=com.docker.compose.project=$project" --filter label=com.docker.compose.oneoff=False)
@@ -110,17 +115,30 @@ wait_healthy() {
       IFS=$'\t' read -r service state health code < <(docker inspect --format \
         '{{index .Config.Labels "com.docker.compose.service"}}{{"\t"}}{{.State.Status}}{{"\t"}}{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}{{"\t"}}{{.State.ExitCode}}' "$id")
       case $service in
-        *-migrate) [[ $state == exited && $code == 0 ]] || bad+=("$service=$id") ;;
-        *) [[ $state == running && ( $health == none || $health == healthy ) ]] || bad+=("$service=$id") ;;
+        *-migrate) [[ $state == exited && $code == 0 ]] || bad+=("$service=$id=$state, exit $code") ;;
+        *) [[ $state == running && ( $health == none || $health == healthy ) ]] || bad+=("$service=$id=$state, $health") ;;
       esac
     done
     [[ ${#bad[@]} -eq 0 ]] && return 0
     if (( SECONDS > deadline )); then
-      docker ps -a --filter "label=com.docker.compose.project=$project" >&2
-      for id in "${bad[@]}"; do
-        [[ $id == *=* ]] && { echo "--- ${id%%=*}" >&2; docker logs --tail 30 "${id#*=}" >&2 || true; }
+      install -d -o root -g root -m 0700 /var/log/biotron-deploy
+      logfile=/var/log/biotron-deploy/$target-$revision-$(date -u +%Y%m%dT%H%M%SZ).log
+      (
+        umask 077
+        {
+          docker ps -a --filter "label=com.docker.compose.project=$project"
+          for entry in "${bad[@]}"; do
+            [[ $entry == *=*=* ]] || continue
+            id=${entry#*=} id=${id%%=*}
+            echo "--- ${entry%%=*}"
+            docker logs --tail 200 "$id" 2>&1 || true
+          done
+        } > "$logfile"
+      )
+      for entry in "${bad[@]}"; do
+        if [[ $entry == *=*=* ]]; then log "not ready: ${entry%%=*} (${entry##*=})"; else log "not ready: $entry"; fi
       done
-      die "$project is not healthy after 3 minutes: ${bad[*]%%=*}"
+      die "$project is not healthy after 3 minutes; its logs are in $logfile on the host, readable by root only"
     fi
     sleep 3
   done
