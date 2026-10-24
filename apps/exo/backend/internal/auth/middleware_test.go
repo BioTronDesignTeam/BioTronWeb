@@ -48,7 +48,7 @@ func gatedApp(client *Client, permission string) http.Handler {
 	return mux
 }
 
-func request(t *testing.T, app http.Handler, cookie string) *http.Response {
+func request(t *testing.T, app http.Handler, cookie string) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodGet, "/v1/probe", nil)
 	if cookie != "" {
@@ -56,7 +56,7 @@ func request(t *testing.T, app http.Handler, cookie string) *http.Response {
 	}
 	recorder := httptest.NewRecorder()
 	app.ServeHTTP(recorder, req)
-	return recorder.Result()
+	return recorder
 }
 
 // No session at all. Exo must not spend a call on OAuthManager, and must say
@@ -69,8 +69,8 @@ func TestRequireRejectsMissingSession(t *testing.T) {
 	})
 	app := gatedApp(NewClient(upstream.URL), PermissionCommands)
 
-	if resp := request(t, app, ""); resp.StatusCode != http.StatusUnauthorized {
-		t.Fatalf("status = %d, want 401", resp.StatusCode)
+	if resp := request(t, app, ""); resp.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401", resp.Code)
 	}
 	if called {
 		t.Fatal("OAuthManager was called for a request carrying no cookie")
@@ -86,8 +86,8 @@ func TestRequireRejectsUnknownSession(t *testing.T) {
 	})
 	app := gatedApp(NewClient(upstream.URL), PermissionLive)
 
-	if resp := request(t, app, "oauth_session=stale"); resp.StatusCode != http.StatusUnauthorized {
-		t.Fatalf("status = %d, want 401", resp.StatusCode)
+	if resp := request(t, app, "oauth_session=stale"); resp.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401", resp.Code)
 	}
 }
 
@@ -99,8 +99,8 @@ func TestRequireRejectsSessionWithoutPermission(t *testing.T) {
 	})
 	app := gatedApp(NewClient(upstream.URL), PermissionCommands)
 
-	if resp := request(t, app, "oauth_session=guest"); resp.StatusCode != http.StatusForbidden {
-		t.Fatalf("status = %d, want 403", resp.StatusCode)
+	if resp := request(t, app, "oauth_session=guest"); resp.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403", resp.Code)
 	}
 }
 
@@ -111,8 +111,8 @@ func TestRequireAllowsSessionWithPermission(t *testing.T) {
 	})
 	app := gatedApp(NewClient(upstream.URL), PermissionHistorical)
 
-	if resp := request(t, app, "oauth_session=valid"); resp.StatusCode != http.StatusOK {
-		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	if resp := request(t, app, "oauth_session=valid"); resp.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.Code)
 	}
 }
 
@@ -135,8 +135,8 @@ func TestGuestKeyOpensLiveAndHistoricalButNotCommands(t *testing.T) {
 		PermissionCommands:   http.StatusForbidden,
 	} {
 		resp := request(t, gatedApp(client, permission), "oauth_session=daily-guest")
-		if resp.StatusCode != want {
-			t.Errorf("%s: status = %d, want %d", permission, resp.StatusCode, want)
+		if resp.Code != want {
+			t.Errorf("%s: status = %d, want %d", permission, resp.Code, want)
 		}
 	}
 }
@@ -149,8 +149,8 @@ func TestRequireTreatsForbiddenAsUnpermitted(t *testing.T) {
 	})
 	app := gatedApp(NewClient(upstream.URL), PermissionCommands)
 
-	if resp := request(t, app, "oauth_session=valid"); resp.StatusCode != http.StatusForbidden {
-		t.Fatalf("status = %d, want 403", resp.StatusCode)
+	if resp := request(t, app, "oauth_session=valid"); resp.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403", resp.Code)
 	}
 }
 
@@ -164,8 +164,8 @@ func TestRequireFailsClosedWhenOAuthManagerIsUnreachable(t *testing.T) {
 	dead.Close()
 
 	app := gatedApp(NewClient(address), PermissionLive)
-	if resp := request(t, app, "oauth_session=valid"); resp.StatusCode != http.StatusServiceUnavailable {
-		t.Fatalf("status = %d, want 503", resp.StatusCode)
+	if resp := request(t, app, "oauth_session=valid"); resp.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503", resp.Code)
 	}
 
 	// And an unexpected status, which must not be read as an allow.
@@ -173,8 +173,8 @@ func TestRequireFailsClosedWhenOAuthManagerIsUnreachable(t *testing.T) {
 		w.WriteHeader(http.StatusInternalServerError)
 	})
 	app = gatedApp(NewClient(broken.URL), PermissionLive)
-	if resp := request(t, app, "oauth_session=valid"); resp.StatusCode != http.StatusServiceUnavailable {
-		t.Fatalf("status = %d, want 503", resp.StatusCode)
+	if resp := request(t, app, "oauth_session=valid"); resp.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503", resp.Code)
 	}
 }
 
@@ -183,8 +183,8 @@ func TestRequireFailsClosedWhenUnconfigured(t *testing.T) {
 	silenceLog(t)
 
 	app := gatedApp(NewClient(""), PermissionLive)
-	if resp := request(t, app, "oauth_session=valid"); resp.StatusCode != http.StatusServiceUnavailable {
-		t.Fatalf("status = %d, want 503", resp.StatusCode)
+	if resp := request(t, app, "oauth_session=valid"); resp.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503", resp.Code)
 	}
 }
 
@@ -232,10 +232,10 @@ func TestRequireRefusalBodies(t *testing.T) {
 	} {
 		resp := request(t, gatedApp(tc.client, PermissionCommands), tc.cookie)
 		body, _ := io.ReadAll(resp.Body)
-		if resp.StatusCode != tc.status || string(body) != tc.body {
-			t.Errorf("%s: %d %s, want %d %s", tc.name, resp.StatusCode, body, tc.status, tc.body)
+		if resp.Code != tc.status || string(body) != tc.body {
+			t.Errorf("%s: %d %s, want %d %s", tc.name, resp.Code, body, tc.status, tc.body)
 		}
-		if got := resp.Header.Get("Content-Type"); got != "application/json; charset=utf-8" {
+		if got := resp.Header().Get("Content-Type"); got != "application/json; charset=utf-8" {
 			t.Errorf("%s: Content-Type = %q", tc.name, got)
 		}
 	}
