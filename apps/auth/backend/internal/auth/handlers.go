@@ -76,7 +76,7 @@ func (h *Handler) LoginRedirect(w http.ResponseWriter, r *http.Request) {
 		httpx.Status(w, http.StatusInternalServerError)
 		return
 	}
-	http.SetCookie(w, &http.Cookie{
+	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: Secure follows COOKIE_SECURE, which config refuses to leave off with an https callback, a cookie domain, or SameSite=None: it is off only on plain-http localhost.
 		Name:     stateCookie,
 		Value:    value,
 		Path:     "/",
@@ -488,7 +488,7 @@ func (h *Handler) SetManager(w http.ResponseWriter, r *http.Request) {
 }
 
 func clearStateCookie(w http.ResponseWriter, cfg Config) {
-	http.SetCookie(w, &http.Cookie{
+	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: Secure follows COOKIE_SECURE, which config refuses to leave off with an https callback, a cookie domain, or SameSite=None: it is off only on plain-http localhost.
 		Name:     stateCookie,
 		Value:    "",
 		Path:     "/",

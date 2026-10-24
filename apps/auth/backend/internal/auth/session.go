@@ -39,7 +39,7 @@ func cookieValue(r *http.Request, name string) string {
 }
 
 func setSessionCookie(w http.ResponseWriter, token string, secure bool, sameSiteStr, domain string, ttl time.Duration) {
-	http.SetCookie(w, &http.Cookie{
+	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: Secure follows COOKIE_SECURE, which config refuses to leave off with an https callback, a cookie domain, or SameSite=None: it is off only on plain-http localhost.
 		Name:     SessionCookie,
 		Value:    token,
 		Path:     "/",
@@ -52,7 +52,7 @@ func setSessionCookie(w http.ResponseWriter, token string, secure bool, sameSite
 }
 
 func clearSessionCookie(w http.ResponseWriter, secure bool, sameSiteStr, domain string) {
-	http.SetCookie(w, &http.Cookie{
+	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: Secure follows COOKIE_SECURE, which config refuses to leave off with an https callback, a cookie domain, or SameSite=None: it is off only on plain-http localhost.
 		Name:     SessionCookie,
 		Value:    "",
 		Path:     "/",
