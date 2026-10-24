@@ -43,7 +43,7 @@ What keeps the two instances apart:
   next to the host's memory.
 - **Settings.** Each instance has its own Infisical environment and its own
   machine identity, which can read nothing else. Domains, cookie domains,
-  GitHub OAuth apps, and the Logger ingestion token all differ.
+  GitHub Apps, session keys, and the Logger ingestion token all differ.
 - **Names and ports.** Container names come from the project, so they never
   collide, and a named instance publishes no host ports at all
   (`infra/no-host-ports.yml`). Use `docker compose -p biotron-prod exec` for
@@ -138,7 +138,12 @@ Each environment needs:
 | `POSTGRES_PASSWORD` | The instance's Postgres owner password. `openssl rand -hex 32` |
 | `SPRINTER_READER_PASSWORD` | The read-only `sprinter_reader` role's password. `openssl rand -hex 32` |
 | `LOGGER_INGEST_TOKEN` | Shared by Logger and every service that logs to it |
-| `AUTH_GITHUB_CLIENT_ID`, `AUTH_GITHUB_CLIENT_SECRET` | This instance's GitHub OAuth app |
+| `AUTH_GITHUB_APP_ID`, `AUTH_GITHUB_APP_CLIENT_ID`, `AUTH_GITHUB_APP_CLIENT_SECRET`, `AUTH_GITHUB_APP_PRIVATE_KEY` | This instance's GitHub App. See "The GitHub App" in `apps/auth/README.md` |
+| `AUTH_SESSION_SIGNING_KEY` | Signs Auth's session cookies. `openssl rand -base64 48`; changing it signs everyone out |
+| `BIOTRON_ENV` | `staging` or `production`. Tags Grafana and PostHog events |
+| `GRAFANA_OTLP_ENDPOINT`, `GRAFANA_OTLP_USER`, `GRAFANA_OTLP_TOKEN` | Optional. Grafana Cloud logs; see `go/logclient/README.md` |
+| `POSTHOG_API_KEY`, `POSTHOG_HOST` | Optional. PostHog audit events |
+| `SPRINTER_DISCORD_ENABLED` | `true` in staging. Leave unset in production, where Sprinter runs without its bot |
 | `AUTH_SUPERUSER_GITHUB_IDS` | Optional. Numeric GitHub IDs allowed to bootstrap administration |
 | `SPRINTER_DISCORD_TOKEN`, `SPRINTER_DISCORD_GUILD_ID`, `SPRINTER_GEMINI_API_KEY` | Optional. Sprinter's bot and model |
 
@@ -149,8 +154,8 @@ lists, and cookie domain. Any compose input with an app prefix, such as
 and a value set there always wins over a derived one. The Postgres passwords
 go into URLs unescaped, so use hex.
 
-Each GitHub OAuth app's callback is
-`https://auth.<BASE_DOMAIN>/api/auth/github/callback`. Use one app per
+Each GitHub App's callback is
+`https://auth.<BASE_DOMAIN>/api/auth/github/callback`. Use one App per
 instance; never share one between staging and production.
 
 ## Bootstrap files
@@ -278,9 +283,10 @@ copied, because two copies must not both take writes.
 3. **Install tools and the deploy account:** steps 1–4 of the fresh-host setup.
 4. **Start Infisical** (step 5) and **fill it** (step 6). For production,
    take `LOGGER_INGEST_TOKEN` and the optional Sprinter keys from the current
-   `apps/*/.env` files, and register a new GitHub OAuth app for
-   `auth.uwbiotron.ca`. Staging keeps today's GitHub OAuth app, whose callback
-   is already `auth.uwbiotron.dev`, and gets its own new `LOGGER_INGEST_TOKEN`.
+   `apps/*/.env` files, and create a GitHub App for
+   `auth.uwbiotron.ca`. Staging gets its own GitHub App for `auth.uwbiotron.dev`,
+   which replaces today's OAuth app, and its own new `LOGGER_INGEST_TOKEN`. Each
+   instance also gets its own `AUTH_SESSION_SIGNING_KEY`.
    Generate fresh Postgres passwords for both; the new clusters start empty.
 5. **Write `/etc/biotron/edge.env`** with the token from
    `/etc/biotron/secrets/cloudflare-tunnel-token` and
