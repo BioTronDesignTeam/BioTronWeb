@@ -56,9 +56,21 @@ type GitHubClient struct {
 	oauthBase    string
 	http         *http.Client
 
+	// mu guards the installation token and the one fetch of it in flight;
+	// it is never held across a call to GitHub.
 	mu        sync.Mutex
 	orgToken  string
 	expiresAt time.Time
+	fetching  *tokenFetch
+}
+
+// tokenFetch is one fetch of the installation token, which every caller that
+// finds no usable token waits on, so a slow GitHub costs one fetch, not one
+// per request.
+type tokenFetch struct {
+	done  chan struct{}
+	token string
+	err   error
 }
 
 type GitHubOptions struct {
@@ -167,23 +179,15 @@ func (g *GitHubClient) FetchUser(ctx context.Context, token string) (*GitHubUser
 // IsOrgMember reports whether login is a member of the organization:
 // GET /orgs/{org}/members/{login} answers 204 for a member and 404 for anyone
 // else. A 302 means the installation token may not read the members, which is
-// an error of the App's settings, never a "no".
+// an error of the App's settings, never a "no". A 401 means GitHub no longer
+// takes the kept installation token, such as after the App's key was revoked:
+// it is dropped and the check asked once more with a new one.
 func (g *GitHubClient) IsOrgMember(ctx context.Context, login string) (bool, error) {
-	token, err := g.installationToken(ctx)
+	status, err := g.membershipStatus(ctx, login)
 	if err != nil {
 		return false, err
 	}
-	path := "/orgs/" + url.PathEscape(g.org) + "/members/" + url.PathEscape(login)
-	req, err := g.request(ctx, http.MethodGet, g.apiBase+path, token, nil)
-	if err != nil {
-		return false, err
-	}
-	resp, err := g.http.Do(req)
-	if err != nil {
-		return false, fmt.Errorf("github membership check: %w", redact(err))
-	}
-	_ = resp.Body.Close()
-	switch resp.StatusCode {
+	switch status {
 	case http.StatusNoContent:
 		return true, nil
 	case http.StatusNotFound:
@@ -191,28 +195,99 @@ func (g *GitHubClient) IsOrgMember(ctx context.Context, login string) (bool, err
 	case http.StatusFound:
 		return false, fmt.Errorf("github membership check: the App may not read the members of %s (grant it Members: read)", g.org)
 	default:
-		return false, fmt.Errorf("github membership check: status %d", resp.StatusCode)
+		return false, fmt.Errorf("github membership check: status %d", status)
+	}
+}
+
+// membershipStatus asks GitHub once, and once more with a new installation
+// token if GitHub refused the kept one.
+func (g *GitHubClient) membershipStatus(ctx context.Context, login string) (int, error) {
+	path := "/orgs/" + url.PathEscape(g.org) + "/members/" + url.PathEscape(login)
+	for attempt := 1; ; attempt++ {
+		token, err := g.installationToken(ctx)
+		if err != nil {
+			return 0, err
+		}
+		req, err := g.request(ctx, http.MethodGet, g.apiBase+path, token, nil)
+		if err != nil {
+			return 0, err
+		}
+		resp, err := g.http.Do(req)
+		if err != nil {
+			return 0, fmt.Errorf("github membership check: %w", redact(err))
+		}
+		_ = resp.Body.Close()
+		if resp.StatusCode == http.StatusUnauthorized && attempt == 1 {
+			g.dropToken(token)
+			continue
+		}
+		return resp.StatusCode, nil
 	}
 }
 
 // installationToken returns the token of the App's installation on the
 // organization, limited to Members: read, kept until shortly before it ends.
+// Callers that find no usable token share one fetch.
 func (g *GitHubClient) installationToken(ctx context.Context) (string, error) {
 	g.mu.Lock()
-	defer g.mu.Unlock()
 	if g.orgToken != "" && time.Now().Before(g.expiresAt.Add(-installationTokenMargin)) {
-		return g.orgToken, nil
+		token := g.orgToken
+		g.mu.Unlock()
+		return token, nil
 	}
+	fetch := g.fetching
+	if fetch == nil {
+		fetch = &tokenFetch{done: make(chan struct{})}
+		g.fetching = fetch
+		// The fetch serves every waiting request, so the first one's
+		// cancellation must not fail the others; the client's timeout still
+		// bounds it.
+		go g.fetchInstallationToken(context.WithoutCancel(ctx), fetch)
+	}
+	g.mu.Unlock()
+	select {
+	case <-fetch.done:
+		return fetch.token, fetch.err
+	case <-ctx.Done():
+		return "", ctx.Err()
+	}
+}
+
+// fetchInstallationToken runs one fetch and keeps its token.
+func (g *GitHubClient) fetchInstallationToken(ctx context.Context, fetch *tokenFetch) {
+	token, expiresAt, err := g.newInstallationToken(ctx)
+	g.mu.Lock()
+	if err == nil {
+		g.orgToken, g.expiresAt = token, expiresAt
+	}
+	g.fetching = nil
+	g.mu.Unlock()
+	fetch.token, fetch.err = token, err
+	close(fetch.done)
+}
+
+// dropToken forgets the kept installation token if it is still token, so the
+// next caller fetches a new one.
+func (g *GitHubClient) dropToken(token string) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.orgToken == token {
+		g.orgToken, g.expiresAt = "", time.Time{}
+	}
+}
+
+// newInstallationToken asks GitHub for a new installation token.
+func (g *GitHubClient) newInstallationToken(ctx context.Context) (string, time.Time, error) {
 	appJWT, err := g.appJWT()
 	if err != nil {
-		return "", err
+		return "", time.Time{}, err
 	}
 	var installation struct {
 		ID int64 `json:"id"`
 	}
 	if err := g.call(ctx, http.MethodGet, g.apiBase+"/orgs/"+url.PathEscape(g.org)+"/installation",
 		appJWT, nil, &installation); err != nil {
-		return "", fmt.Errorf("find the App's installation on %s: %w", g.org, err)
+		return "", time.Time{}, fmt.Errorf("find the App's installation on %s: %w", g.org, err)
 	}
 	var access struct {
 		Token     string    `json:"token"`
@@ -221,13 +296,12 @@ func (g *GitHubClient) installationToken(ctx context.Context) (string, error) {
 	if err := g.call(ctx, http.MethodPost,
 		g.apiBase+"/app/installations/"+strconv.FormatInt(installation.ID, 10)+"/access_tokens",
 		appJWT, map[string]any{"permissions": map[string]string{"members": "read"}}, &access); err != nil {
-		return "", fmt.Errorf("get the installation token of %s: %w", g.org, err)
+		return "", time.Time{}, fmt.Errorf("get the installation token of %s: %w", g.org, err)
 	}
 	if access.Token == "" || access.ExpiresAt.IsZero() {
-		return "", errors.New("github installation token: answer without token or expiry")
+		return "", time.Time{}, errors.New("github installation token: answer without token or expiry")
 	}
-	g.orgToken, g.expiresAt = access.Token, access.ExpiresAt
-	return access.Token, nil
+	return access.Token, access.ExpiresAt, nil
 }
 
 // appJWT signs the App's own JWT, which only finds the installation and gets
