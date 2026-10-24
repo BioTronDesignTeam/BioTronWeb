@@ -220,7 +220,7 @@ func recoverJSON(next http.Handler) http.Handler {
 		recorder := &statusRecorder{ResponseWriter: w}
 		defer func() {
 			if recovered := recover(); recovered != nil {
-				if recovered != http.ErrAbortHandler && recorder.status == 0 {
+				if !httplog.IsAbort(recovered) && recorder.status == 0 {
 					writeJSON(recorder, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 				}
 				panic(recovered)
@@ -246,8 +246,9 @@ func accessLog(trustedProxies []string) func(http.Handler) http.Handler {
 				if status == 0 {
 					status = http.StatusOK
 				}
-				log.Printf("%3d | %13v | %15s | %-7s | %s",
+				line := fmt.Sprintf("%3d | %13v | %15s | %-7s | %s",
 					status, time.Since(started), clientIP(r, trusted), r.Method, r.URL.Path)
+				log.Print(strings.ReplaceAll(strings.ReplaceAll(line, "\r", `\r`), "\n", `\n`))
 			}()
 			next.ServeHTTP(recorder, r)
 		})
