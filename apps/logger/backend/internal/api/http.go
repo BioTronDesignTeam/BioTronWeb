@@ -100,7 +100,7 @@ func recoverPanics(next http.Handler) http.Handler {
 			if recovered == nil {
 				return
 			}
-			if recovered == http.ErrAbortHandler {
+			if httplog.IsAbort(recovered) {
 				panic(recovered)
 			}
 			err, ok := recovered.(error)
