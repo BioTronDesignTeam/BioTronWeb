@@ -44,11 +44,16 @@ func newGrafanaFromEnv(service string) *grafana {
 	if endpoint == "" && user == "" && token == "" {
 		return nil
 	}
+	// Only the names of the unset variables are logged, never a value.
 	var missing []string
-	for _, variable := range [][2]string{{"GRAFANA_OTLP_ENDPOINT", endpoint}, {"GRAFANA_OTLP_USER", user}, {"GRAFANA_OTLP_TOKEN", token}} {
-		if variable[1] == "" {
-			missing = append(missing, variable[0])
-		}
+	if endpoint == "" {
+		missing = append(missing, "GRAFANA_OTLP_ENDPOINT")
+	}
+	if user == "" {
+		missing = append(missing, "GRAFANA_OTLP_USER")
+	}
+	if token == "" {
+		missing = append(missing, "GRAFANA_OTLP_TOKEN")
 	}
 	if len(missing) > 0 {
 		log.Printf("warning: Grafana log export disabled; unset: %s", strings.Join(missing, ", "))
