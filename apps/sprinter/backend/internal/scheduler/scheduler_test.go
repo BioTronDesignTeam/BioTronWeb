@@ -389,7 +389,7 @@ func TestNudgeFindsTheLeadBehindTwoPagesOfChatter(t *testing.T) {
 // and the whole week was announced as cancelled at once.
 func TestTickDoesNotCancelOccurrencesBeyondTheLeadWindow(t *testing.T) {
 	now := time.Date(2026, 9, 10, 12, 0, 0, 0, time.UTC)
-	automation := nudgeAutomation(now)
+	automation := nudgeAutomation()
 	starts := now.Add(5 * 24 * time.Hour) // five days out, far past lead_hours 24
 	occ := calendar.Occurrence{
 		UID: "uid-far", RecurrenceID: "2026-09-15T18:00:00", SeriesSequence: 1,

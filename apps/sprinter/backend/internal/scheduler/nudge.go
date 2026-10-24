@@ -129,7 +129,7 @@ func (s *Scheduler) runNudge(ctx context.Context, automation store.Automation, u
 // short, which means the window is exhausted.
 func (s *Scheduler) channelSatisfied(automation store.Automation, since time.Time) (bool, error) {
 	afterID := snowflakeAfter(since)
-	for page := 0; page < channelHistoryMaxPages; page++ {
+	for range channelHistoryMaxPages {
 		messages, err := s.discord.ChannelMessages(automation.ChannelID, channelHistoryPageLimit, "", afterID)
 		if err != nil {
 			return false, err
