@@ -46,17 +46,15 @@ func newPostHogServer(t *testing.T, status int) (*httptest.Server, func() []post
 func TestPostHogReceivesAuditEventsOnly(t *testing.T) {
 	server, batches := newPostHogServer(t, 0)
 	// LOG_LEVEL is error, and audit events still reach PostHog.
-	client := &Client{service: "auth-api", minimum: 3, posthog: newPostHog(server.URL+"/", "phc_key", "auth-api", "production", testBatchOptions)}
-	if !client.Enabled() || client.LoggerEnabled() {
-		t.Fatal("PostHog alone must enable the client but not Logger")
+	client := &Client{minimum: 3, posthog: newPostHog(server.URL+"/", "phc_key", "auth-api", "production", testBatchOptions)}
+	if !client.Enabled() {
+		t.Fatal("PostHog alone must enable the client")
 	}
 
 	payload := map[string]any{"target_login": "hubot", "actor_id": 1, "actor_login": "octocat"}
 	client.LogAsync(Info, "Permission granted", payload)
 	payload["target_login"] = "changed after the call"
-	if err := client.Log(context.Background(), Info, "Operator signed in", map[string]any{"operator_login": "monalisa"}); err != nil {
-		t.Fatal(err)
-	}
+	client.LogAsync(Info, "Operator signed in", map[string]any{"operator_login": "monalisa"})
 	client.LogAsync(Warning, "Sign-in refused", map[string]any{"actor_login": "octocat"})
 	client.LogAsync(Info, "HTTP request completed", map[string]any{"actor": "octocat", "path": "/api/x"})
 	client.LogAsync(Info, "Exo API started", map[string]any{"port": "8080"})
@@ -95,9 +93,7 @@ func TestPostHogFailureNeverReachesTheCaller(t *testing.T) {
 	defer log.SetOutput(os.Stderr)
 	server, batches := newPostHogServer(t, http.StatusServiceUnavailable)
 	client := &Client{minimum: 1, posthog: newPostHog(server.URL, "phc_key", "auth-api", "", testBatchOptions)}
-	if err := client.Log(context.Background(), Info, "Operator signed out", map[string]any{"operator_login": "octocat"}); err != nil {
-		t.Fatalf("a PostHog failure must not fail Log: %v", err)
-	}
+	client.LogAsync(Info, "Operator signed out", map[string]any{"operator_login": "octocat"})
 	if err := client.Close(context.Background()); err != nil {
 		t.Fatal(err)
 	}

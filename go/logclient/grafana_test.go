@@ -74,25 +74,22 @@ func attribute(record otlpRecord, key string) (otlpValue, bool) {
 	return otlpValue{}, false
 }
 
-func TestGrafanaReceivesOTLPLogsWithoutLogger(t *testing.T) {
+func TestGrafanaReceivesOTLPLogs(t *testing.T) {
 	server := newOTLPServer(t)
 	client := &Client{
-		service: "exo-api",
 		minimum: 1,
 		grafana: newGrafana(server.URL+"/otlp/", "123456", "glc_secret", "exo-api", "staging", testBatchOptions),
 	}
-	if !client.Enabled() || client.LoggerEnabled() {
-		t.Fatal("Grafana alone must enable the client but not Logger")
+	if !client.Enabled() {
+		t.Fatal("Grafana alone must enable the client")
 	}
 	client.LogAsync(Debug, "below LOG_LEVEL", nil)
 	client.LogAsync(Warning, "Component down", map[string]any{
 		"component": "postgres", "status": 503, "ratio": 0.5, "up": false, "nested": map[string]int{"a": 1}, "empty": nil,
 	})
-	if err := client.Log(context.Background(), Error, "Question failed", struct {
+	client.LogAsync(Error, "Question failed", struct {
 		Thread string `json:"thread"`
-	}{"t-1"}); err != nil {
-		t.Fatal(err)
-	}
+	}{"t-1"})
 	if err := client.Close(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -147,9 +144,7 @@ func TestGrafanaFailureNeverReachesTheCaller(t *testing.T) {
 	server := newOTLPServer(t)
 	server.failWith = http.StatusUnauthorized
 	client := &Client{minimum: 1, grafana: newGrafana(server.URL, "123456", "glc_secret", "exo-api", "", testBatchOptions)}
-	if err := client.Log(context.Background(), Info, "sent anyway", nil); err != nil {
-		t.Fatalf("a Grafana failure must not fail Log: %v", err)
-	}
+	client.LogAsync(Info, "sent anyway", nil)
 	if err := client.Close(context.Background()); err != nil {
 		t.Fatal(err)
 	}

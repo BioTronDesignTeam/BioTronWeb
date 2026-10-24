@@ -1,24 +1,18 @@
-// Package logclient sends structured events to Logger's ingest route and,
-// when configured, to Grafana Cloud, with audit events also sent to PostHog.
+// Package logclient sends structured events to Grafana Cloud, with audit
+// events also sent to PostHog.
 //
 // Every BioTron Go service uses this one client. The service name is passed
-// in code so that the binary and its Logger catalog id cannot drift apart.
-// Each destination is switched on by its own variables and is a no-op without
-// them, so a service runs unchanged where none is configured.
+// in code so that the binary and its Grafana service_name label cannot drift
+// apart. Each destination is switched on by its own variables and is a no-op
+// without them, so a service runs unchanged where none is configured.
 package logclient
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
-	"io"
 	"log"
-	"net/http"
 	"os"
 	"strings"
-	"time"
 )
 
 type Level string
@@ -31,20 +25,14 @@ const (
 )
 
 type Client struct {
-	endpoint   string
-	token      string
-	service    string
-	minimum    int
-	httpClient *http.Client
-	slots      chan struct{}
-	grafana    *grafana
-	posthog    *posthog
+	minimum int
+	grafana *grafana
+	posthog *posthog
 }
 
-// NewFromEnv reads LOGGER_URL, LOGGER_INGEST_TOKEN, and LOG_LEVEL for Logger,
-// the GRAFANA_OTLP_* variables for Grafana, and the POSTHOG_* variables for
-// PostHog. BIOTRON_ENV, when set, tags Grafana and PostHog events with the
-// environment that sent them. It never fails: an invalid
+// NewFromEnv reads LOG_LEVEL, the GRAFANA_OTLP_* variables for Grafana, and
+// the POSTHOG_* variables for PostHog. BIOTRON_ENV, when set, tags every
+// event with the environment that sent it. It never fails: an invalid
 // LOG_LEVEL means info, and a destination missing its variables is disabled.
 func NewFromEnv(service string) *Client {
 	minimum, ok := severity(Level(strings.ToLower(getenv("LOG_LEVEL", string(Info)))))
@@ -53,52 +41,21 @@ func NewFromEnv(service string) *Client {
 		minimum, _ = severity(Info)
 	}
 	return &Client{
-		endpoint:   strings.TrimRight(getenv("LOGGER_URL", "http://logger-api:8080"), "/") + "/v1/logs",
-		token:      os.Getenv("LOGGER_INGEST_TOKEN"),
-		service:    service,
-		minimum:    minimum,
-		httpClient: &http.Client{Timeout: 2 * time.Second},
-		slots:      make(chan struct{}, 32),
-		grafana:    newGrafanaFromEnv(service),
-		posthog:    newPostHogFromEnv(service),
+		minimum: minimum,
+		grafana: newGrafanaFromEnv(service),
+		posthog: newPostHogFromEnv(service),
 	}
 }
 
-// Enabled reports whether any destination is configured.
+// Enabled reports whether Grafana or PostHog is configured.
 func (c *Client) Enabled() bool {
-	return c != nil && (c.token != "" || c.grafana != nil || c.posthog != nil)
+	return c != nil && (c.grafana != nil || c.posthog != nil)
 }
 
-// LoggerEnabled reports whether events reach Logger, the destination a
-// service's startup warning is about.
-func (c *Client) LoggerEnabled() bool {
-	return c != nil && c.token != ""
-}
-
-// Log sends one event and waits for Logger's answer. Events below LOG_LEVEL
-// are dropped before any request is made. Grafana and PostHog are never
-// waited on: the event joins their background queues, and the error is
-// Logger's alone.
-func (c *Client) Log(ctx context.Context, level Level, message string, payload any) error {
-	if !c.Enabled() {
-		return nil
-	}
-	current, ok := severity(level)
-	if !ok {
-		return fmt.Errorf("invalid log level %q", level)
-	}
-	c.audit(level, message, payload)
-	if current < c.minimum {
-		return nil
-	}
-	c.export(level, message, payload)
-	return c.sendToLogger(ctx, level, message, payload)
-}
-
-// LogAsync sends in the background with a two-second timeout and at most 32
-// events in flight. Past that it drops the event and says so on the standard
-// log, so a slow Logger can never stall the service. Grafana and PostHog have
-// their own bounded queues with the same promise.
+// LogAsync hands one event to the background queues and returns at once.
+// Events below LOG_LEVEL are dropped before they are queued, except audit
+// events, which PostHog gets whatever the level. Each queue is bounded, so a
+// slow or unreachable destination can never stall the service.
 func (c *Client) LogAsync(level Level, message string, payload any) {
 	if !c.Enabled() {
 		return
@@ -112,33 +69,14 @@ func (c *Client) LogAsync(level Level, message string, payload any) {
 	if current < c.minimum {
 		return
 	}
-	c.export(level, message, payload)
-	if !c.LoggerEnabled() {
-		return
+	if c.grafana != nil {
+		c.grafana.add(level, message, payload)
 	}
-	if c.slots != nil {
-		select {
-		case c.slots <- struct{}{}:
-		default:
-			log.Print("structured log delivery busy; dropping event")
-			return
-		}
-	}
-	go func() {
-		if c.slots != nil {
-			defer func() { <-c.slots }()
-		}
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		defer cancel()
-		if err := c.sendToLogger(ctx, level, message, payload); err != nil {
-			log.Printf("structured log delivery failed: %v", err)
-		}
-	}()
 }
 
 // Close sends what the background destinations still hold and stops them.
 // Call it once at shutdown, after the last event, with a deadline: it waits
-// until the queues are sent or ctx expires. Logger needs no closing.
+// until the queues are sent or ctx expires.
 func (c *Client) Close(ctx context.Context) error {
 	if c == nil {
 		return nil
@@ -173,46 +111,6 @@ func (c *Client) audit(level Level, message string, payload any) {
 	if login, fields, ok := auditActor(level, payload); ok {
 		c.posthog.add(login, message, fields)
 	}
-}
-
-// export hands the event to every background destination.
-func (c *Client) export(level Level, message string, payload any) {
-	if c.grafana != nil {
-		c.grafana.add(level, message, payload)
-	}
-}
-
-func (c *Client) sendToLogger(ctx context.Context, level Level, message string, payload any) error {
-	if !c.LoggerEnabled() {
-		return nil
-	}
-	body := struct {
-		Service string `json:"service"`
-		Level   Level  `json:"level"`
-		Message string `json:"message"`
-		Payload any    `json:"payload,omitempty"`
-	}{Service: c.service, Level: level, Message: message, Payload: payload}
-	raw, err := json.Marshal(body)
-	if err != nil {
-		return fmt.Errorf("marshal log event: %w", err)
-	}
-
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, c.endpoint, bytes.NewReader(raw))
-	if err != nil {
-		return err
-	}
-	request.Header.Set("Authorization", "Bearer "+c.token)
-	request.Header.Set("Content-Type", "application/json")
-	response, err := c.httpClient.Do(request)
-	if err != nil {
-		return fmt.Errorf("send log event: %w", err)
-	}
-	defer response.Body.Close()
-	_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 4096))
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return fmt.Errorf("logger returned HTTP %d", response.StatusCode)
-	}
-	return nil
 }
 
 func severity(level Level) (int, bool) {

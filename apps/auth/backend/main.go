@@ -43,8 +43,8 @@ func main() {
 		log.Fatalf("config: %v", err)
 	}
 	events := logclient.NewFromEnv("oauth-manager")
-	if !events.LoggerEnabled() {
-		log.Println("warning: LOGGER_INGEST_TOKEN unset — structured logging is disabled")
+	if !events.Enabled() {
+		log.Println("warning: neither Grafana nor PostHog is configured — structured events go nowhere")
 	}
 
 	st, err := connectDB(cfg.DatabaseURL)
@@ -114,11 +114,7 @@ func main() {
 	defer stop()
 	<-ctx.Done()
 	log.Println("shutting down")
-	shutdownLogCtx, cancelShutdownLog := context.WithTimeout(context.Background(), 2*time.Second)
-	if err := events.Log(shutdownLogCtx, logclient.Info, "OAuthManager stopping", nil); err != nil {
-		log.Printf("structured shutdown log: %v", err)
-	}
-	cancelShutdownLog()
+	events.LogAsync(logclient.Info, "OAuthManager stopping", nil)
 	// In-flight requests get ten seconds to finish; new ones are refused.
 	shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancelShutdown()

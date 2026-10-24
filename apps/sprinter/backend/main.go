@@ -35,7 +35,7 @@ func main() {
 
 // run starts Sprinter and serves until SIGINT or SIGTERM. It returns instead
 // of exiting, so its deferred calls run on every path: a startup failure
-// still flushes the event that names it to Logger.
+// still flushes the event that names it.
 func run() error {
 	_ = godotenv.Load("../.env")
 	cfg := config.Load()
@@ -43,11 +43,11 @@ func run() error {
 		return fmt.Errorf("config: %w", err)
 	}
 	// The event client is built before anything can block, so a warning still
-	// reaches Logger when the database never comes up and the process dies in
+	// gets out when the database never comes up and the process dies in
 	// connectStore.
 	events := logclient.NewFromEnv("sprinter")
-	if !events.LoggerEnabled() {
-		log.Println("warning: LOGGER_INGEST_TOKEN unset — structured logging is disabled")
+	if !events.Enabled() {
+		log.Println("warning: neither Grafana nor PostHog is configured — structured events go nowhere")
 	}
 	// Deferred first, so it runs last: after the stopping event and whatever
 	// the Discord session reports as it closes.
@@ -169,11 +169,7 @@ func run() error {
 	case <-ctx.Done():
 	}
 	log.Println("shutting down")
-	shutdownLogCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	if err := events.Log(shutdownLogCtx, logclient.Info, "Sprinter stopping", nil); err != nil {
-		log.Printf("structured shutdown log: %v", err)
-	}
-	cancel()
+	events.LogAsync(logclient.Info, "Sprinter stopping", nil)
 	// Requests in flight finish; new connections are refused.
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

@@ -1,8 +1,7 @@
-// Package httplog sends one event to Logger for each request a net/http
-// server serves: method, path, status, and duration, plus the cause when the
-// request failed and the operator when the app names one. Every backend
-// mounts it, so request events read the same in the log explorer whichever
-// service sent them.
+// Package httplog sends one event for each request a net/http server serves:
+// method, path, status, and duration, plus the cause when the request failed
+// and the operator when the app names one. Every backend mounts it, so request
+// events read the same in Grafana whichever service sent them.
 package httplog
 
 import (
@@ -21,8 +20,8 @@ import (
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
 )
 
-// Sink receives the events. *logclient.Client satisfies it; Logger itself
-// passes an adapter that writes straight into its store.
+// Sink receives the events. *logclient.Client satisfies it; the tests pass a
+// collector.
 type Sink interface {
 	LogAsync(level logclient.Level, message string, payload any)
 }

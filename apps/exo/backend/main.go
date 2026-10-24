@@ -42,8 +42,8 @@ func run() error {
 
 	cfg := config.Load()
 	events := logclient.NewFromEnv("exo-api")
-	if !events.LoggerEnabled() {
-		log.Println("warning: LOGGER_INGEST_TOKEN unset — no events go to Logger")
+	if !events.Enabled() {
+		log.Println("warning: neither Grafana nor PostHog is configured — structured events go nowhere")
 	}
 	authz := auth.NewClient(cfg.OAuthManagerURL)
 	authz.Events = events
@@ -67,11 +67,7 @@ func run() error {
 
 	err = serve(ctx, newHTTPServer(handler), listener, func() {
 		log.Println("shutting down")
-		shutdownLogCtx, cancelShutdownLog := context.WithTimeout(context.Background(), 2*time.Second)
-		defer cancelShutdownLog()
-		if err := events.Log(shutdownLogCtx, logclient.Info, "Exo API stopping", nil); err != nil {
-			log.Printf("structured shutdown log: %v", err)
-		}
+		events.LogAsync(logclient.Info, "Exo API stopping", nil)
 	})
 	// After the server has stopped, so the last request events are queued.
 	closeCtx, cancelClose := context.WithTimeout(context.Background(), 5*time.Second)

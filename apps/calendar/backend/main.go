@@ -26,11 +26,11 @@ func main() {
 		log.Fatalf("config: %v", err)
 	}
 	// The event client is built before anything can block, so a warning about
-	// configuration that will break a browser reaches Logger even when the
+	// configuration that will break a browser is queued even when the
 	// database never comes up and the process dies in connectStore.
 	events := logclient.NewFromEnv("calendar-api")
-	if !events.LoggerEnabled() {
-		log.Println("warning: LOGGER_INGEST_TOKEN unset — structured logging is disabled")
+	if !events.Enabled() {
+		log.Println("warning: neither Grafana nor PostHog is configured — structured events go nowhere")
 	}
 	for _, warning := range cfg.Warnings() {
 		log.Printf("warning: %s", warning)
@@ -73,14 +73,12 @@ func main() {
 	if err := server.Shutdown(shutdownCtx); err != nil {
 		log.Printf("shutdown: %v", err)
 	}
-	shutdownLogCtx, cancelLog := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancelLog()
-	if err := events.Log(shutdownLogCtx, logclient.Info, "BiotronCalendar stopping", nil); err != nil {
-		log.Printf("structured shutdown log: %v", err)
-	}
+	events.LogAsync(logclient.Info, "BiotronCalendar stopping", nil)
+	closeCtx, cancelClose := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelClose()
 	// The stopping event is the last one, so the background destinations can
 	// send what they hold.
-	if err := events.Close(shutdownLogCtx); err != nil {
+	if err := events.Close(closeCtx); err != nil {
 		log.Printf("structured log close: %v", err)
 	}
 }
