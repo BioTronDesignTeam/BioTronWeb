@@ -48,7 +48,7 @@ What keeps the two instances apart:
   next to the host's memory.
 - **Settings.** Each instance has its own Infisical environment and its own
   machine identity, which can read nothing else. Domains, cookie domains,
-  GitHub Apps, session keys, and the Logger ingestion token all differ.
+  GitHub Apps, and session keys all differ.
 - **Names and ports.** Container names come from the project, so they never
   collide, and a named instance publishes no host ports at all
   (`infra/no-host-ports.yml`). Use `docker compose -p biotron-prod exec` for
@@ -158,11 +158,10 @@ Each environment needs:
 | `BASE_DOMAIN` | `uwbiotron.dev` for staging, `uwbiotron.ca` for production |
 | `POSTGRES_PASSWORD` | The instance's Postgres owner password. `openssl rand -hex 32` |
 | `SPRINTER_READER_PASSWORD` | The read-only `sprinter_reader` role's password. `openssl rand -hex 32` |
-| `LOGGER_INGEST_TOKEN` | Shared by Logger and every service that logs to it |
 | `AUTH_GITHUB_APP_ID`, `AUTH_GITHUB_APP_CLIENT_ID`, `AUTH_GITHUB_APP_CLIENT_SECRET`, `AUTH_GITHUB_APP_PRIVATE_KEY` | This instance's GitHub App. See "The GitHub App" in `apps/auth/README.md` |
 | `AUTH_SESSION_SIGNING_KEY` | Signs Auth's session cookies. `openssl rand -base64 48`; changing it signs everyone out |
 | `BIOTRON_ENV` | `staging` or `production`. Tags Grafana and PostHog events |
-| `GRAFANA_OTLP_ENDPOINT`, `GRAFANA_OTLP_USER`, `GRAFANA_OTLP_TOKEN` | Optional. Grafana Cloud logs; see `go/logclient/README.md` |
+| `GRAFANA_OTLP_ENDPOINT`, `GRAFANA_OTLP_USER`, `GRAFANA_OTLP_TOKEN` | Optional. Grafana Cloud logs, where every service's events go; see `go/logclient/README.md` |
 | `POSTHOG_API_KEY`, `POSTHOG_HOST` | Optional. PostHog audit events |
 | `SPRINTER_DISCORD_ENABLED` | `true` in staging. Leave unset in production, where Sprinter runs without its bot |
 | `AUTH_SUPERUSER_GITHUB_IDS` | Optional. Numeric GitHub IDs allowed to bootstrap administration |
@@ -320,11 +319,10 @@ copied, because two copies must not both take writes.
    Rerun it after step 8.
 3. **Install tools and the deploy accounts:** steps 1–4 of the fresh-host setup.
 4. **Start Infisical** (step 5) and **fill it** (step 6). For production,
-   take `LOGGER_INGEST_TOKEN` and the optional Sprinter keys from the current
-   `apps/*/.env` files, and create a GitHub App for
-   `auth.uwbiotron.ca`. Staging gets its own GitHub App for `auth.uwbiotron.dev`,
-   which replaces today's OAuth app, and its own new `LOGGER_INGEST_TOKEN`. Each
-   instance also gets its own `AUTH_SESSION_SIGNING_KEY`.
+   take the optional Sprinter keys from the current `apps/*/.env` files, and
+   create a GitHub App for `auth.uwbiotron.ca`. Staging gets its own GitHub App
+   for `auth.uwbiotron.dev`, which replaces today's OAuth app. Each instance
+   also gets its own `AUTH_SESSION_SIGNING_KEY`.
    Generate fresh Postgres passwords for both; the new clusters start empty.
 5. **Write `/etc/biotron/edge.env`** with the token from
    `/etc/biotron/secrets/cloudflare-tunnel-token` and
@@ -367,8 +365,8 @@ copied, because two copies must not both take writes.
    second deploy reruns each app's migrations, applying whatever the new
    commit adds. The new cloudflared connects with the same token, and
    `uwbiotron.dev` and `uwbiotron.ca` are served again, by staging and
-   production. Redis is not copied: it holds caches, Logger's recent tails,
-   and health state, which refill on their own.
+   production. Redis is not copied: it holds caches and Logger's health
+   state, which refill on their own.
 9. **Give staging its copy** of the same dump, now or whenever staging needs
    fresh data:
 
@@ -414,7 +412,7 @@ the old database.
 
 ## Rotation
 
-- **An Infisical value** (an API key, an OAuth secret, the ingestion token):
+- **An Infisical value** (an API key, an OAuth secret, a session key):
   change it in Infisical, then redeploy that instance (rerun its last deploy
   workflow, or `sudo biotron-deploy <instance> $(cat /opt/biotron/<instance>/REVISION)`).
   Compose recreates the containers whose settings changed. Running

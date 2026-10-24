@@ -276,7 +276,7 @@ throwaway volume seeded on `redis:7-alpine`, including that existing keys
 survived and `redis-cli ping` still answers the compose healthcheck.
 
 Nothing this workspace asks of Redis is affected. Logger uses it for the health
-cache and log tails and OAuthManager for grant-set caching, all through
+cache and OAuthManager for grant-set caching, all through
 `go-redis/v9`, which supports Redis 8 — and both are plain key, list and TTL
 operations, well away from anything Redis 8 changed. Redis 8 folds in the
 former Redis Stack modules and changes defaults around them, none of which this
@@ -286,7 +286,8 @@ neither improved nor worsened by this bump.
 
 ## Read-only role for Sprinter
 
-Sprinter's model tools read the `logger` and `oauth` schemas, which Logger and
+Sprinter's model tools read the `logger` and `oauth` schemas (today only
+`logger.health_checks` and four `oauth` tables), which Logger and
 Auth own. The read-only guarantee lives in Postgres, not in Sprinter's Go
 code, through a dedicated role: `sprinter_reader`.
 

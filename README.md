@@ -11,12 +11,12 @@ where the platform is developed now; the separate repositories are frozen.
 |---|---|---|
 | `apps/site` | Public team website (React, Three.js) | `Biotron-Site` |
 | `apps/calendar` | Public calendars and feeds (Go API, React UI, Prisma) | `BiotronCalendar` |
-| `apps/logger` | Status page, log warehouse, health monitor | `Logger` |
+| `apps/logger` | Public status page and health monitor | `Logger` |
 | `apps/auth` | GitHub OAuth, sessions, per-tool permissions | `OAuthManager` |
 | `apps/exo` | Exoskeleton operator UI and telemetry API | `exo-gui` |
 | `apps/sprinter` | Discord bot and admin UI | `Sprinter` |
 | `packages/style` | `@biotron/style`: brand, theme, shared controls | `BioTronStyle` |
-| `go/logclient` | Go client every service uses to send events to Logger | `Logger/client` |
+| `go/logclient` | Go client every service uses to send events to Grafana and PostHog | `Logger/client` |
 | `infra` | Edge Nginx, cloudflared, Postgres, Redis, deployment manifests | `Server` |
 
 Each app keeps its own `README.md`, `.env.example`, `docker-compose.yml`, and
@@ -241,8 +241,8 @@ same ports as before.
   (`github.com/BioTronDesignTeam/Logger/backend` and so on). Renaming them
   to `github.com/BioTronDesignTeam/BioTronWeb/apps/<app>/backend` is a
   find-and-replace plus `go work sync`.
-- The OAuthManager permission-check client that Logger, Exo, and Calendar each
-  hand-roll belongs in `go/authcheck`. It is not extracted here.
+- The OAuthManager permission-check client that Exo, Calendar, and Sprinter
+  each hand-roll belongs in `go/authcheck`. It is not extracted here.
 - The CI, CodeQL, sqlc, and actionlint workflows under `.github/workflows`
   are written but have never run on GitHub.
 - The React hook and effect findings Oxlint reports are warnings; each app

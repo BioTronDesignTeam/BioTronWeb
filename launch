@@ -198,8 +198,6 @@ validate() {
     $services[$name].environment as $env |
     if ($env | has("DATABASE_URL")) and (($env.DATABASE_URL // "") == "") then
       error($name + ": set its app-prefixed DATABASE_URL")
-    elif $name == "logger-api" and (($env.LOGGER_INGEST_TOKEN // "") == "") then
-      error("logger-api: set LOGGER_INGEST_TOKEN")
     elif $name == "postgres" and ((($env.POSTGRES_PASSWORD // "") == "") or (($env.SPRINTER_READER_PASSWORD // "") == "")) then
       error("postgres: set POSTGRES_PASSWORD and SPRINTER_READER_PASSWORD")
     else true end

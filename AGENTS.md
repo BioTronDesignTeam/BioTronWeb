@@ -4,7 +4,7 @@ Read `README.md` first. It owns the layout, the toolchain versions, the run
 commands, and the devcontainer. This file holds the decisions that the code
 alone does not explain.
 
-Never write a real OAuth credential, ingestion token, guest key, or database
+Never write a real OAuth credential, API key, guest key, or database
 password into this file or any tracked file. Deployment secrets live in
 Infisical; bootstrap credentials stay in root-only files outside any checkout.
 Local development can use untracked `.env` files.
@@ -15,12 +15,12 @@ Local development can use untracked `.env` files.
 |---|---|---|
 | `apps/site` | Public team website | `Biotron-Site` |
 | `apps/calendar` | Public calendars and feeds | `BiotronCalendar` |
-| `apps/logger` | Status page and log warehouse | `Logger` |
+| `apps/logger` | Public status page and health monitor | `Logger` |
 | `apps/auth` | GitHub OAuth, sessions, permissions | `OAuthManager` |
 | `apps/exo` | Exoskeleton operator UI and API | `exo-gui` |
 | `apps/sprinter` | Discord bot and admin UI | `Sprinter` |
 | `packages/style` | `@biotron/style` shared components | `BioTronStyle` |
-| `go/logclient` | Go client that sends events to Logger | `Logger/client` |
+| `go/logclient` | Go client that sends events to Grafana and PostHog | `Logger/client` |
 | `infra` | Edge Nginx, cloudflared, Postgres, Redis | `Server` |
 
 The old repositories are frozen. Code comments and app ids still use some old
@@ -96,10 +96,10 @@ names, such as `OAuthManager` and `exo-gui`. They mean the paths above.
   work.
 - A backend that cannot reach Auth answers 503. It fails closed, never open.
 - App ids and permissions: `exo-gui` has `live`, `historical`, and `commands`.
-  `logger` has `view`. `calendar` has `write`. `sprinter` has an admin check.
+  `calendar` has `write`. `sprinter` has an admin check.
 - New tools register as apps in Auth. Do not build a separate login.
 - Only Exo has a daily guest key. Guests may use Live and Historical, never
-  Commands. Guest access does not grant Logger View.
+  Commands.
 - Day boundaries and guest-key rotation use `America/Toronto`.
 
 ## Theme and brand
@@ -123,17 +123,16 @@ names, such as `OAuthManager` and `exo-gui`. They mean the paths above.
 
 ## Logging
 
-- Logger owns the ingestion API. Every Go service sends events through
-  `go/logclient`.
+- Every Go service sends events through `go/logclient`, to Grafana Cloud
+  and, for audit and product events, PostHog. Logger stores no logs; it is
+  the status page and health monitor only.
 - Request events hold only method, path, status, and duration. Never log a
   query string, cookie, authorization header, credential, or token.
 - Skip health probes. A 4xx is a warning, a 5xx is an error, and the rest is
   info.
-- Logger writes its own lifecycle events straight to its store. It does not
-  POST to itself.
-- `LOGGER_INGEST_TOKEN` must match Logger's value. `LOGGER_URL` defaults to
-  `http://logger-api:8080` and `LOG_LEVEL` to `info`. A missing or unreachable
-  Logger must never stop a service from starting.
+- `LOG_LEVEL` defaults to `info`. Grafana and PostHog are each optional and
+  switched on by their own variables (`go/logclient/README.md`). A missing or
+  unreachable destination must never stop a service from starting.
 
 ## Versions that look wrong but are deliberate
 

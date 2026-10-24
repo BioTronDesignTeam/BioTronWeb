@@ -54,7 +54,6 @@ class RuntimeConfigTests(unittest.TestCase):
         for app in APPS:
             if app != 'site':
                 self.env[f'{app.upper()}_DATABASE_URL'] = f'fixture-{app}'
-        self.env['LOGGER_INGEST_TOKEN'] = 'fixture-ingest'
         self.env.update(POSTGRES_PASSWORD='fixture-db', SPRINTER_READER_PASSWORD='fixture-reader')
 
     def test_no_env_files_required_to_parse_or_stop_web(self):
@@ -88,7 +87,7 @@ class RuntimeConfigTests(unittest.TestCase):
     def test_launch_fails_for_missing_selected_credentials(self):
         self.run_command('./launch', 'web', '--runtime', '--dry-run', success=False)
         self.secrets()
-        del self.env['LOGGER_INGEST_TOKEN']
+        del self.env['LOGGER_DATABASE_URL']
         self.run_command('./launch', 'web', '--runtime', '--dry-run', success=False)
 
     def test_excluded_apps_do_not_need_secrets(self):
@@ -284,7 +283,7 @@ class RuntimeConfigTests(unittest.TestCase):
 
     def test_derived_settings_satisfy_launch(self):
         self.env.update(BASE_DOMAIN='example.test', POSTGRES_PASSWORD='abc123',
-                        SPRINTER_READER_PASSWORD='def456', LOGGER_INGEST_TOKEN='fixture-ingest',
+                        SPRINTER_READER_PASSWORD='def456',
                         IMAGE_REGISTRY='ghcr.io/biotrondesignteam/', IMAGE_TAG='0' * 40)
         self.run_command('bash', 'deploy/instance-defaults.sh', './launch', 'all',
                          '--instance', 'prod', '--runtime', '--pull', '--dry-run')
