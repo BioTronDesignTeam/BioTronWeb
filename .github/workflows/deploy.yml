@@ -46,17 +46,17 @@ jobs:
           - { name: sprinter-migrate, context: apps/sprinter/prisma, dockerfile: apps/sprinter/prisma/Dockerfile }
           - { name: edge-nginx, context: infra/nginx, dockerfile: infra/nginx/Dockerfile }
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
+      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: ${{ matrix.image.context }}
           file: ${{ matrix.image.dockerfile }}
@@ -71,7 +71,7 @@ jobs:
             VITE_AUTH_URL=https://auth.__BASE_DOMAIN__/api
             VITE_IDP_URL=https://auth.__BASE_DOMAIN__/api
             VITE_CALENDAR_URL=${{ matrix.image.name == 'sprinter-web' && 'https://calendar.__BASE_DOMAIN__/api' || 'https://calendar.__BASE_DOMAIN__' }}
-      - uses: aquasecurity/trivy-action@v0.36.0
+      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: ghcr.io/biotrondesignteam/${{ matrix.image.name }}:${{ github.sha }}
           severity: CRITICAL,HIGH
@@ -86,7 +86,7 @@ jobs:
     outputs:
       revision: ${{ steps.resolve.outputs.revision }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -123,7 +123,7 @@ jobs:
       INSTANCE: ${{ startsWith(github.ref, 'refs/tags/') && 'prod' || 'staging' }}
       REVISION: ${{ needs.candidate.outputs.revision }}
     steps:
-      - uses: tailscale/github-action@v4
+      - uses: tailscale/github-action@99a8333667fff04fdd6cffb46dfd409f8329a7bf # v4.3.0
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           audience: ${{ secrets.TS_AUDIENCE }}
