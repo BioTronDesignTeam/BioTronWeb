@@ -169,7 +169,7 @@ func TestRequireSessionRechecksMembership(t *testing.T) {
 	}
 	check := func(cookie string) int {
 		t.Helper()
-		request := httptest.NewRequest(http.MethodGet, "/v1/check?app=logger&permission=view", nil)
+		request := httptest.NewRequest(http.MethodGet, "/v1/check?app=calendar&permission=write", nil)
 		request.AddCookie(&http.Cookie{Name: SessionCookie, Value: cookie})
 		response := httptest.NewRecorder()
 		h.RequireSession(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

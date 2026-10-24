@@ -103,7 +103,7 @@ func TestLiveSignInThenGrantRevokeAndBan(t *testing.T) {
 	}
 	allowed := func() bool {
 		t.Helper()
-		response := get(h.Check, "/v1/check?app=logger&permission=view", session)
+		response := get(h.Check, "/v1/check?app=calendar&permission=write", session)
 		if response.Code != http.StatusOK {
 			t.Fatalf("check = %d", response.Code)
 		}
@@ -121,7 +121,7 @@ func TestLiveSignInThenGrantRevokeAndBan(t *testing.T) {
 		t.Fatalf("me = %d %s", me.Code, me.Body)
 	}
 	if allowed() {
-		t.Fatal("a new operator holds logger/view")
+		t.Fatal("a new operator holds calendar/write")
 	}
 
 	// 3. A grant and a revoke apply to the next check, with the cache warm.
@@ -139,7 +139,7 @@ func TestLiveSignInThenGrantRevokeAndBan(t *testing.T) {
 			t.Fatalf("%s %s = %d %s", method, target, response.Code, response.Body)
 		}
 	}
-	grant := `{"operator_id":42,"app_id":"logger","permission_key":"view"}`
+	grant := `{"operator_id":42,"app_id":"calendar","permission_key":"write"}`
 	change(h.CreateGrant, http.MethodPost, "/grants", grant)
 	if !allowed() {
 		t.Fatal("the grant did not apply to the next check")

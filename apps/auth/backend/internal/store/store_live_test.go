@@ -131,7 +131,7 @@ func TestLiveCatalogAndGrants(t *testing.T) {
 	for _, app := range apps {
 		byID[app.ID] = app
 	}
-	if !byID["exo-gui"].DailyKeyEnabled || byID["logger"].DailyKeyEnabled {
+	if !byID["exo-gui"].DailyKeyEnabled || byID["calendar"].DailyKeyEnabled {
 		t.Fatalf("seeded apps = %+v", byID)
 	}
 	if err := st.CreateApp(ctx, "live-test", "Live test", ""); err != nil {
@@ -151,14 +151,14 @@ func TestLiveCatalogAndGrants(t *testing.T) {
 			t.Fatal("permissions must be ordered by app, then key")
 		}
 	}
-	if p, err := st.GetPermission(ctx, "logger", "view"); err != nil || p.Label != "View" {
-		t.Fatalf("logger/view = %+v, %v", p, err)
+	if p, err := st.GetPermission(ctx, "calendar", "write"); err != nil || p.Label != "Write" {
+		t.Fatalf("calendar/write = %+v, %v", p, err)
 	}
-	if _, err := st.GetPermission(ctx, "logger", "nope"); !errors.Is(err, ErrNotFound) {
+	if _, err := st.GetPermission(ctx, "calendar", "nope"); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("missing permission: err = %v, want ErrNotFound", err)
 	}
 
-	if err := st.CreateGrant(ctx, liveMember, "logger", "nope"); !errors.Is(err, ErrNotFound) {
+	if err := st.CreateGrant(ctx, liveMember, "calendar", "nope"); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("grant of a missing permission: err = %v, want ErrNotFound", err)
 	}
 	for _, key := range []string{"live", "historical", "live"} {
@@ -213,7 +213,7 @@ func TestLiveProductDailyKeys(t *testing.T) {
 	if first != second || first.AppID != "exo-gui" || first.Day != day {
 		t.Fatalf("keys = %+v then %+v", first, second)
 	}
-	if _, err := st.EnsureProductDailyKey(ctx, "logger", day, "LIVETESTKEY3"); !errors.Is(err, ErrNotFound) {
+	if _, err := st.EnsureProductDailyKey(ctx, "calendar", day, "LIVETESTKEY3"); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("app without daily keys: err = %v, want ErrNotFound", err)
 	}
 
@@ -299,7 +299,7 @@ func TestLiveRotateAndGetGuestKey(t *testing.T) {
 	if again, _ := st.EnsureProductDailyKey(ctx, "exo-gui", day, "LIVEROTATE03"); again.Key != "LIVEROTATE02" {
 		t.Fatalf("the rotated key did not stick: %+v", again)
 	}
-	if _, err := st.RotateProductDailyKey(ctx, "logger", day, "LIVEROTATE04"); !errors.Is(err, ErrNotFound) {
+	if _, err := st.RotateProductDailyKey(ctx, "calendar", day, "LIVEROTATE04"); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("rotating an app without daily keys: err = %v, want ErrNotFound", err)
 	}
 

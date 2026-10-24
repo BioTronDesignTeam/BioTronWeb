@@ -283,7 +283,6 @@ non-staff operator answers `false`.
 | Tool | Permissions |
 |---|---|
 | `exo-gui` | `live`, `historical`, `commands` |
-| `logger` | `view` |
 | `calendar` | `write` |
 | `sprinter` | `admin` |
 

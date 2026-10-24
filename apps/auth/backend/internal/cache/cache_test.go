@@ -86,16 +86,16 @@ func TestMissingOperatorIsNotKept(t *testing.T) {
 
 // A revoke must apply to the very next check, not after the TTL.
 func TestInvalidateAppliesAtOnce(t *testing.T) {
-	src := &fakeSource{grants: []store.Grant{{OperatorID: 7, AppID: "logger", PermissionKey: "view"}}}
+	src := &fakeSource{grants: []store.Grant{{OperatorID: 7, AppID: "calendar", PermissionKey: "write"}}}
 	c, _ := newTestCache(src)
 	ctx := context.Background()
 
-	if ok, _ := c.HasGrant(ctx, 7, "logger", "view"); !ok {
+	if ok, _ := c.HasGrant(ctx, 7, "calendar", "write"); !ok {
 		t.Fatal("expected the grant")
 	}
 	src.grants = nil
 	c.Invalidate(7)
-	if ok, _ := c.HasGrant(ctx, 7, "logger", "view"); ok {
+	if ok, _ := c.HasGrant(ctx, 7, "calendar", "write"); ok {
 		t.Fatal("the revoked grant survived the invalidation")
 	}
 }
@@ -103,7 +103,7 @@ func TestInvalidateAppliesAtOnce(t *testing.T) {
 // A load that started before a revoke returns the old grants to its own
 // request, but must not keep them for later ones.
 func TestALoadThatRacedAnInvalidationIsNotKept(t *testing.T) {
-	src := &fakeSource{grants: []store.Grant{{OperatorID: 7, AppID: "logger", PermissionKey: "view"}}}
+	src := &fakeSource{grants: []store.Grant{{OperatorID: 7, AppID: "calendar", PermissionKey: "write"}}}
 	c, _ := newTestCache(src)
 	src.beforeGrant = func() {
 		src.beforeGrant = nil
@@ -114,7 +114,7 @@ func TestALoadThatRacedAnInvalidationIsNotKept(t *testing.T) {
 		t.Fatal(err)
 	}
 	src.grants = nil
-	if ok, _ := c.HasGrant(ctx, 7, "logger", "view"); ok {
+	if ok, _ := c.HasGrant(ctx, 7, "calendar", "write"); ok {
 		t.Fatal("a stale load was kept after the invalidation it raced")
 	}
 }

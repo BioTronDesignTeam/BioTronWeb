@@ -44,14 +44,14 @@ func TestHealthStaysPublic(t *testing.T) {
 	}
 }
 
-// Logger, Calendar and exo-gui all read /v1/check, and they tell "signed out"
+// Calendar, Sprinter and exo-gui all read /v1/check, and they tell "signed out"
 // from "signed in without the permission" by its status. RequireSession has to
 // answer before the handler sees the query, so a missing parameter on an
 // anonymous request is still 401 and never 400.
 func TestCheckAnswersUnauthorizedBeforeItValidatesParameters(t *testing.T) {
 	app := newTestApp(nil)
 	for _, target := range []string{
-		"/v1/check?app=logger&permission=view",
+		"/v1/check?app=calendar&permission=write",
 		"/v1/check",
 	} {
 		response := serve(app, httptest.NewRequest(http.MethodGet, target, nil))
