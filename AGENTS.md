@@ -145,10 +145,9 @@ names, such as `OAuthManager` and `exo-gui`. They mean the paths above.
 - **The Instagram icon is drawn locally** in
   `apps/site/frontend/src/components/InstagramIcon.tsx`. `lucide-react` 1.x
   removed every brand icon, so there is nothing to import.
-- **Fiber v3 proxy trust** uses `TrustProxy` plus
-  `TrustProxyConfig{Proxies: ...}` with an explicit list. Do not switch to
-  `TrustProxyConfig.Private`. It also trusts `10/8` and `192.168/16`, which is
-  wider than `TRUSTED_PROXIES` states.
+- **Proxy trust** is an explicit `TRUSTED_PROXIES` list of addresses and CIDRs.
+  A backend reads `Cf-Connecting-Ip` only from a peer on that list. Do not widen
+  it to every private range: that also trusts `10/8` and `192.168/16`.
 
 ## Edge security headers
 
