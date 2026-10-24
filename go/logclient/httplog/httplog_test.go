@@ -27,7 +27,8 @@ type recorder struct {
 func (r *recorder) LogAsync(level logclient.Level, message string, payload any) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.events = append(r.events, event{level, message, payload.(map[string]any)})
+	fields, _ := payload.(map[string]any)
+	r.events = append(r.events, event{level, message, fields})
 }
 
 func newHandler(sink Sink, options Options) http.Handler {
@@ -160,18 +161,18 @@ func TestAbortHandlerIsLoggedAndReRaised(t *testing.T) {
 		panic(http.ErrAbortHandler)
 	}))
 	defer func() {
-		if recovered := recover(); recovered != http.ErrAbortHandler {
+		if recovered := recover(); !IsAbort(recovered) {
 			t.Fatalf("recovered %v, want http.ErrAbortHandler", recovered)
 		}
 		if len(sink.events) != 1 || sink.events[0].payload["status"] != 500 {
 			t.Fatalf("abort must be logged as a 500; got %+v", sink.events)
 		}
 	}()
-	handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("GET", "/aborts", nil))
+	handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/aborts", nil))
 }
 
 func TestHelpersAreNoopsOutsideTheMiddleware(t *testing.T) {
-	request := httptest.NewRequest("GET", "/", nil)
+	request := httptest.NewRequest(http.MethodGet, "/", nil)
 	SetError(request, errors.New("ignored"))
 	SetActor(request, "ignored")
 	SetError(nil, errors.New("ignored"))
@@ -188,7 +189,7 @@ func TestFlushIsPassedThrough(t *testing.T) {
 		flusher.Flush()
 	}))
 	response := httptest.NewRecorder()
-	handler.ServeHTTP(response, httptest.NewRequest("GET", "/stream", nil))
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/stream", nil))
 	if !response.Flushed {
 		t.Fatal("flush did not reach the underlying writer")
 	}

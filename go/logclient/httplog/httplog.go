@@ -8,6 +8,7 @@ package httplog
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -74,6 +75,13 @@ func SetActor(r *http.Request, login string) {
 	}
 }
 
+// IsAbort reports whether a recovered panic value is http.ErrAbortHandler,
+// the panic a handler raises to abort a response on purpose.
+func IsAbort(recovered any) bool {
+	err, ok := recovered.(error)
+	return ok && errors.Is(err, http.ErrAbortHandler)
+}
+
 // New returns the middleware. Mount it outermost, so its status is the one
 // the client received. It also recovers panics: a panic is answered with a
 // 500 when nothing was written yet, printed with its stack on the standard
@@ -94,7 +102,7 @@ func New(sink Sink, options Options) func(http.Handler) http.Handler {
 			defer func() {
 				recovered := recover()
 				if recovered != nil {
-					if recovered != http.ErrAbortHandler {
+					if !IsAbort(recovered) {
 						log.Printf("panic serving %s %s: %v\n%s", r.Method, r.URL.Path, recovered, debug.Stack())
 					}
 					s.mu.Lock()
@@ -109,7 +117,7 @@ func New(sink Sink, options Options) func(http.Handler) http.Handler {
 					}
 				}
 				complete(sink, options, quiet, r, recorder.statusCode(), s, started)
-				if recovered == http.ErrAbortHandler {
+				if IsAbort(recovered) {
 					panic(recovered)
 				}
 			}()
