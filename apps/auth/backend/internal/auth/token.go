@@ -22,7 +22,7 @@ import (
 )
 
 const (
-	tokenIssuer     = "biotron-auth"
+	issuer          = "biotron-auth"
 	sessionAudience = "biotron-auth:session"
 	stateAudience   = "biotron-auth:oauth-state"
 	// stateLifetime is how long one round trip to GitHub may take.
@@ -107,7 +107,7 @@ func (s *Signer) ReadState(value string) (state, returnTo string, ok bool) {
 func (s *Signer) registered(subject, audience string, expires time.Time) jwt.RegisteredClaims {
 	now := s.now()
 	return jwt.RegisteredClaims{
-		Issuer:    tokenIssuer,
+		Issuer:    issuer,
 		Subject:   subject,
 		Audience:  jwt.ClaimStrings{audience},
 		IssuedAt:  jwt.NewNumericDate(now),
@@ -132,7 +132,7 @@ func (s *Signer) read(value, audience string, claims jwt.Claims) bool {
 	}
 	parser := jwt.NewParser(
 		jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}),
-		jwt.WithIssuer(tokenIssuer),
+		jwt.WithIssuer(issuer),
 		jwt.WithAudience(audience),
 		jwt.WithExpirationRequired(),
 		jwt.WithIssuedAt(),
