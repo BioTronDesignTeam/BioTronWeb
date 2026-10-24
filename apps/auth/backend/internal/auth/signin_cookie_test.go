@@ -15,7 +15,8 @@ func TestStateCookiePathFollowsTheCallback(t *testing.T) {
 		"https://auth.uwbiotron.ca/api/auth/github/callback?x=1": "/api/auth/github",
 		"https://auth.example/elsewhere":                         "/",
 		"https://auth.example/callback":                          "/",
-		"::not a url":                                            "/",
+		"https://auth.example//evil.example/callback":            "/",
+		"::not a url": "/",
 	} {
 		if got := StateCookiePath(callback); got != want {
 			t.Errorf("StateCookiePath(%q) = %q, want %q", callback, got, want)

@@ -564,8 +564,10 @@ func StateCookiePath(callbackURL string) string {
 	if err != nil {
 		return "/"
 	}
+	// A folder must be one absolute path. One that starts with // or /\ could
+	// be read as a host, so it gets "/" too.
 	folder, ok := strings.CutSuffix(u.Path, "/callback")
-	if !ok || !strings.HasPrefix(folder, "/") {
+	if !ok || len(folder) < 2 || folder[0] != '/' || folder[1] == '/' || folder[1] == '\\' {
 		return "/"
 	}
 	return folder
