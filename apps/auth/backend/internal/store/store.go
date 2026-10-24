@@ -110,8 +110,9 @@ func (op *SessionOperator) IsGuest() bool {
 }
 
 func (s *Store) UpsertOperator(ctx context.Context, op Operator, forceSuperuser bool) error {
-	// SUPERUSER_GITHUB_IDS is authoritative on every login: listed → superuser,
-	// omitted → cleared. Managers are independent (org UI / is_manager).
+	// The flag mirrors SUPERUSER_GITHUB_IDS, which RequireSession reads on every
+	// request: listed → superuser, omitted → cleared. Managers are independent
+	// (org UI / is_manager).
 	return s.q.UpsertOperator(ctx, queries.UpsertOperatorParams{
 		GitHubID:    op.GitHubID,
 		Login:       op.Login,
@@ -119,6 +120,16 @@ func (s *Store) UpsertOperator(ctx context.Context, op Operator, forceSuperuser 
 		AvatarURL:   nullable(op.AvatarURL),
 		IsSuperuser: forceSuperuser,
 	})
+}
+
+// ReconcileSuperusers sets the superuser flag of every operator to whether ids
+// lists them, and returns how many changed.
+func (s *Store) ReconcileSuperusers(ctx context.Context, ids []int64) (int64, error) {
+	if ids == nil {
+		// A nil slice is NULL to Postgres, and NULL is in no list.
+		ids = []int64{}
+	}
+	return s.q.ReconcileSuperusers(ctx, ids)
 }
 
 func (s *Store) GetOperator(ctx context.Context, githubID int64) (*OrgMember, error) {

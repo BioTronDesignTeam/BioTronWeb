@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -59,6 +60,18 @@ func Load() Config {
 
 func (c Config) IsSuperuserID(id int64) bool {
 	return c.SuperuserIDs[id]
+}
+
+// SuperuserIDList returns SUPERUSER_GITHUB_IDS as a sorted list.
+func (c Config) SuperuserIDList() []int64 {
+	ids := make([]int64, 0, len(c.SuperuserIDs))
+	for id, ok := range c.SuperuserIDs {
+		if ok {
+			ids = append(ids, id)
+		}
+	}
+	slices.Sort(ids)
+	return ids
 }
 
 // Validate refuses a configuration the service must not start with: a cookie

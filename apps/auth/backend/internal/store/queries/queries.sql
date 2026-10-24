@@ -8,6 +8,13 @@ SET login = EXCLUDED.login,
     last_login_at = now(),
     is_superuser = EXCLUDED.is_superuser;
 
+-- name: ReconcileSuperusers :execrows
+-- SUPERUSER_GITHUB_IDS decides who is a superuser on every request; the
+-- column mirrors it for readers of the table, such as Sprinter, and is set
+-- from it at startup.
+UPDATE operators SET is_superuser = (github_id = ANY(sqlc.arg(ids)::bigint[]))
+WHERE is_superuser IS DISTINCT FROM (github_id = ANY(sqlc.arg(ids)::bigint[]));
+
 -- name: GetOperator :one
 SELECT github_id, login, COALESCE(name, '') AS name, COALESCE(avatar_url, '') AS avatar_url,
        is_superuser, is_manager, is_banned, last_login_at

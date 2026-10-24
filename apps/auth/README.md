@@ -145,6 +145,12 @@ Staff means a manager or a superuser. Every mutating route requires the
 `X-Requested-With` header, which blocks cross-site form posts. Nobody can ban
 or change themself or the guest account. Only a superuser can ban a superuser.
 
+A superuser is whoever `SUPERUSER_GITHUB_IDS` lists, read on every request:
+remove an id and redeploy, and that operator's next request is no longer a
+superuser's. The `is_superuser` column only mirrors the list for other
+readers of the table, such as Sprinter; Auth sets it from the list when it
+starts and at each sign-in.
+
 ### Sessions
 
 The cookie is `oauth_session`: a JWT signed with HMAC-SHA256 and

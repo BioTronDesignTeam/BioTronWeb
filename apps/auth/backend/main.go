@@ -53,6 +53,16 @@ func main() {
 	}
 	defer st.Close()
 
+	// RequireSession reads SUPERUSER_GITHUB_IDS on every request. The column
+	// mirrors it for readers of the table, such as Sprinter, so a removed id
+	// loses the flag there with this deploy rather than at its next sign-in.
+	if n, err := st.ReconcileSuperusers(context.Background(), cfg.SuperuserIDList()); err != nil {
+		// Auth itself still reads the list; only the mirror waits for a restart.
+		log.Printf("reconcile superusers: %v", err)
+	} else if n > 0 {
+		log.Printf("superuser flag changed for %d operators from SUPERUSER_GITHUB_IDS", n)
+	}
+
 	go prune(st, events)
 
 	gh := auth.NewGitHubClient(auth.GitHubOptions{

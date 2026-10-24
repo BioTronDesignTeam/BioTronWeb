@@ -155,7 +155,7 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 	// announcing an operator who has been here for months.
 	newOperator := errors.Is(existingErr, store.ErrNotFound)
 
-	forceSuper := h.Cfg.IsSuperuserID != nil && h.Cfg.IsSuperuserID(user.ID)
+	forceSuper := h.isSuperuser(user.ID)
 	if err := h.Store.UpsertOperator(ctx, store.Operator{
 		GitHubID:  user.ID,
 		Login:     user.Login,
@@ -379,6 +379,11 @@ func (h *Handler) ListOrgMembers(w http.ResponseWriter, r *http.Request) {
 	if members == nil {
 		members = []store.OrgMember{}
 	}
+	// The stored flag mirrors SUPERUSER_GITHUB_IDS as of startup; the list is
+	// what decides.
+	for i := range members {
+		members[i].IsSuperuser = h.isSuperuser(members[i].GitHubID)
+	}
 	httpx.JSON(w, http.StatusOK, members)
 }
 
@@ -431,7 +436,7 @@ func (h *Handler) setBanned(w http.ResponseWriter, r *http.Request, banned bool)
 		httpx.Error(w, r, http.StatusInternalServerError)
 		return
 	}
-	if target.IsSuperuser && !actor.IsSuperuser {
+	if h.isSuperuser(target.GitHubID) && !actor.IsSuperuser {
 		httpx.Error(w, r, http.StatusForbidden)
 		return
 	}
@@ -516,6 +521,12 @@ func (h *Handler) allowed(ctx context.Context, op *store.SessionOperator, appID,
 		return op.GuestAppID == appID && (permissionKey == "live" || permissionKey == "historical"), nil
 	}
 	return h.Cache.HasGrant(ctx, op.GitHubID, appID, permissionKey)
+}
+
+// isSuperuser reports whether SUPERUSER_GITHUB_IDS lists githubID. The list is
+// read on every request, so the stored flag is only a mirror for other readers.
+func (h *Handler) isSuperuser(githubID int64) bool {
+	return h.Cfg.IsSuperuserID != nil && h.Cfg.IsSuperuserID(githubID)
 }
 
 // invalidate makes the next request see an operator's changed standing or
