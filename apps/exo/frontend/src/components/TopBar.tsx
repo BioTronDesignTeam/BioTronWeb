@@ -1,6 +1,7 @@
 import { AccountControls, Brand } from '@biotron/style'
 import MachineSelector from './MachineSelector'
 import ModeToggle, { type ViewMode } from './ModeToggle'
+import { PRODUCT_NAME } from '../config'
 
 interface TopBarProps {
   machines: string[]
@@ -24,6 +25,10 @@ export default function TopBar({
         <div className="flex items-center gap-3 justify-self-start">
           {/* The wordmark at the width every other BioTron header uses. */}
           <Brand className="w-28" />
+          <span className="hidden h-6 w-px bg-[#16033c]/15 lg:block dark:bg-white/20" aria-hidden="true" />
+          <span className="hidden truncate text-sm font-semibold tracking-wide text-[#16033c] lg:block dark:text-white">
+            {PRODUCT_NAME}
+          </span>
           <MachineSelector machines={machines} selected={selectedMachine} onSelect={onSelectMachine} />
         </div>
 
