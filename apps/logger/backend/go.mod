@@ -1,6 +1,6 @@
 module github.com/BioTronDesignTeam/Logger/backend
 
-go 1.27.0
+go 1.27.3
 
 require (
 	github.com/BioTronDesignTeam/BioTronWeb/go/logclient v0.0.0

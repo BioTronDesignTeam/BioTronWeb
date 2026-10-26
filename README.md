@@ -56,7 +56,7 @@ in exactly one place so it cannot drift:
 | Tailwind | 4.3 | root `package.json`; an app opts in by importing it |
 | Type packages | React 19.2, Node 24 | root `package.json` |
 | Prisma | 6.19.3 | each `apps/*/prisma/package.json`, exact |
-| Go | 1.27.0 | every `go.mod`, `go.work`, every backend Dockerfile |
+| Go | 1.27.3 | every `go.mod`, `go.work`, every backend Dockerfile |
 | golangci-lint, sqlc, actionlint, TruffleHog | 2.15.0, 1.31.1, 1.7.12, 3.97.4 | `.devcontainer/Dockerfile` `FROM` lines; CI reads them there |
 
 An app's own `package.json` lists only what that app alone needs, such as
