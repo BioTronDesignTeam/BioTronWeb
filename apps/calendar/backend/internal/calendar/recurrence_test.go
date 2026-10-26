@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/model"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/calendar/backend/internal/model"
 )
 
 func TestExpandWeeklySeriesAcrossDaylightSaving(t *testing.T) {

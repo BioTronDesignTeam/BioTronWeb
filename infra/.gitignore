@@ -1,5 +1,7 @@
-# Environment / secrets (the only committed template is /.env.example)
+# Environment / secrets (only explicitly allowed examples are committed)
 .env
 .env.*
 !/.env.example
+!/infisical/.env.example
 secrets/
+!/edge/.env.example

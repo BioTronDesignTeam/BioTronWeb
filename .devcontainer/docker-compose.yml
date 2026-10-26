@@ -1,10 +1,10 @@
-# The development container and the two services every app depends on, so
-# opening the devcontainer is the whole setup: no host Postgres, no host
-# Redis, nothing to start by hand.
+# The development container and the Postgres every app depends on, so opening
+# the devcontainer is the whole setup: no host Postgres, nothing to start by
+# hand.
 #
-# postgres and redis here are deliberately their own definitions, not a
-# reference to infra/docker-compose.yml. They may drift from it; when they
-# do, a commit brings them back in line. Keep the images matching by hand.
+# postgres here is deliberately its own definition, not a reference to
+# infra/docker-compose.yml. It may drift from it; when it does, a commit
+# brings it back in line. Keep the images matching by hand.
 # The service names and credentials are the ones every app's .env.example
 # already uses, so a fresh clone works without editing anything.
 name: biotron-dev
@@ -22,24 +22,18 @@ services:
       # the host's native binaries. Each node_modules is masked by a volume so
       # the container installs its own Linux ones without touching the host's.
       - nm-auth-frontend:/workspaces/biotron/apps/auth/frontend/node_modules
-      - nm-auth-prisma:/workspaces/biotron/apps/auth/prisma/node_modules
       - nm-calendar-frontend:/workspaces/biotron/apps/calendar/frontend/node_modules
-      - nm-calendar-prisma:/workspaces/biotron/apps/calendar/prisma/node_modules
-      - nm-exo-frontend:/workspaces/biotron/apps/exo/frontend/node_modules
-      - nm-exo-prisma:/workspaces/biotron/apps/exo/prisma/node_modules
-      - nm-logger-frontend:/workspaces/biotron/apps/logger/frontend/node_modules
-      - nm-logger-prisma:/workspaces/biotron/apps/logger/prisma/node_modules
-      - nm-site-frontend:/workspaces/biotron/apps/site/frontend/node_modules
+      - nm-exogui-frontend:/workspaces/biotron/apps/exogui/frontend/node_modules
+      - nm-status-frontend:/workspaces/biotron/apps/status/frontend/node_modules
+      - nm-biotron-frontend:/workspaces/biotron/apps/biotron/frontend/node_modules
       - nm-sprinter-frontend:/workspaces/biotron/apps/sprinter/frontend/node_modules
-      - nm-sprinter-prisma:/workspaces/biotron/apps/sprinter/prisma/node_modules
+      - nm-migrate:/workspaces/biotron/infra/migrate/node_modules
       - nm-root:/workspaces/biotron/node_modules
       - nm-style:/workspaces/biotron/packages/style/node_modules
     extra_hosts:
       - host.docker.internal:host-gateway
     depends_on:
       postgres:
-        condition: service_healthy
-      redis:
         condition: service_healthy
 
   postgres:
@@ -58,30 +52,14 @@ services:
       timeout: 5s
       retries: 10
 
-  redis:
-    image: redis:8.10.1-alpine
-    command: ["redis-server", "--appendonly", "yes"]
-    volumes:
-      - redis-data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-
 volumes:
   postgres-data:
-  redis-data:
   nm-auth-frontend:
-  nm-auth-prisma:
   nm-calendar-frontend:
-  nm-calendar-prisma:
-  nm-exo-frontend:
-  nm-exo-prisma:
-  nm-logger-frontend:
-  nm-logger-prisma:
-  nm-site-frontend:
+  nm-exogui-frontend:
+  nm-status-frontend:
+  nm-biotron-frontend:
   nm-sprinter-frontend:
-  nm-sprinter-prisma:
+  nm-migrate:
   nm-root:
   nm-style:

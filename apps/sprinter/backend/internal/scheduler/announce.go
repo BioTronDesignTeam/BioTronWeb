@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/calendar"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/store"
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/calendar"
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/store"
 )
 
 // announceTimeLayout is how an announcement, an edit, or a cancellation note

@@ -7,9 +7,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/calendar"
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/model"
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/store"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/calendar"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/model"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/store"
 )
 
 // fakeStore is the in-memory Store the scheduler tests drive. It is not
@@ -188,6 +188,9 @@ func (f *fakeDiscord) ChannelMessages(channelID string, limit int, beforeID, aft
 // fake can page by id the way Discord does.
 func snowflakeAt(t time.Time, n int) string {
 	millis := t.UnixMilli() - discordEpochMillis
+	if millis < 0 || n < 0 {
+		panic("snowflakeAt: a time before the Discord epoch or a negative counter")
+	}
 	return strconv.FormatUint(uint64(millis)<<22|uint64(n), 10)
 }
 

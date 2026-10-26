@@ -7,8 +7,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	calendarlogic "github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/calendar"
-	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/model"
+	calendarlogic "github.com/BioTronDesignTeam/BioTronWeb/apps/calendar/backend/internal/calendar"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/calendar/backend/internal/model"
 )
 
 const productID = "-//BioTron Design Team//BioTron Calendar//EN"

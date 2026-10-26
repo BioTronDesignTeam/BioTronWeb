@@ -3,6 +3,8 @@ package store
 import (
 	"context"
 	"time"
+
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/store/queries"
 )
 
 // The nudge triggers and statuses, spelled as the enum values the migration
@@ -64,23 +66,15 @@ type Nudge struct {
 // ListEnabledAutomations is what the scheduler ticks over. Disabled
 // automations are skipped entirely, not merely left alone once ticked.
 func (s *Store) ListEnabledAutomations(ctx context.Context) ([]Automation, error) {
-	rows, err := s.pool.Query(ctx, `
-		SELECT `+automationColumns+`
-		FROM automations WHERE enabled ORDER BY kind, lower(name)
-	`)
+	rows, err := s.q.ListEnabledAutomations(ctx)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	automations := []Automation{}
-	for rows.Next() {
-		automation, err := scanAutomation(rows)
-		if err != nil {
-			return nil, err
-		}
-		automations = append(automations, automation)
+	automations := make([]Automation, 0, len(rows))
+	for _, row := range rows {
+		automations = append(automations, automationFrom(queries.GetAutomationRow(row)))
 	}
-	return automations, rows.Err()
+	return automations, nil
 }
 
 // UpsertSeen records that automationID's fetch found occ just now.
@@ -88,27 +82,25 @@ func (s *Store) ListEnabledAutomations(ctx context.Context) ([]Automation, error
 // every call, which is what lets ListSeenFuture tell a still-fetched
 // occurrence from one that stopped coming back.
 func (s *Store) UpsertSeen(ctx context.Context, automationID string, occ SeenOccurrence) (SeenOccurrence, error) {
-	row := s.pool.QueryRow(ctx, `
-		INSERT INTO seen_occurrences (
-			automation_id, uid, recurrence_id_local, sequence, starts_at,
-			ends_at, title, scope_id, first_seen_at, last_seen_at
-		) VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8::uuid, now(), now())
-		ON CONFLICT (automation_id, uid, recurrence_id_local) DO UPDATE SET
-			sequence = EXCLUDED.sequence,
-			starts_at = EXCLUDED.starts_at,
-			ends_at = EXCLUDED.ends_at,
-			title = EXCLUDED.title,
-			scope_id = EXCLUDED.scope_id,
-			last_seen_at = now()
-		RETURNING automation_id::text, uid, recurrence_id_local, sequence,
-		          starts_at, ends_at, title, scope_id::text, first_seen_at, last_seen_at
-	`, automationID, occ.UID, occ.RecurrenceIDLocal, occ.Sequence, occ.StartsAt,
-		occ.EndsAt, occ.Title, occ.ScopeID)
-	saved, err := scanSeenOccurrence(row)
-	if err != nil {
-		return SeenOccurrence{}, mapConstraintError(err)
+	var counts int4s
+	params := queries.UpsertSeenParams{
+		AutomationID:      automationID,
+		Uid:               occ.UID,
+		RecurrenceIDLocal: occ.RecurrenceIDLocal,
+		Sequence:          counts.of("sequence", occ.Sequence),
+		StartsAt:          occ.StartsAt,
+		EndsAt:            occ.EndsAt,
+		Title:             occ.Title,
+		ScopeID:           occ.ScopeID,
 	}
-	return saved, nil
+	if counts.err != nil {
+		return SeenOccurrence{}, counts.err
+	}
+	row, err := s.q.UpsertSeen(ctx, params)
+	if err != nil {
+		return SeenOccurrence{}, mapConstraintError(mapNotFound(err))
+	}
+	return seenFrom(row), nil
 }
 
 // ListSeenFuture returns every occurrence automationID last saw whose
@@ -116,39 +108,32 @@ func (s *Store) UpsertSeen(ctx context.Context, automationID string, occ SeenOcc
 // cancellation detection: an event Calendar stops returning because it has
 // already happened is not a cancellation.
 func (s *Store) ListSeenFuture(ctx context.Context, automationID string, now time.Time) ([]SeenOccurrence, error) {
-	rows, err := s.pool.Query(ctx, `
-		SELECT automation_id::text, uid, recurrence_id_local, sequence,
-		       starts_at, ends_at, title, scope_id::text, first_seen_at, last_seen_at
-		FROM seen_occurrences
-		WHERE automation_id = $1::uuid AND starts_at > $2
-		ORDER BY starts_at
-	`, automationID, now)
+	rows, err := s.q.ListSeenFuture(ctx, queries.ListSeenFutureParams{
+		AutomationID: automationID,
+		Now:          now,
+	})
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	seen := []SeenOccurrence{}
-	for rows.Next() {
-		occ, err := scanSeenOccurrence(rows)
-		if err != nil {
-			return nil, err
-		}
-		seen = append(seen, occ)
+	seen := make([]SeenOccurrence, 0, len(rows))
+	for _, row := range rows {
+		seen = append(seen, seenFrom(row))
 	}
-	return seen, rows.Err()
+	return seen, nil
 }
 
 // DeleteSeen forgets one occurrence, once the scheduler has finished
 // reacting to its cancellation.
 func (s *Store) DeleteSeen(ctx context.Context, automationID, uid, recurrenceIDLocal string) error {
-	tag, err := s.pool.Exec(ctx, `
-		DELETE FROM seen_occurrences
-		WHERE automation_id = $1::uuid AND uid = $2 AND recurrence_id_local = $3
-	`, automationID, uid, recurrenceIDLocal)
+	deleted, err := s.q.DeleteSeen(ctx, queries.DeleteSeenParams{
+		AutomationID:      automationID,
+		Uid:               uid,
+		RecurrenceIDLocal: recurrenceIDLocal,
+	})
 	if err != nil {
 		return err
 	}
-	if tag.RowsAffected() == 0 {
+	if deleted == 0 {
 		return ErrNotFound
 	}
 	return nil
@@ -157,13 +142,15 @@ func (s *Store) DeleteSeen(ctx context.Context, automationID, uid, recurrenceIDL
 // GetPosted looks up the ANNOUNCE message already posted for one occurrence,
 // if any.
 func (s *Store) GetPosted(ctx context.Context, automationID, uid, recurrenceIDLocal string) (PostedOccurrence, error) {
-	row := s.pool.QueryRow(ctx, `
-		SELECT automation_id::text, uid, recurrence_id_local, sequence,
-		       channel_id, message_id, posted_at
-		FROM posted_occurrences
-		WHERE automation_id = $1::uuid AND uid = $2 AND recurrence_id_local = $3
-	`, automationID, uid, recurrenceIDLocal)
-	return scanPostedOccurrence(row)
+	row, err := s.q.GetPosted(ctx, queries.GetPostedParams{
+		AutomationID:      automationID,
+		Uid:               uid,
+		RecurrenceIDLocal: recurrenceIDLocal,
+	})
+	if err != nil {
+		return PostedOccurrence{}, mapNotFound(err)
+	}
+	return postedFrom(row), nil
 }
 
 // UpsertPosted records that an occurrence's announcement was posted or
@@ -171,85 +158,99 @@ func (s *Store) GetPosted(ctx context.Context, automationID, uid, recurrenceIDLo
 // updates the row in place: an announcement is posted once and edited after
 // that, never posted twice.
 func (s *Store) UpsertPosted(ctx context.Context, automationID, uid, recurrenceIDLocal string, sequence int, channelID, messageID string) (PostedOccurrence, error) {
-	row := s.pool.QueryRow(ctx, `
-		INSERT INTO posted_occurrences (
-			automation_id, uid, recurrence_id_local, sequence, channel_id,
-			message_id, posted_at
-		) VALUES ($1::uuid, $2, $3, $4, $5, $6, now())
-		ON CONFLICT (automation_id, uid, recurrence_id_local) DO UPDATE SET
-			sequence = EXCLUDED.sequence,
-			channel_id = EXCLUDED.channel_id,
-			message_id = EXCLUDED.message_id,
-			posted_at = now()
-		RETURNING automation_id::text, uid, recurrence_id_local, sequence,
-		          channel_id, message_id, posted_at
-	`, automationID, uid, recurrenceIDLocal, sequence, channelID, messageID)
-	saved, err := scanPostedOccurrence(row)
-	if err != nil {
-		return PostedOccurrence{}, mapConstraintError(err)
+	var counts int4s
+	params := queries.UpsertPostedParams{
+		AutomationID:      automationID,
+		Uid:               uid,
+		RecurrenceIDLocal: recurrenceIDLocal,
+		Sequence:          counts.of("sequence", sequence),
+		ChannelID:         channelID,
+		MessageID:         messageID,
 	}
-	return saved, nil
+	if counts.err != nil {
+		return PostedOccurrence{}, counts.err
+	}
+	row, err := s.q.UpsertPosted(ctx, params)
+	if err != nil {
+		return PostedOccurrence{}, mapConstraintError(mapNotFound(err))
+	}
+	return postedFrom(row), nil
 }
 
 // HasNudge reports whether a nudge row already exists for this occurrence,
 // sequence, and trigger, so the scheduler never nudges the same trigger
 // twice.
 func (s *Store) HasNudge(ctx context.Context, automationID, uid, recurrenceIDLocal string, sequence int, trigger string) (bool, error) {
-	var exists bool
-	err := s.pool.QueryRow(ctx, `
-		SELECT EXISTS(
-			SELECT 1 FROM nudges
-			WHERE automation_id = $1::uuid AND uid = $2 AND recurrence_id_local = $3
-			  AND sequence = $4 AND trigger = $5::"NudgeTrigger"
-		)
-	`, automationID, uid, recurrenceIDLocal, sequence, trigger).Scan(&exists)
-	return exists, err
+	var counts int4s
+	params := queries.HasNudgeParams{
+		AutomationID:      automationID,
+		Uid:               uid,
+		RecurrenceIDLocal: recurrenceIDLocal,
+		Sequence:          counts.of("sequence", sequence),
+		Trigger:           trigger,
+	}
+	if counts.err != nil {
+		return false, counts.err
+	}
+	return s.q.HasNudge(ctx, params)
 }
 
 // InsertNudge records one nudge outcome. The primary key on (automation_id,
 // uid, recurrence_id_local, sequence, trigger) is what turns a second attempt
 // at the same nudge into ErrConflict rather than a duplicate row.
 func (s *Store) InsertNudge(ctx context.Context, automationID, uid, recurrenceIDLocal string, sequence int, trigger, status string, messageID *string) (Nudge, error) {
-	row := s.pool.QueryRow(ctx, `
-		INSERT INTO nudges (
-			automation_id, uid, recurrence_id_local, sequence, trigger,
-			status, message_id
-		) VALUES ($1::uuid, $2, $3, $4, $5::"NudgeTrigger", $6::"NudgeStatus", $7)
-		RETURNING automation_id::text, uid, recurrence_id_local, sequence,
-		          trigger::text, status::text, message_id, created_at
-	`, automationID, uid, recurrenceIDLocal, sequence, trigger, status, messageID)
-	saved, err := scanNudge(row)
+	var counts int4s
+	params := queries.InsertNudgeParams{
+		AutomationID:      automationID,
+		Uid:               uid,
+		RecurrenceIDLocal: recurrenceIDLocal,
+		Sequence:          counts.of("sequence", sequence),
+		Trigger:           trigger,
+		Status:            status,
+		MessageID:         messageID,
+	}
+	if counts.err != nil {
+		return Nudge{}, counts.err
+	}
+	row, err := s.q.InsertNudge(ctx, params)
 	if err != nil {
-		return Nudge{}, mapConstraintError(err)
+		return Nudge{}, mapConstraintError(mapNotFound(err))
 	}
-	return saved, nil
+	return Nudge{
+		AutomationID:      row.AutomationID,
+		UID:               row.Uid,
+		RecurrenceIDLocal: row.RecurrenceIDLocal,
+		Sequence:          int(row.Sequence),
+		Trigger:           row.Trigger,
+		Status:            row.Status,
+		MessageID:         row.MessageID,
+		CreatedAt:         row.CreatedAt,
+	}, nil
 }
 
-func scanSeenOccurrence(row scanner) (SeenOccurrence, error) {
-	var occ SeenOccurrence
-	if err := row.Scan(&occ.AutomationID, &occ.UID, &occ.RecurrenceIDLocal,
-		&occ.Sequence, &occ.StartsAt, &occ.EndsAt, &occ.Title, &occ.ScopeID,
-		&occ.FirstSeenAt, &occ.LastSeenAt); err != nil {
-		return SeenOccurrence{}, mapNotFound(err)
+func seenFrom(row queries.SeenOccurrence) SeenOccurrence {
+	return SeenOccurrence{
+		AutomationID:      row.AutomationID,
+		UID:               row.Uid,
+		RecurrenceIDLocal: row.RecurrenceIDLocal,
+		Sequence:          int(row.Sequence),
+		StartsAt:          row.StartsAt,
+		EndsAt:            row.EndsAt,
+		Title:             row.Title,
+		ScopeID:           row.ScopeID,
+		FirstSeenAt:       row.FirstSeenAt,
+		LastSeenAt:        row.LastSeenAt,
 	}
-	return occ, nil
 }
 
-func scanPostedOccurrence(row scanner) (PostedOccurrence, error) {
-	var occ PostedOccurrence
-	if err := row.Scan(&occ.AutomationID, &occ.UID, &occ.RecurrenceIDLocal,
-		&occ.Sequence, &occ.ChannelID, &occ.MessageID, &occ.PostedAt); err != nil {
-		return PostedOccurrence{}, mapNotFound(err)
+func postedFrom(row queries.PostedOccurrence) PostedOccurrence {
+	return PostedOccurrence{
+		AutomationID:      row.AutomationID,
+		UID:               row.Uid,
+		RecurrenceIDLocal: row.RecurrenceIDLocal,
+		Sequence:          int(row.Sequence),
+		ChannelID:         row.ChannelID,
+		MessageID:         row.MessageID,
+		PostedAt:          row.PostedAt,
 	}
-	return occ, nil
-}
-
-func scanNudge(row scanner) (Nudge, error) {
-	var nudge Nudge
-	if err := row.Scan(&nudge.AutomationID, &nudge.UID, &nudge.RecurrenceIDLocal,
-		&nudge.Sequence, &nudge.Trigger, &nudge.Status, &nudge.MessageID,
-		&nudge.CreatedAt); err != nil {
-		return Nudge{}, mapNotFound(err)
-	}
-	return nudge, nil
 }

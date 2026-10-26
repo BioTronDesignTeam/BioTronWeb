@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # Starts and stops the platform with Docker Compose, so nobody has to remember
-# which compose file takes which flags. It only runs `docker compose`; it never
-# pulls, builds code on the host, edits an .env, or removes a volume.
+# which compose file takes which flags. It never edits secrets or removes volumes.
 set -euo pipefail
 
 usage() {
@@ -9,28 +8,41 @@ usage() {
 Usage: ./launch <target> [options]
 
 Targets
-  infra     Postgres, Redis, the edge Nginx, and the Cloudflare tunnel
-  web       The apps: site, calendar, auth, exo, logger, sprinter
+  infra     Postgres
+  web       The apps: biotron, calendar, auth, exogui, status, sprinter
   all       infra, then web
-  stop      Stop containers and keep their data: ./launch stop [infra|web|all]
+  edge      The edge Nginx and the Cloudflare tunnel (not part of all)
+  secrets   Independent Infisical stack (not part of all)
+  stop      Stop containers and keep their data:
+            ./launch stop [infra|web|all|edge|secrets]
   status    Show every BioTron container
 
 Options
+  --instance <name>
+                 Run infra and web as the named instance, such as staging or
+                 prod: Compose project biotron-<name>, network biotron-<name>,
+                 volumes of its own, and no host ports. Without it the
+                 project is biotron.
+  --runtime      Ignore repo .env files; use injected process variables.
   --build        Rebuild images first. Needed after a pull or a VITE_* change.
+  --pull         Pull the images IMAGE_REGISTRY and IMAGE_TAG name and never
+                 build, as a host does when it deploys a commit. With all, also
+                 remove containers of services that no longer exist.
   --no-<app>     Leave an app out of web, for example --no-sprinter. Repeatable.
-  --local        infra only: start Postgres and Redis and nothing else. Use it
-                 on a laptop, where the tunnel must stay closed.
+  --no-tunnel    edge only: start Nginx and leave the tunnel closed.
   --dry-run      Print the docker commands and run nothing.
   --help         Show this help.
 
 Examples
-  ./launch infra --build
+  ./launch infra
   ./launch web --no-sprinter --build
   ./launch all --build
-  ./launch infra --local
+  ./launch all --instance staging --runtime
+  ./launch edge --no-tunnel --build
   ./launch stop web
 
-Start infra before web: it owns the `biotron` network every app joins.
+A laptop needs only infra and web; never start the tunnel there. The edge reads
+infra/edge/.env when it exists, otherwise /etc/biotron/edge.env.
 Migrations need no step of their own. Each app's *-migrate container applies
 what is pending and exits before that app's API starts.
 USAGE
@@ -39,8 +51,9 @@ USAGE
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 cd "$root"
 
-apps='site calendar auth exo logger sprinter'
-target='' build=false local_only=false dry_run=false excluded='' stop_target='all'
+apps='biotron calendar auth exogui status sprinter'
+infra_services='postgres'
+target='' build=false pull=false tunnel=true dry_run=false excluded='' stop_target='all' runtime=false instance=''
 
 die() { echo "launch: $*" >&2; exit 1; }
 is_app() { case " $apps " in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
@@ -50,14 +63,20 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --help|-h) usage; exit 0 ;;
     --build) build=true ;;
-    --local) local_only=true ;;
+    --pull) pull=true ;;
+    --runtime) runtime=true ;;
+    --no-tunnel) tunnel=false ;;
     --dry-run) dry_run=true ;;
+    --instance)
+      [[ $# -gt 1 ]] || die '--instance needs a name, such as staging'
+      instance=$2; shift ;;
+    --instance=*) instance=${1#--instance=} ;;
     --no-*)
       app=${1#--no-}
       is_app "$app" || die "unknown app '$app' in $1. Apps: $apps"
       excluded="$excluded $app" ;;
     -*) die "unknown option $1. Try ./launch --help" ;;
-    infra|web|all|status)
+    infra|web|all|edge|status|secrets)
       [[ -z $target ]] || { [[ $target == stop ]] && stop_target=$1 || die "one target at a time: got '$target' and '$1'"; }
       [[ -n $target ]] || target=$1 ;;
     stop)
@@ -67,10 +86,22 @@ while [[ $# -gt 0 ]]; do
   esac
   shift
 done
-[[ -n $target ]] || die 'name a target: infra, web, all, stop, or status'
+[[ -n $target ]] || die 'name a target: infra, web, all, edge, secrets, stop, or status'
 [[ $stop_target != status ]] || die "'status' cannot be stopped"
-if [[ -n $excluded && $target == infra ]]; then die '--no-<app> only applies to web and all'; fi
-if $local_only && [[ $target == web ]]; then die '--local only applies to infra and all'; fi
+if [[ -n $excluded && $target != web && $target != all ]]; then die '--no-<app> only applies to web and all'; fi
+if ! $tunnel && [[ $target != edge ]]; then die '--no-tunnel only applies to edge'; fi
+if $pull; then
+  $build && die '--pull and --build exclude each other'
+  [[ -n ${IMAGE_REGISTRY:-} && -n ${IMAGE_TAG:-} ]] || die '--pull needs IMAGE_REGISTRY and IMAGE_TAG, such as ghcr.io/biotrondesignteam/ and a commit'
+fi
+if [[ -n $instance ]]; then
+  # The name becomes part of project, network, volume, and alias names.
+  [[ $instance =~ ^[a-z][a-z0-9]{0,15}$ ]] || die "instance names are a lowercase letter, then up to 15 lowercase letters or digits: got '$instance'"
+  case $instance in local|edge|secrets|infrastructure) die "'$instance' is a reserved name" ;; esac
+  case "$target:$stop_target" in
+    edge:*|secrets:*|stop:edge|stop:secrets) die '--instance applies to infra, web, and all; the edge and Infisical are shared' ;;
+  esac
+fi
 
 command -v docker >/dev/null 2>&1 || die 'docker is not installed or not on PATH'
 
@@ -80,19 +111,97 @@ run() {
   $dry_run || "$@"
 }
 
-infra_compose() { run docker compose -f infra/docker-compose.yml --env-file infra/.env "$@"; }
+# Runtime mode also disables Compose's implicit root .env lookup.
+if $runtime; then
+  export COMPOSE_DISABLE_ENV_FILE=true
+fi
+# Include env_file does not support required:false. Select existing local
+# files explicitly, otherwise use /dev/null so no app file is required.
+for app in $apps; do
+  env_file=/dev/null
+  if ! $runtime && [[ -f apps/$app/.env ]]; then env_file="$root/apps/$app/.env"; fi
+  env_key=$(printf '%s' "$app" | tr '[:lower:]' '[:upper:]')
+  export "${env_key}_ENV_FILE=$env_file"
+done
+INFRA_ENV_FILE=/dev/null
+if ! $runtime && [[ -f infra/.env ]]; then INFRA_ENV_FILE="$root/infra/.env"; fi
+export INFRA_ENV_FILE
 
-# Compose reads every app's .env to parse the root file at all, including the
-# apps left out with --no-<app>. One missing file stops every command, and the
-# error does not say that a copy of the example is enough.
-require_env_files() {
-  local missing='' file
-  for file in "$@"; do [[ -f $file ]] || missing="$missing $file"; done
-  [[ -z $missing ]] && return 0
-  echo 'launch: these env files are missing:' >&2
-  for file in $missing; do echo "  $file    create it with: cp $file.example $file" >&2; done
-  echo 'Compose reads all of them, even for an app you leave out.' >&2
-  exit 1
+# One instance is one Compose project holding its data services and apps.
+# The instance name keeps everything two instances on one host could share
+# apart: project, network, volumes, the edge's aliases, and host ports, which a
+# named instance does not publish at all.
+project=biotron network=biotron
+stack_files=(-f docker-compose.yml)
+if [[ -n $instance ]]; then
+  project=biotron-$instance network=biotron-$instance
+  stack_files+=(-f infra/no-host-ports.yml)
+  export BIOTRON_INSTANCE=$instance
+else
+  unset BIOTRON_INSTANCE
+fi
+export BIOTRON_NETWORK=$network
+stack_compose() { run docker compose -p "$project" "${stack_files[@]}" "$@"; }
+stack_config() { docker compose -p "$project" "${stack_files[@]}" config "$@"; }
+
+# The edge's settings and tunnel token are bootstrap configuration, kept in a
+# root-only file outside the checkout. A local infra/edge/.env wins outside
+# runtime mode, for testing the edge on a laptop.
+edge_env_file=${EDGE_ENV_FILE:-/etc/biotron/edge.env}
+if [[ -z ${EDGE_ENV_FILE:-} ]] && ! $runtime && [[ -f infra/edge/.env ]]; then edge_env_file=infra/edge/.env; fi
+edge_files=(-f infra/edge/docker-compose.yml)
+edge_compose() { run docker compose "${edge_files[@]}" --env-file "$edge_env_file" "$@"; }
+
+# An instance's network. The unnamed laptop instance is `local` to the edge.
+instance_network() { if [[ $1 == local ]]; then echo biotron; else echo "biotron-$1"; fi; }
+
+# Nginx joins the network of every instance in EDGE_SITES, so it can reach each
+# one while the instances never share a network with each other. The list
+# depends on the host, so it goes into a generated override file.
+edge_override() {
+  command -v jq >/dev/null 2>&1 || die 'jq is required to read EDGE_SITES'
+  local sites entry name net
+  sites=$(docker compose "${edge_files[@]}" --env-file "$edge_env_file" config --format json |
+    jq -r '.services.nginx.environment.EDGE_SITES // ""') || die "cannot read EDGE_SITES from $edge_env_file"
+  printf 'services:\n  nginx:\n    networks:\n'
+  for entry in $sites; do
+    name=${entry%%=*}
+    [[ $name =~ ^[a-z][a-z0-9]{0,15}$ ]] || die "EDGE_SITES: invalid instance name '$name'"
+    printf '      instance-%s:\n        aliases: [edge-proxy]\n' "$name"
+  done
+  printf 'networks:\n'
+  for entry in $sites; do
+    name=${entry%%=*}
+    net=$(instance_network "$name")
+    printf '  instance-%s:\n    external: true\n    name: %s\n' "$name" "$net"
+  done
+}
+secrets_compose() {
+  run docker compose -f infra/infisical/docker-compose.yml --env-file "${INFISICAL_BOOTSTRAP_FILE:-/etc/biotron/infisical.env}" "$@"
+}
+
+# The networks are external to every compose file, so infra, the apps, and the
+# edge can start in any order. Creating one is the only state launch adds.
+ensure_network() {
+  if $dry_run || ! docker network inspect "$1" >/dev/null 2>&1; then
+    printf '+ docker network create %q\n' "$1"
+    $dry_run || docker network create "$1" >/dev/null
+  fi
+}
+
+# Check only selected services, without printing the rendered credentials.
+validate() {
+  command -v jq >/dev/null 2>&1 || die 'jq is required to validate configuration'
+  stack_config --format json | jq -er --arg selected "$1" '
+    .services as $services |
+    ($selected | split("\n"))[] as $name |
+    $services[$name].environment as $env |
+    if ($env | has("DATABASE_URL")) and (($env.DATABASE_URL // "") == "") then
+      error($name + ": set its app-prefixed DATABASE_URL")
+    elif $name == "postgres" and ((($env.POSTGRES_PASSWORD // "") == "") or (($env.SPRINTER_READER_PASSWORD // "") == "")) then
+      error("postgres: set POSTGRES_PASSWORD and SPRINTER_READER_PASSWORD")
+    else true end
+  ' >/dev/null
 }
 
 # The services of the chosen apps, read from the compose file itself so a new
@@ -100,8 +209,9 @@ require_env_files() {
 # calendar-migrate, calendar-api, calendar-web.
 web_services() {
   local service app skip
-  docker compose config --services | sort | while read -r service; do
+  stack_config --services | sort | while read -r service; do
     skip=false
+    case " $infra_services " in *" $service "*) skip=true ;; esac
     for app in $excluded; do
       case "$service" in "$app"-*) skip=true ;; esac
     done
@@ -109,46 +219,88 @@ web_services() {
   done
 }
 
-start_infra() {
-  require_env_files infra/.env
+# Before the data services joined the root project they ran as the
+# biotron-infrastructure project on the same volumes. Two Postgres containers
+# must never share one data directory.
+refuse_old_infra() {
+  [[ -z $instance ]] || return 0
+  $dry_run && return 0
+  if [[ -n $(docker ps -q --filter label=com.docker.compose.project=biotron-infrastructure --filter label=com.docker.compose.service=postgres) ]]; then
+    die 'the old biotron-infrastructure project still runs Postgres on these volumes. Stop it first: docker compose -p biotron-infrastructure down'
+  fi
+}
+
+# Starts services through the given compose function. With --pull it first
+# pulls their tagged images and then never builds, which is how a host deploys.
+bring_up() {
+  local compose=$1
+  shift
   local args=(up -d)
   $build && args+=(--build)
-  $local_only && args+=(postgres redis)
-  infra_compose "${args[@]}"
+  if $pull; then
+    "$compose" pull "$@"
+    args+=(--no-build)
+    # A full deploy also drops containers of services that no longer exist.
+    if [[ $target == all ]]; then args+=(--remove-orphans); fi
+  fi
+  "$compose" "${args[@]}" "$@"
+}
+
+start_infra() {
+  # shellcheck disable=SC2086
+  validate "$(printf '%s\n' $infra_services)"
+  refuse_old_infra
+  ensure_network "$network"
+  # shellcheck disable=SC2086
+  bring_up stack_compose $infra_services
 }
 
 start_web() {
-  local app files=''
-  for app in $apps; do files="$files apps/$app/.env"; done
-  # shellcheck disable=SC2086
-  require_env_files $files
-
-  # The apps join a network that infra creates. Without it compose fails with
-  # "network biotron declared as external, but could not be found".
-  if ! $dry_run && ! docker network inspect biotron >/dev/null 2>&1; then
-    die "the 'biotron' network does not exist yet. Run ./launch infra first."
-  fi
-
   local services
   services=$(web_services)
   [[ -n $services ]] || die 'every app was left out, so there is nothing to start'
-  local args=(up -d)
-  $build && args+=(--build)
+  validate "$services"
+  ensure_network "$network"
   # shellcheck disable=SC2086
-  run docker compose "${args[@]}" $services
+  bring_up stack_compose $services
 }
 
-stop_web() { run docker compose stop; }
-stop_infra() { infra_compose stop; }
+start_edge() {
+  local net services=()
+  override=$(mktemp)
+  trap 'rm -f "$override"' EXIT
+  edge_override > "$override"
+  local nets
+  mapfile -t nets < <(sed -n 's/^    name: //p' "$override")
+  for net in "${nets[@]}"; do ensure_network "$net"; done
+  edge_files+=(-f "$override")
+  $tunnel || services=(nginx)
+  bring_up edge_compose "${services[@]}"
+}
+
+stop_web() {
+  local services
+  services=$(web_services)
+  # shellcheck disable=SC2086
+  [[ -z $services ]] || stack_compose stop $services
+}
+# shellcheck disable=SC2086
+stop_infra() { stack_compose stop $infra_services; }
 
 case "$target" in
+  secrets)
+    $build && die 'Infisical uses prebuilt images; --build does not apply'
+    secrets_compose up -d ;;
   infra) start_infra ;;
   web) start_web ;;
   all) start_infra; start_web ;;
+  edge) start_edge ;;
   status) run docker ps -a --filter name=biotron --format 'table {{.Names}}\t{{.Status}}' ;;
   stop)
     # Apps first, so nothing is left talking to a database that has gone.
     case "$stop_target" in
+      secrets) secrets_compose stop ;;
+      edge) edge_compose stop ;;
       web) stop_web ;;
       infra) stop_infra ;;
       all) stop_web; stop_infra ;;

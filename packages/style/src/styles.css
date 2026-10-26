@@ -330,3 +330,51 @@
   .biotron-auth-screen__theme { top: 1rem; right: 1rem; }
   .biotron-auth-card { border-radius: 1.1rem; }
 }
+
+/* Session controls (src/auth). */
+.biotron-session-loading {
+  display: flex;
+  min-height: 100vh;
+  min-height: 100dvh;
+  align-items: center;
+  justify-content: center;
+  background: var(--biotron-page);
+  color: var(--biotron-text-muted);
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.875rem;
+}
+.biotron-account-controls { display: flex; align-items: center; gap: 0.5rem; }
+.biotron-account-controls__button { min-height: 2.75rem; white-space: nowrap; }
+.biotron-toast {
+  position: fixed;
+  z-index: 50;
+  top: 5rem;
+  right: 1rem;
+  display: flex;
+  max-width: min(22rem, calc(100vw - 2rem));
+  align-items: flex-start;
+  gap: 0.6rem;
+  box-sizing: border-box;
+  border-radius: 0.75rem;
+  padding: 0.75rem 0.9rem;
+  background: #fff0f3;
+  box-shadow: 0 10px 30px var(--biotron-shadow);
+  color: #9f1239;
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+.dark .biotron-toast { background: #40142c; color: #ffc1d1; }
+.biotron-toast__close {
+  flex: none;
+  min-width: 1.75rem;
+  min-height: 1.75rem;
+  margin: -0.3rem -0.4rem -0.3rem 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+.biotron-toast__close:hover { background: color-mix(in srgb, currentColor 12%, transparent); }

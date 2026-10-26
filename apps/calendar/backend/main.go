@@ -2,20 +2,21 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log"
+	"net/http"
 	"os/signal"
 	"syscall"
 	"time"
 	_ "time/tzdata"
 
-	"github.com/gofiber/fiber/v3"
 	"github.com/joho/godotenv"
 
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/calendar/backend/internal/config"
+	api "github.com/BioTronDesignTeam/BioTronWeb/apps/calendar/backend/internal/server"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/calendar/backend/internal/store"
+	"github.com/BioTronDesignTeam/BioTronWeb/go/authclient"
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
-	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/auth"
-	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/config"
-	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/server"
-	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/store"
 )
 
 func main() {
@@ -25,11 +26,11 @@ func main() {
 		log.Fatalf("config: %v", err)
 	}
 	// The event client is built before anything can block, so a warning about
-	// configuration that will break a browser reaches Logger even when the
+	// configuration that will break a browser is queued even when the
 	// database never comes up and the process dies in connectStore.
 	events := logclient.NewFromEnv("calendar-api")
 	if !events.Enabled() {
-		log.Println("warning: LOGGER_INGEST_TOKEN unset — structured logging is disabled")
+		log.Println("warning: neither Grafana nor PostHog is configured — structured events go nowhere")
 	}
 	for _, warning := range cfg.Warnings() {
 		log.Printf("warning: %s", warning)
@@ -45,14 +46,20 @@ func main() {
 	}
 	defer calendarStore.Close()
 
-	authClient := auth.NewClient(cfg.OAuthManagerURL)
-	app := server.New(cfg, calendarStore, authClient, events, location)
-	address := ":" + cfg.Port
+	authClient := authclient.New(cfg.OAuthManagerURL, api.AppID)
+	server := &http.Server{
+		Addr:              ":" + cfg.Port,
+		Handler:           api.New(cfg, calendarStore, authClient, events, location),
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       60 * time.Second,
+	}
 	events.LogAsync(logclient.Info, "BiotronCalendar started", map[string]any{"port": cfg.Port})
 
 	go func() {
-		log.Printf("calendar API listening on %s", address)
-		if err := app.Listen(address, fiber.ListenConfig{DisableStartupMessage: true}); err != nil {
+		log.Printf("calendar API listening on %s", server.Addr)
+		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Fatalf("listen: %v", err)
 		}
 	}()
@@ -61,13 +68,18 @@ func main() {
 	defer stop()
 	<-ctx.Done()
 	log.Println("shutting down")
-	shutdownLogCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	if err := events.Log(shutdownLogCtx, logclient.Info, "BiotronCalendar stopping", nil); err != nil {
-		log.Printf("structured shutdown log: %v", err)
-	}
-	cancel()
-	if err := app.ShutdownWithTimeout(10 * time.Second); err != nil {
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := server.Shutdown(shutdownCtx); err != nil {
 		log.Printf("shutdown: %v", err)
+	}
+	events.LogAsync(logclient.Info, "BiotronCalendar stopping", nil)
+	closeCtx, cancelClose := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelClose()
+	// The stopping event is the last one, so the background destinations can
+	// send what they hold.
+	if err := events.Close(closeCtx); err != nil {
+		log.Printf("structured log close: %v", err)
 	}
 }
 

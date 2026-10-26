@@ -1,7 +1,7 @@
 package discord
 
 import (
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/store"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/store"
 )
 
 // reason is why a command was refused. It goes into the log and picks the

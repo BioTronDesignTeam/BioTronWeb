@@ -2,25 +2,27 @@
 
 Read `README.md` first. It owns the layout, the toolchain versions, the run
 commands, and the devcontainer. This file holds the decisions that the code
-alone does not explain. `CLAUDE.md` is a symlink to this file.
+alone does not explain.
 
-Never write a real OAuth credential, ingestion token, guest key, or database
-password into this file or any tracked file. Secrets live in each app's
-untracked `.env`.
+Never write a real OAuth credential, API key, guest key, or database
+password into this file or any tracked file. Deployment secrets live in
+Infisical; bootstrap credentials stay in root-only files outside any checkout.
+Local development can use untracked `.env` files.
 
 ## Where things are
 
 | Path | What | Old repository name |
 |---|---|---|
-| `apps/site` | Public team website | `Biotron-Site` |
+| `apps/biotron` | Public team website | `Biotron-Site` |
 | `apps/calendar` | Public calendars and feeds | `BiotronCalendar` |
-| `apps/logger` | Status page and log warehouse | `Logger` |
+| `apps/status` | Public status page and health monitor | `Logger` |
 | `apps/auth` | GitHub OAuth, sessions, permissions | `OAuthManager` |
-| `apps/exo` | Exoskeleton operator UI and API | `exo-gui` |
+| `apps/exogui` | Exoskeleton operator UI and API | `exo-gui` |
 | `apps/sprinter` | Discord bot and admin UI | `Sprinter` |
 | `packages/style` | `@biotron/style` shared components | `BioTronStyle` |
-| `go/logclient` | Go client that sends events to Logger | `Logger/client` |
-| `infra` | Edge Nginx, cloudflared, Postgres, Redis | `Server` |
+| `go/logclient` | Go client that sends events to Grafana and PostHog | `Logger/client` |
+| `go/authclient` | Go client and middleware that ask Auth about a session | new |
+| `infra` | Edge Nginx, cloudflared, Postgres | `Server` |
 
 The old repositories are frozen. Code comments and app ids still use some old
 names, such as `OAuthManager` and `exo-gui`. They mean the paths above.
@@ -35,20 +37,21 @@ names, such as `OAuthManager` and `exo-gui`. They mean the paths above.
   commit B first. Keep behavior and the tests that prove it in one commit.
 - Leave every commit buildable. Do not amend, squash, or reorder existing
   commits unless asked.
-- Each app has one untracked `.env` and one committed `.env.example`, both
-  beside its Compose file. `VITE_*` values go into the public browser bundle;
-  never put a secret there.
+- Each app has an optional untracked `.env` and a committed `.env.example`,
+  both beside its Compose file. Deployment uses app-prefixed inputs and
+  `./launch --runtime`; see `deploy/README.md`. `VITE_*` values go into the
+  public browser bundle; never put a secret there.
 - Prisma owns every Postgres schema and migration. Go code queries with `pgx`.
   Do not use a Prisma client from Go.
 - Run `./pr-precheck` inside the devcontainer before you open a pull request.
 
 ## Run and verify
 
-- Use `./launch`. It wraps both compose files; `./launch --help` lists it all.
-- Start `infra` first. It owns Postgres, Redis, and the `biotron` Docker
-  network that every app joins. For local work: `./launch infra --local`.
-- Do not start `cloudflared` for local work. It opens a public tunnel.
-  `--local` leaves it out; a plain `./launch infra` starts it.
+- Use `./launch`. It wraps every compose file; `./launch --help` lists it all.
+- For local work, start Postgres with `./launch infra`. `./launch`
+  creates the external `biotron` network that infra and every app join.
+- Do not start `cloudflared` for local work. It opens a public tunnel. The
+  edge is its own target: `./launch edge --no-tunnel` starts Nginx alone.
 - Start the apps with `./launch web --build`, and leave one out with
   `--no-<app>`. For a single app, name its services to compose directly, for
   example `docker compose up -d --build calendar-migrate calendar-api calendar-web`.
@@ -58,21 +61,21 @@ names, such as `OAuthManager` and `exo-gui`. They mean the paths above.
 
 ## Ports
 
-| Service | Frontend | API |
+| App | Frontend | API |
 |---|---|---|
-| Auth | `5173` | `8080` |
-| Exo | `5174` | `8081` |
-| Logger | `5175` | `8082` |
-| Calendar | `5176` | `8083` |
-| Site | `5177` | n/a |
-| Sprinter | `5178` | `8084` |
+| `auth` | `5173` | `8080` |
+| `exogui` | `5174` | `8081` |
+| `status` | `5175` | `8082` |
+| `calendar` | `5176` | `8083` |
+| `biotron` | `5177` | n/a |
+| `sprinter` | `5178` | `8084` |
 
 - Auth's `8080` is fixed. The GitHub OAuth callback is registered against it.
 - Move any other host port only by updating this table, the README, and every
   app that names the port, in one change.
 - Only host ports follow this table. Every container listens on `8080`
   inside Docker. Services reach each other by network alias, such as
-  `http://oauth-manager:8080`, `http://logger-api:8080`, and
+  `http://oauth-manager:8080`, `http://status-api:8080`, and
   `http://calendar-api:8080`.
 - The `18080`-`18084` proxy ports are retired. Do not bring them back.
 - CORS allow-lists must name both the `localhost` and the `127.0.0.1` form of
@@ -84,6 +87,7 @@ names, such as `OAuthManager` and `exo-gui`. They mean the paths above.
   session cookie.
 - The other backends keep no session. Each one forwards the request's `Cookie`
   header to Auth, and Auth answers whether that session holds the permission.
+  They all do it through `go/authclient`; do not hand-roll another client.
 - On a deployment, set `COOKIE_DOMAIN` to the parent domain, such as
   `.biotron.ca`, so the browser sends the cookie to every app hostname. Leave
   it blank on localhost. Auth refuses to start with a cookie domain and
@@ -94,59 +98,91 @@ names, such as `OAuthManager` and `exo-gui`. They mean the paths above.
   work.
 - A backend that cannot reach Auth answers 503. It fails closed, never open.
 - App ids and permissions: `exo-gui` has `live`, `historical`, and `commands`.
-  `logger` has `view`. `calendar` has `write`. `sprinter` has an admin check.
-- New tools register as apps in Auth. Do not build a separate login.
+  `calendar` has `write`. `sprinter` has an admin check.
+- New tools register as apps in Auth. Do not build a separate sign-in.
+- Frontends get the session from `@biotron/style`: `SessionProvider`,
+  `useSession`, `RequireAuth`, `SignInScreen`, `AccessDenied`, and
+  `AccountControls`. Do not write another session check. Calendar stays
+  public and gates only its editing on `can('write')`. Status and Site are
+  public and must not mount the provider.
+- A signed-in Exo member with none of `live`, `historical`, or `commands`
+  sees Access denied, not the app. Guests still get in.
 - Only Exo has a daily guest key. Guests may use Live and Historical, never
-  Commands. Guest access does not grant Logger View.
+  Commands.
 - Day boundaries and guest-key rotation use `America/Toronto`.
 
 ## Theme and brand
 
 - The palette is `#16033c`, `#160b6c`, `#aedbfc`, `#3050b0`, and `#ffffff`.
-- Use `@biotron/style` for the login screen, theme toggle, user menu, logout
-  control, wordmark, and favicon. The favicon is the BioTron hand, never the
+- Use `@biotron/style` for the session, sign-in screen, theme toggle, account
+  menu, wordmark, and favicon. The favicon is the BioTron hand, never the
   Vite default.
 - Dark mode is graphite, not brand purple: page `#070b0e`, surfaces `#0e151b`
   and `#131c24`, white text, `#9fb0ba` secondary text. Purple `#160b6c` and
   blue `#3050b0` are highlight fills only. Accent text on graphite is
   `#7f9cf5`. Pale blue `#aedbfc` does not appear in dark mode. Use the
   `--biotron-*` tokens.
-- The theme preference is the `biotron-theme` cookie. It is set on the parent
-  domain so every tool shows the same theme. It holds no secret.
+- The theme preference is the `biotron-theme` cookie. It is set on the last
+  two labels of the hostname, such as `uwbiotron.ca`, so every tool shows the
+  same theme; on localhost and IP addresses it is host-only. It holds no
+  secret.
 - The five tool frontends keep the full theme bootstrap script inline in
   `index.html`, before React loads. It stops a white flash on page load. Do
   not move it into React or into `@biotron/style`.
-- Login screens stay short: the logo and the product name. Exo keeps its
-  daily-guest-key option.
+- Sign-in screens stay short: the logo and the product name. Exo keeps its
+  Daily guest key option.
+
+## Wording
+
+Every user-facing word about signing in, roles, and permissions lives in
+`authStrings` in `packages/style/src/auth/strings.ts`. Use it rather than
+writing the words again, and keep docs that quote the UI in step.
+
+| Say | Never say |
+|---|---|
+| Sign in, Sign in with GitHub, Sign out, Last sign-in | Log in, login, logout |
+| Superuser, Manager, Member, Guest | staff, administrator, admin (as a role) |
+| permission (the thing); grant, revoke (the actions) | access as a noun, except "Access denied" |
+| Daily guest key | daily key, product key |
+| Ask a manager. | Contact an administrator, ask in Auth |
+| Exo GUI | Exo Telemetry |
+
+- A role suffix shows one role, highest first: `@login · Superuser`. A ban
+  follows it: `@login · Manager · Banned`.
+- Staff (manager or superuser) is a code identifier only, as in `is_staff`
+  and `RequireStaff`.
+- A manager change applies on the person's next request. It never signs
+  them out. A ban refuses their next request everywhere.
+- Show friendly shared messages for refusals (`friendlyError`), never the
+  raw reason a backend sends, such as `permission required`.
 
 ## Logging
 
-- Logger owns the ingestion API. Every Go service sends events through
-  `go/logclient`.
+- Every Go service sends events through `go/logclient`, to Grafana Cloud
+  and, for audit and product events, PostHog. Status stores no logs; it is
+  the status page and health monitor only.
 - Request events hold only method, path, status, and duration. Never log a
   query string, cookie, authorization header, credential, or token.
 - Skip health probes. A 4xx is a warning, a 5xx is an error, and the rest is
   info.
-- Logger writes its own lifecycle events straight to its store. It does not
-  POST to itself.
-- `LOGGER_INGEST_TOKEN` must match Logger's value. `LOGGER_URL` defaults to
-  `http://logger-api:8080` and `LOG_LEVEL` to `info`. A missing or unreachable
-  Logger must never stop a service from starting.
+- `LOG_LEVEL` defaults to `info`. Grafana and PostHog are each optional and
+  switched on by their own variables (`go/logclient/README.md`). A missing or
+  unreachable destination must never stop a service from starting.
 
 ## Versions that look wrong but are deliberate
 
 - **Prisma stays on `6.19.3`, exact.** Prisma 7 removes `url` from the schema
   datasource block. Adopting it needs a `prisma.config.ts` and a driver adapter
-  in all five schema-owning apps. Treat it as a planned migration, not a bump.
+  for all four schema-owning apps. The one Prisma CLI lives in
+  `infra/migrate`. Treat it as a planned migration, not a bump.
 - **`@types/node` stays on the 24.x line.** It matches the Node 24 runtime.
   Newer types would declare APIs that do not exist at runtime.
 - **The Instagram icon is drawn locally** in
-  `apps/site/frontend/src/components/InstagramIcon.tsx`. `lucide-react` 1.x
+  `apps/biotron/frontend/src/components/InstagramIcon.tsx`. `lucide-react` 1.x
   removed every brand icon, so there is nothing to import.
-- **Fiber v3 proxy trust** uses `TrustProxy` plus
-  `TrustProxyConfig{Proxies: ...}` with an explicit list. Do not switch to
-  `TrustProxyConfig.Private`. It also trusts `10/8` and `192.168/16`, which is
-  wider than `TRUSTED_PROXIES` states.
+- **Proxy trust** is an explicit `TRUSTED_PROXIES` list of addresses and CIDRs.
+  A backend reads `Cf-Connecting-Ip` only from a peer on that list. Do not widen
+  it to every private range: that also trusts `10/8` and `192.168/16`.
 
 ## Edge security headers
 
@@ -165,18 +201,28 @@ names, such as `OAuthManager` and `exo-gui`. They mean the paths above.
 ## Deployment
 
 - Path: Cloudflare edge, then Cloudflare Tunnel, then the `cloudflared`
-  container, then Nginx, then the app containers. One Postgres and one Redis
-  per environment.
+  container, then Nginx, then the app containers. One Postgres per instance.
 - Cloudflare Tunnel is the only public ingress. Tailscale SSH is the only
-  admin path. Never publish SSH, Nginx, app, Postgres, or Redis ports.
-- Two Docker networks: `biotron-edge` holds only `cloudflared` and Nginx.
-  `biotron` holds Nginx, the apps, Postgres, and Redis. Nginx is the only
-  bridge.
-- One app per hostname: `www`, `calendar`, `auth`, `exogui`, `status`
-  (Logger), and `sprinter`. `infra/nginx` is the source of truth. Within a
+  admin path. Never publish SSH, Nginx, app, or Postgres ports; a named
+  instance publishes no host ports at all.
+- Each instance (`staging`, `prod`) is its own Compose project,
+  `biotron-<instance>`, on its own network with its own Postgres,
+  volumes, and Infisical environment. Never let two instances share a
+  network or a database.
+- One edge per host: the `biotron-edge` project. Its Nginx joins every
+  instance's network and reaches apps by instance-qualified aliases such as
+  `prod-oauth-manager`. It is the only container on more than one network.
+- One app per hostname: `www`, `calendar`, `auth`, `exogui`, `status`,
+  and `sprinter`. `infra/nginx` is the source of truth. Within a
   hostname, `/` goes to the frontend and `/api/` to the backend.
-- Staging uses `*.biotron-dev.com`. Production uses the same layout under its
-  own domain. Domains, secrets, and data differ; routing and containers do not.
+- Staging uses `uwbiotron.dev` and its app subdomains. Production uses
+  `uwbiotron.ca`. Domains, secrets, and data differ; routing and containers do
+  not. Staging is marked `:noindex` in `EDGE_SITES`; production never is.
+- The host keeps no checkout and no `.env` files. Settings live in Infisical;
+  only bootstrap credentials sit in root-only files under `/etc/biotron`.
+- Every push to `main` deploys to staging. A `v*` tag on a `main` commit that
+  staging deployed sends the same images to production. There is no staging
+  branch. See `deploy/README.md`.
 - Build `linux/amd64` and `linux/arm64` images once in CI and pin them by
   digest. Test that digest in staging, then promote the same digest. Never
   rebuild a candidate after staging approves it.
@@ -210,13 +256,13 @@ names, such as `OAuthManager` and `exo-gui`. They mean the paths above.
   meeting keeps its local hour across daylight-saving changes.
 - PostgreSQL is the source of truth. Do not add a Redis cache until measured
   load justifies it.
-- Keep every URL environment-driven. Public reads need no login. Every editor
+- Keep every URL environment-driven. Public reads need no sign-in. Every editor
   mutation needs a server-verified `calendar/write` permission from Auth.
 
 ## Public site
 
 - Every page and its title and description live in
-  `apps/site/frontend/src/data/seo.ts`. The build writes an HTML file, the
+  `apps/biotron/frontend/src/data/seo.ts`. The build writes an HTML file, the
   sitemap, `robots.txt`, and `llms.txt` from that list, and Nginx answers 404
   for any path with no file. A new route that is missing from the list returns
   404 in production. See `docs/site-seo.md`.

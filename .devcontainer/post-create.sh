@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Runs once when the devcontainer is created. Afterwards every app can start
-# natively (Vite, go run) against the Postgres and Redis beside it.
+# natively (Vite, go run) against the Postgres beside it.
 set -euo pipefail
 cd /workspaces/biotron
 
@@ -19,11 +19,11 @@ for app in apps/*/; do
 done
 
 echo "== database: every app's migrations against the sidecar Postgres"
-for app in auth calendar logger exo sprinter; do
+npm ci --prefix infra/migrate --no-audit --no-fund >/dev/null
+for app in auth calendar status sprinter; do
   (
     set -a; . "apps/${app}/.env"; set +a
-    npm ci --prefix "apps/${app}/prisma" --no-audit --no-fund >/dev/null
-    npm run --prefix "apps/${app}/prisma" deploy
+    infra/migrate/migrate "$app"
   )
 done
 

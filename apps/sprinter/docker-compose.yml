@@ -2,62 +2,76 @@ name: biotron-sprinter
 
 services:
   sprinter-migrate:
+    # The one migrate image (infra/migrate), applying this app's migrations.
+    image: ${IMAGE_REGISTRY:-biotron-}migrate:${IMAGE_TAG:-local}
     build:
-      context: ./prisma
-      dockerfile: Dockerfile
+      context: ../..
+      dockerfile: infra/migrate/Dockerfile
+    command: ["sprinter"]
     environment:
-      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL in .env}
+      DATABASE_URL: ${SPRINTER_DATABASE_URL:-${DATABASE_URL:-}}
     networks:
       - biotron
     restart: "no"
 
   sprinter-bot:
+    image: ${IMAGE_REGISTRY:-biotron-}sprinter-bot:${IMAGE_TAG:-local}
     build:
       context: ../..
       dockerfile: apps/sprinter/backend/Dockerfile
     environment:
-      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL in .env}
-      READ_DATABASE_URL: ${READ_DATABASE_URL:-}
-      DISCORD_TOKEN: ${DISCORD_TOKEN:-}
-      DISCORD_GUILD_ID: ${DISCORD_GUILD_ID:-}
-      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
-      THREAD_MAX_TURNS: ${THREAD_MAX_TURNS:-40}
-      AGENT_TIMEOUT: ${AGENT_TIMEOUT:-2m}
-      POLL_INTERVAL: ${POLL_INTERVAL:-5m}
-      CALENDAR_URL: ${CALENDAR_URL:-http://calendar-api:8080}
-      OAUTH_MANAGER_URL: ${OAUTH_MANAGER_URL:-http://oauth-manager:8080}
-      LOGGER_URL: ${LOGGER_URL:-http://logger-api:8080}
-      LOGGER_INGEST_TOKEN: ${LOGGER_INGEST_TOKEN:-}
-      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5178}
-      CORS_ORIGINS: ${CORS_ORIGINS:-}
-      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-127.0.0.1,::1}
+      DATABASE_URL: ${SPRINTER_DATABASE_URL:-${DATABASE_URL:-}}
+      READ_DATABASE_URL: ${SPRINTER_READ_DATABASE_URL:-${READ_DATABASE_URL:-}}
+      DISCORD_TOKEN: ${SPRINTER_DISCORD_TOKEN:-${DISCORD_TOKEN:-}}
+      DISCORD_GUILD_ID: ${SPRINTER_DISCORD_GUILD_ID:-${DISCORD_GUILD_ID:-}}
+      GEMINI_API_KEY: ${SPRINTER_GEMINI_API_KEY:-${GEMINI_API_KEY:-}}
+      GEMINI_MODEL: ${SPRINTER_GEMINI_MODEL:-${GEMINI_MODEL:-gemini-2.5-flash}}
+      THREAD_MAX_TURNS: ${SPRINTER_THREAD_MAX_TURNS:-${THREAD_MAX_TURNS:-40}}
+      AGENT_TIMEOUT: ${SPRINTER_AGENT_TIMEOUT:-${AGENT_TIMEOUT:-2m}}
+      POLL_INTERVAL: ${SPRINTER_POLL_INTERVAL:-${POLL_INTERVAL:-5m}}
+      CALENDAR_URL: ${SPRINTER_CALENDAR_URL:-${CALENDAR_URL:-http://calendar-api:8080}}
+      OAUTH_MANAGER_URL: ${SPRINTER_OAUTH_MANAGER_URL:-${OAUTH_MANAGER_URL:-http://oauth-manager:8080}}
+      STATUS_URL: ${SPRINTER_STATUS_URL:-${STATUS_URL:-http://status-api:8080}}
+      SPRINTER_DISCORD_ENABLED: ${SPRINTER_DISCORD_ENABLED:-false}
+      GRAFANA_OTLP_ENDPOINT: ${SPRINTER_GRAFANA_OTLP_ENDPOINT:-${GRAFANA_OTLP_ENDPOINT:-}}
+      GRAFANA_OTLP_USER: ${SPRINTER_GRAFANA_OTLP_USER:-${GRAFANA_OTLP_USER:-}}
+      GRAFANA_OTLP_TOKEN: ${SPRINTER_GRAFANA_OTLP_TOKEN:-${GRAFANA_OTLP_TOKEN:-}}
+      POSTHOG_HOST: ${SPRINTER_POSTHOG_HOST:-${POSTHOG_HOST:-}}
+      POSTHOG_API_KEY: ${SPRINTER_POSTHOG_API_KEY:-${POSTHOG_API_KEY:-}}
+      BIOTRON_ENV: ${SPRINTER_BIOTRON_ENV:-${BIOTRON_ENV:-}}
+      FRONTEND_URL: ${SPRINTER_FRONTEND_URL:-${FRONTEND_URL:-http://localhost:5178}}
+      CORS_ORIGINS: ${SPRINTER_CORS_ORIGINS:-${CORS_ORIGINS:-}}
       PORT: "8080"
     ports:
-      - "127.0.0.1:${API_PORT:-8084}:8080"
+      - "127.0.0.1:${SPRINTER_API_PORT:-${API_PORT:-8084}}:8080"
     networks:
       biotron:
         aliases:
           - sprinter
+          - ${BIOTRON_INSTANCE:-local}-sprinter
     depends_on:
       sprinter-migrate:
         condition: service_completed_successfully
     restart: unless-stopped
 
   sprinter-web:
+    environment:
+      BASE_DOMAIN: ${BASE_DOMAIN:-localhost}
+    image: ${IMAGE_REGISTRY:-biotron-}sprinter-web:${IMAGE_TAG:-local}
     build:
       context: ../..
       dockerfile: apps/sprinter/frontend/Dockerfile
       args:
-        VITE_API_URL: ${VITE_API_URL:-http://localhost:8084}
-        VITE_AUTH_URL: ${VITE_AUTH_URL:-http://localhost:8080}
-        VITE_CALENDAR_URL: ${VITE_CALENDAR_URL:-http://localhost:8083}
+        VITE_API_URL: ${SPRINTER_VITE_API_URL:-${VITE_API_URL:-http://localhost:8084}}
+        VITE_AUTH_URL: ${SPRINTER_VITE_AUTH_URL:-${VITE_AUTH_URL:-http://localhost:8080}}
+        VITE_CALENDAR_URL: ${SPRINTER_VITE_CALENDAR_URL:-${VITE_CALENDAR_URL:-http://localhost:8083}}
     ports:
-      - "127.0.0.1:${WEB_PORT:-5178}:80"
+      - "127.0.0.1:${SPRINTER_WEB_PORT:-${WEB_PORT:-5178}}:80"
     networks:
       biotron:
         aliases:
           - sprinter-web
+          - ${BIOTRON_INSTANCE:-local}-sprinter-web
     depends_on:
       - sprinter-bot
     restart: unless-stopped
@@ -65,4 +79,4 @@ services:
 networks:
   biotron:
     external: true
-    name: biotron
+    name: ${BIOTRON_NETWORK:-biotron}

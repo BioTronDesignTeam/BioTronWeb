@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 )
@@ -48,17 +49,17 @@ func TestOccurrencesRequestsExpectedWindow(t *testing.T) {
 		t.Fatalf("occurrence = %+v", occ)
 	}
 
-	parsed, err := http.NewRequest(http.MethodGet, "http://x/?"+gotQuery, nil)
+	parsed, err := url.ParseQuery(gotQuery)
 	if err != nil {
 		t.Fatalf("parse query: %v", err)
 	}
-	if got := parsed.URL.Query().Get("scope_id"); got != "s1" {
+	if got := parsed.Get("scope_id"); got != "s1" {
 		t.Fatalf("scope_id = %q", got)
 	}
-	if got := parsed.URL.Query().Get("from"); got != "2026-09-10" {
+	if got := parsed.Get("from"); got != "2026-09-10" {
 		t.Fatalf("from = %q", got)
 	}
-	if got := parsed.URL.Query().Get("to"); got != "2026-09-11" {
+	if got := parsed.Get("to"); got != "2026-09-11" {
 		t.Fatalf("to = %q, want the next day since from and to fall in the same local day", got)
 	}
 }

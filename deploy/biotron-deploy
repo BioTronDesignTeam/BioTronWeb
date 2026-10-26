@@ -1,0 +1,247 @@
+#!/usr/bin/env bash
+# Deploys one commit of BioTronWeb on this host. Installed root-owned at
+# /usr/local/sbin/biotron-deploy. Each CI account may run it through sudo for
+# its own targets only: `deploy-staging` for staging, `deploy-prod` for prod
+# and the edge. Infisical itself (`secrets`) is deployed by an administrator
+# by hand. See deploy/README.md.
+#
+#   biotron-deploy <instance> <commit>   an instance, such as staging or prod
+#   biotron-deploy edge <commit>         the shared edge Nginx and tunnel
+#   biotron-deploy secrets <commit>      the shared Infisical stack
+#
+# There is no checkout on the host. The script downloads the commit's Compose
+# files from GitHub, after checking that the commit is on main (and, for
+# prod, that a v* release tag names it), into
+# /opt/biotron/<target>, and pulls that commit's images from GHCR. An
+# instance's settings come from Infisical at deploy time, fetched with the
+# machine identity in /etc/biotron/<instance>/identity.env; nothing secret is
+# written to disk. The edge reads /etc/biotron/edge.env and Infisical itself
+# /etc/biotron/infisical.env. Running containers keep their settings across
+# restarts and reboots; only a deploy changes them.
+set -euo pipefail
+
+repo=BioTronDesignTeam/BioTronWeb
+registry=ghcr.io/biotrondesignteam/
+base=/opt/biotron
+etc=/etc/biotron
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+die() { echo "biotron-deploy: $*" >&2; exit 1; }
+log() { echo "biotron-deploy: $*" >&2; }
+
+[[ $# -eq 2 ]] || die 'usage: biotron-deploy <instance|edge|secrets> <40-character commit>'
+target=$1 revision=$2
+[[ $target =~ ^[a-z][a-z0-9]{0,15}$ ]] || die "invalid target '$target'"
+[[ $target != local && $target != infrastructure ]] || die "'$target' is not a deployable instance"
+[[ $revision =~ ^[0-9a-f]{40}$ ]] || die 'the commit must be a full 40-character SHA'
+[[ $EUID -eq 0 ]] || die 'run as root, through sudo'
+for tool in docker curl jq tar flock; do
+  command -v "$tool" >/dev/null 2>&1 || die "$tool is not installed"
+done
+
+# One deploy per target at a time; staging, prod, and the edge never wait on
+# each other. The locks live in a directory only root can enter, not the
+# world-writable /run/lock, where another account could create or hold the
+# lock file first.
+rundir=/run/biotron-deploy
+install -d -o root -g root -m 0700 "$rundir"
+[[ ! -L $rundir && $(stat -c '%u %a' "$rundir") == '0 700' ]] || die "$rundir must be a directory owned by root with mode 0700"
+exec 9>"$rundir/$target.lock"
+flock -w 600 9 || die "another deploy of $target is still running"
+
+# A bootstrap file holds credentials, so it must be root's alone.
+require_private() {
+  [[ -f $1 ]] || die "$1 is missing; see deploy/README.md"
+  [[ $(stat -c '%u %a' "$1") == '0 600' ]] || die "$1 must be owned by root with mode 0600"
+}
+
+# Reads KEY=VALUE lines into variables without running the file as shell.
+read_env_file() {
+  local key value
+  while IFS='=' read -r key value || [[ -n $key ]]; do
+    [[ -z $key || $key == \#* ]] && continue
+    [[ $key =~ ^[A-Z][A-Z0-9_]*$ ]] || die "unexpected line in $1"
+    value=${value%$'\r'}
+    if [[ $value =~ ^\"(.*)\"$ || $value =~ ^\'(.*)\'$ ]]; then value=${BASH_REMATCH[1]}; fi
+    printf -v "file_$key" '%s' "$value"
+  done < "$1"
+}
+
+# Only commits on main deploy, whatever the caller asks for. A commit from a
+# fork or an unmerged branch is reachable through the GitHub API too, so check
+# that main contains it.
+check_on_main() {
+  local status
+  status=$(curl -fsSL --retry 3 "https://api.github.com/repos/$repo/compare/$revision...main" | jq -r '.status') ||
+    die "cannot ask GitHub whether $revision is on main"
+  [[ $status == ahead || $status == identical ]] || die "$revision is not a commit on main"
+}
+
+# Production deploys only a release: a commit that a v* tag names. The
+# workflow checks the same before it calls, but the host does not trust its
+# caller, so a stolen CI credential cannot send an untagged commit of main to
+# production. GitHub lists each tag with the commit it names, annotated or not.
+check_release_tag() {
+  local page tags
+  for ((page = 1; page <= 20; page++)); do
+    tags=$(curl -fsSL --retry 3 "https://api.github.com/repos/$repo/tags?per_page=100&page=$page") ||
+      die "cannot ask GitHub for the release tags"
+    if jq -e --arg commit "$revision" \
+      'any(.[]; (.name | test("^v[0-9A-Za-z.-]+$")) and .commit.sha == $commit)' <<<"$tags" >/dev/null; then
+      return 0
+    fi
+    [[ $(jq length <<<"$tags") -eq 100 ]] || break
+  done
+  die "$revision is not a release: no v* tag names it"
+}
+
+# Downloads just the files a deploy runs from into $base/$target, replacing the
+# previous ones in place. The path stays the same across deploys, so Compose
+# does not see a changed bind mount and recreate Postgres on every deploy.
+fetch_release() {
+  local dest=$base/$target staging_dir
+  install -d -o root -g root -m 0755 "$base"
+  staging_dir=$(mktemp -d "$base/.$target.XXXXXX")
+  curl -fsSL --retry 3 "https://codeload.github.com/$repo/tar.gz/$revision" |
+    tar -xzf - -C "$staging_dir" --strip-components=1 --no-same-owner --wildcards \
+      '*/launch' '*/docker-compose.yml' '*/infra/no-host-ports.yml' \
+      '*/infra/postgres/init/*' '*/deploy/instance-defaults.sh' '*/deploy/biotron-deploy' ||
+    { rm -rf "$staging_dir"; die "cannot download $revision"; }
+  printf '%s\n' "$revision" > "$staging_dir/REVISION"
+  chmod -R go-w "$staging_dir"
+  rm -rf "$dest.previous"
+  if [[ -e $dest ]]; then mv "$dest" "$dest.previous"; fi
+  mv "$staging_dir" "$dest"
+  if ! cmp -s "$dest/deploy/biotron-deploy" "$0"; then
+    log "warning: $0 differs from deploy/biotron-deploy at $revision; reinstall it (deploy/README.md)"
+  fi
+  cd "$dest"
+}
+
+# Waits until every container of a project is running, healthy where it has a
+# health check, and every one-shot migration has exited 0. It asks Docker, not
+# Compose, so no Compose file in the working directory can narrow the answer.
+#
+# The repository is public, and so are its Actions logs, where this output
+# lands. A container's logs can hold anything, so they go to a root-only file
+# under /var/log/biotron-deploy, and the output names only each service, its
+# state, and that file.
+wait_healthy() {
+  local project=$1 deadline=$((SECONDS + 180)) bad ids id service state health code logfile entry
+  while :; do
+    bad=()
+    mapfile -t ids < <(docker ps -aq --filter "label=com.docker.compose.project=$project" --filter label=com.docker.compose.oneoff=False)
+    [[ ${#ids[@]} -gt 0 ]] || bad=(no-containers)
+    for id in "${ids[@]}"; do
+      IFS=$'\t' read -r service state health code < <(docker inspect --format \
+        '{{index .Config.Labels "com.docker.compose.service"}}{{"\t"}}{{.State.Status}}{{"\t"}}{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}{{"\t"}}{{.State.ExitCode}}' "$id")
+      case $service in
+        *-migrate) [[ $state == exited && $code == 0 ]] || bad+=("$service=$id=$state, exit $code") ;;
+        *) [[ $state == running && ( $health == none || $health == healthy ) ]] || bad+=("$service=$id=$state, $health") ;;
+      esac
+    done
+    [[ ${#bad[@]} -eq 0 ]] && return 0
+    if (( SECONDS > deadline )); then
+      install -d -o root -g root -m 0700 /var/log/biotron-deploy
+      logfile=/var/log/biotron-deploy/$target-$revision-$(date -u +%Y%m%dT%H%M%SZ).log
+      (
+        umask 077
+        {
+          docker ps -a --filter "label=com.docker.compose.project=$project"
+          for entry in "${bad[@]}"; do
+            [[ $entry == *=*=* ]] || continue
+            id=${entry#*=} id=${id%%=*}
+            echo "--- ${entry%%=*}"
+            docker logs --tail 200 "$id" 2>&1 || true
+          done
+        } > "$logfile"
+      )
+      for entry in "${bad[@]}"; do
+        if [[ $entry == *=*=* ]]; then log "not ready: ${entry%%=*} (${entry##*=})"; else log "not ready: $entry"; fi
+      done
+      die "$project is not healthy after 3 minutes; its logs are in $logfile on the host, readable by root only"
+    fi
+    sleep 3
+  done
+}
+
+# Removes this registry's images that no container uses any more. Every
+# commit's images stay in GHCR, so a rollback pulls them again.
+prune_images() {
+  docker image ls --format '{{.Repository}}:{{.Tag}}' "${registry}*" |
+    xargs -r docker image rm >/dev/null 2>&1 || true
+}
+
+# Runs a command with nothing from the caller's environment but these values.
+clean_env() {
+  env -i PATH="$PATH" HOME=/root LANG=C.UTF-8 IMAGE_REGISTRY="$registry" IMAGE_TAG="$revision" "$@"
+}
+
+deploy_instance() {
+  local identity=$etc/$target/identity.env token
+  require_private "$identity"
+  read_env_file "$identity"
+  local client_id=${file_INFISICAL_CLIENT_ID:-} client_secret=${file_INFISICAL_CLIENT_SECRET:-}
+  local project_id=${file_INFISICAL_PROJECT_ID:-} environment=${file_INFISICAL_ENVIRONMENT:-$target}
+  local api=${file_INFISICAL_API_URL:-http://127.0.0.1:8090/api} path=${file_INFISICAL_PATH:-/deploy}
+  [[ -n $client_id && -n $client_secret && -n $project_id ]] ||
+    die "$identity needs INFISICAL_CLIENT_ID, INFISICAL_CLIENT_SECRET, and INFISICAL_PROJECT_ID"
+  command -v infisical >/dev/null 2>&1 || die 'the Infisical CLI is not installed'
+
+  check_on_main
+  [[ $target != prod ]] || check_release_tag
+  fetch_release
+
+  # The Infisical CLI keeps an offline copy of the secrets it fetches, under
+  # ~/.infisical/secrets-backup, only for a signed-in user; with a machine
+  # identity's token, as here, it writes none (packages/util/secrets.go of
+  # Infisical/cli). Should a later CLI write one anyway, it gets a HOME of its
+  # own on the /run tmpfs, removed when the deploy ends, so nothing it writes
+  # reaches the disk or outlives the deploy. Compose keeps root's HOME, where
+  # a GHCR login lives.
+  local infisical_home
+  infisical_home=$(mktemp -d "$rundir/infisical.XXXXXX")
+  # shellcheck disable=SC2064 # the path is fixed now, on purpose
+  trap "rm -rf '$infisical_home'" EXIT
+
+  # The client secret goes through the environment, never the command line,
+  # where other users could read it in the process list.
+  token=$(clean_env HOME="$infisical_home" INFISICAL_API_URL="$api" INFISICAL_DISABLE_UPDATE_CHECK=true \
+    INFISICAL_UNIVERSAL_AUTH_CLIENT_ID="$client_id" INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET="$client_secret" \
+    infisical login --method=universal-auth --silent --plain) || die "cannot log in to Infisical at $api"
+  [[ -n $token ]] || die 'Infisical returned no token'
+  unset client_secret file_INFISICAL_CLIENT_SECRET
+
+  log "deploying $revision as $target"
+  clean_env HOME="$infisical_home" INFISICAL_API_URL="$api" INFISICAL_DISABLE_UPDATE_CHECK=true INFISICAL_TOKEN="$token" \
+    infisical run --projectId="$project_id" --env="$environment" --path="$path" --silent -- \
+    env -u INFISICAL_TOKEN -u INFISICAL_API_URL HOME=/root \
+    bash deploy/instance-defaults.sh ./launch all --instance "$target" --runtime --pull
+  wait_healthy "biotron-$target"
+}
+
+deploy_edge() {
+  require_private "$etc/edge.env"
+  check_on_main
+  fetch_release
+  log "deploying the edge at $revision"
+  clean_env EDGE_ENV_FILE="$etc/edge.env" ./launch edge --runtime --pull
+  wait_healthy biotron-edge
+}
+
+deploy_secrets() {
+  require_private "$etc/infisical.env"
+  check_on_main
+  fetch_release
+  log "deploying Infisical from $revision"
+  clean_env INFISICAL_BOOTSTRAP_FILE="$etc/infisical.env" ./launch secrets
+  wait_healthy biotron-secrets
+}
+
+case $target in
+  edge) deploy_edge ;;
+  secrets) deploy_secrets ;;
+  *) deploy_instance ;;
+esac
+prune_images
+log "$target is at $revision"

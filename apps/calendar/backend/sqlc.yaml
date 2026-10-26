@@ -1,0 +1,51 @@
+# The store's queries, made into Go by sqlc. The schema is the SQL of the
+# Prisma migrations, in name order, so Prisma stays the only owner of the
+# schema. The queries live in internal/store/queries/queries.sql and sqlc
+# writes package queries beside them: generated code, committed, never
+# edited by hand.
+#
+# sqlc is pinned to 1.31.1, the version every backend uses. Regenerate from
+# the repository root, which the schema path reaches into:
+#
+#   docker run --rm -v "$PWD:/src" -w /src/apps/calendar/backend sqlc/sqlc:1.31.1 generate
+version: "2"
+sql:
+  - engine: postgresql
+    schema: ../prisma/migrations/*/migration.sql
+    queries: internal/store/queries/queries.sql
+    gen:
+      go:
+        package: queries
+        out: internal/store/queries
+        sql_package: pgx/v5
+        # A nullable column is a pointer (*string), not pgtype.Text.
+        emit_pointers_for_null_types: true
+        # models.go holds only the tables that the queries return.
+        omit_unused_structs: true
+        overrides:
+          # The store reads and writes a UUID as text.
+          - db_type: uuid
+            go_type: string
+          - db_type: timestamptz
+            go_type: time.Time
+          - db_type: timestamptz
+            nullable: true
+            go_type:
+              import: time
+              type: Time
+              pointer: true
+          # Wall clock, read in the UTC frame the rest of the code uses.
+          - db_type: pg_catalog.timestamp
+            go_type: time.Time
+          - db_type: pg_catalog.timestamp
+            nullable: true
+            go_type:
+              import: time
+              type: Time
+              pointer: true
+          - db_type: date
+            nullable: true
+            go_type:
+              import: time
+              type: Time
+              pointer: true

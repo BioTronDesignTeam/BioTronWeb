@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/calendar"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/store"
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/calendar"
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/store"
 )
 
 // occurrenceKey identifies one occurrence within an automation's scope,
@@ -29,6 +29,10 @@ type occurrenceKey struct {
 // "somebody lowered lead_hours" as "everything was cancelled", and so would
 // a scope_id edit or an occurrence drifting past the window's edge.
 const fetchWindow = 169 * time.Hour
+
+// errCalendarFetch ends one automation's pass early without failing it. The
+// fetch failure is reported where it happens, and the next tick tries again.
+var errCalendarFetch = errors.New("calendar fetch failed")
 
 // Tick is the unit of work: one pass over every enabled automation. Each
 // automation's failure is caught here so that one broken automation — a bad
@@ -53,7 +57,7 @@ func (s *Scheduler) runAutomation(ctx context.Context, automation store.Automati
 			})
 		}
 	}()
-	if err := s.processAutomation(ctx, automation); err != nil {
+	if err := s.processAutomation(ctx, automation); err != nil && !errors.Is(err, errCalendarFetch) {
 		s.emit(logclient.Error, "Automation failed", map[string]any{
 			"automation_id": automation.ID, "error": err.Error(),
 		})
@@ -73,7 +77,7 @@ func (s *Scheduler) processAutomation(ctx context.Context, automation store.Auto
 		s.emit(logclient.Error, "Calendar fetch failed", map[string]any{
 			"automation_id": automation.ID, "error": err.Error(),
 		})
-		return nil
+		return errCalendarFetch
 	}
 
 	fetched := make(map[occurrenceKey]calendar.Occurrence, len(occurrences))

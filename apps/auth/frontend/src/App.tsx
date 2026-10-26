@@ -1,30 +1,44 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { SessionLoading, SessionUnavailable, SignInScreen, useSession } from '@biotron/style';
 import {
   type Grant,
+  type Me,
   banMember,
   createGrant,
   deleteGrant,
-  logout,
+  rotateProductDailyKey,
   setManager,
+  setUnauthorizedHandler,
   unbanMember,
 } from './api';
 import AccessTab from './components/AccessTab';
 import AppHeader from './components/AppHeader';
 import KeysTab from './components/KeysTab';
 import OrgTab from './components/OrgTab';
-import SignInScreen from './components/SignInScreen';
 import TabBar, { type Tab } from './components/TabBar';
 import { useAccessDirectory } from './hooks/useAccessDirectory';
-import { useAuthNotice } from './hooks/useAuthNotice';
 import { useDailyKeyReveal } from './hooks/useDailyKeyReveal';
 import { useMemberGrants, useOrgSelection } from './hooks/useOrgSelection';
 
 export default function App() {
-  const notice = useAuthNotice();
+  const { status, operator, expire } = useSession();
+
+  useEffect(() => {
+    setUnauthorizedHandler(expire);
+  }, [expire]);
+
+  if (status === 'loading') return <SessionLoading />;
+  if (status === 'unavailable') return <SessionUnavailable productName="Auth" />;
+  if (status === 'anon' || !operator) return <SignInScreen productName="Auth" />;
+  // Keyed by person, so nothing one operator loaded outlives a sign-out.
+  return <Console key={operator.github_id} me={operator} />;
+}
+
+function Console({ me }: { me: Me }) {
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('access');
 
-  const { directory, refresh, clear } = useAccessDirectory();
+  const { directory, refresh } = useAccessDirectory(me);
   const reportError = useCallback((message: string) => setError(message), []);
   const keyReveal = useDailyKeyReveal(reportError);
   const { selection, selectMember, selectApp, selectPermission, clearPermission } = useOrgSelection();
@@ -86,33 +100,24 @@ export default function App() {
       await reloadMemberGrants();
     });
 
-  const onLogout = async () => {
-    await logout();
-    clear();
-    keyReveal.reset();
-  };
+  const onRotateKey = (appId: string) =>
+    void runAction('Rotate failed', async () => {
+      await rotateProductDailyKey(appId);
+      await refresh();
+    });
 
-  if (directory.loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center text-sm text-slate-500 dark:text-muted">
-        Loading…
-      </div>
-    );
-  }
-
-  const me = directory.me;
-  if (!me) return <SignInScreen notice={notice} />;
+  if (directory.loading) return <SessionLoading />;
 
   return (
     <div className="min-h-screen pb-safe">
-      <AppHeader me={me} onLogout={() => void onLogout()} />
+      <AppHeader />
 
       <main className="mx-auto w-full max-w-6xl px-page py-6 sm:py-8 lg:py-10">
-        <TabBar tab={tab} onSelect={setTab} isStaff={me.is_staff} />
+        <TabBar tab={tab} onSelect={setTab} isStaff={me.is_staff === true} />
 
-        {error && (
+        {(error ?? directory.error) && (
           <p className="mb-6 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700 dark:bg-red-950/50 dark:text-red-300">
-            {error}
+            {error ?? directory.error}
           </p>
         )}
 
@@ -133,6 +138,7 @@ export default function App() {
             copiedAppId={keyReveal.copiedAppId}
             onToggle={keyReveal.toggle}
             onCopy={(key) => void keyReveal.copy(key)}
+            onRotate={onRotateKey}
           />
         )}
 
@@ -144,7 +150,7 @@ export default function App() {
             memberGrantList={memberGrantList}
             apps={directory.apps}
             permissions={directory.permissions}
-            canManage={me.is_superuser}
+            canManage={me.is_superuser === true}
             onSelectMember={selectMember}
             onSelectApp={selectApp}
             onSelectPermission={selectPermission}

@@ -17,7 +17,7 @@ module path and the Compose project name `biotron-calendar`.
 
 | Path | What |
 |------|------|
-| `backend/` | Go Fiber API. Postgres through pgx. No Redis. |
+| `backend/` | Go `net/http` API. Postgres through pgx and sqlc. No Redis. |
 | `frontend/` | Vite and React UI, served by Nginx. |
 | `prisma/` | Schema and migrations. The Go service runs its own queries. |
 | `docker-compose.yml` | `calendar-migrate`, `calendar-api`, `calendar-web` on the `biotron` network. |
@@ -85,14 +85,13 @@ frontend, and Prisma. Do not add environment files below it.
   each feed's `URL` line, only needed for a separate subscriber address.
   Existing overrides continue to work. In an existing `.env`, remove it if
   it matches `VITE_API_URL`; remove the unused `VITE_SITE_URL` as well.
-- `LOGGER_INGEST_TOKEN` must match Logger's. Leave it empty to send nothing.
 
 ## API
 
 | Method | Path | Who | Notes |
 |--------|------|-----|-------|
 | GET | `/health` | anyone | `503` when the database is down |
-| GET | `/v1/auth/status` | anyone | `operator` and `can_write` for the cookie sent |
+| GET | `/v1/auth/status` | anyone | `operator`, `can_write`, and `permissions` for the cookie sent |
 | GET | `/v1/scopes` | anyone | active scopes |
 | GET | `/v1/events?from=&to=&scope_id=` | anyone | occurrences in a date window; default today to three months ahead |
 | GET | `/v1/events/upcoming?limit=&days=` | anyone | the next occurrences; `limit` 1 to 20, default 5; `days` 1 to 90, default 42 |
@@ -111,9 +110,10 @@ frontend, and Prisma. Do not add environment files below it.
 | DELETE | `/v1/admin/events/:id/occurrences?recurrence_id_local=&expected_sequence=` | editor | resets one occurrence to the series |
 
 Editor means an operator whose Auth session holds `calendar/write`. On
-every editor request the API forwards the cookie to Auth's `/auth/me`
-and `/v1/check?app=calendar&permission=write`. It reads both so the log
-can name the operator behind the change. No cookie answers `401`, a
+every editor request the API forwards the cookie, through `go/authclient`,
+to Auth's `/v1/session?app=calendar&permission=write`, which names the
+operator and their permission in one call, so the log can name the
+operator behind the change. The public routes never call Auth. No cookie answers `401`, a
 session without the permission `403`, an unreachable Auth `503`. Every
 mutating request must carry `X-Requested-With: XMLHttpRequest`, which
 blocks cross-site form posts.
@@ -131,9 +131,9 @@ is no "this and future" edit.
 
 ### Logging
 
-Calendar reports to Logger as `calendar-api`. Every admin event names the
-operator as `actor_id` and `actor_login`, so a change can be traced to the
-person who made it.
+Calendar reports to Grafana and PostHog as `calendar-api`, through
+`go/logclient`. Every admin event names the operator as `actor_id` and
+`actor_login`, so a change can be traced to the person who made it.
 
 | Message | Level | Payload |
 |---------|-------|---------|
@@ -192,8 +192,10 @@ answer a matching `If-None-Match` with `304`. Only the feeds honour
 ## Frontend
 
 The header leads with the wordmark from `@biotron/style`; the "Calendar"
-label hides on phones. Log in sends the browser to Auth's GitHub login
-and back. An editor gets a Manage button.
+label hides on phones. The page is public; Sign in sends the browser to
+Auth's GitHub sign-in and back, and a holder of `calendar/write` gets a
+Manage button. The session and account controls are the shared ones from
+`@biotron/style`.
 
 - **Month grid** on tablets and up, **Agenda** on phones: the same weeks
   as a grid with today circled, or as a list of days with events.
@@ -228,6 +230,16 @@ scope with series cannot be deleted. The Go store sets `search_path`
 from the `?schema=` in `DATABASE_URL`.
 
 To create a migration in the devcontainer, source `apps/calendar/.env`
-and run `npm run --prefix apps/calendar/prisma migrate`. The
-`calendar-migrate` service applies the migrations as the image's `node`
-user.
+and run `infra/migrate/migrate calendar dev --name <name>` from the
+repository root. The `calendar-migrate` service applies the migrations
+with the shared migrate image, `infra/migrate`.
+
+The store's SQL is in `backend/internal/store/queries/queries.sql`. sqlc
+1.31.1 turns it into Go beside it, reading the schema from the Prisma
+migrations, so a migration needs no second copy of the schema. After you
+change a query or add a migration, regenerate from the monorepo root and
+commit the result:
+
+```bash
+docker run --rm -v "$PWD:/src" -w /src/apps/calendar/backend sqlc/sqlc:1.31.1 generate
+```

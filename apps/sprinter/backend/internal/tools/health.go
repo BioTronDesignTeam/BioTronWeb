@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/model"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/model"
 )
 
 const (
@@ -58,7 +58,7 @@ func (t HealthHistory) Run(ctx context.Context, args json.RawMessage) (string, e
 	if service == "" {
 		return "", errors.New("service is required; name one component id, such as logger-api")
 	}
-	hours, err := clampInt(parsed.Hours, 24, 1, 168)
+	hours, err := clampInt(parsed.Hours, 24, 168)
 	if err != nil {
 		return "", fmt.Errorf("hours %w", err)
 	}

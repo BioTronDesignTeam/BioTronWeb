@@ -19,9 +19,9 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/model"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/store"
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/model"
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/store"
 )
 
 // discordTimeout bounds one call to Discord. An interaction token is valid for

@@ -1,10 +1,11 @@
 # syntax=docker/dockerfile:1
 
-FROM golang:1.27-bookworm AS build
+FROM golang:1.27.3-bookworm@sha256:972b4110ba0f47539a975c31e52c64765e1ff19f2d74469ae4a595c6676e80a5 AS build
 
-# Builds from the repository root so the shared go/logclient module is in
-# the context. apps/sprinter/docker-compose.yml sets context: ../..
+# Builds from the repository root so the shared go/ modules are in the
+# context. apps/sprinter/docker-compose.yml sets context: ../..
 WORKDIR /src
+COPY go/authclient/ go/authclient/
 COPY go/logclient/ go/logclient/
 COPY apps/sprinter/backend/go.mod apps/sprinter/backend/go.sum apps/sprinter/backend/
 WORKDIR /src/apps/sprinter/backend

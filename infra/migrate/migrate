@@ -1,0 +1,29 @@
+#!/bin/sh
+# Runs `prisma migrate` for one app against its own schema. The schema and the
+# migrations stay with the app, in apps/<app>/prisma; DATABASE_URL names the
+# database and, through ?schema=, the app's schema, where Prisma keeps that
+# app's _prisma_migrations history.
+#
+#   migrate <app>                    apply what is pending (migrate deploy)
+#   migrate <app> dev --name <name>  create a migration from schema.prisma
+#   migrate <app> status             any other `prisma migrate` command
+#
+# The migrate image runs it with the app's name, as each app's *-migrate
+# service does. In the devcontainer, install the CLI once with
+# `npm ci --prefix infra/migrate`, source the app's .env, and run
+# infra/migrate/migrate from the repository root.
+set -eu
+
+here=$(cd "$(dirname "$0")" && pwd)
+root=$(cd "$here/../.." && pwd)
+
+app=${1:-}
+case $app in
+  '' | *[!a-z]*) echo 'usage: migrate <app> [prisma migrate command and flags]' >&2; exit 2 ;;
+esac
+shift
+schema=$root/apps/$app/prisma/schema.prisma
+[ -f "$schema" ] || { echo "migrate: apps/$app has no prisma/schema.prisma" >&2; exit 2; }
+[ $# -gt 0 ] || set -- deploy
+
+exec "$here/node_modules/.bin/prisma" migrate "$@" --schema "$schema"

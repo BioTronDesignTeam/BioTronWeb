@@ -1,0 +1,156 @@
+# One instance's hostnames. 40-biotron-sites.sh renders this once per entry in
+# EDGE_SITES, filling INSTANCE, BASE_DOMAIN, and ROBOTS. Upstreams use the
+# instance-qualified aliases each app carries on its instance's network,
+# which Nginx joins. They are resolved per request, so a stopped instance
+# answers 502 without keeping Nginx or another instance from starting.
+
+server {
+    listen 8080;
+    server_name ${BASE_DOMAIN};
+
+    include /etc/nginx/snippets/edge-health.conf;
+    ${ROBOTS}
+
+    location / {
+        set $frontend http://${INSTANCE}-biotron-web:80;
+        proxy_pass $frontend;
+        include /etc/nginx/snippets/proxy-headers.conf;
+    }
+}
+
+server {
+    listen 8080;
+    server_name www.${BASE_DOMAIN};
+
+    include /etc/nginx/snippets/edge-health.conf;
+    ${ROBOTS}
+
+    location / {
+        return 308 https://${BASE_DOMAIN}$request_uri;
+    }
+}
+
+server {
+    listen 8080;
+    server_name calendar.${BASE_DOMAIN};
+
+    include /etc/nginx/snippets/edge-health.conf;
+    ${ROBOTS}
+
+    location = /api {
+        return 308 /api/;
+    }
+
+    location /api/ {
+        set $backend http://${INSTANCE}-calendar-api:8080;
+        rewrite ^/api/?(.*)$ /$1 break;
+        proxy_pass $backend;
+        include /etc/nginx/snippets/proxy-headers.conf;
+    }
+
+    location / {
+        set $frontend http://${INSTANCE}-calendar-web:80;
+        proxy_pass $frontend;
+        include /etc/nginx/snippets/proxy-headers.conf;
+    }
+}
+
+server {
+    listen 8080;
+    server_name auth.${BASE_DOMAIN};
+
+    include /etc/nginx/snippets/edge-health.conf;
+    ${ROBOTS}
+
+    location = /api {
+        return 308 /api/;
+    }
+
+    location /api/ {
+        set $backend http://${INSTANCE}-oauth-manager:8080;
+        rewrite ^/api/?(.*)$ /$1 break;
+        proxy_pass $backend;
+        include /etc/nginx/snippets/proxy-headers.conf;
+    }
+
+    location / {
+        set $frontend http://${INSTANCE}-oauth-web:80;
+        proxy_pass $frontend;
+        include /etc/nginx/snippets/proxy-headers.conf;
+    }
+}
+
+server {
+    listen 8080;
+    server_name exogui.${BASE_DOMAIN};
+
+    include /etc/nginx/snippets/edge-health.conf;
+    ${ROBOTS}
+
+    location = /api {
+        return 308 /api/;
+    }
+
+    location /api/ {
+        set $backend http://${INSTANCE}-exogui-api:8080;
+        rewrite ^/api/?(.*)$ /$1 break;
+        proxy_pass $backend;
+        include /etc/nginx/snippets/proxy-headers.conf;
+    }
+
+    location / {
+        set $frontend http://${INSTANCE}-exogui-web:80;
+        proxy_pass $frontend;
+        include /etc/nginx/snippets/proxy-headers.conf;
+    }
+}
+
+server {
+    listen 8080;
+    server_name status.${BASE_DOMAIN};
+
+    include /etc/nginx/snippets/edge-health.conf;
+    ${ROBOTS}
+
+    location = /api {
+        return 308 /api/;
+    }
+
+    location /api/ {
+        set $backend http://${INSTANCE}-status-api:8080;
+        rewrite ^/api/?(.*)$ /$1 break;
+        proxy_pass $backend;
+        include /etc/nginx/snippets/proxy-headers.conf;
+    }
+
+    location / {
+        set $frontend http://${INSTANCE}-status-web:80;
+        proxy_pass $frontend;
+        include /etc/nginx/snippets/proxy-headers.conf;
+    }
+}
+
+server {
+    listen 8080;
+    server_name sprinter.${BASE_DOMAIN};
+
+    include /etc/nginx/snippets/edge-health.conf;
+    ${ROBOTS}
+
+    location = /api {
+        return 308 /api/;
+    }
+
+    location /api/ {
+        set $backend http://${INSTANCE}-sprinter:8080;
+        rewrite ^/api/?(.*)$ /$1 break;
+        proxy_pass $backend;
+        include /etc/nginx/snippets/proxy-headers.conf;
+    }
+
+    location / {
+        set $frontend http://${INSTANCE}-sprinter-web:80;
+        proxy_pass $frontend;
+        include /etc/nginx/snippets/proxy-headers.conf;
+    }
+}

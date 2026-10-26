@@ -2,69 +2,27 @@ export type Theme = 'light' | 'dark';
 
 const themeCookie = 'biotron-theme';
 const themeCookieMaxAge = 60 * 60 * 24 * 365;
-const sharedCookieDomains = ['biotron.ca', 'biotron-dev.com', 'uwbiotron.dev'];
-let hostCookieMigrated = false;
 
+// The cookie belongs to the page's domain, its hostname's last two labels, so
+// calendar.uwbiotron.ca and uwbiotron.ca share one preference. BioTron's
+// domains never sit under a multi-part suffix such as co.uk, so two labels is
+// enough. localhost, any other name without a dot, and an IP address get a
+// host-only cookie; cookies ignore ports, so every local app still shares it.
 function cookieDomain(hostname: string) {
-  const domain = sharedCookieDomains.find(
-    (candidate) => hostname === candidate || hostname.endsWith(`.${candidate}`),
-  );
-  return domain ? `; Domain=${domain}` : '';
+  if (!hostname.includes('.') || hostname.startsWith('[') || /^[\d.]+$/.test(hostname)) return '';
+  return `; Domain=${hostname.split('.').slice(-2).join('.')}`;
 }
 
-function readThemeCookie(): Theme | null {
+// Reads the cookie as the bootstrap in every index.html does.
+export function storedTheme(): Theme | null {
+  if (typeof document === 'undefined') return null;
   const cookie = document.cookie.match(/(?:^|;\s*)biotron-theme=(dark|light)(?:;|$)/);
   return cookie ? cookie[1] as Theme : null;
 }
 
-function clearHostThemeCookie() {
-  const secure = window.location.protocol === 'https:' ? '; Secure' : '';
-  document.cookie = `${themeCookie}=; Path=/; Max-Age=0${secure}`;
-}
-
-function writeThemeCookie(theme: Theme) {
+function persistTheme(theme: Theme) {
   const secure = window.location.protocol === 'https:' ? '; Secure' : '';
   document.cookie = `${themeCookie}=${theme}; Path=/; Max-Age=${themeCookieMaxAge}; SameSite=Lax${cookieDomain(window.location.hostname)}${secure}`;
-}
-
-export function storedTheme(): Theme | null {
-  if (typeof document === 'undefined') return null;
-  let theme = readThemeCookie();
-  if (cookieDomain(window.location.hostname) && !hostCookieMigrated) {
-    hostCookieMigrated = true;
-    if (theme) {
-      // A former host-only cookie can shadow a sibling app's shared preference.
-      // Remove it first, preferring the shared value that remains afterward.
-      clearHostThemeCookie();
-      const sharedTheme = readThemeCookie();
-      if (sharedTheme) theme = sharedTheme;
-      else writeThemeCookie(theme);
-    }
-  }
-  if (theme) return theme;
-
-  try {
-    const legacy = localStorage.getItem('darkMode');
-    if (legacy === 'true') return 'dark';
-    if (legacy === 'false') return 'light';
-  } catch {
-    // Storage can be unavailable in private or hardened browser contexts.
-  }
-  return null;
-}
-
-function persistTheme(theme: Theme) {
-  try {
-    localStorage.setItem('darkMode', String(theme === 'dark'));
-  } catch {
-    // Storage can be unavailable in private or hardened browser contexts.
-  }
-
-  if (cookieDomain(window.location.hostname) && !hostCookieMigrated) {
-    clearHostThemeCookie();
-    hostCookieMigrated = true;
-  }
-  writeThemeCookie(theme);
 }
 
 export function documentTheme(): Theme {

@@ -16,8 +16,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/model"
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/model"
 )
 
 // Deps is everything a Scheduler needs. Every field is required except

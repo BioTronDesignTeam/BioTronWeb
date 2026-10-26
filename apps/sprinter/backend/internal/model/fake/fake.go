@@ -10,7 +10,7 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/model"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/model"
 )
 
 // Turn is one scripted answer. Err, when set, is returned instead of Response,

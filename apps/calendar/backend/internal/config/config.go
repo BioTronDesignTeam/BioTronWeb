@@ -17,7 +17,6 @@ type Config struct {
 	OAuthManagerURL  string
 	CORSOrigins      []string
 	AdminCORSOrigins []string
-	TrustedProxies   []string
 	MaxRangeDays     int
 	DefaultTimezone  string
 }
@@ -33,7 +32,6 @@ func Load() Config {
 		OAuthManagerURL:  strings.TrimRight(getenv("OAUTH_MANAGER_URL", "http://oauth-manager:8080"), "/"),
 		CORSOrigins:      splitCSV(os.Getenv("CORS_ORIGINS")),
 		AdminCORSOrigins: splitCSV(os.Getenv("ADMIN_CORS_ORIGINS")),
-		TrustedProxies:   splitCSV(getenv("TRUSTED_PROXIES", "127.0.0.1,::1")),
 		MaxRangeDays:     getint("MAX_RANGE_DAYS", 370),
 		DefaultTimezone:  getenv("DEFAULT_TIMEZONE", "America/Toronto"),
 	}

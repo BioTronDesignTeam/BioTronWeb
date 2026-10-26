@@ -1,48 +1,47 @@
 package server
 
 import (
+	"net/http"
 	"strings"
 
-	"github.com/gofiber/fiber/v3"
-
-	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/model"
-	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/store"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/calendar/backend/internal/model"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/calendar/backend/internal/store"
 )
 
-func (h *Handler) listScopes(c fiber.Ctx) error {
-	scopes, err := h.store.ListScopes(c.Context(), false)
+func (h *Handler) listScopes(w http.ResponseWriter, r *http.Request) error {
+	scopes, err := h.store.ListScopes(r.Context(), false)
 	if err != nil {
 		return err
 	}
-	return c.JSON(nonNilScopes(scopes))
+	return writeJSON(w, http.StatusOK, nonNilScopes(scopes))
 }
 
-func (h *Handler) listAdminScopes(c fiber.Ctx) error {
-	scopes, err := h.store.ListScopes(c.Context(), true)
+func (h *Handler) listAdminScopes(w http.ResponseWriter, r *http.Request) error {
+	scopes, err := h.store.ListScopes(r.Context(), true)
 	if err != nil {
 		return err
 	}
-	return c.JSON(nonNilScopes(scopes))
+	return writeJSON(w, http.StatusOK, nonNilScopes(scopes))
 }
 
-func (h *Handler) createScope(c fiber.Ctx) error {
+func (h *Handler) createScope(w http.ResponseWriter, r *http.Request) error {
 	var body struct {
 		Kind     string `json:"kind"`
 		Name     string `json:"name"`
 		ParentID string `json:"parent_id"`
 	}
-	if err := c.Bind().Body(&body); err != nil {
-		return fiber.ErrBadRequest
+	if err := decodeBody(r, &body); err != nil {
+		return err
 	}
 	body.Kind = strings.ToUpper(strings.TrimSpace(body.Kind))
 	body.Name = strings.TrimSpace(body.Name)
 	if body.Kind != model.ScopeProject && body.Kind != model.ScopeSubteam {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "kind must be PROJECT or SUBTEAM"})
+		return writeJSON(w, http.StatusBadRequest, map[string]any{"error": "kind must be PROJECT or SUBTEAM"})
 	}
 	if len(body.Name) < 2 || len(body.Name) > 80 || body.ParentID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "name and parent_id are required"})
+		return writeJSON(w, http.StatusBadRequest, map[string]any{"error": "name and parent_id are required"})
 	}
-	parent, err := h.store.GetScope(c.Context(), body.ParentID)
+	parent, err := h.store.GetScope(r.Context(), body.ParentID)
 	if err != nil {
 		return err
 	}
@@ -51,89 +50,87 @@ func (h *Handler) createScope(c fiber.Ctx) error {
 		expectedParent = model.ScopeProject
 	}
 	if parent.Kind != expectedParent || parent.Status != model.ScopeActive {
-		return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "the selected parent is not an active compatible scope"})
+		return writeJSON(w, http.StatusConflict, map[string]any{"error": "the selected parent is not an active compatible scope"})
 	}
-	active, err := h.store.ScopeIsActive(c.Context(), parent.ID)
+	active, err := h.store.ScopeIsActive(r.Context(), parent.ID)
 	if err != nil {
 		return err
 	}
 	if !active {
-		return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "the selected parent belongs to an archived scope"})
+		return writeJSON(w, http.StatusConflict, map[string]any{"error": "the selected parent belongs to an archived scope"})
 	}
 	parentID := parent.ID
-	scope, err := h.store.CreateScope(c.Context(), model.Scope{
+	scope, err := h.store.CreateScope(r.Context(), model.Scope{
 		Kind: body.Kind, Name: body.Name, Slug: store.Slug(body.Name), ParentID: &parentID,
 	})
 	if err != nil {
 		return err
 	}
-	h.adminEvent(c, "Scope created", map[string]any{
+	h.adminEvent(r, "Scope created", map[string]any{
 		"scope_id": scope.ID, "kind": scope.Kind, "name": scope.Name, "parent_id": parentID,
 	})
-	return c.Status(fiber.StatusCreated).JSON(scope)
+	return writeJSON(w, http.StatusCreated, scope)
 }
 
-func (h *Handler) renameScope(c fiber.Ctx) error {
+func (h *Handler) renameScope(w http.ResponseWriter, r *http.Request) error {
 	var body struct {
 		Name string `json:"name"`
 	}
-	if err := c.Bind().Body(&body); err != nil {
-		return fiber.ErrBadRequest
+	if err := decodeBody(r, &body); err != nil {
+		return err
 	}
 	body.Name = strings.TrimSpace(body.Name)
 	if len(body.Name) < 2 || len(body.Name) > 80 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "name must be between 2 and 80 characters"})
+		return writeJSON(w, http.StatusBadRequest, map[string]any{"error": "name must be between 2 and 80 characters"})
 	}
-	scope, err := h.store.RenameScope(c.Context(), c.Params("id"), body.Name, store.Slug(body.Name))
+	scope, err := h.store.RenameScope(r.Context(), r.PathValue("id"), body.Name, store.Slug(body.Name))
 	if err != nil {
 		return err
 	}
-	h.adminEvent(c, "Scope renamed", map[string]any{"scope_id": scope.ID, "name": scope.Name})
-	return c.JSON(scope)
+	h.adminEvent(r, "Scope renamed", map[string]any{"scope_id": scope.ID, "name": scope.Name})
+	return writeJSON(w, http.StatusOK, scope)
 }
 
-func (h *Handler) archiveScope(c fiber.Ctx) error {
-	scope, err := h.store.SetScopeArchived(c.Context(), c.Params("id"), true)
+func (h *Handler) archiveScope(w http.ResponseWriter, r *http.Request) error {
+	scope, err := h.store.SetScopeArchived(r.Context(), r.PathValue("id"), true)
 	if err != nil {
 		return err
 	}
-	h.adminEvent(c, "Scope archived", map[string]any{"scope_id": scope.ID})
-	return c.JSON(scope)
+	h.adminEvent(r, "Scope archived", map[string]any{"scope_id": scope.ID})
+	return writeJSON(w, http.StatusOK, scope)
 }
 
-func (h *Handler) restoreScope(c fiber.Ctx) error {
-	scope, err := h.store.GetScope(c.Context(), c.Params("id"))
+func (h *Handler) restoreScope(w http.ResponseWriter, r *http.Request) error {
+	scope, err := h.store.GetScope(r.Context(), r.PathValue("id"))
 	if err != nil {
 		return err
 	}
 	if scope.ParentID != nil {
-		active, err := h.store.ScopeIsActive(c.Context(), *scope.ParentID)
+		active, err := h.store.ScopeIsActive(r.Context(), *scope.ParentID)
 		if err != nil {
 			return err
 		}
 		if !active {
-			return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "restore the parent project first"})
+			return writeJSON(w, http.StatusConflict, map[string]any{"error": "restore the parent project first"})
 		}
 	}
-	scope, err = h.store.SetScopeArchived(c.Context(), scope.ID, false)
+	scope, err = h.store.SetScopeArchived(r.Context(), scope.ID, false)
 	if err != nil {
 		return err
 	}
-	h.adminEvent(c, "Scope restored", map[string]any{"scope_id": scope.ID})
-	return c.JSON(scope)
+	h.adminEvent(r, "Scope restored", map[string]any{"scope_id": scope.ID})
+	return writeJSON(w, http.StatusOK, scope)
 }
 
-func (h *Handler) deleteScope(c fiber.Ctx) error {
+func (h *Handler) deleteScope(w http.ResponseWriter, r *http.Request) error {
 	// The row is gone once the delete returns, so its id has to be read from
-	// the path. Params points into fasthttp's pooled buffer and the event is
-	// marshalled on another goroutine, so the copy is what keeps the event
-	// from naming whatever scope the next request happens to carry.
-	scopeID := strings.Clone(c.Params("id"))
-	if err := h.store.DeleteScope(c.Context(), scopeID); err != nil {
+	// the path.
+	scopeID := r.PathValue("id")
+	if err := h.store.DeleteScope(r.Context(), scopeID); err != nil {
 		return err
 	}
-	h.adminEvent(c, "Scope deleted", map[string]any{"scope_id": scopeID})
-	return c.SendStatus(fiber.StatusNoContent)
+	h.adminEvent(r, "Scope deleted", map[string]any{"scope_id": scopeID})
+	return noContent(w)
 }
 
 func nonNilScopes(scopes []model.Scope) []model.Scope {

@@ -11,33 +11,14 @@
       html.dark { background: #070b0e; }
     </style>
     <script>
-      // This complete bootstrap must stay in HTML so theme state is applied
-      // before React and its CSS load, preventing a light first-paint flash.
+      // Keep this bootstrap in HTML so the shared theme applies before React
+      // and prevents a white flash on dark-mode visits. It reads the
+      // biotron-theme cookie as theme.ts in @biotron/style does; the theme
+      // toggle writes it.
       (function () {
         try {
-          var hostname = window.location.hostname
-          var domain = ''
-          if (hostname === 'biotron.ca' || hostname.endsWith('.biotron.ca')) domain = '; Domain=biotron.ca'
-          if (hostname === 'biotron-dev.com' || hostname.endsWith('.biotron-dev.com')) domain = '; Domain=biotron-dev.com'
-          if (hostname === 'uwbiotron.dev' || hostname.endsWith('.uwbiotron.dev')) domain = '; Domain=uwbiotron.dev'
-          var secure = window.location.protocol === 'https:' ? '; Secure' : ''
           var match = document.cookie.match(/(?:^|;\s*)biotron-theme=(dark|light)(?:;|$)/)
-          var theme = match ? match[1] : null
-          if (domain && theme) {
-            // Prefer the shared preference over a former host-only cookie.
-            document.cookie = 'biotron-theme=; Path=/; Max-Age=0' + secure
-            var shared = document.cookie.match(/(?:^|;\s*)biotron-theme=(dark|light)(?:;|$)/)
-            if (shared) theme = shared[1]
-            else document.cookie = 'biotron-theme=' + theme + '; Path=/; Max-Age=31536000; SameSite=Lax' + domain + secure
-          }
-          if (!theme) {
-            var legacy = localStorage.getItem('darkMode')
-            if (legacy === 'true' || legacy === 'false') {
-              theme = legacy === 'true' ? 'dark' : 'light'
-              document.cookie = 'biotron-theme=' + theme + '; Path=/; Max-Age=31536000; SameSite=Lax' + domain + secure
-            }
-          }
-          var dark = theme === 'dark'
+          var dark = match !== null && match[1] === 'dark'
           var root = document.documentElement
           root.classList.toggle('dark', dark)
           root.style.colorScheme = dark ? 'dark' : 'light'
@@ -45,6 +26,7 @@
         } catch (e) {}
       })()
     </script>
+
   </head>
   <body>
     <div id="root"></div>

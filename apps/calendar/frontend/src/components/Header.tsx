@@ -1,13 +1,11 @@
-import { useState, type ReactNode } from 'react';
-import { Brand, Button, ThemeToggle, UserMenu } from '@biotron/style';
-import { login, logout } from '../api';
-import type { AuthStatus } from '../types';
+import type { ReactNode } from 'react';
+import { AccountControls, Brand } from '@biotron/style';
 
 interface HeaderProps {
-  auth: AuthStatus;
+  canWrite: boolean;
   managing: boolean;
   onPublic: () => void;
-  onLoggedOut: () => void;
+  onSignedOut: () => void;
   /**
    * The month controls, as a second row below lg. There the sidebar is a
    * drawer that covers the calendar, so it cannot hold them. From lg up they
@@ -20,9 +18,7 @@ interface HeaderProps {
   sidebar?: { open: boolean; filterCount: number; onToggle: () => void };
 }
 
-export function Header({ auth, managing, onPublic, onLoggedOut, toolbar, viewSwitch, sidebar }: HeaderProps) {
-  const operator = auth.operator;
-  const [logoutError, setLogoutError] = useState('');
+export function Header({ canWrite, managing, onPublic, onSignedOut, toolbar, viewSwitch, sidebar }: HeaderProps) {
   return (
     <header className="sticky top-0 z-40 border-b border-ink/10 bg-white/90 pt-[env(safe-area-inset-top,0px)] backdrop-blur-xl dark:border-line-strong dark:bg-surface/90">
       {/* The calendar view runs edge to edge, so its bar does too. Other views keep the centred column. */}
@@ -55,7 +51,7 @@ export function Header({ auth, managing, onPublic, onLoggedOut, toolbar, viewSwi
         {toolbar && <div className="order-last w-full pb-3 lg:hidden">{toolbar}</div>}
         <div className="ml-auto flex items-center gap-2">
           {/* On the calendar view Manage lives in the sidebar. This button is the way back from the Manage view. */}
-          {auth.can_write && managing && (
+          {canWrite && managing && (
             <button
               type="button"
               className="min-h-11 rounded-full px-4 text-sm font-semibold text-brand hover:bg-soft/30 dark:text-link dark:hover:bg-white/10"
@@ -65,24 +61,7 @@ export function Header({ auth, managing, onPublic, onLoggedOut, toolbar, viewSwi
             </button>
           )}
           {viewSwitch && <div className="hidden sm:block">{viewSwitch}</div>}
-          <ThemeToggle />
-          {logoutError && <span className="fixed right-4 top-20 z-50 max-w-xs rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800 shadow-lg dark:bg-red-950 dark:text-red-200" role="alert">{logoutError}</span>}
-          {operator ? (
-            <UserMenu
-              user={{ name: operator.name, login: operator.login, avatarUrl: operator.avatar_url }}
-              onLogout={async () => {
-                setLogoutError('');
-                try {
-                  await logout();
-                  onLoggedOut();
-                } catch (error) {
-                  setLogoutError(error instanceof Error ? error.message : 'Sign out failed');
-                }
-              }}
-            />
-          ) : (
-            <Button onClick={login} className="min-h-11 whitespace-nowrap">Log in</Button>
-          )}
+          <AccountControls onSignedOut={onSignedOut} />
         </div>
       </div>
     </header>

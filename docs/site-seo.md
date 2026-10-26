@@ -1,6 +1,6 @@
 # Public site: search and link previews
 
-This note covers `apps/site`. It records what the site does for search engines
+This note covers `apps/biotron`. It records what the site does for search engines
 and link previews, what a person still has to do, and what is left for later.
 
 ## How it works

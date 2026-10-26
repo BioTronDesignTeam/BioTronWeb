@@ -1,12 +1,10 @@
+import { identityLine } from '@biotron/style';
 import type { OrgMember } from '../api';
 import { panelHeading } from './ui';
 
-function memberSuffix(member: OrgMember): string {
-  return [
-    member.is_banned ? ' · banned' : '',
-    member.is_manager ? ' · manager' : '',
-    member.is_superuser ? ' · superuser' : '',
-  ].join('');
+/** `@login · Role`, with the highest role only, then a ban if there is one. */
+function memberLine(member: OrgMember): string {
+  return `${identityLine(member)}${member.is_banned ? ' · Banned' : ''}`;
 }
 
 export default function OrgMemberList({
@@ -56,8 +54,7 @@ export default function OrgMemberList({
                     {member.name || member.login}
                   </div>
                   <div className="truncate text-xs text-slate-500 dark:text-muted">
-                    @{member.login}
-                    {memberSuffix(member)}
+                    {memberLine(member)}
                   </div>
                 </div>
               </button>

@@ -1,0 +1,30 @@
+# Added by ./launch --instance. A named instance publishes no host ports: two
+# instances on one host would collide on them, and nothing needs them, because
+# the edge reaches each instance over its Docker network. Use `docker compose
+# -p biotron-<instance> exec postgres psql` and the like for administration.
+# A service that publishes a port must be listed here; infra/tests checks it.
+services:
+  postgres:
+    ports: !reset []
+  biotron-web:
+    ports: !reset []
+  calendar-api:
+    ports: !reset []
+  calendar-web:
+    ports: !reset []
+  auth-api:
+    ports: !reset []
+  auth-web:
+    ports: !reset []
+  exogui-api:
+    ports: !reset []
+  exogui-web:
+    ports: !reset []
+  status-api:
+    ports: !reset []
+  status-web:
+    ports: !reset []
+  sprinter-bot:
+    ports: !reset []
+  sprinter-web:
+    ports: !reset []

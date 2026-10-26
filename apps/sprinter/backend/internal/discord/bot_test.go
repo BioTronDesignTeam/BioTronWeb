@@ -10,8 +10,8 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/model"
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/store"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/model"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/store"
 )
 
 // call is one thing the bot did to Discord, in the order it did it. The order

@@ -1,4 +1,13 @@
-const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8080';
+import { friendlyError, type SessionOperator } from '@biotron/style';
+
+export const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8080';
+
+// Told when a request answers 401, so the session is re-checked and the page
+// says it expired instead of showing the raw refusal.
+let onUnauthorized: () => void = () => undefined;
+export function setUnauthorizedHandler(handler: () => void) {
+  onUnauthorized = handler;
+}
 
 async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
@@ -14,29 +23,22 @@ async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
     headers,
   });
   if (!res.ok) {
-    let message = res.statusText;
+    if (res.status === 401) onUnauthorized();
+    let message = '';
     try {
       const data = await res.json();
       if (data?.error) message = data.error;
     } catch {
       /* ignore */
     }
-    throw new Error(message || `HTTP ${res.status}`);
+    throw new Error(friendlyError(res.status, message));
   }
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
 }
 
-export type Me = {
-  github_id: number;
-  login: string;
-  name: string;
-  avatar_url: string;
-  is_superuser: boolean;
-  is_manager: boolean;
-  is_staff: boolean;
-  is_guest: boolean;
-};
+/** Who is signed in, as Auth's `GET /auth/me` sends it. */
+export type Me = SessionOperator;
 
 export type ProductDailyKey = {
   app_id: string;
@@ -82,11 +84,9 @@ export type OrgMember = {
   last_login_at: string;
 };
 
-export const loginURL = `${API_BASE}/auth/github/login`;
-
-export const getMe = () => api<Me>('/auth/me');
 export const getProductDailyKeys = () => api<ProductDailyKey[]>('/auth/guest-keys');
-export const logout = () => api<void>('/auth/logout', { method: 'POST' });
+export const rotateProductDailyKey = (appId: string) =>
+  api<ProductDailyKey>(`/auth/guest-keys/${encodeURIComponent(appId)}/rotate`, { method: 'POST' });
 export const listApps = () => api<AppInfo[]>('/apps');
 export const listPermissions = () => api<Permission[]>('/permissions');
 export const myGrants = () => api<GrantsResponse>('/me/grants');

@@ -1,63 +1,21 @@
+# Postgres for one instance. The root docker-compose.yml includes this
+# file, so an instance's data services and apps form one Compose project:
+# `biotron` locally, `biotron-<instance>` from `./launch --instance <instance>`.
+# The edge Nginx and tunnel live in edge/docker-compose.yml and the secrets
+# manager in infisical/docker-compose.yml, each with its own lifecycle.
+# BIOTRON_NETWORK and BIOTRON_INSTANCE keep two instances on one host apart;
+# ./launch sets both and creates the external network.
 name: biotron-infrastructure
 
 services:
-  nginx:
-    build:
-      context: ./nginx
-      dockerfile: Dockerfile
-    image: ${NGINX_IMAGE:-biotron-edge-nginx:local}
-    restart: unless-stopped
-    environment:
-      BASE_DOMAIN: ${BASE_DOMAIN:?set BASE_DOMAIN in .env}
-    networks:
-      edge:
-        aliases:
-          - nginx
-      biotron:
-        aliases:
-          - edge-proxy
-    read_only: true
-    tmpfs:
-      - /etc/nginx/conf.d
-      - /tmp
-    security_opt:
-      - no-new-privileges:true
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/_edge/health | grep -qx ok"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
-      start_period: 5s
-
-  cloudflared:
-    image: cloudflare/cloudflared:2026.8.3
-    restart: unless-stopped
-    command:
-      - tunnel
-      - --metrics
-      - 0.0.0.0:2000
-      - run
-      - --token-file
-      - /run/secrets/cloudflare_tunnel_token
-    secrets:
-      - cloudflare_tunnel_token
-    networks:
-      - edge
-    depends_on:
-      nginx:
-        condition: service_healthy
-    read_only: true
-    security_opt:
-      - no-new-privileges:true
-
   postgres:
     image: postgres:18.6-alpine
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-biotron}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
       POSTGRES_DB: ${POSTGRES_DB:-biotron}
-      SPRINTER_READER_PASSWORD: ${SPRINTER_READER_PASSWORD:?set SPRINTER_READER_PASSWORD in .env}
+      SPRINTER_READER_PASSWORD: ${SPRINTER_READER_PASSWORD:-}
     volumes:
       # Postgres 18 images store data in a major-version-specific directory
       # (PGDATA=/var/lib/postgresql/18/docker) and expect a single mount one
@@ -79,32 +37,13 @@ services:
     networks:
       - biotron
 
-  redis:
-    image: redis:8.10.1-alpine
-    restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes"]
-    volumes:
-      - redis-data:/data
-    ports:
-      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-    networks:
-      - biotron
-
 networks:
-  edge:
-    name: biotron-edge
   biotron:
-    name: biotron
+    external: true
+    name: ${BIOTRON_NETWORK:-biotron}
 
+# Named by instance, not by project, so a laptop keeps the volume it had
+# before the data services joined the root project.
 volumes:
   postgres-data:
-  redis-data:
-
-secrets:
-  cloudflare_tunnel_token:
-    file: ${CLOUDFLARE_TUNNEL_TOKEN_FILE:?set CLOUDFLARE_TUNNEL_TOKEN_FILE in .env}
+    name: biotron-${BIOTRON_INSTANCE:-infrastructure}_postgres-data

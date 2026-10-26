@@ -1,0 +1,183 @@
+package auth
+
+// The session cookie and the state cookie of a sign-in are JWTs signed with
+// HMAC-SHA256 and SESSION_SIGNING_KEY. There is no session store: the
+// signature is the check. A session names only the operator's GitHub id (and,
+// for a guest, the tool, the day, and an HMAC of the key it used); roles,
+// bans, grants, and the guest key are read on every request through the
+// cache, so a JWT never carries a privilege that could outlive its
+// revocation.
+//
+// The two kinds have their own audience, so one can never pass as the other.
+// Only HS256 is accepted, and the issuer, the audience, and the expiry are
+// always checked. A new SESSION_SIGNING_KEY signs everyone out.
+//
+// Never log or return a cookie value or the key.
+
+import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
+	"errors"
+	"strconv"
+	"time"
+
+	"github.com/golang-jwt/jwt/v5"
+)
+
+const (
+	issuer          = "biotron-auth"
+	sessionAudience = "biotron-auth:session"
+	stateAudience   = "biotron-auth:oauth-state"
+	// stateLifetime is how long one round trip to GitHub may take.
+	stateLifetime = 10 * time.Minute
+)
+
+// Signer signs and reads both cookies with one key. Its methods are safe for
+// use by many goroutines.
+type Signer struct {
+	key []byte
+	now func() time.Time
+}
+
+func NewSigner(key []byte) *Signer {
+	return &Signer{key: key, now: time.Now}
+}
+
+// Session is what a session cookie holds.
+type Session struct {
+	GitHubID int64
+	// GuestAppID is the tool of a guest session; empty for an operator.
+	GuestAppID string
+	// GuestDay and GuestKeyID name the daily key a guest session signed in
+	// with: its Eastern day and GuestKeyID of the key. Every request checks
+	// they still match, so rotating the key ends the session.
+	GuestDay   string
+	GuestKeyID string
+}
+
+type sessionClaims struct {
+	GuestApp string `json:"guest_app,omitempty"`
+	GuestDay string `json:"guest_day,omitempty"`
+	GuestKey string `json:"guest_key,omitempty"`
+	jwt.RegisteredClaims
+}
+
+// SignIn is what a state cookie holds for one sign-in.
+type SignIn struct {
+	// State is the random state sent to GitHub and back.
+	State string
+	// Return is the origin to return to.
+	Return string
+	// Verifier is the PKCE code verifier, whose S256 challenge went to
+	// GitHub; only this browser's cookie can finish the sign-in with it.
+	Verifier string
+}
+
+type stateClaims struct {
+	State    string `json:"state"`
+	Return   string `json:"return"`
+	Verifier string `json:"verifier"`
+	jwt.RegisteredClaims
+}
+
+// Session returns a session cookie value that ends at expires.
+func (s *Signer) Session(session Session, expires time.Time) (string, error) {
+	return s.sign(&sessionClaims{
+		GuestApp:         session.GuestAppID,
+		GuestDay:         session.GuestDay,
+		GuestKey:         session.GuestKeyID,
+		RegisteredClaims: s.registered(strconv.FormatInt(session.GitHubID, 10), sessionAudience, expires),
+	})
+}
+
+// ReadSession returns the session of a cookie value; ok is false when it is
+// not one this key signed, or has expired. A guest session must name its
+// tool and its key, and an operator's must name neither.
+func (s *Signer) ReadSession(value string) (Session, bool) {
+	var claims sessionClaims
+	if !s.read(value, sessionAudience, &claims) {
+		return Session{}, false
+	}
+	id, err := strconv.ParseInt(claims.Subject, 10, 64)
+	if err != nil || id < 0 || strconv.FormatInt(id, 10) != claims.Subject {
+		return Session{}, false
+	}
+	guest := claims.GuestApp != "" || claims.GuestDay != "" || claims.GuestKey != ""
+	if guest && (claims.GuestApp == "" || claims.GuestDay == "" || claims.GuestKey == "") {
+		return Session{}, false
+	}
+	if (id == 0) != guest {
+		return Session{}, false
+	}
+	return Session{GitHubID: id, GuestAppID: claims.GuestApp, GuestDay: claims.GuestDay, GuestKeyID: claims.GuestKey}, true
+}
+
+// GuestKeyID returns what a guest session records of the daily key it used: an
+// HMAC of the app, the day, and the key, so the cookie never carries the key
+// and a guess at the key cannot be checked against it.
+func (s *Signer) GuestKeyID(appID, day, key string) string {
+	mac := hmac.New(sha256.New, s.key)
+	mac.Write([]byte("guest-key|" + appID + "|" + day + "|" + key))
+	return base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
+}
+
+// State returns a state cookie value for one sign-in.
+func (s *Signer) State(signIn SignIn) (string, error) {
+	return s.sign(&stateClaims{
+		State:            signIn.State,
+		Return:           signIn.Return,
+		Verifier:         signIn.Verifier,
+		RegisteredClaims: s.registered("", stateAudience, s.now().Add(stateLifetime)),
+	})
+}
+
+// ReadState returns what a state cookie holds; ok is false when it is not
+// valid, has expired, or lacks the state or the verifier.
+func (s *Signer) ReadState(value string) (SignIn, bool) {
+	var claims stateClaims
+	if !s.read(value, stateAudience, &claims) || claims.State == "" || claims.Verifier == "" {
+		return SignIn{}, false
+	}
+	return SignIn{State: claims.State, Return: claims.Return, Verifier: claims.Verifier}, true
+}
+
+func (s *Signer) registered(subject, audience string, expires time.Time) jwt.RegisteredClaims {
+	now := s.now()
+	return jwt.RegisteredClaims{
+		Issuer:    issuer,
+		Subject:   subject,
+		Audience:  jwt.ClaimStrings{audience},
+		IssuedAt:  jwt.NewNumericDate(now),
+		ExpiresAt: jwt.NewNumericDate(expires),
+	}
+}
+
+func (s *Signer) sign(claims jwt.Claims) (string, error) {
+	if s == nil || len(s.key) == 0 {
+		return "", errors.New("no session signing key")
+	}
+	signed, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(s.key)
+	if err != nil {
+		return "", errors.New("cannot sign a cookie")
+	}
+	return signed, nil
+}
+
+func (s *Signer) read(value, audience string, claims jwt.Claims) bool {
+	if s == nil || len(s.key) == 0 || value == "" {
+		return false
+	}
+	parser := jwt.NewParser(
+		jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}),
+		jwt.WithIssuer(issuer),
+		jwt.WithAudience(audience),
+		jwt.WithExpirationRequired(),
+		jwt.WithIssuedAt(),
+		jwt.WithTimeFunc(s.now),
+	)
+	_, err := parser.ParseWithClaims(value, claims, func(*jwt.Token) (any, error) {
+		return s.key, nil
+	})
+	return err == nil
+}

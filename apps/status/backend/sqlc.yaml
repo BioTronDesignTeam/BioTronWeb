@@ -1,0 +1,31 @@
+# The store's queries, made into Go by sqlc 1.31.1, pinned through its image.
+# Regenerate from the monorepo root after changing a query or a migration:
+#
+#   docker run --rm -v "$PWD:/src" -w /src/apps/status/backend sqlc/sqlc:1.31.1 generate
+#
+# The schema is the SQL of the Prisma migrations, in name order, the same
+# files status-migrate applies. The queries live in
+# internal/store/queries/queries.sql, and sqlc writes package queries beside
+# them: generated code, never edited by hand.
+version: "2"
+sql:
+  - engine: postgresql
+    schema: ../prisma/migrations/*/migration.sql
+    queries: internal/store/queries/queries.sql
+    gen:
+      go:
+        package: queries
+        out: internal/store/queries
+        sql_package: pgx/v5
+        # A nullable column is a pointer (*string), not pgtype.Text.
+        emit_pointers_for_null_types: true
+        # models.go holds only the tables that the queries return.
+        omit_unused_structs: true
+        overrides:
+          - db_type: timestamptz
+            go_type: time.Time
+          - db_type: timestamptz
+            nullable: true
+            go_type:
+              type: time.Time
+              pointer: true

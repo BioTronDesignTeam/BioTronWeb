@@ -1,0 +1,64 @@
+# The public edge: Nginx and the Cloudflare tunnel, shared by every instance on
+# the host. It has its own lifecycle, apart from each instance's data services
+# and apps, so redeploying or stopping an instance never touches the tunnel or
+# the other instance.
+name: biotron-edge
+
+services:
+  nginx:
+    build:
+      context: ../nginx
+      dockerfile: Dockerfile
+    image: ${IMAGE_REGISTRY:-biotron-}edge-nginx:${IMAGE_TAG:-local}
+    restart: unless-stopped
+    environment:
+      # <instance>=<domain>[:noindex] pairs, space separated.
+      # See ../nginx/docker-entrypoint.d/40-biotron-sites.sh.
+      EDGE_SITES: ${EDGE_SITES:?set EDGE_SITES, such as staging=uwbiotron.dev:noindex prod=uwbiotron.ca}
+    # ./launch edge also attaches Nginx to the network of every instance in
+    # EDGE_SITES, as `edge-proxy`, through a generated override. Start the edge
+    # with ./launch, not with this file alone.
+    networks:
+      edge:
+        aliases:
+          - nginx
+    read_only: true
+    tmpfs:
+      - /etc/nginx/conf.d
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/_edge/health | grep -qx ok"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
+  cloudflared:
+    image: cloudflare/cloudflared:2026.8.3
+    restart: unless-stopped
+    command:
+      - tunnel
+      - --metrics
+      - 0.0.0.0:2000
+      - run
+      - --token-file
+      - /run/secrets/cloudflare_tunnel_token
+    secrets:
+      - cloudflare_tunnel_token
+    networks:
+      - edge
+    depends_on:
+      nginx:
+        condition: service_healthy
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  edge:
+
+secrets:
+  cloudflare_tunnel_token:
+    environment: CLOUDFLARE_TUNNEL_TOKEN

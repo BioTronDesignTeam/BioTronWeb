@@ -1,0 +1,28 @@
+name: biotron-biotron
+
+services:
+  biotron-web:
+    environment:
+      BASE_DOMAIN: ${BASE_DOMAIN:-localhost}
+    image: ${IMAGE_REGISTRY:-biotron-}biotron-web:${IMAGE_TAG:-local}
+    build:
+      context: ../..
+      dockerfile: apps/biotron/frontend/Dockerfile
+      args:
+        VITE_CALENDAR_API_URL: ${BIOTRON_VITE_CALENDAR_API_URL:-${VITE_CALENDAR_API_URL:-http://localhost:8083}}
+        VITE_CALENDAR_URL: ${BIOTRON_VITE_CALENDAR_URL:-${VITE_CALENDAR_URL:-http://localhost:5176}}
+        VITE_SITE_URL: ${BIOTRON_VITE_SITE_URL:-${VITE_SITE_URL:-http://localhost:5177}}
+        VITE_GOOGLE_SITE_VERIFICATION: ${BIOTRON_VITE_GOOGLE_SITE_VERIFICATION:-${VITE_GOOGLE_SITE_VERIFICATION:-}}
+    ports:
+      - "127.0.0.1:${BIOTRON_WEB_PORT:-${WEB_PORT:-5177}}:80"
+    networks:
+      biotron:
+        aliases:
+          - biotron-web
+          - ${BIOTRON_INSTANCE:-local}-biotron-web
+    restart: unless-stopped
+
+networks:
+  biotron:
+    external: true
+    name: ${BIOTRON_NETWORK:-biotron}

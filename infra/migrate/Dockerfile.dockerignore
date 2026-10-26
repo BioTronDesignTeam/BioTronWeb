@@ -1,0 +1,8 @@
+# The build context of infra/migrate/Dockerfile, which builds from the
+# repository root: this folder and each app's Prisma schema and migrations.
+*
+!infra/migrate/package.json
+!infra/migrate/package-lock.json
+!infra/migrate/migrate
+!apps/*/prisma/schema.prisma
+!apps/*/prisma/migrations

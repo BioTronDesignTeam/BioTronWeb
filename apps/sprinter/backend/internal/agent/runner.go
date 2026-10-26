@@ -3,8 +3,8 @@ package agent
 import (
 	"context"
 
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/discord"
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/model"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/discord"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/model"
 )
 
 // Runner puts the loop behind the bot's Runner interface.

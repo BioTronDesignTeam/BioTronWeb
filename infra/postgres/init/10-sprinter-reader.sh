@@ -38,28 +38,33 @@ CREATE SCHEMA IF NOT EXISTS oauth;
 
 GRANT USAGE ON SCHEMA logger, oauth TO sprinter_reader;
 
--- Logger: every table, present and future. Logger owns nothing sensitive, so
--- the whole schema is open, and the default-privileges rule covers tables
--- Logger's own migrations add later without this script needing to change.
-GRANT SELECT ON ALL TABLES IN SCHEMA logger TO sprinter_reader;
+-- Status: health_checks only, granted with the oauth tables below. It is the
+-- one table Sprinter's tools read; a new logger table needs a deliberate
+-- grant there, as a new oauth one does.
 --
--- The rule names the role that will own the future tables, which is the role
--- Logger migrates as: this cluster's superuser. It is passed in as :"owner"
--- rather than written out, so a cluster whose POSTGRES_USER is not "biotron"
--- still gets the grant instead of an error.
-ALTER DEFAULT PRIVILEGES FOR ROLE :"owner" IN SCHEMA logger GRANT SELECT ON TABLES TO sprinter_reader;
+-- Earlier versions of this script granted the whole schema, present and
+-- future tables. Revoking that first narrows an existing cluster when the
+-- script is rerun. The default-privileges rule names the role that owns
+-- Status's tables, the role Status migrates as: this cluster's superuser. It is
+-- passed in as :"owner" rather than written out, so a cluster whose
+-- POSTGRES_USER is not "biotron" still runs.
+REVOKE SELECT ON ALL TABLES IN SCHEMA logger FROM sprinter_reader;
+ALTER DEFAULT PRIVILEGES FOR ROLE :"owner" IN SCHEMA logger REVOKE SELECT ON TABLES FROM sprinter_reader;
 
--- Auth: named tables only, no default privileges. sessions and guest_keys
--- must never be granted here or later; guest_keys holds the daily Exo guest
--- key in plaintext, and sessions is the login token store. A new oauth table
--- needs a deliberate line added to this list, not an automatic grant.
+-- Auth: named tables only, no default privileges. guest_keys must never be
+-- granted here or later: it holds the daily Exo guest key in plaintext. A new
+-- oauth table needs a deliberate line added to this list, not an automatic
+-- grant.
 --
--- On a fresh cluster none of these tables exist yet (Auth has not migrated),
--- so each grant is guarded with to_regclass and skipped rather than failing
--- the whole script. Rerun this script after Auth's first migration to pick
--- the grants up.
+-- On a fresh cluster none of these tables exist yet (Status and Auth have not
+-- migrated), so each grant is guarded with to_regclass and skipped rather
+-- than failing the whole script. Rerun this script after their first
+-- migrations to pick the grants up.
 DO $$
 BEGIN
+  IF to_regclass('logger.health_checks') IS NOT NULL THEN
+    GRANT SELECT ON logger.health_checks TO sprinter_reader;
+  END IF;
   IF to_regclass('oauth.operators') IS NOT NULL THEN
     GRANT SELECT ON oauth.operators TO sprinter_reader;
   END IF;

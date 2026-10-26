@@ -2,21 +2,22 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log"
+	"net/http"
 	"os/signal"
 	"syscall"
 	"time"
 	_ "time/tzdata"
 
-	"github.com/gofiber/fiber/v3"
 	"github.com/joho/godotenv"
 
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/auth/backend/internal/auth"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/auth/backend/internal/cache"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/auth/backend/internal/config"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/auth/backend/internal/server"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/auth/backend/internal/store"
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
-	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/auth"
-	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/cache"
-	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/config"
-	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/server"
-	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/store"
 )
 
 func main() {
@@ -35,16 +36,15 @@ func main() {
 	if cfg.DatabaseURL == "" {
 		log.Fatal("DATABASE_URL is required")
 	}
-	// The client reads only the environment, so it is built before anything can
-	// fail. A misconfigured sign-in is then reported to Logger as well as to
-	// stdout, instead of being noticed when the first operator cannot get in.
+	// Validate has already refused a missing or malformed GitHub App, so the
+	// key parses here.
+	appKey, err := config.ParsePrivateKey(cfg.GitHubAppPrivateKey)
+	if err != nil {
+		log.Fatalf("config: %v", err)
+	}
 	events := logclient.NewFromEnv("oauth-manager")
 	if !events.Enabled() {
-		log.Println("warning: LOGGER_INGEST_TOKEN unset — structured logging is disabled")
-	}
-	if cfg.GitHubClientID == "" || cfg.GitHubClientSecret == "" {
-		log.Println("warning: GITHUB_CLIENT_ID/SECRET unset — operator login will fail until configured")
-		events.LogAsync(logclient.Warning, "GitHub OAuth not configured", nil)
+		log.Println("warning: neither Grafana nor PostHog is configured — structured events go nowhere")
 	}
 
 	st, err := connectDB(cfg.DatabaseURL)
@@ -53,46 +53,59 @@ func main() {
 	}
 	defer st.Close()
 
-	c, err := connectRedis(cfg.RedisURL, st, cfg.CacheTTL)
-	if err != nil {
-		log.Fatalf("connect redis: %v", err)
+	// RequireSession reads SUPERUSER_GITHUB_IDS on every request. The column
+	// mirrors it for readers of the table, such as Sprinter, so a removed id
+	// loses the flag there with this deploy rather than at its next sign-in.
+	if n, err := st.ReconcileSuperusers(context.Background(), cfg.SuperuserIDList()); err != nil {
+		// Auth itself still reads the list; only the mirror waits for a restart.
+		log.Printf("reconcile superusers: %v", err)
+	} else if n > 0 {
+		log.Printf("superuser flag changed for %d operators from SUPERUSER_GITHUB_IDS", n)
 	}
-	defer c.Close()
 
 	go prune(st, events)
 
 	gh := auth.NewGitHubClient(auth.GitHubOptions{
-		ClientID:     cfg.GitHubClientID,
-		ClientSecret: cfg.GitHubClientSecret,
+		AppID:        cfg.GitHubAppID,
+		PrivateKey:   appKey,
+		ClientID:     cfg.GitHubAppClientID,
+		ClientSecret: cfg.GitHubAppClientSecret,
 		CallbackURL:  cfg.CallbackURL,
 		Org:          cfg.GitHubOrg,
 	})
 
 	h := &auth.Handler{
-		Store:  st,
-		Cache:  c,
-		GitHub: gh,
-		Events: events,
+		Store:   st,
+		Cache:   cache.New(st),
+		GitHub:  gh,
+		Members: auth.NewMembership(gh.IsOrgMember),
+		Signer:  auth.NewSigner([]byte(cfg.SessionSigningKey)),
+		Events:  events,
 		Cfg: auth.Config{
-			FrontendURL:    cfg.FrontendURL,
-			AllowedOrigins: cfg.AllowedOrigins,
-			CookieSecure:   cfg.CookieSecure,
-			CookieSameSite: cfg.CookieSameSite,
-			CookieDomain:   cfg.CookieDomain,
-			SessionTTL:     cfg.SessionTTL,
-			IsSuperuserID:  cfg.IsSuperuserID,
+			FrontendURL:     cfg.FrontendURL,
+			AllowedOrigins:  cfg.AllowedOrigins,
+			CookieSecure:    cfg.CookieSecure,
+			CookieSameSite:  cfg.CookieSameSite,
+			CookieDomain:    cfg.CookieDomain,
+			SessionTTL:      cfg.SessionTTL,
+			IsSuperuserID:   cfg.IsSuperuserID,
+			StateCookiePath: auth.StateCookiePath(cfg.CallbackURL),
 		},
 	}
 
-	app := server.New(h, cfg.AllowedOrigins, cfg.TrustedProxies, events)
-	addr := ":" + cfg.Port
+	srv := &http.Server{
+		Addr:              ":" + cfg.Port,
+		Handler:           server.New(h, cfg.AllowedOrigins, cfg.TrustedProxies, events),
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       60 * time.Second,
+	}
 	events.LogAsync(logclient.Info, "OAuthManager started", map[string]any{"port": cfg.Port})
 
 	go func() {
-		log.Printf("oauth-manager listening on %s", addr)
-		// v3 moved DisableStartupMessage out of fiber.Config and into the
-		// per-listener config; the banner stays suppressed.
-		if err := app.Listen(addr, fiber.ListenConfig{DisableStartupMessage: true}); err != nil {
+		log.Printf("oauth-manager listening on %s", srv.Addr)
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Fatalf("listen: %v", err)
 		}
 	}()
@@ -101,13 +114,19 @@ func main() {
 	defer stop()
 	<-ctx.Done()
 	log.Println("shutting down")
-	shutdownLogCtx, cancelShutdownLog := context.WithTimeout(context.Background(), 2*time.Second)
-	if err := events.Log(shutdownLogCtx, logclient.Info, "OAuthManager stopping", nil); err != nil {
-		log.Printf("structured shutdown log: %v", err)
-	}
-	cancelShutdownLog()
-	if err := app.ShutdownWithTimeout(10 * time.Second); err != nil {
+	events.LogAsync(logclient.Info, "OAuthManager stopping", nil)
+	// In-flight requests get ten seconds to finish; new ones are refused.
+	shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancelShutdown()
+	if err := srv.Shutdown(shutdownCtx); err != nil {
 		log.Printf("shutdown: %v", err)
+	}
+	// The last request events are queued now; send what Grafana and PostHog
+	// still hold before the process exits.
+	flushCtx, cancelFlush := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelFlush()
+	if err := events.Close(flushCtx); err != nil {
+		log.Printf("log export flush: %v", err)
 	}
 }
 
@@ -116,13 +135,6 @@ func main() {
 // heartbeat.
 func prune(st *store.Store, events *logclient.Client) {
 	for {
-		if n, err := st.DeleteExpiredSessions(context.Background()); err != nil {
-			log.Printf("prune sessions: %v", err)
-			events.LogAsync(logclient.Error, "Session prune failed", map[string]any{"error": err.Error()})
-		} else if n > 0 {
-			log.Printf("pruned %d expired sessions", n)
-			events.LogAsync(logclient.Info, "Expired sessions pruned", map[string]any{"count": n})
-		}
 		if n, err := st.DeleteOldProductDailyKeys(context.Background()); err != nil {
 			log.Printf("prune product daily keys: %v", err)
 			events.LogAsync(logclient.Error, "Guest key prune failed", map[string]any{"error": err.Error()})
@@ -146,22 +158,6 @@ func connectDB(databaseURL string) (*store.Store, error) {
 			return nil, err
 		}
 		log.Printf("database not ready (attempt %d): %v; retrying in 3s", attempt, err)
-		time.Sleep(3 * time.Second)
-	}
-}
-
-func connectRedis(redisURL string, st *store.Store, ttl time.Duration) (*cache.Cache, error) {
-	const redisConnectTimeout = 2 * time.Minute
-	deadline := time.Now().Add(redisConnectTimeout)
-	for attempt := 1; ; attempt++ {
-		c, err := cache.New(context.Background(), redisURL, st, ttl)
-		if err == nil {
-			return c, nil
-		}
-		if time.Now().After(deadline) {
-			return nil, err
-		}
-		log.Printf("redis not ready (attempt %d): %v; retrying in 3s", attempt, err)
 		time.Sleep(3 * time.Second)
 	}
 }

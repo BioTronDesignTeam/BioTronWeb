@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/biotron-hand.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Status | BioTron</title>
+    <style>
+      html { background: #ffffff; }
+      html.dark { background: #070b0e; }
+    </style>
+    <script>
+      // Keep this bootstrap in HTML so the shared theme applies before React
+      // and prevents a white flash on dark-mode visits. It reads the
+      // biotron-theme cookie as theme.ts in @biotron/style does; the theme
+      // toggle writes it.
+      (function () {
+        try {
+          var match = document.cookie.match(/(?:^|;\s*)biotron-theme=(dark|light)(?:;|$)/)
+          var dark = match !== null && match[1] === 'dark'
+          var root = document.documentElement
+          root.classList.toggle('dark', dark)
+          root.style.colorScheme = dark ? 'dark' : 'light'
+          root.style.backgroundColor = dark ? '#070b0e' : '#ffffff'
+        } catch (e) {}
+      })()
+    </script>
+
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
