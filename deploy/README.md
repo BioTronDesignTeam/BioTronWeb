@@ -284,8 +284,9 @@ host: without its `ENCRYPTION_KEY` nothing in Infisical can be read again.
    staging's responses carry `X-Robots-Tag`.
 
 A fresh Postgres creates `sprinter_reader` on its first start but cannot grant
-it Auth's tables, which do not exist yet. After the first deploy of an
-instance, run the grant script once more:
+it Logger's and Auth's tables, which do not exist yet. After the first deploy
+of an instance, and after a deploy that changes the script, run the grant
+script once more:
 
 ```sh
 cd / && sudo docker compose -p biotron-prod exec -T postgres bash < /opt/biotron/prod/infra/postgres/init/10-sprinter-reader.sh

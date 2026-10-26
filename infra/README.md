@@ -304,14 +304,15 @@ The Postgres container already has `SPRINTER_READER_PASSWORD` in its
 environment. For a named instance on a host, add `-p biotron-<instance>` and
 use the copy in `/opt/biotron/<instance>/infra/postgres/init/`.
 
-Rerun this command after Auth's first migration on a fresh cluster. At init
-time the `oauth` schema has no tables yet, so the script's oauth grants have
-nothing to grant; rerunning it once Auth has created its tables picks them up.
+Rerun this command after Logger's and Auth's first migrations on a fresh
+cluster. At init time neither schema has tables yet, so the script's grants
+have nothing to grant; rerunning it once the apps have created their tables
+picks them up. Rerun it on an existing cluster too after the script changes:
+it revokes the schema-wide `logger` grant that earlier versions gave.
 
-`logger` gets its grants through `ALTER DEFAULT PRIVILEGES`, so every table
-Logger adds later is readable automatically. `oauth` gets explicit grants on
-named tables only (`operators`, `apps`, `permissions`, `grants`) and never on
-`sessions` or `guest_keys` — `guest_keys` holds the daily Exo guest key in
+Both schemas get explicit grants on named tables only, with no default
+privileges: `logger.health_checks`, and in `oauth` `operators`, `apps`,
+`permissions`, and `grants`, never `sessions` or `guest_keys` — `guest_keys` holds the daily Exo guest key in
 plaintext, so it must never be readable outside Auth.
 
 ## Releases
