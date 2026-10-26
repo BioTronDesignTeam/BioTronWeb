@@ -51,14 +51,12 @@ The backend defaults to port 8080, which Auth uses, so pass `PORT=8081`.
 ## Environment
 
 One file, `apps/exogui/.env`, feeds Compose, the backend, and the frontend. Do not add environment files below it. The backend reads `PORT`,
-`FRONTEND_URL`, `TRUSTED_PROXIES`, and `OAUTH_MANAGER_URL` in
+`FRONTEND_URL`, and `OAUTH_MANAGER_URL` in
 `backend/internal/config`. The shared `go/logclient` reads `LOG_LEVEL`
 and the optional Grafana and PostHog variables listed in
 `go/logclient/README.md`.
 
 - `FRONTEND_URL` is the one CORS origin.
-- `TRUSTED_PROXIES` must include the edge Nginx network. The API reads
-  `Cf-Connecting-Ip` only from a trusted proxy.
 - `OAUTH_MANAGER_URL` unset or unreachable: every gated route answers `503`.
 
 `VITE_API_URL` and `VITE_AUTH_URL` are compiled into the frontend bundle;

@@ -53,7 +53,7 @@ func run() error {
 		log.Println("warning: OAUTH_MANAGER_URL unset — every permission-gated route will refuse")
 		events.LogAsync(logclient.Warning, "Authorization not configured", nil)
 	}
-	handler := server.New(cfg.FrontendURL, cfg.TrustedProxies, events, authz)
+	handler := server.New(cfg.FrontendURL, events, authz)
 	addr := ":" + cfg.Port
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -81,9 +81,9 @@ func run() error {
 	return nil
 }
 
-// newHTTPServer carries the timeouts the Fiber app had. There is no write
-// timeout, as there was none before: a live telemetry stream must be able to
-// outlast any fixed deadline.
+// newHTTPServer bounds how long a client may take to send a request and how
+// long an idle connection stays open. There is no write timeout: a live
+// telemetry stream must be able to outlast any fixed deadline.
 func newHTTPServer(handler http.Handler) *http.Server {
 	return &http.Server{
 		Handler:           handler,

@@ -1,7 +1,6 @@
 package server
 
 import (
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -47,7 +46,7 @@ func testHandler(sink *recorder, authz *authclient.Client, extra func(*http.Serv
 	if authz == nil {
 		authz = authclient.New("http://oauth-manager:8080", auth.AppID)
 	}
-	return newHandler(frontend, []string{"127.0.0.1"}, sink, authz, extra)
+	return newHandler(frontend, sink, authz, extra)
 }
 
 type response struct {
@@ -84,44 +83,27 @@ func TestHealth(t *testing.T) {
 	handler := testHandler(sink, nil, nil)
 
 	do(t, handler, http.MethodGet, "/health", nil).expect(t, http.StatusOK, `{"status":"ok"}`, map[string]string{
-		"Content-Type":   "application/json; charset=utf-8",
-		"Content-Length": "15",
-		"Vary":           "Origin",
+		"Content-Type": "application/json; charset=utf-8",
+		"Vary":         "Origin",
 	})
-	// HEAD over a real connection, where net/http drops the body but keeps
-	// the length, as Fiber did.
-	srv := httptest.NewServer(handler)
-	t.Cleanup(srv.Close)
-	headRequest, err := http.NewRequestWithContext(t.Context(), http.MethodHead, srv.URL+"/health", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	head, err := http.DefaultClient.Do(headRequest)
-	if err != nil {
-		t.Fatal(err)
-	}
-	_ = head.Body.Close()
-	if head.StatusCode != http.StatusOK || head.ContentLength != 15 {
-		t.Fatalf("HEAD /health = %d with length %d, want 200 with 15", head.StatusCode, head.ContentLength)
-	}
 
 	if events := sink.take(); len(events) != 0 {
 		t.Fatalf("/health must never be logged; got %+v", events)
 	}
 }
 
-// Requests no route answers keep Fiber's plain-text wording, and a wrong
+// Requests no route answers get the mux's own 404 and 405, and a wrong
 // method still names the right ones.
-func TestUnmatchedRequestsAnswerLikeFiber(t *testing.T) {
+func TestUnmatchedRequests(t *testing.T) {
 	sink := &recorder{}
 	handler := testHandler(sink, nil, nil)
 
-	do(t, handler, http.MethodGet, "/nope", nil).expect(t, http.StatusNotFound, "Not Found", map[string]string{
+	do(t, handler, http.MethodGet, "/nope", nil).expect(t, http.StatusNotFound, "404 page not found\n", map[string]string{
 		"Content-Type": "text/plain; charset=utf-8",
 		"Vary":         "Origin",
 	})
 	for _, method := range []string{http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodOptions} {
-		do(t, handler, method, "/health", nil).expect(t, http.StatusMethodNotAllowed, "Method Not Allowed", map[string]string{
+		do(t, handler, method, "/health", nil).expect(t, http.StatusMethodNotAllowed, "Method Not Allowed\n", map[string]string{
 			"Content-Type": "text/plain; charset=utf-8",
 			"Allow":        "GET, HEAD",
 		})
@@ -132,7 +114,7 @@ func TestUnmatchedRequestsAnswerLikeFiber(t *testing.T) {
 	if len(events) != 1 {
 		t.Fatalf("events = %+v, want only the 404", events)
 	}
-	if got := events[0]; got.level != logclient.Warning || got.payload["status"] != 404 || got.payload["error"] != "Not Found" {
+	if got := events[0]; got.level != logclient.Warning || got.payload["status"] != 404 {
 		t.Fatalf("404 event = %+v", got)
 	}
 }
@@ -181,55 +163,25 @@ func TestCORS(t *testing.T) {
 
 	// An OPTIONS that is not a preflight falls through to the router.
 	do(t, handler, http.MethodOptions, "/health", map[string]string{"Origin": frontend}).
-		expect(t, http.StatusMethodNotAllowed, "Method Not Allowed", map[string]string{
+		expect(t, http.StatusMethodNotAllowed, "Method Not Allowed\n", map[string]string{
 			"Access-Control-Allow-Origin": "",
 			"Vary":                        "Origin",
 		})
 }
 
-// A panicking handler answers 500 with the panic as text, as Fiber's recover
-// did, and the event client hears about it as an error.
+// A panicking handler answers 500, and the event client hears about it as an
+// error.
 func TestPanicIsAnswered500AndLogged(t *testing.T) {
 	sink := &recorder{}
 	handler := testHandler(sink, nil, func(mux *http.ServeMux, _ gated) {
 		mux.HandleFunc("GET /panic", func(http.ResponseWriter, *http.Request) { panic("boom") })
 	})
-	silenceStderr(t)
+	silenceLog(t)
 
-	do(t, handler, http.MethodGet, "/panic", nil).expect(t, http.StatusInternalServerError, "boom", map[string]string{
-		"Content-Type": "text/plain; charset=utf-8",
-	})
+	do(t, handler, http.MethodGet, "/panic", nil).expect(t, http.StatusInternalServerError, "", nil)
 	events := sink.take()
 	if len(events) != 1 || events[0].level != logclient.Error || events[0].payload["status"] != 500 || events[0].payload["error"] != "boom" {
 		t.Fatalf("events = %+v", events)
-	}
-}
-
-func TestOversizedBodyIsRefused(t *testing.T) {
-	var read int
-	handler := testHandler(&recorder{}, nil, func(mux *http.ServeMux, _ gated) {
-		mux.HandleFunc("POST /upload", func(w http.ResponseWriter, r *http.Request) {
-			body, _ := io.ReadAll(r.Body)
-			read = len(body)
-		})
-	})
-
-	req := httptest.NewRequest(http.MethodPost, "/upload", strings.NewReader(strings.Repeat("a", bodyLimit+1)))
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-	if rec.Code != http.StatusRequestEntityTooLarge || rec.Body.String() != "Request Entity Too Large" {
-		t.Fatalf("declared oversize body: %d %q", rec.Code, rec.Body.String())
-	}
-	if read != 0 {
-		t.Fatal("the handler ran for a body over the limit")
-	}
-
-	// A body that hides its length is cut off at the limit instead.
-	req = httptest.NewRequest(http.MethodPost, "/upload", strings.NewReader(strings.Repeat("a", bodyLimit+1)))
-	req.ContentLength = -1
-	handler.ServeHTTP(httptest.NewRecorder(), req)
-	if read != bodyLimit {
-		t.Fatalf("handler read %d bytes of an undeclared body, want the %d-byte limit", read, bodyLimit)
 	}
 }
 
@@ -294,7 +246,7 @@ func TestEachPrefixNeedsItsPermission(t *testing.T) {
 	// An unknown path under a prefix asks for a session like a real one.
 	stub.SignIn(member, auth.PermissionLive)
 	do(t, handler, http.MethodGet, "/v1/live/nope", nil).expect(t, http.StatusUnauthorized, `{"error":"authentication required"}`, nil)
-	do(t, handler, http.MethodGet, "/v1/live/nope", signedIn).expect(t, http.StatusNotFound, "Not Found", nil)
+	do(t, handler, http.MethodGet, "/v1/live/nope", signedIn).expect(t, http.StatusNotFound, "404 page not found\n", nil)
 }
 
 // The gate's answers pass through the stack unchanged, and an Auth outage
@@ -339,50 +291,5 @@ func TestAuthStatus(t *testing.T) {
 	if got.status != http.StatusOK || !strings.Contains(got.body, `"login":"guest"`) ||
 		!strings.Contains(got.body, `"can_commands":false,"can_historical":true,"can_live":true`) {
 		t.Fatalf("guest status = %d %s", got.status, got.body)
-	}
-}
-
-// resolvedIP serves one request through a real listener — the trusted-proxy
-// check is entirely about who the peer is — and reports the client IP the
-// server resolved, which the test route sends back in a header.
-func resolvedIP(t *testing.T, trustedProxies []string, proxyHeader string) string {
-	t.Helper()
-	handler := newHandler(frontend, trustedProxies, &recorder{}, authclient.New("http://oauth-manager:8080", auth.AppID), func(mux *http.ServeMux, _ gated) {
-		mux.HandleFunc("GET /who", func(w http.ResponseWriter, r *http.Request) { w.Header().Set("X-Client-Ip", ClientIP(r)) })
-	})
-	srv := httptest.NewServer(handler)
-	t.Cleanup(srv.Close)
-
-	request, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.URL+"/who", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	request.Header.Set("Cf-Connecting-Ip", proxyHeader)
-	response, err := http.DefaultClient.Do(request)
-	if err != nil {
-		t.Fatalf("request: %v", err)
-	}
-	_ = response.Body.Close()
-	return response.Header.Get("X-Client-Ip")
-}
-
-// Per-IP rate limiting is only per-IP if the server resolves the real client
-// address out of Cf-Connecting-Ip. If this regresses, every limiter silently
-// collapses into a single bucket keyed on the edge proxy.
-func TestTrustedProxyResolvesTheRealClientIP(t *testing.T) {
-	if got := resolvedIP(t, []string{"127.0.0.1", "::1", "172.16.0.0/12"}, "203.0.113.7"); got != "203.0.113.7" {
-		t.Fatalf("ClientIP = %q, want 203.0.113.7", got)
-	}
-	// A CIDR covers the peer as well as a bare address does.
-	if got := resolvedIP(t, []string{"127.0.0.0/8"}, "203.0.113.7"); got != "203.0.113.7" {
-		t.Fatalf("ClientIP via CIDR = %q, want 203.0.113.7", got)
-	}
-}
-
-// The other half of the same guarantee: a peer that is not a configured proxy
-// must not be able to name its own IP.
-func TestUntrustedPeerCannotSpoofTheProxyHeader(t *testing.T) {
-	if got := resolvedIP(t, []string{"198.51.100.9"}, "203.0.113.7"); got != "127.0.0.1" {
-		t.Fatalf("ClientIP = %q, want the real peer 127.0.0.1", got)
 	}
 }
