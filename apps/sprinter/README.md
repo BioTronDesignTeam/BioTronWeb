@@ -212,7 +212,7 @@ that automation for the tick; it is never read as "nothing is scheduled".
 | Method | Path | Notes |
 |--------|------|-------|
 | GET | `/health` | `503` when the database is down. Reports `discord_enabled` and `discord_connected`. |
-| GET | `/v1/auth/status` | `operator` and `can_admin` for the cookie sent, and `discord_enabled` |
+| GET | `/v1/auth/status` | `operator` and `can_admin` for the cookie sent, `permissions` by name, and `discord_enabled` |
 | GET | `/v1/admin/guards` | every guard |
 | GET | `/v1/admin/guards/:subject` | one guard |
 | PUT | `/v1/admin/guards/:subject` | writes the whole guard |
@@ -227,9 +227,9 @@ that automation for the tick; it is never read as "nothing is scheduled".
 two are the command names.
 
 Every `/v1/admin` route needs an operator whose Auth session holds
-`sprinter/admin`. The API forwards the cookie to Auth's `/auth/me` and
-`/v1/check`. It reads both so the log can name the operator behind a
-change. No cookie answers `401`, a session without the permission `403`,
+`sprinter/admin`. Through `go/authclient`, the API forwards the cookie to
+Auth's `/v1/session`, which names the operator and their permission in one
+call, so the log can name the operator behind a change. No cookie answers `401`, a session without the permission `403`,
 an unreachable Auth `503` — never a pass. Every mutating request must
 carry `X-Requested-With: XMLHttpRequest`, which blocks cross-site form
 posts.

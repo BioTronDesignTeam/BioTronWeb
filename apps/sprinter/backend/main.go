@@ -12,9 +12,9 @@ import (
 
 	"github.com/joho/godotenv"
 
+	"github.com/BioTronDesignTeam/BioTronWeb/go/authclient"
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
 	"github.com/BioTronDesignTeam/Sprinter/backend/internal/agent"
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/auth"
 	"github.com/BioTronDesignTeam/Sprinter/backend/internal/calendar"
 	"github.com/BioTronDesignTeam/Sprinter/backend/internal/config"
 	"github.com/BioTronDesignTeam/Sprinter/backend/internal/discord"
@@ -139,13 +139,13 @@ func run() error {
 		})
 	}
 
-	authClient := auth.NewClient(cfg.OAuthManagerURL)
+	authClient := authclient.New(cfg.OAuthManagerURL, server.AppID)
 	httpServer := &http.Server{
 		Addr:    ":" + cfg.Port,
 		Handler: server.New(cfg, sprinterStore, authClient, events, bot.Connected),
 		// ReadTimeout covers a slow body as well as slow headers. The
-		// WriteTimeout leaves room for the two Auth calls an admin request
-		// makes, each bounded at five seconds.
+		// WriteTimeout leaves room for the Auth call an admin request makes,
+		// bounded at five seconds.
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      30 * time.Second,
