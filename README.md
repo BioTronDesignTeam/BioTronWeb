@@ -9,7 +9,7 @@ where the platform is developed now; the separate repositories are frozen.
 
 | Path | What | Was |
 |---|---|---|
-| `apps/site` | Public team website (React, Three.js) | `Biotron-Site` |
+| `apps/biotron` | Public team website (React, Three.js) | `Biotron-Site` |
 | `apps/calendar` | Public calendars and feeds (Go API, React UI, Prisma) | `BiotronCalendar` |
 | `apps/status` | Public status page and health monitor | `Logger` |
 | `apps/auth` | GitHub OAuth, sessions, per-tool permissions | `OAuthManager` |

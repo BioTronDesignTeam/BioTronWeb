@@ -10,9 +10,9 @@ include:
   - path: infra/docker-compose.yml
     project_directory: infra
     env_file: ${INFRA_ENV_FILE:-/dev/null}
-  - path: apps/site/docker-compose.yml
-    project_directory: apps/site
-    env_file: ${SITE_ENV_FILE:-/dev/null}
+  - path: apps/biotron/docker-compose.yml
+    project_directory: apps/biotron
+    env_file: ${BIOTRON_ENV_FILE:-/dev/null}
   - path: apps/calendar/docker-compose.yml
     project_directory: apps/calendar
     env_file: ${CALENDAR_ENV_FILE:-/dev/null}

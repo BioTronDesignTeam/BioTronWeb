@@ -67,8 +67,8 @@ jobs:
               - 'go/**'
               - '.golangci.yml'
               - '.devcontainer/Dockerfile'
-            site:
-              - 'apps/site/**'
+            biotron:
+              - 'apps/biotron/**'
             calendar:
               - 'apps/calendar/**'
             status:
@@ -84,7 +84,7 @@ jobs:
         env:
           CHANGED: ${{ steps.filter.outputs.changes }}
         run: |
-          all='["site","calendar","status","auth","exogui","sprinter"]'
+          all='["biotron","calendar","status","auth","exogui","sprinter"]'
           with_backend='["calendar","status","auth","exogui","sprinter"]'
           changed_apps=$(jq -c --argjson all "$all" '[.[] | select(. as $x | $all | index($x) != null)]' <<<"$CHANGED")
           if jq -e 'index("style") != null' <<<"$CHANGED" >/dev/null; then

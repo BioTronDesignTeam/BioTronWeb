@@ -10,7 +10,7 @@ misconfigurations:
       change; not blocking merges until then. The edge Nginx runs read-only
       with no-new-privileges and is the only container on the public network.
     paths:
-      - apps/site/frontend/Dockerfile
+      - apps/biotron/frontend/Dockerfile
       - apps/calendar/frontend/Dockerfile
       - apps/status/frontend/Dockerfile
       - apps/auth/frontend/Dockerfile

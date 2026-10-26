@@ -12,7 +12,7 @@ server {
     ${ROBOTS}
 
     location / {
-        set $frontend http://${INSTANCE}-site-web:80;
+        set $frontend http://${INSTANCE}-biotron-web:80;
         proxy_pass $frontend;
         include /etc/nginx/snippets/proxy-headers.conf;
     }

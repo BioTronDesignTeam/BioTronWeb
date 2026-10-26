@@ -13,7 +13,7 @@ Local development can use untracked `.env` files.
 
 | Path | What | Old repository name |
 |---|---|---|
-| `apps/site` | Public team website | `Biotron-Site` |
+| `apps/biotron` | Public team website | `Biotron-Site` |
 | `apps/calendar` | Public calendars and feeds | `BiotronCalendar` |
 | `apps/status` | Public status page and health monitor | `Logger` |
 | `apps/auth` | GitHub OAuth, sessions, permissions | `OAuthManager` |
@@ -176,7 +176,7 @@ writing the words again, and keep docs that quote the UI in step.
 - **`@types/node` stays on the 24.x line.** It matches the Node 24 runtime.
   Newer types would declare APIs that do not exist at runtime.
 - **The Instagram icon is drawn locally** in
-  `apps/site/frontend/src/components/InstagramIcon.tsx`. `lucide-react` 1.x
+  `apps/biotron/frontend/src/components/InstagramIcon.tsx`. `lucide-react` 1.x
   removed every brand icon, so there is nothing to import.
 - **Proxy trust** is an explicit `TRUSTED_PROXIES` list of addresses and CIDRs.
   A backend reads `Cf-Connecting-Ip` only from a peer on that list. Do not widen
@@ -260,7 +260,7 @@ writing the words again, and keep docs that quote the UI in step.
 ## Public site
 
 - Every page and its title and description live in
-  `apps/site/frontend/src/data/seo.ts`. The build writes an HTML file, the
+  `apps/biotron/frontend/src/data/seo.ts`. The build writes an HTML file, the
   sitemap, `robots.txt`, and `llms.txt` from that list, and Nginx answers 404
   for any path with no file. A new route that is missing from the list returns
   404 in production. See `docs/site-seo.md`.

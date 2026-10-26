@@ -62,7 +62,7 @@ trap 'exit 143' TERM
   git ls-files --others --exclude-standard -z
 } > "$scratch/changed"
 
-apps='site calendar status auth exogui sprinter'
+apps='biotron calendar status auth exogui sprinter'
 frontends='' backends='' touched='' all_frontends=$all all_backends=$all
 while IFS= read -r -d '' file; do
   case "$file" in
@@ -74,7 +74,7 @@ while IFS= read -r -d '' file; do
 done < "$scratch/changed"
 for app in $apps; do
   if $all_frontends || [[ " $touched " == *" $app "* ]]; then frontends="${frontends:+$frontends }$app"; fi
-  if [[ $app != site ]] && { $all_backends || [[ " $touched " == *" $app "* ]]; }; then backends="${backends:+$backends }$app"; fi
+  if [[ $app != biotron ]] && { $all_backends || [[ " $touched " == *" $app "* ]]; }; then backends="${backends:+$backends }$app"; fi
 done
 shared=no
 if $all_backends; then shared=yes; fi

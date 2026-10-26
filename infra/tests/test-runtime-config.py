@@ -11,7 +11,7 @@ import unittest
 from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[2]
-APPS = ('auth', 'calendar', 'exogui', 'status', 'site', 'sprinter')
+APPS = ('auth', 'calendar', 'exogui', 'status', 'biotron', 'sprinter')
 # The apps that own a database schema, each with its own DATABASE_URL.
 DATABASE_APPS = ('auth', 'calendar', 'status', 'sprinter')
 
@@ -115,9 +115,9 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertIn('exogui-api', result.stdout)
 
     def test_excluded_apps_do_not_need_secrets(self):
-        args = [f'--no-{app}' for app in APPS if app != 'site']
+        args = [f'--no-{app}' for app in APPS if app != 'biotron']
         result = self.run_command('./launch', 'web', '--runtime', '--dry-run', *args)
-        self.assertIn('site-web', result.stdout)
+        self.assertIn('biotron-web', result.stdout)
         self.assertNotIn('auth-api', result.stdout)
 
     def test_local_files_work_and_runtime_ignores_them(self):
@@ -160,7 +160,7 @@ class RuntimeConfigTests(unittest.TestCase):
         self.run_command('./launch', 'edge', '--dry-run', success=False)
 
     def test_apps_carry_instance_qualified_aliases_for_the_edge(self):
-        edge_targets = {'site-web', 'calendar-api', 'calendar-web', 'oauth-manager',
+        edge_targets = {'biotron-web', 'calendar-api', 'calendar-web', 'oauth-manager',
                         'oauth-web', 'exogui-api', 'exogui-web', 'status-api', 'status-web',
                         'sprinter', 'sprinter-web'}
         for instance in (None, 'staging'):

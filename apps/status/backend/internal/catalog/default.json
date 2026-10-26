@@ -4,7 +4,7 @@
     "name": "BioTron Site",
     "description": "Public team website",
     "components": [
-      { "id": "site-web", "name": "Website", "health_url": "http://site-web/" }
+      { "id": "site-web", "name": "Website", "health_url": "http://biotron-web/" }
     ]
   },
   {

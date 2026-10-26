@@ -112,7 +112,7 @@ Each Go service that calls `NewFromEnv` must pass these through, beside its
 | `apps/status/docker-compose.yml` | `status-api` |
 | `apps/sprinter/docker-compose.yml` | `sprinter-bot` |
 
-`apps/site` has no Go service. Add the same names,
+`apps/biotron` has no Go service. Add the same names,
 empty, to each of those apps' `.env.example`.
 
 ## Tests

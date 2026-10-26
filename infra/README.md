@@ -33,7 +33,7 @@ An instance is one Compose project holding its Postgres and six apps:
 no host ports.
 
 - Inside an instance's network the services keep their plain aliases:
-  `postgres`, `oauth-manager`, `status-api`, `calendar-api`, `site-web`,
+  `postgres`, `oauth-manager`, `status-api`, `calendar-api`, `biotron-web`,
   and so on. Apps reach each other and their database by
   these names, and cannot see any other instance.
 - Every web and API service also carries an instance-qualified alias, such as
@@ -60,7 +60,7 @@ When Nginx starts, `nginx/docker-entrypoint.d/40-biotron-sites.sh` renders
 
 | Hostname | Frontend | `/api/` backend |
 |----------|----------|------------------|
-| `uwbiotron.ca` | `prod-site-web:80` | none |
+| `uwbiotron.ca` | `prod-biotron-web:80` | none |
 | `calendar.uwbiotron.ca` | `prod-calendar-web:80` | `prod-calendar-api:8080` |
 | `auth.uwbiotron.ca` | `prod-oauth-web:80` | `prod-oauth-manager:8080` |
 | `exogui.uwbiotron.ca` | `prod-exogui-web:80` | `prod-exogui-api:8080` |

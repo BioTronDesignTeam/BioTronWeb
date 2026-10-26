@@ -16,8 +16,9 @@ browsers without WebGL, and reduced-motion visitors get the same content as
 a stacked page instead. The 3D models are procedural placeholders;
 `frontend/public/models/README.md` says how to replace them with GLB files.
 
-This app was the `Biotron-Site` repository. The Compose project is still
-`biotron-site`. The edge Nginx in `infra/` proxies to the alias `site-web`.
+This app was the `Biotron-Site` repository, then `apps/site`. Its Compose project is
+`biotron-biotron` when it runs alone. The edge Nginx in `infra/` proxies to the
+alias `biotron-web`.
 
 ## Layout
 
@@ -31,7 +32,7 @@ This app was the `Biotron-Site` repository. The Compose project is still
 | `frontend/src/data/` | Projects, past projects, sub-teams, stats, contact, sponsors. |
 | `frontend/src/styles/` | `tokens.css`, `globals.css`, `ui.css`. |
 | `frontend/public/models/` | Where GLB models go. Its README explains the swap. |
-| `docker-compose.yml` | `site-web` on the `biotron` network. |
+| `docker-compose.yml` | `biotron-web` on the `biotron` network. |
 | `.env.example` | Every variable the app reads. Copy it to `.env`. |
 
 ## Run
@@ -41,8 +42,8 @@ exists. Then the site:
 
 ```bash
 docker compose -f infra/docker-compose.yml --env-file infra/.env up -d
-cp apps/site/.env.example apps/site/.env
-docker compose up -d --build site-web
+cp apps/biotron/.env.example apps/biotron/.env
+docker compose up -d --build biotron-web
 ```
 
 The site is at http://localhost:5177, bound to `127.0.0.1`. The image builds
@@ -56,8 +57,8 @@ Open the monorepo in its devcontainer. It supplies Node 24, and its
 post-create step installs the workspaces and builds `@biotron/style`. Then:
 
 ```bash
-npm run dev -w apps/site/frontend      # http://localhost:5180
-npm run build -w apps/site/frontend    # tsc, then vite build
+npm run dev -w apps/biotron/frontend      # http://localhost:5180
+npm run build -w apps/biotron/frontend    # tsc, then vite build
 npm run lint                           # Oxlint, from the root
 ```
 
@@ -72,10 +73,10 @@ transform on both makes the first scrolled pixel jump.
 
 ## Environment
 
-One file, `apps/site/.env`, feeds Compose and Vite. `vite.config.ts` sets
+One file, `apps/biotron/.env`, feeds Compose and Vite. `vite.config.ts` sets
 `envDir` one folder up so that the dev server reads it too.
 
-- `WEB_PORT` is the host port of `site-web`. Default `5177`.
+- `WEB_PORT` is the host port of `biotron-web`. Default `5177`.
 - `VITE_CALENDAR_API_URL` is the Calendar API. The Calendar page fetches
   `/v1/events/upcoming?limit=5&days=42` from it, without credentials.
   Default `http://localhost:8083`.

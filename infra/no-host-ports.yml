@@ -6,7 +6,7 @@
 services:
   postgres:
     ports: !reset []
-  site-web:
+  biotron-web:
     ports: !reset []
   calendar-api:
     ports: !reset []

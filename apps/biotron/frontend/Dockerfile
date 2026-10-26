@@ -21,19 +21,19 @@ ENV VITE_GOOGLE_SITE_VERIFICATION=${VITE_GOOGLE_SITE_VERIFICATION}
 
 COPY package.json package-lock.json ./
 COPY packages/style/package.json packages/style/
-COPY apps/site/frontend/package.json apps/site/frontend/
-RUN npm ci --ignore-scripts --include-workspace-root --workspace packages/style --workspace apps/site/frontend
+COPY apps/biotron/frontend/package.json apps/biotron/frontend/
+RUN npm ci --ignore-scripts --include-workspace-root --workspace packages/style --workspace apps/biotron/frontend
 
 COPY packages/style packages/style
-COPY apps/site/frontend apps/site/frontend
-RUN npm run build -w packages/style && npm run build -w apps/site/frontend
+COPY apps/biotron/frontend apps/biotron/frontend
+RUN npm run build -w packages/style && npm run build -w apps/biotron/frontend
 
 FROM nginx:1.27-alpine
 
 COPY deploy/40-domain.sh /docker-entrypoint.d/40-domain.sh
 RUN chmod +x /docker-entrypoint.d/40-domain.sh
 
-COPY apps/site/frontend/nginx.conf /etc/nginx/conf.d/default.conf
-COPY --from=build /repo/apps/site/frontend/dist /usr/share/nginx/html
+COPY apps/biotron/frontend/nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /repo/apps/biotron/frontend/dist /usr/share/nginx/html
 
 EXPOSE 80
