@@ -19,7 +19,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/readstore/queries"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/readstore/queries"
 )
 
 // Timeout bounds one query. A tool call sits inside a Discord interaction, so

@@ -7,8 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/cache"
-	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/store"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/auth/backend/internal/cache"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/auth/backend/internal/store"
 )
 
 // /v1/session is /auth/me and /v1/check in one call. Calendar, Sprinter and

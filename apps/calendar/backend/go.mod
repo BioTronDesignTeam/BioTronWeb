@@ -1,4 +1,4 @@
-module github.com/BioTronDesignTeam/BiotronCalendar/backend
+module github.com/BioTronDesignTeam/BioTronWeb/apps/calendar/backend
 
 go 1.27.3
 

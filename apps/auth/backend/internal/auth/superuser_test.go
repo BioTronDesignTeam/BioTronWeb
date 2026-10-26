@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/cache"
-	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/store"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/auth/backend/internal/cache"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/auth/backend/internal/store"
 )
 
 // storedSuperuser is a store whose every operator row says is_superuser, as

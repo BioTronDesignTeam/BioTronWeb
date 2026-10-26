@@ -14,11 +14,11 @@ import (
 
 	"github.com/joho/godotenv"
 
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/exogui/backend/internal/auth"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/exogui/backend/internal/config"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/exogui/backend/internal/server"
 	"github.com/BioTronDesignTeam/BioTronWeb/go/authclient"
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
-	"github.com/BioTronDesignTeam/exo-gui/backend/internal/auth"
-	"github.com/BioTronDesignTeam/exo-gui/backend/internal/config"
-	"github.com/BioTronDesignTeam/exo-gui/backend/internal/server"
 )
 
 // shutdownTimeout is how long in-flight requests get to finish on SIGTERM.

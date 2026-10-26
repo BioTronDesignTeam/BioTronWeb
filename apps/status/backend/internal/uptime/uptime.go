@@ -15,7 +15,7 @@ import (
 	"math"
 	"time"
 
-	"github.com/BioTronDesignTeam/Logger/backend/internal/model"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/status/backend/internal/model"
 )
 
 // Window is a half-open interval [Start, End).

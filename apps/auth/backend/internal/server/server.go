@@ -4,10 +4,10 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/auth/backend/internal/auth"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/auth/backend/internal/httpx"
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient/httplog"
-	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/auth"
-	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/httpx"
 )
 
 type middleware = func(http.Handler) http.Handler

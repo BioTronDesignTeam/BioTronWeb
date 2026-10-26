@@ -8,11 +8,11 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/config"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/store"
 	"github.com/BioTronDesignTeam/BioTronWeb/go/authclient"
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient/httplog"
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/config"
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/store"
 )
 
 // AppID is Sprinter's application id in Auth. PermissionAdmin is the one

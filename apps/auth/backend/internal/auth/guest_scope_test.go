@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/store"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/auth/backend/internal/store"
 )
 
 func TestMeRequiresMatchingProductForGuest(t *testing.T) {

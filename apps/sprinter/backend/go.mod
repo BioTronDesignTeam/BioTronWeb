@@ -1,4 +1,4 @@
-module github.com/BioTronDesignTeam/Sprinter/backend
+module github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend
 
 go 1.27.3
 

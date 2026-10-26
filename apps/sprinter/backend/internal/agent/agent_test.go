@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/model"
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/model/fake"
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/tools"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/model"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/model/fake"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/tools"
 )
 
 // countingTool answers with a fixed string, or fails, and counts how often it

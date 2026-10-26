@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/calendar"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/model"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/store"
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/calendar"
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/model"
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/store"
 )
 
 // nudgeTimeLayout is the shorter local-time format a nudge uses, since it

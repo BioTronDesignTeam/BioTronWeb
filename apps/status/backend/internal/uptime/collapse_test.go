@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/BioTronDesignTeam/Logger/backend/internal/model"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/status/backend/internal/model"
 )
 
 // collapse is a faithful Go transcription of the row-emitting rule in

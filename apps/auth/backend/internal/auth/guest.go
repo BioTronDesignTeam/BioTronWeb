@@ -10,9 +10,9 @@ import (
 	"time"
 	_ "time/tzdata"
 
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/auth/backend/internal/httpx"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/auth/backend/internal/store"
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
-	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/httpx"
-	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/store"
 )
 
 // easternZone is Waterloo/Toronto local time (EDT/EST, DST-aware).

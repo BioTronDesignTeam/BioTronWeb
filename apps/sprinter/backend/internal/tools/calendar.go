@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/model"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/model"
 )
 
 const calendarCap = 4000

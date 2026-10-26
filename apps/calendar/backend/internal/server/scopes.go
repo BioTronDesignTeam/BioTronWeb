@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/model"
-	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/store"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/calendar/backend/internal/model"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/calendar/backend/internal/store"
 )
 
 func (h *Handler) listScopes(w http.ResponseWriter, r *http.Request) error {

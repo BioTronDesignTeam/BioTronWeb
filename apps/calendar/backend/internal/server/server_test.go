@@ -10,13 +10,13 @@ import (
 	"testing"
 	"time"
 
+	calendarlogic "github.com/BioTronDesignTeam/BioTronWeb/apps/calendar/backend/internal/calendar"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/calendar/backend/internal/config"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/calendar/backend/internal/model"
 	"github.com/BioTronDesignTeam/BioTronWeb/go/authclient"
 	"github.com/BioTronDesignTeam/BioTronWeb/go/authclient/authclienttest"
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient/logclienttest"
-	calendarlogic "github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/calendar"
-	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/config"
-	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/model"
 )
 
 func TestClampQueryClampsInsteadOfRejecting(t *testing.T) {

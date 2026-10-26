@@ -11,9 +11,9 @@ import (
 
 	"github.com/google/uuid"
 
-	calendarlogic "github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/calendar"
-	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/model"
-	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/store"
+	calendarlogic "github.com/BioTronDesignTeam/BioTronWeb/apps/calendar/backend/internal/calendar"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/calendar/backend/internal/model"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/calendar/backend/internal/store"
 )
 
 type eventInput struct {

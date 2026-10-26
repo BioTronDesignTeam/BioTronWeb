@@ -11,12 +11,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/config"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/store"
 	"github.com/BioTronDesignTeam/BioTronWeb/go/authclient"
 	"github.com/BioTronDesignTeam/BioTronWeb/go/authclient/authclienttest"
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient/logclienttest"
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/config"
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/store"
 )
 
 // authAs returns a client whose stand-in Auth signs every cookie in as

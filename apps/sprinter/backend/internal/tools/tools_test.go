@@ -8,7 +8,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/readstore"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/readstore"
 )
 
 // stubReader answers with fixed rows, so a test can drive a tool without a

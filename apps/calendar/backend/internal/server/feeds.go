@@ -9,8 +9,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/ical"
-	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/model"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/calendar/backend/internal/ical"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/calendar/backend/internal/model"
 )
 
 func (h *Handler) allFeed(w http.ResponseWriter, r *http.Request) error {

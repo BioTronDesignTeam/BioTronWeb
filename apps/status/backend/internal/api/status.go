@@ -12,9 +12,9 @@ import (
 	// America/Toronto rules used for daily buckets travel inside the binary.
 	_ "time/tzdata"
 
-	"github.com/BioTronDesignTeam/Logger/backend/internal/catalog"
-	"github.com/BioTronDesignTeam/Logger/backend/internal/model"
-	"github.com/BioTronDesignTeam/Logger/backend/internal/uptime"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/status/backend/internal/catalog"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/status/backend/internal/model"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/status/backend/internal/uptime"
 )
 
 // Status states shared by components, applications, and the overall roll-up.

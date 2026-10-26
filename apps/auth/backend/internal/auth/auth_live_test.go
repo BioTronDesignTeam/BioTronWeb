@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/cache"
-	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/store"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/auth/backend/internal/cache"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/auth/backend/internal/store"
 )
 
 // This walks one operator through a whole sign-in against a real PostgreSQL

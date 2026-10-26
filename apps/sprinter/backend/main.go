@@ -12,19 +12,19 @@ import (
 
 	"github.com/joho/godotenv"
 
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/agent"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/calendar"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/config"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/discord"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/model"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/model/gemini"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/readstore"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/scheduler"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/server"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/store"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/tools"
 	"github.com/BioTronDesignTeam/BioTronWeb/go/authclient"
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/agent"
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/calendar"
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/config"
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/discord"
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/model"
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/model/gemini"
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/readstore"
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/scheduler"
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/server"
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/store"
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/tools"
 )
 
 func main() {

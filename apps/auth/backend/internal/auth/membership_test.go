@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/cache"
-	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/store"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/auth/backend/internal/cache"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/auth/backend/internal/store"
 )
 
 // fakeGitHubMembers answers membership checks from a map and counts them;

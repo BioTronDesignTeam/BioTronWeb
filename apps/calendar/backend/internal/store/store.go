@@ -16,9 +16,9 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	calendarlogic "github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/calendar"
-	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/model"
-	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/store/queries"
+	calendarlogic "github.com/BioTronDesignTeam/BioTronWeb/apps/calendar/backend/internal/calendar"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/calendar/backend/internal/model"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/calendar/backend/internal/store/queries"
 )
 
 var (

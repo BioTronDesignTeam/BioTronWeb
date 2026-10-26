@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	calendarlogic "github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/calendar"
-	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/model"
+	calendarlogic "github.com/BioTronDesignTeam/BioTronWeb/apps/calendar/backend/internal/calendar"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/calendar/backend/internal/model"
 )
 
 // These exercise the store against a real PostgreSQL, because the two things

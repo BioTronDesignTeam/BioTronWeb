@@ -5,7 +5,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/store"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/store"
 )
 
 // --- Guards -----------------------------------------------------------------

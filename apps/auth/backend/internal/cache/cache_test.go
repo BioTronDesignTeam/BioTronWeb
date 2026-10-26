@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/store"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/auth/backend/internal/store"
 )
 
 // fakeSource counts loads and serves whatever the test last set.

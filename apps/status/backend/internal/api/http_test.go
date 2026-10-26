@@ -11,7 +11,7 @@ import (
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient/httplog"
 
-	"github.com/BioTronDesignTeam/Logger/backend/internal/catalog"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/status/backend/internal/catalog"
 )
 
 // These pin what the move from Fiber to net/http must not change: the shape

@@ -12,11 +12,11 @@ import (
 
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
 
-	"github.com/BioTronDesignTeam/Logger/backend/internal/api"
-	"github.com/BioTronDesignTeam/Logger/backend/internal/catalog"
-	"github.com/BioTronDesignTeam/Logger/backend/internal/config"
-	"github.com/BioTronDesignTeam/Logger/backend/internal/monitor"
-	"github.com/BioTronDesignTeam/Logger/backend/internal/store"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/status/backend/internal/api"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/status/backend/internal/catalog"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/status/backend/internal/config"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/status/backend/internal/monitor"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/status/backend/internal/store"
 )
 
 func main() {

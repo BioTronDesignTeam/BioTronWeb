@@ -5,9 +5,9 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/auth/backend/internal/httpx"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/auth/backend/internal/store"
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient/httplog"
-	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/httpx"
-	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/store"
 )
 
 type operatorKey struct{}

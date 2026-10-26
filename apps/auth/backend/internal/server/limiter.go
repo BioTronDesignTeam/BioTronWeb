@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/httpx"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/auth/backend/internal/httpx"
 )
 
 // limiter allows each client max requests per window. The window is fixed: it

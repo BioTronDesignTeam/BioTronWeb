@@ -12,8 +12,8 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/BioTronDesignTeam/Logger/backend/internal/model"
-	"github.com/BioTronDesignTeam/Logger/backend/internal/store/queries"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/status/backend/internal/model"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/status/backend/internal/store/queries"
 )
 
 var schemaPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)

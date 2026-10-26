@@ -1,4 +1,4 @@
-module github.com/BioTronDesignTeam/exo-gui/backend
+module github.com/BioTronDesignTeam/BioTronWeb/apps/exogui/backend
 
 go 1.27.3
 

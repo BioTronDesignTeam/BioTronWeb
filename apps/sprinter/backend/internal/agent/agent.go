@@ -18,8 +18,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/model"
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/tools"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/model"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/tools"
 )
 
 // The defaults. Eight turns is enough for "look, look again, answer" twice

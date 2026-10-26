@@ -3,7 +3,7 @@ package auth
 import (
 	"testing"
 
-	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/store"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/auth/backend/internal/store"
 )
 
 // A Handler built without an event client, as every test builds one, must still

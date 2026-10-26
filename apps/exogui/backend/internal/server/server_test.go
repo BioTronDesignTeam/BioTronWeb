@@ -8,10 +8,10 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/exogui/backend/internal/auth"
 	"github.com/BioTronDesignTeam/BioTronWeb/go/authclient"
 	"github.com/BioTronDesignTeam/BioTronWeb/go/authclient/authclienttest"
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
-	"github.com/BioTronDesignTeam/exo-gui/backend/internal/auth"
 )
 
 const frontend = "http://localhost:5174"

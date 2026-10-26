@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/model"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/calendar/backend/internal/model"
 )
 
 const (

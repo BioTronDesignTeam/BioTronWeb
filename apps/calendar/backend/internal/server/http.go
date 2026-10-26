@@ -12,8 +12,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/calendar/backend/internal/store"
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient/httplog"
-	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/store"
 )
 
 // bodyLimit is the largest request body the API reads.

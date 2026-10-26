@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/calendar/backend/internal/config"
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
-	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/config"
 )
 
 // routingApp is the real handler with no store behind it, enough for every

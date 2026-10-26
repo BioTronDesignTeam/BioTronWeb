@@ -12,11 +12,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/auth/backend/internal/cache"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/auth/backend/internal/httpx"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/auth/backend/internal/store"
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient/httplog"
-	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/cache"
-	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/httpx"
-	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/store"
 )
 
 const stateCookie = "oauth_state"

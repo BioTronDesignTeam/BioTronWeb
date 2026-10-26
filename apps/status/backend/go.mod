@@ -1,4 +1,4 @@
-module github.com/BioTronDesignTeam/Logger/backend
+module github.com/BioTronDesignTeam/BioTronWeb/apps/status/backend
 
 go 1.27.3
 

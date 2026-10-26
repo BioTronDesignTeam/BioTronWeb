@@ -3,9 +3,9 @@ package server
 import (
 	"net/http"
 
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/exogui/backend/internal/auth"
 	"github.com/BioTronDesignTeam/BioTronWeb/go/authclient"
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient/httplog"
-	"github.com/BioTronDesignTeam/exo-gui/backend/internal/auth"
 )
 
 // New builds Exo's HTTP handler. authz is the permission gate every data or

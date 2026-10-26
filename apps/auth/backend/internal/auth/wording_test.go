@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/store"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/auth/backend/internal/store"
 )
 
 // The Auth page shows these refusals as they are, so they read as sentences

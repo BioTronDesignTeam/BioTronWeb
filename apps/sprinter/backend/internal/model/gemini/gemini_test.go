@@ -10,8 +10,8 @@ import (
 
 	"google.golang.org/genai"
 
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/model"
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/tools"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/model"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/tools"
 )
 
 // These tests never reach the network. Everything that can be wrong without a

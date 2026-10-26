@@ -11,8 +11,8 @@ import (
 
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
 
-	"github.com/BioTronDesignTeam/Logger/backend/internal/catalog"
-	"github.com/BioTronDesignTeam/Logger/backend/internal/model"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/status/backend/internal/catalog"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/status/backend/internal/model"
 )
 
 type recordedEvent struct {

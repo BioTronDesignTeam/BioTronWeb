@@ -12,12 +12,12 @@ import (
 
 	"github.com/joho/godotenv"
 
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/auth/backend/internal/auth"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/auth/backend/internal/cache"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/auth/backend/internal/config"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/auth/backend/internal/server"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/auth/backend/internal/store"
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
-	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/auth"
-	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/cache"
-	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/config"
-	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/server"
-	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/store"
 )
 
 func main() {

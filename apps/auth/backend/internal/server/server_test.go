@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/auth"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/auth/backend/internal/auth"
 )
 
 // The move from Fiber to net/http rewrote every line of the wiring below.

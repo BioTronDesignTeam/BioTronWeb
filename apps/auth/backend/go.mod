@@ -1,4 +1,4 @@
-module github.com/BioTronDesignTeam/oauth-manager/backend
+module github.com/BioTronDesignTeam/BioTronWeb/apps/auth/backend
 
 go 1.27.3
 

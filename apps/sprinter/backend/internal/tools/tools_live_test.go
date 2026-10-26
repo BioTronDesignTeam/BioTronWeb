@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/readstore"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/readstore"
 )
 
 // The four SQL tools run end to end against the read-only role here, because a

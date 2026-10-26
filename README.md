@@ -30,7 +30,8 @@ Each app keeps its own `README.md`, `.env.example`, `docker-compose.yml`, and
   `"@biotron/style": "*"`, which npm links to `packages/style`.
 - **`go.work`** lists every backend and the shared modules under `go/`. Each
   backend keeps its own `go.mod`, so an image compiles only its own code, but locally everything
-  resolves together.
+  resolves together. Each module path is its folder under
+  `github.com/BioTronDesignTeam/BioTronWeb`, such as `.../apps/status/backend`.
 - **`docker-compose.yml`** is one instance of the platform: it includes
   `infra/docker-compose.yml` (Postgres) and every app, so an
   instance's data and apps are one Compose project. `./launch --instance
@@ -238,9 +239,5 @@ same ports as before.
 
 ## What is still to do
 
-- Go module paths still carry their old names
-  (`github.com/BioTronDesignTeam/Logger/backend` and so on). Renaming them
-  to `github.com/BioTronDesignTeam/BioTronWeb/apps/<app>/backend` is a
-  find-and-replace plus `go work sync`.
 - The React hook and effect findings Oxlint reports are warnings; each app
   should clear its own and the rules then return to errors.

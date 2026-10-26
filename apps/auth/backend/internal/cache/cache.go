@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/store"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/auth/backend/internal/store"
 )
 
 // TTL is the longest an operator's standing or grants are kept.

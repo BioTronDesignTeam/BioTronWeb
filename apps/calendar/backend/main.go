@@ -12,11 +12,11 @@ import (
 
 	"github.com/joho/godotenv"
 
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/calendar/backend/internal/config"
+	api "github.com/BioTronDesignTeam/BioTronWeb/apps/calendar/backend/internal/server"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/calendar/backend/internal/store"
 	"github.com/BioTronDesignTeam/BioTronWeb/go/authclient"
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
-	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/config"
-	api "github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/server"
-	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/store"
 )
 
 func main() {

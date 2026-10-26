@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/BioTronDesignTeam/Logger/backend/internal/model"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/status/backend/internal/model"
 )
 
 // These exercise the store against a real PostgreSQL, because what they pin,

@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/store/queries"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/store/queries"
 )
 
 // The nudge triggers and statuses, spelled as the enum values the migration

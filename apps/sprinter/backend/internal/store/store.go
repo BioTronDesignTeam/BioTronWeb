@@ -18,7 +18,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/store/queries"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/store/queries"
 )
 
 var (

@@ -5,11 +5,11 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/calendar/backend/internal/config"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/calendar/backend/internal/store"
 	"github.com/BioTronDesignTeam/BioTronWeb/go/authclient"
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient/httplog"
-	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/config"
-	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/store"
 )
 
 // AppID is Calendar's application id in Auth. PermissionWrite is the one

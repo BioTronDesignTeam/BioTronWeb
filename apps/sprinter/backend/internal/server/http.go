@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/store"
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient/httplog"
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/store"
 )
 
 // handlerFunc is a handler that may fail. Returning the error, rather than

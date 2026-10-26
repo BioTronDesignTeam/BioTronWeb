@@ -11,7 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/BioTronDesignTeam/oauth-manager/backend/internal/store/queries"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/auth/backend/internal/store/queries"
 )
 
 var ErrNotFound = errors.New("not found")
