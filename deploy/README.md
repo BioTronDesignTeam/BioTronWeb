@@ -128,8 +128,10 @@ No application secret lives in GitHub. Delete the old `SITE_ENV`,
 `INFRA_ENV`, and `CLOUDFLARE_TUNNEL_TOKEN` secrets and the `DEPLOY_DOMAIN`
 variable once the host runs from Infisical.
 
-Add a tag ruleset for `v*` so only release managers can create, move or
-delete release tags. A release tag is the production deploy button.
+Anyone with write access may push a `v*` tag: a release tag is the
+production deploy button, and making a release is part of learning the
+project. Production still deploys only a tag on a `main` commit that staging
+deployed, so a tag cannot ship untested code.
 
 Each Environment has its own Tailscale federated identity, with `auth_keys`
 write permission and its own tag: `tag:biotron-ci-staging` for `staging` and
