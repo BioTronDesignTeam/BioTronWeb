@@ -113,6 +113,21 @@ func TestLiveSignInThenGrantRevokeAndBan(t *testing.T) {
 		if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
 			t.Fatal(err)
 		}
+		// /v1/session must give the same verdict in the same request.
+		combined := get(h.Session, "/v1/session?app=calendar&permission=write", session)
+		var both struct {
+			Operator    struct{ Login string } `json:"operator"`
+			Permissions map[string]bool        `json:"permissions"`
+		}
+		if combined.Code != http.StatusOK {
+			t.Fatalf("session = %d", combined.Code)
+		}
+		if err := json.NewDecoder(combined.Body).Decode(&both); err != nil {
+			t.Fatal(err)
+		}
+		if both.Operator.Login != "octo" || both.Permissions["write"] != body.Allowed {
+			t.Fatalf("session = %+v, check allowed = %v", both, body.Allowed)
+		}
 		return body.Allowed
 	}
 
@@ -153,6 +168,9 @@ func TestLiveSignInThenGrantRevokeAndBan(t *testing.T) {
 	change(h.BanMember, http.MethodPost, "/org/members/42/ban", "")
 	if response := get(h.Me, "/auth/me", session); response.Code != http.StatusUnauthorized {
 		t.Fatalf("me after a ban = %d, want 401", response.Code)
+	}
+	if response := get(h.Session, "/v1/session?app=calendar&permission=write", session); response.Code != http.StatusUnauthorized {
+		t.Fatalf("session after a ban = %d, want 401", response.Code)
 	}
 	change(h.UnbanMember, http.MethodPost, "/org/members/42/unban", "")
 	if response := get(h.Me, "/auth/me", session); response.Code != http.StatusOK {

@@ -12,13 +12,14 @@ const (
 )
 
 // siblingRoutes are the requests the other tools' frontends make to Auth with
-// the session cookie: who is signed in, a permission check, sign-out, and
-// Exo's guest sign-in. Nothing else of Auth answers them, so script running
+// the session cookie: who is signed in, a permission check, both at once,
+// sign-out, and Exo's guest sign-in. Nothing else of Auth answers them, so script running
 // on a sibling hostname, such as through a flaw in one tool, can never grant,
 // ban, rotate a key, or read the roster with a staff member's cookie.
 var siblingRoutes = map[string]bool{
 	"GET /auth/me":      true,
 	"GET /v1/check":     true,
+	"GET /v1/session":   true,
 	"POST /auth/logout": true,
 	"POST /auth/guest":  true,
 }

@@ -53,6 +53,8 @@ func TestCheckAnswersUnauthorizedBeforeItValidatesParameters(t *testing.T) {
 	for _, target := range []string{
 		"/v1/check?app=calendar&permission=write",
 		"/v1/check",
+		"/v1/session?app=calendar&permission=write",
+		"/v1/session",
 	} {
 		response := serve(app, httptest.NewRequest(http.MethodGet, target, nil))
 		if response.Code != http.StatusUnauthorized {
@@ -171,7 +173,7 @@ func TestCORSAnswersOnlyListedOriginsAndKeepsCredentials(t *testing.T) {
 }
 
 // Another tool's frontend gets credentialed CORS only for what the tools
-// call: /auth/me, /v1/check, sign-out, and the guest sign-in. Script on a
+// call: /auth/me, /v1/check, /v1/session, sign-out, and the guest sign-in. Script on a
 // sibling hostname cannot read the roster or send a staff action with a staff
 // member's cookie; only Auth's own frontend can.
 func TestCORSLimitsSiblingOriginsToTheRoutesTheyCall(t *testing.T) {
@@ -182,6 +184,7 @@ func TestCORSLimitsSiblingOriginsToTheRoutesTheyCall(t *testing.T) {
 	}{
 		{allowedOrigin, http.MethodGet, "/auth/me", true},
 		{allowedOrigin, http.MethodGet, "/v1/check", true},
+		{allowedOrigin, http.MethodGet, "/v1/session", true},
 		{allowedOrigin, http.MethodPost, "/auth/logout", true},
 		{allowedOrigin, http.MethodPost, "/auth/guest", true},
 		{allowedOrigin, http.MethodGet, "/org/members", false},

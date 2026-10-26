@@ -68,7 +68,7 @@ Prisma. Do not add environment files below it.
 - `CORS_ORIGINS` must list each tool frontend as both `localhost` and
   `127.0.0.1`. Browsers treat them as different origins. These origins get
   credentialed CORS only for what the tools call: `GET /auth/me`,
-  `GET /v1/check`, `POST /auth/logout`, and `POST /auth/guest`. Every other
+  `GET /v1/check`, `GET /v1/session`, `POST /auth/logout`, and `POST /auth/guest`. Every other
   route, and every staff action, answers cross-origin only to
   `FRONTEND_URL`, Auth's own frontend. A tool that needs another route of
   Auth adds it to `siblingRoutes` in `backend/internal/server/cors.go`.
@@ -146,6 +146,7 @@ the organization.
 | POST | `/org/members/:id/ban`, `/unban` | staff | a ban refuses the member at once |
 | PATCH | `/org/members/:id/manager` | superuser | sets the manager flag, effective at once |
 | GET | `/v1/check?app=&permission=` | session | allow or deny |
+| GET | `/v1/session?app=&permission=` | session | current operator and a verdict per permission, in one call |
 
 Member means a signed-in operator who is not a guest; a guest gets `403`.
 Staff means a manager or a superuser. Every mutating route requires the
@@ -217,11 +218,19 @@ in but not permitted", so that a stricter middleware can be added later
 without sending anyone into a sign-in loop. A ban applies to the next
 check, which refuses.
 
+The gated backends ask `GET /v1/session?app=<id>&permission=<key>` instead,
+through `go/authclient`: one call that answers `/auth/me` and `/v1/check`
+together, so a session that ends between two calls can never read as an
+outage. It answers `401` as `/v1/check` does, `403` for a guest asking
+about a tool other than its own (as `/auth/me` does), and otherwise `200`
+with `{"operator": {...}, "permissions": {"<key>": true}}`. `permission` may
+repeat, up to 16 times, or be left out to get the operator alone.
+
 ### Events
 
 Auth reports to Grafana and PostHog as `oauth-manager`, through
 `go/logclient`. Every completed request is one event. `/health` is never
-logged, and `/v1/check` and `/auth/me` are logged only when they fail,
+logged, and `/v1/check`, `/v1/session`, and `/auth/me` are logged only when they fail,
 because every page polls them. A request made with a session names its
 operator as `actor`.
 

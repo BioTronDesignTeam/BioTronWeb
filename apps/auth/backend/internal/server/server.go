@@ -47,6 +47,7 @@ func New(h *auth.Handler, allowedOrigins []string, trustedProxies []string, even
 
 	mux.Handle("GET /me/grants", chain(h.MyGrants, h.RequireSession, h.RequireNotGuest))
 	mux.Handle("GET /v1/check", chain(h.Check, h.RequireSession))
+	mux.Handle("GET /v1/session", chain(h.Session, h.RequireSession))
 
 	mux.Handle("POST /grants", chain(h.CreateGrant, h.RequireXHR, h.RequireSession, h.RequireStaff))
 	mux.Handle("DELETE /grants", chain(h.DeleteGrant, h.RequireXHR, h.RequireSession, h.RequireStaff))
@@ -64,10 +65,10 @@ func New(h *auth.Handler, allowedOrigins []string, trustedProxies []string, even
 	mux.Handle("PATCH /org/members/{id}/manager", org(h.SetManager, h.RequireXHR, h.RequireSuperuser))
 
 	// httplog outermost, so the status it logs is the one the client got and
-	// a panic anywhere inside is logged as the 500 it became. The two quiet
-	// paths are polled by every tool on every page load. They are logged only
-	// when they fail, so the log stays a record of what happened rather than
-	// a tally of who is still signed in.
-	logged := httplog.New(events, httplog.Options{Quiet: []string{"/v1/check", "/auth/me"}})
+	// a panic anywhere inside is logged as the 500 it became. The quiet paths
+	// are polled by every tool on every page load. They are logged only when
+	// they fail, so the log stays a record of what happened rather than a
+	// tally of who is still signed in.
+	logged := httplog.New(events, httplog.Options{Quiet: []string{"/v1/check", "/v1/session", "/auth/me"}})
 	return logged(cors(h.Cfg.FrontendURL, allowedOrigins)(mux))
 }
