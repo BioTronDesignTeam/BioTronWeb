@@ -187,7 +187,7 @@ func TestWhoHasAccessNamesManagersAndSuperusersSeparately(t *testing.T) {
 		AppID: "sprinter", AppName: "Sprinter", AppFound: true,
 		Permissions: []readstore.PermissionRow{{Key: "admin", Label: "Administer Sprinter"}},
 		Grants: []readstore.GrantRow{
-			{Login: "levon", Name: "Levon", PermissionKey: "admin", GrantedAt: time.Unix(1757000000, 0)},
+			{Login: "alex", Name: "Alex", PermissionKey: "admin", GrantedAt: time.Unix(1757000000, 0)},
 			{Login: "banned-one", PermissionKey: "admin", IsBanned: true, GrantedAt: time.Unix(1757000000, 0)},
 		},
 		Managers:   []readstore.OperatorRow{{Login: "lead", IsManager: true}},
@@ -199,7 +199,7 @@ func TestWhoHasAccessNamesManagersAndSuperusersSeparately(t *testing.T) {
 	}
 	for _, want := range []string{
 		"App sprinter (Sprinter)", "admin (Administer Sprinter)",
-		"levon (Levon): admin", "BANNED", "Managers", "lead", "Superusers", "root",
+		"alex (Alex): admin", "BANNED", "Managers", "lead", "Superusers", "root",
 	} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("result is missing %q:\n%s", want, out)

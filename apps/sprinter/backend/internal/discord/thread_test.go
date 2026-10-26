@@ -60,11 +60,11 @@ func TestDecodeTranscriptSkipsWhatItCannotRead(t *testing.T) {
 func TestLimiterAllowsOneQuestionPerPerson(t *testing.T) {
 	limits := newLimiter(3)
 
-	release, busy := limits.acquire("levon")
+	release, busy := limits.acquire("alex")
 	if release == nil {
 		t.Fatalf("the first question must be admitted, got %q", busy)
 	}
-	if _, busy := limits.acquire("levon"); busy != busyUserMessage {
+	if _, busy := limits.acquire("alex"); busy != busyUserMessage {
 		t.Fatalf("a second question from the same person must be refused, got %q", busy)
 	}
 	// Somebody else is unaffected.
@@ -74,7 +74,7 @@ func TestLimiterAllowsOneQuestionPerPerson(t *testing.T) {
 	}
 
 	release()
-	again, busy := limits.acquire("levon")
+	again, busy := limits.acquire("alex")
 	if again == nil {
 		t.Fatalf("the slot must come back when the answer finishes, got %q", busy)
 	}
