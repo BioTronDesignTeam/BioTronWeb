@@ -8,6 +8,8 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/BioTronDesignTeam/BioTronWeb/go/authclient"
+	"github.com/BioTronDesignTeam/BioTronWeb/go/authclient/authclienttest"
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
 	"github.com/BioTronDesignTeam/exo-gui/backend/internal/auth"
 )
@@ -41,9 +43,9 @@ func (r *recorder) take() []event {
 }
 
 // testHandler is New with extra routes mounted inside the same middleware.
-func testHandler(sink *recorder, authz *auth.Client, extra func(*http.ServeMux)) http.Handler {
+func testHandler(sink *recorder, authz *authclient.Client, extra func(*http.ServeMux, gated)) http.Handler {
 	if authz == nil {
-		authz = auth.NewClient("http://oauth-manager:8080")
+		authz = authclient.New("http://oauth-manager:8080", auth.AppID)
 	}
 	return newHandler(frontend, []string{"127.0.0.1"}, sink, authz, extra)
 }
@@ -189,7 +191,7 @@ func TestCORS(t *testing.T) {
 // did, and the event client hears about it as an error.
 func TestPanicIsAnswered500AndLogged(t *testing.T) {
 	sink := &recorder{}
-	handler := testHandler(sink, nil, func(mux *http.ServeMux) {
+	handler := testHandler(sink, nil, func(mux *http.ServeMux, _ gated) {
 		mux.HandleFunc("GET /panic", func(http.ResponseWriter, *http.Request) { panic("boom") })
 	})
 	silenceStderr(t)
@@ -205,7 +207,7 @@ func TestPanicIsAnswered500AndLogged(t *testing.T) {
 
 func TestOversizedBodyIsRefused(t *testing.T) {
 	var read int
-	handler := testHandler(&recorder{}, nil, func(mux *http.ServeMux) {
+	handler := testHandler(&recorder{}, nil, func(mux *http.ServeMux, _ gated) {
 		mux.HandleFunc("POST /upload", func(w http.ResponseWriter, r *http.Request) {
 			body, _ := io.ReadAll(r.Body)
 			read = len(body)
@@ -231,42 +233,112 @@ func TestOversizedBodyIsRefused(t *testing.T) {
 	}
 }
 
+// gatedHandler mounts a probe route under each gated prefix, the way the real
+// routes will be, and answers sessions from a stand-in Auth.
+func gatedHandler(t *testing.T, sink *recorder) (http.Handler, *authclienttest.Auth) {
+	t.Helper()
+	stub := authclienttest.New(t)
+	probe := func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, r, http.StatusOK, map[string]any{"ok": true})
+	}
+	handler := testHandler(sink, stub.Client(auth.AppID), func(_ *http.ServeMux, routes gated) {
+		routes.live.HandleFunc("GET /v1/live/probe", probe)
+		routes.historical.HandleFunc("GET /v1/historical/probe", probe)
+		routes.commands.HandleFunc("POST /v1/commands/probe", probe)
+	})
+	return handler, stub
+}
+
+// Each prefix needs its own permission. A daily guest opens Live and
+// Historical and never Commands, and a member without an Exo GUI permission
+// opens nothing.
+func TestEachPrefixNeedsItsPermission(t *testing.T) {
+	handler, stub := gatedHandler(t, &recorder{})
+	signedIn := map[string]string{"Cookie": "oauth_session=abc", "X-Requested-With": "XMLHttpRequest"}
+	guest := authclient.Operator{Login: "guest", IsGuest: true, GuestAppID: auth.AppID}
+	member := authclient.Operator{GitHubID: 7, Login: "octocat"}
+
+	for _, tc := range []struct {
+		name    string
+		arrange func()
+		headers map[string]string
+		want    [3]int // live, historical, commands
+	}{
+		{"anonymous", func() {}, map[string]string{"X-Requested-With": "XMLHttpRequest"}, [3]int{401, 401, 401}},
+		{"daily guest", func() { stub.SignIn(guest, auth.PermissionLive, auth.PermissionHistorical) }, signedIn, [3]int{200, 200, 403}},
+		{"member without a grant", func() { stub.SignIn(member) }, signedIn, [3]int{403, 403, 403}},
+		{"member with every grant", func() {
+			stub.SignIn(member, auth.PermissionLive, auth.PermissionHistorical, auth.PermissionCommands)
+		}, signedIn, [3]int{200, 200, 200}},
+	} {
+		tc.arrange()
+		for i, route := range []struct{ method, path string }{
+			{http.MethodGet, "/v1/live/probe"},
+			{http.MethodGet, "/v1/historical/probe"},
+			{http.MethodPost, "/v1/commands/probe"},
+		} {
+			if got := do(t, handler, route.method, route.path, tc.headers); got.status != tc.want[i] {
+				t.Errorf("%s: %s %s = %d %s, want %d", tc.name, route.method, route.path, got.status, got.body, tc.want[i])
+			}
+		}
+	}
+
+	// A command without the CSRF header is refused before Auth is asked.
+	calls := stub.Calls()
+	do(t, handler, http.MethodPost, "/v1/commands/probe", map[string]string{"Cookie": "oauth_session=abc"}).
+		expect(t, http.StatusForbidden, `{"error":"X-Requested-With header required"}`, nil)
+	if stub.Calls() != calls {
+		t.Fatal("Auth was asked about a command without X-Requested-With")
+	}
+
+	// An unknown path under a prefix asks for a session like a real one.
+	stub.SignIn(member, auth.PermissionLive)
+	do(t, handler, http.MethodGet, "/v1/live/nope", nil).expect(t, http.StatusUnauthorized, `{"error":"authentication required"}`, nil)
+	do(t, handler, http.MethodGet, "/v1/live/nope", signedIn).expect(t, http.StatusNotFound, "Not Found", nil)
+}
+
 // The gate's answers pass through the stack unchanged, and an Auth outage
 // is logged as an error carrying its cause.
 func TestGatedRouteThroughTheStack(t *testing.T) {
-	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("Cookie") == "s=ok" {
-			_, _ = io.WriteString(w, `{"allowed":true}`)
-			return
-		}
-		w.WriteHeader(http.StatusInternalServerError)
-	}))
-	t.Cleanup(upstream.Close)
-	authz := auth.NewClient(upstream.URL)
 	sink := &recorder{}
-	handler := testHandler(sink, authz, func(mux *http.ServeMux) {
-		mux.Handle("GET /gated", authz.Require(auth.PermissionLive)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			writeJSON(w, r, http.StatusOK, map[string]any{"ok": true})
-		})))
-	})
+	handler, stub := gatedHandler(t, sink)
 	silenceLog(t)
 
-	do(t, handler, http.MethodGet, "/gated", map[string]string{"Cookie": "s=ok", "Origin": frontend}).
+	stub.SignIn(authclient.Operator{Login: "octocat"}, auth.PermissionLive)
+	do(t, handler, http.MethodGet, "/v1/live/probe", map[string]string{"Cookie": "s=ok", "Origin": frontend}).
 		expect(t, http.StatusOK, `{"ok":true}`, map[string]string{"Access-Control-Allow-Origin": frontend})
-	do(t, handler, http.MethodGet, "/gated", nil).
+	do(t, handler, http.MethodGet, "/v1/live/probe", nil).
 		expect(t, http.StatusUnauthorized, `{"error":"authentication required"}`, nil)
-	do(t, handler, http.MethodGet, "/gated", map[string]string{"Cookie": "s=broken"}).
+	stub.Answer(http.StatusInternalServerError)
+	do(t, handler, http.MethodGet, "/v1/live/probe", map[string]string{"Cookie": "s=broken"}).
 		expect(t, http.StatusServiceUnavailable, `{"error":"authorization service unavailable"}`, nil)
 
 	events := sink.take()
 	if len(events) != 3 {
 		t.Fatalf("events = %+v", events)
 	}
+	if allowed := events[0]; allowed.payload["actor"] != "octocat" {
+		t.Fatalf("allowed event = %+v, want the operator as actor", allowed)
+	}
 	if refusal := events[1]; refusal.level != logclient.Warning || refusal.payload["error"] != "authentication required" {
 		t.Fatalf("refusal event = %+v", refusal)
 	}
-	if outage := events[2]; outage.level != logclient.Error || outage.payload["error"] != "OAuthManager /v1/check returned HTTP 500" {
+	if outage := events[2]; outage.level != logclient.Error || outage.payload["error"] != "auth /v1/session returned HTTP 500" {
 		t.Fatalf("outage event = %+v", outage)
+	}
+}
+
+// /v1/auth/status tells the UI which of Exo's permissions the session holds.
+func TestAuthStatus(t *testing.T) {
+	handler, stub := gatedHandler(t, &recorder{})
+	do(t, handler, http.MethodGet, "/v1/auth/status", nil).expect(t, http.StatusOK,
+		`{"can_live":false,"can_historical":false,"can_commands":false,"permissions":{"commands":false,"historical":false,"live":false}}`, nil)
+
+	stub.SignIn(authclient.Operator{Login: "guest", IsGuest: true, GuestAppID: auth.AppID}, auth.PermissionLive, auth.PermissionHistorical)
+	got := do(t, handler, http.MethodGet, "/v1/auth/status", map[string]string{"Cookie": "oauth_session=guest"})
+	if got.status != http.StatusOK || !strings.Contains(got.body, `"login":"guest"`) ||
+		!strings.Contains(got.body, `"can_live":true,"can_historical":true,"can_commands":false`) {
+		t.Fatalf("guest status = %d %s", got.status, got.body)
 	}
 }
 
@@ -275,7 +347,7 @@ func TestGatedRouteThroughTheStack(t *testing.T) {
 // server resolved, which the test route sends back in a header.
 func resolvedIP(t *testing.T, trustedProxies []string, proxyHeader string) string {
 	t.Helper()
-	handler := newHandler(frontend, trustedProxies, &recorder{}, auth.NewClient("http://oauth-manager:8080"), func(mux *http.ServeMux) {
+	handler := newHandler(frontend, trustedProxies, &recorder{}, authclient.New("http://oauth-manager:8080", auth.AppID), func(mux *http.ServeMux, _ gated) {
 		mux.HandleFunc("GET /who", func(w http.ResponseWriter, r *http.Request) { w.Header().Set("X-Client-Ip", ClientIP(r)) })
 	})
 	srv := httptest.NewServer(handler)
