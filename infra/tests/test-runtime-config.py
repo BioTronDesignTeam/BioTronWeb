@@ -57,7 +57,7 @@ class RuntimeConfigTests(unittest.TestCase):
         self.env.update(POSTGRES_PASSWORD='fixture-db', SPRINTER_READER_PASSWORD='fixture-reader')
 
     def test_no_env_files_required_to_parse_or_stop_web(self):
-        self.assertEqual(len(self.config()['services']), 18)
+        self.assertEqual(len(self.config()['services']), 17)
         self.run_command('./launch', 'stop', 'web', '--runtime', '--dry-run')
 
     def test_database_and_public_config_are_isolated(self):
@@ -116,7 +116,7 @@ class RuntimeConfigTests(unittest.TestCase):
     def test_edge_is_its_own_project(self):
         self.env.update(POSTGRES_PASSWORD='fixture-db', SPRINTER_READER_PASSWORD='fixture-reader')
         infra = self.config('-f', 'infra/docker-compose.yml', '--env-file', '/dev/null')
-        self.assertEqual(sorted(infra['services']), ['postgres', 'redis'])
+        self.assertEqual(sorted(infra['services']), ['postgres'])
         (self.root / 'edge.env').write_text('EDGE_SITES=local=localhost\n')
         self.env['EDGE_ENV_FILE'] = str(self.root / 'edge.env')
         result = self.run_command('./launch', 'edge', '--no-tunnel', '--dry-run')
@@ -176,7 +176,7 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertEqual({net['name'] for net in config['networks'].values()},
                          {'biotron-staging'})
         self.assertEqual({vol['name'] for vol in config['volumes'].values()},
-                         {'biotron-staging_postgres-data', 'biotron-staging_redis-data'})
+                         {'biotron-staging_postgres-data'})
         for service in config['services'].values():
             self.assertNotIn('container_name', service)
 
@@ -187,7 +187,7 @@ class RuntimeConfigTests(unittest.TestCase):
         ups = [line for line in result.stdout.splitlines() if ' up ' in line]
         self.assertEqual(len(ups), 2, result.stdout)
         self.assertTrue(all('-p biotron-prod' in line for line in ups), result.stdout)
-        self.assertTrue(ups[0].endswith('up -d postgres redis'), ups[0])
+        self.assertTrue(ups[0].endswith('up -d postgres'), ups[0])
         self.assertNotIn('postgres', ups[1])
 
     def test_named_instances_publish_no_host_ports(self):

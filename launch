@@ -8,7 +8,7 @@ usage() {
 Usage: ./launch <target> [options]
 
 Targets
-  infra     Postgres and Redis
+  infra     Postgres
   web       The apps: site, calendar, auth, exo, logger, sprinter
   all       infra, then web
   edge      The edge Nginx and the Cloudflare tunnel (not part of all)
@@ -52,7 +52,7 @@ root=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 cd "$root"
 
 apps='site calendar auth exo logger sprinter'
-infra_services='postgres redis'
+infra_services='postgres'
 target='' build=false pull=false tunnel=true dry_run=false excluded='' stop_target='all' runtime=false instance=''
 
 die() { echo "launch: $*" >&2; exit 1; }

@@ -6,8 +6,6 @@
 services:
   postgres:
     ports: !reset []
-  redis:
-    ports: !reset []
   site-web:
     ports: !reset []
   calendar-api:

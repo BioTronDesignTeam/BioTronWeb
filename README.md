@@ -18,7 +18,7 @@ where the platform is developed now; the separate repositories are frozen.
 | `packages/style` | `@biotron/style`: brand, theme, shared controls | `BioTronStyle` |
 | `go/logclient` | Go client every service uses to send events to Grafana and PostHog | `Logger/client` |
 | `go/authclient` | Go client and middleware the gated backends use to ask Auth about a session | new |
-| `infra` | Edge Nginx, cloudflared, Postgres, Redis, deployment manifests | `Server` |
+| `infra` | Edge Nginx, cloudflared, Postgres, deployment manifests | `Server` |
 
 Each app keeps its own `README.md`, `.env.example`, `docker-compose.yml`, and
 `prisma/` where it always was.
@@ -32,7 +32,7 @@ Each app keeps its own `README.md`, `.env.example`, `docker-compose.yml`, and
   backend keeps its own `go.mod`, so an image compiles only its own code, but locally everything
   resolves together.
 - **`docker-compose.yml`** is one instance of the platform: it includes
-  `infra/docker-compose.yml` (Postgres and Redis) and every app, so an
+  `infra/docker-compose.yml` (Postgres) and every app, so an
   instance's data and apps are one Compose project. `./launch --instance
   staging` runs a second copy beside it with its own network and volumes. The
   edge and Infisical are separate projects. `docker compose up -d --build
@@ -82,7 +82,7 @@ plus creating the external `biotron` network when it is missing. It never
 edits an `.env` or removes a volume.
 
 ```bash
-./launch infra                       # Postgres and Redis
+./launch infra                       # Postgres
 ./launch web --build                 # every app
 ./launch web --no-sprinter --build   # every app but one; --no-<app> repeats
 ./launch all --build                 # infra, then web
@@ -199,21 +199,21 @@ configured frontend (and Calendar's public site) is already included.
 ## The devcontainer
 
 Open the repository in its devcontainer and everything is there: Node 24, Go
-1.27, a Postgres, and a Redis. `.devcontainer/docker-compose.yml` starts the
-two databases beside the workspace container, with the service names and
+1.27, and a Postgres. `.devcontainer/docker-compose.yml` starts the database
+beside the workspace container, with the service names and
 credentials every app's `.env.example` already uses, and the post-create
 step installs every workspace, copies each app's `.env` from its example
 where none exists, and applies every app's migrations. After that any app
-runs natively against the sidecars, for example:
+runs natively against the sidecar, for example:
 
 ```bash
 cd apps/logger/backend && set -a && . ../.env && set +a && PORT=8082 go run .
 npm run dev -w apps/logger/frontend
 ```
 
-Two things to know. The sidecar Postgres and Redis are their own definitions,
-not a reference to `infra/docker-compose.yml`; they can drift from it, and a
-commit brings them back when they do. And the workspace is bind-mounted from
+Two things to know. The sidecar Postgres is its own definition, not a
+reference to `infra/docker-compose.yml`; it can drift from it, and a commit
+brings it back when it does. And the workspace is bind-mounted from
 the host, so every `node_modules` is masked by a container-side volume; the
 container installs its own binaries and never touches the host's.
 

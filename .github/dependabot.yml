@@ -100,7 +100,7 @@ updates:
       - dependency-name: node
         update-types: [version-update:semver-major]
 
-  # The images that the compose files run as they are: Postgres, Redis, and
+  # The images that the compose files run as they are: Postgres and
   # cloudflared. The app images are built here and tagged by commit, so
   # Dependabot leaves them alone.
   - package-ecosystem: docker-compose

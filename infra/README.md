@@ -4,7 +4,7 @@ Deployment and host operations for the BioTron platform. A host runs one or
 more instances of the platform, such as `staging` and `prod`, behind one edge:
 
 ```text
-Cloudflare -> cloudflared -> Nginx -> an instance's apps -> that instance's Postgres/Redis
+Cloudflare -> cloudflared -> Nginx -> an instance's apps -> that instance's Postgres
 ```
 
 Tailscale SSH is the separate administrative path. None of the edge or
@@ -15,7 +15,7 @@ up, deployed, migrated, and rotated is in `deploy/README.md`.
 
 | Path | What |
 |------|------|
-| `docker-compose.yml` | Postgres and Redis of one instance; the root `docker-compose.yml` includes it |
+| `docker-compose.yml` | Postgres of one instance; the root `docker-compose.yml` includes it |
 | `edge/docker-compose.yml` | Nginx and cloudflared, the `biotron-edge` project shared by every instance |
 | `infisical/` | The `biotron-secrets` project: Infisical with its own Postgres and Redis |
 | `no-host-ports.yml` | Drops every host port from a named instance |
@@ -25,15 +25,15 @@ up, deployed, migrated, and rotated is in `deploy/README.md`.
 
 ## Instances and networks
 
-An instance is one Compose project holding its Postgres, Redis, and six apps:
+An instance is one Compose project holding its Postgres and six apps:
 `biotron` on a laptop, `biotron-<instance>` from
 `./launch --instance <instance>`. Each has its own network,
 `biotron-<instance>` (`biotron` on a laptop), its own volumes, and, when named,
 no host ports.
 
 - Inside an instance's network the services keep their plain aliases:
-  `postgres`, `redis`, `oauth-manager`, `logger-api`, `calendar-api`,
-  `site-web`, and so on. Apps reach each other and their data services by
+  `postgres`, `oauth-manager`, `logger-api`, `calendar-api`, `site-web`,
+  and so on. Apps reach each other and their database by
   these names, and cannot see any other instance.
 - Every web and API service also carries an instance-qualified alias, such as
   `staging-oauth-manager`, for the edge.
@@ -103,7 +103,7 @@ recreating cloudflared.
 ## Local use
 
 ```bash
-./launch infra                       # Postgres and Redis, reading infra/.env
+./launch infra                       # Postgres, reading infra/.env
 ./launch web --build                 # the apps
 cp infra/edge/.env.example infra/edge/.env
 ./launch edge --no-tunnel --build    # Nginx alone, serving EDGE_SITES=local=localhost
@@ -140,11 +140,11 @@ A `502` means Nginx is reachable but that instance's application alias is not.
   `no-new-privileges`. The tunnel token is a read-only Compose secret.
 - Nginx accepts only the configured instances' hostnames and forwards
   `CF-Connecting-IP` as the client address. It does not expose Docker's socket.
-- Each instance has its own Postgres and Redis on its own network. A named
+- Each instance has its own Postgres on its own network. A named
   instance publishes no host ports; administer it with
   `docker compose -p biotron-<instance> exec`.
 - Nginx is on every instance's network, so it could reach each instance's
-  Postgres and Redis; nothing in its configuration does.
+  Postgres; nothing in its configuration does.
 
 ## Startup and updates
 
@@ -156,11 +156,10 @@ service.
 The local edge image is `biotron-edge-nginx:local`. See `deploy/README.md`
 for the deployment workflow and GHCR image tags.
 
-## Data service major upgrades: Postgres 16 to 18, Redis 7 to 8
+## Data service major upgrades: Postgres 16 to 18
 
-The pinned images moved from `postgres:16-alpine` and `redis:7-alpine` to
-`postgres:18.6-alpine` and `redis:8.10.1-alpine`. Redis needs nothing from you.
-Postgres does: **a Postgres major upgrade cannot read an existing data
+The pinned image moved from `postgres:16-alpine` to `postgres:18.6-alpine`.
+That needs you: **a Postgres major upgrade cannot read an existing data
 directory from an older major**, so the existing
 `biotron-infrastructure_postgres-data` volume has to be dealt with deliberately
 before the stack will come up.
@@ -267,22 +266,6 @@ Checked against both images before the bump: `password_encryption`,
 generated `pg_hba.conf` still ends in `host all all all scram-sha-256`. The
 `postgresql://biotron:...@postgres:5432/biotron?schema=<name>` URLs the five
 repositories use need no change, and `pgx` already speaks SCRAM.
-
-### Redis 7 to 8
-
-No procedure required. The RDB and AOF formats are forward compatible, so 8.10.1
-opens a volume written by 7 and starts normally; this was confirmed against a
-throwaway volume seeded on `redis:7-alpine`, including that existing keys
-survived and `redis-cli ping` still answers the compose healthcheck.
-
-Nothing this workspace asks of Redis is affected. Logger uses it for the health
-cache and OAuthManager for grant-set caching, all through
-`go-redis/v9`, which supports Redis 8 — and both are plain key, list and TTL
-operations, well away from anything Redis 8 changed. Redis 8 folds in the
-former Redis Stack modules and changes defaults around them, none of which this
-workspace enables. The instance remains unauthenticated on the `biotron`
-network, which is a separate open item (MEDIUM-3 in the security audit) and is
-neither improved nor worsened by this bump.
 
 ## Read-only role for Sprinter
 

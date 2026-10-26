@@ -20,13 +20,13 @@ of running containers still sit in Docker's own state under
 ## How it fits together
 
 ```text
-Cloudflare ─ tunnel ─ cloudflared ─ Nginx ─┬─ biotron-staging network: staging apps, Postgres, Redis
-              (biotron-edge project)       └─ biotron-prod network:    prod apps, Postgres, Redis
+Cloudflare ─ tunnel ─ cloudflared ─ Nginx ─┬─ biotron-staging network: staging apps, Postgres
+              (biotron-edge project)       └─ biotron-prod network:    prod apps, Postgres
 ```
 
 | Compose project | What | Settings come from |
 | --- | --- | --- |
-| `biotron-staging` | Staging's Postgres, Redis, and six apps, images tagged with the `main` commit | Infisical `staging`, through `/etc/biotron/staging/identity.env` |
+| `biotron-staging` | Staging's Postgres and six apps, images tagged with the `main` commit | Infisical `staging`, through `/etc/biotron/staging/identity.env` |
 | `biotron-prod` | Production's, images of the release tag's commit | Infisical `prod`, through `/etc/biotron/prod/identity.env` |
 | `biotron-edge` | Nginx and cloudflared, shared by both | `/etc/biotron/edge.env` |
 | `biotron-secrets` | Infisical with its own Postgres and Redis | `/etc/biotron/infisical.env` |
@@ -34,18 +34,17 @@ Cloudflare ─ tunnel ─ cloudflared ─ Nginx ─┬─ biotron-staging networ
 What keeps the two instances apart:
 
 - **Networks.** Each instance has its own Docker network, `biotron-staging` or
-  `biotron-prod`, with the same service aliases (`postgres`, `redis`,
+  `biotron-prod`, with the same service aliases (`postgres`,
   `oauth-manager`, `logger-api`) inside. A staging container cannot resolve or
   reach anything of production's. Only Nginx joins both, and it reaches the
   apps through aliases that carry the instance name, such as
   `prod-oauth-manager`.
-- **Data.** Each instance runs its own Postgres and its own Redis on its own
-  volumes (`biotron-staging_postgres-data` and so on), with different
-  passwords. Separate instances, rather than two databases or two Redis
-  indexes in one server, mean a staging migration, restart, upgrade,
-  `FLUSHALL`, or full disk of logs cannot touch production, and no role exists
-  that can read both. The cost is one more Postgres and Redis process, small
-  next to the host's memory.
+- **Data.** Each instance runs its own Postgres on its own volume
+  (`biotron-staging_postgres-data` and so on), with different passwords.
+  Separate instances, rather than two databases in one server, mean a staging
+  migration, restart, upgrade, or full disk of logs cannot touch production,
+  and no role exists that can read both. The cost is one more Postgres
+  process, small next to the host's memory.
 - **Settings.** Each instance has its own Infisical environment and its own
   machine identity, which can read nothing else. Domains, cookie domains,
   GitHub Apps, and session keys all differ.
@@ -299,13 +298,13 @@ instance to another host. Writes must stop on the source while the copy runs,
 because two copies must not both take writes.
 
 1. **Deploy the target** with `sudo biotron-deploy <instance> <commit>`. It
-   starts empty and migrated. Then stop its apps, keeping its Postgres and
-   Redis running. Run these from a directory with no Compose file, such as
-   `/`, so Compose goes by the project name alone:
+   starts empty and migrated. Then stop its apps, keeping its Postgres
+   running. Run these from a directory with no Compose file, such as `/`, so
+   Compose goes by the project name alone:
 
    ```sh
    cd /
-   sudo docker compose -p biotron-<instance> stop $(sudo docker compose -p biotron-<instance> ps --services | grep -vx 'postgres\|redis')
+   sudo docker compose -p biotron-<instance> stop $(sudo docker compose -p biotron-<instance> ps --services | grep -vx postgres)
    ```
 
 2. **Stop the source's apps** the same way. Downtime starts here.
@@ -334,9 +333,6 @@ because two copies must not both take writes.
 6. **Verify** every hostname, a sign-in, and that only staging's responses
    carry `X-Robots-Tag`. Keep the dump and the old volumes for a week as a
    fallback, then `shred -u` the dump.
-
-Redis is not copied: it holds caches and Logger's health state, which refill
-on their own.
 
 ## Rotation
 
@@ -375,3 +371,11 @@ in GHCR for a rollback. Keep about 10 GB free on the filesystem that holds
 `/var/lib/docker` for a host running both instances. If it sits on a small
 partition, move Docker's data root (`"data-root"` in
 `/etc/docker/daemon.json`, then restart Docker) or grow the partition.
+
+An instance deployed before Redis was removed keeps its `redis-data` volume.
+The first deploy without Redis removes the container; the volume holds
+nothing anyone reads, so delete it by hand:
+
+```sh
+sudo docker volume rm biotron-<instance>_redis-data
+```

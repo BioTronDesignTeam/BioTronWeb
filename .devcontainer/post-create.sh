@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Runs once when the devcontainer is created. Afterwards every app can start
-# natively (Vite, go run) against the Postgres and Redis beside it.
+# natively (Vite, go run) against the Postgres beside it.
 set -euo pipefail
 cd /workspaces/biotron
 
