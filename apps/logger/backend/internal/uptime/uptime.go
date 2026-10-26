@@ -24,14 +24,6 @@ type Window struct {
 	End   time.Time
 }
 
-// Duration is the wall-clock length of the window, never negative.
-func (w Window) Duration() time.Duration {
-	if !w.End.After(w.Start) {
-		return 0
-	}
-	return w.End.Sub(w.Start)
-}
-
 // Result is the time-weighted breakdown of one window. Up, Down, and Unknown
 // always sum to the window duration.
 type Result struct {
@@ -65,15 +57,6 @@ func (r Result) Percent() *float64 {
 		value = 0
 	}
 	return &value
-}
-
-// UnknownRatio is the fraction of the window for which no observation exists,
-// so callers can say "no data" instead of inventing availability.
-func (r Result) UnknownRatio(window time.Duration) float64 {
-	if window <= 0 {
-		return 0
-	}
-	return float64(r.Unknown) / float64(window)
 }
 
 // segmentKind classifies the state that held across one stretch of time.
