@@ -39,8 +39,8 @@ Each app keeps its own `README.md`, `.env.example`, `docker-compose.yml`, and
   status-web` builds one service, and each app's compose file still works
   alone from its folder once the `biotron` network exists.
 
-Ports do not change: Auth 5173/8080, Exo 5174/8081, Status 5175/8082,
-Calendar 5176/8083, Site 5177, Sprinter 5178/8084.
+Ports do not change: auth 5173/8080, exogui 5174/8081, status 5175/8082,
+calendar 5176/8083, biotron 5177, sprinter 5178/8084.
 
 ## One baseline
 

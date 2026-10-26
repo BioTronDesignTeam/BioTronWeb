@@ -61,14 +61,14 @@ names, such as `OAuthManager` and `exo-gui`. They mean the paths above.
 
 ## Ports
 
-| Service | Frontend | API |
+| App | Frontend | API |
 |---|---|---|
-| Auth | `5173` | `8080` |
-| Exo | `5174` | `8081` |
-| Status | `5175` | `8082` |
-| Calendar | `5176` | `8083` |
-| Site | `5177` | n/a |
-| Sprinter | `5178` | `8084` |
+| `auth` | `5173` | `8080` |
+| `exogui` | `5174` | `8081` |
+| `status` | `5175` | `8082` |
+| `calendar` | `5176` | `8083` |
+| `biotron` | `5177` | n/a |
+| `sprinter` | `5178` | `8084` |
 
 - Auth's `8080` is fixed. The GitHub OAuth callback is registered against it.
 - Move any other host port only by updating this table, the README, and every
