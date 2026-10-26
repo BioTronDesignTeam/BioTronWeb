@@ -10,10 +10,8 @@ import (
 	"github.com/BioTronDesignTeam/BioTronWeb/apps/auth/backend/internal/auth"
 )
 
-// The move from Fiber to net/http rewrote every line of the wiring below.
-// None of that is allowed to change what the service actually enforces, so
-// these tests exercise the real router that New() builds rather than a
-// stand-in.
+// These tests exercise the real router that New() builds rather than a
+// stand-in, so they pin what the service actually enforces.
 
 // allowedOrigin is a sibling tool's frontend, ownOrigin Auth's own.
 const (
@@ -60,8 +58,8 @@ func TestCheckAnswersUnauthorizedBeforeItValidatesParameters(t *testing.T) {
 		if response.Code != http.StatusUnauthorized {
 			t.Errorf("GET %s = %d, want 401", target, response.Code)
 		}
-		if got := response.Body.String(); got != "Unauthorized" {
-			t.Errorf("GET %s body = %q, want the bare status text Fiber sent", target, got)
+		if got := response.Body.String(); got != "Unauthorized\n" {
+			t.Errorf("GET %s body = %q, want the status text", target, got)
 		}
 	}
 }
@@ -287,22 +285,21 @@ func TestGuestLoginLimiterIgnoresTheForwardedHeaderFromAnUntrustedPeer(t *testin
 	}
 }
 
-func TestLimiterHeadersAndWindowReset(t *testing.T) {
+func TestLimiterRetryAfterAndWindowReset(t *testing.T) {
 	now := time.Unix(1_000_000, 0)
 	l := newLimiter(2, time.Minute, func(*http.Request) string { return "one" })
 	l.now = func() time.Time { return now }
 	app := l.wrap(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) }))
 
 	first := serve(app, httptest.NewRequest(http.MethodPost, "/", nil))
-	if first.Header().Get("X-RateLimit-Limit") != "2" || first.Header().Get("X-RateLimit-Remaining") != "1" ||
-		first.Header().Get("X-RateLimit-Reset") != "60" {
-		t.Fatalf("first request headers = %v", first.Header())
+	if first.Code != http.StatusNoContent {
+		t.Fatalf("first request = %d, want it admitted", first.Code)
 	}
 	serve(app, httptest.NewRequest(http.MethodPost, "/", nil))
 	now = now.Add(15 * time.Second)
 	refused := serve(app, httptest.NewRequest(http.MethodPost, "/", nil))
 	if refused.Code != http.StatusTooManyRequests || refused.Header().Get("Retry-After") != "45" ||
-		refused.Body.String() != "Too Many Requests" {
+		refused.Body.String() != "Too Many Requests\n" {
 		t.Fatalf("third request = %d %v %q", refused.Code, refused.Header(), refused.Body.String())
 	}
 	now = now.Add(45 * time.Second)

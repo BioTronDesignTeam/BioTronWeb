@@ -1,6 +1,4 @@
-// Package httpx writes the few kinds of answer the API gives. Each one is
-// byte-for-byte what the Fiber version of this service sent, because the
-// frontends and the other backends were written against those answers.
+// Package httpx writes the few kinds of answer the API gives.
 package httpx
 
 import (
@@ -14,14 +12,15 @@ import (
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient/httplog"
 )
 
-// maxBody is the largest request body read, Fiber's default limit.
-const maxBody = 4 << 20
+// maxBody is the largest request body read. Auth's bodies are a few small
+// JSON fields.
+const maxBody = 64 << 10
 
 // ErrBody is the error of a request body that is not one JSON value of
 // Content-Type application/json.
 var ErrBody = errors.New("request body is not JSON")
 
-// JSON answers status with v as JSON: one encoding, no trailing newline.
+// JSON answers status with v as JSON.
 func JSON(w http.ResponseWriter, status int, v any) {
 	body, err := json.Marshal(v)
 	if err != nil {
@@ -36,9 +35,7 @@ func JSON(w http.ResponseWriter, status int, v any) {
 
 // Text answers status with a plain-text body.
 func Text(w http.ResponseWriter, status int, body string) {
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	w.WriteHeader(status)
-	_, _ = w.Write([]byte(body))
+	http.Error(w, body, status)
 }
 
 // Status answers status with its reason phrase as the body, or no body for a
@@ -52,8 +49,8 @@ func Status(w http.ResponseWriter, status int) {
 }
 
 // Error answers status like Status and names the status as the cause on the
-// request's completion event. Use it where the Fiber handler returned a bare
-// fiber.Err*; a handler that already recorded a cause uses Status.
+// request's completion event, for a refusal with no cause of its own. A
+// handler that already recorded a cause uses Status.
 func Error(w http.ResponseWriter, r *http.Request, status int) {
 	httplog.SetError(r, errors.New(http.StatusText(status)))
 	Status(w, status)

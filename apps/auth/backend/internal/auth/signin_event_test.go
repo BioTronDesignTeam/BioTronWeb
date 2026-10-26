@@ -69,7 +69,7 @@ func TestCallbackRefusesAnUnsignedState(t *testing.T) {
 	request.AddCookie(&http.Cookie{Name: stateCookie, Value: "s"})
 	response := httptest.NewRecorder()
 	h.Callback(response, request)
-	if response.Code != http.StatusBadRequest || response.Body.String() != "invalid OAuth state" {
+	if response.Code != http.StatusBadRequest || response.Body.String() != "invalid OAuth state\n" {
 		t.Fatalf("callback = %d %q, want 400 invalid OAuth state", response.Code, response.Body.String())
 	}
 }

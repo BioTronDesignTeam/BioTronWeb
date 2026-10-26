@@ -16,8 +16,7 @@ import (
 
 // limiter allows each client max requests per window. The window is fixed: it
 // starts at a client's first request and the count resets when it ends. Past
-// the limit it answers 429 with Retry-After; below it, each response carries
-// the X-RateLimit-* headers. One process serves Auth, so memory is enough.
+// the limit it answers 429 with Retry-After. One process serves Auth, so memory is enough.
 type limiter struct {
 	max    int
 	window time.Duration
@@ -66,15 +65,11 @@ func (l *limiter) hit(key string) (int, time.Time) {
 func (l *limiter) wrap(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		hits, resets := l.hit(l.key(r))
-		resetIn := strconv.Itoa(int(math.Ceil(resets.Sub(l.now()).Seconds())))
 		if hits > l.max {
-			w.Header().Set("Retry-After", resetIn)
+			w.Header().Set("Retry-After", strconv.Itoa(int(math.Ceil(resets.Sub(l.now()).Seconds()))))
 			httpx.Status(w, http.StatusTooManyRequests)
 			return
 		}
-		w.Header().Set("X-RateLimit-Limit", strconv.Itoa(l.max))
-		w.Header().Set("X-RateLimit-Remaining", strconv.Itoa(l.max-hits))
-		w.Header().Set("X-RateLimit-Reset", resetIn)
 		next.ServeHTTP(w, r)
 	})
 }
