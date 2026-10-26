@@ -17,17 +17,14 @@ const (
 	CheckHTTP = "http"
 	// CheckPostgres pings the shared database through Logger's own pool.
 	CheckPostgres = "postgres"
-	// CheckRedis pings the shared cache through Logger's own client.
-	CheckRedis = "redis"
 )
 
 type Component struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
 	// Check is one of the Check constants; empty means CheckHTTP. The shared
-	// database and cache speak no HTTP, so they are pinged over the connections
-	// Logger already holds rather than given a URL that would have to carry
-	// credentials.
+	// database speaks no HTTP, so it is pinged over the pool Logger already
+	// holds rather than given a URL that would have to carry credentials.
 	Check     string `json:"check,omitempty"`
 	HealthURL string `json:"health_url,omitempty"`
 }
@@ -94,7 +91,7 @@ func normaliseCheck(component *Component) error {
 		if component.HealthURL == "" {
 			return fmt.Errorf("component %q needs a health_url", component.ID)
 		}
-	case CheckPostgres, CheckRedis:
+	case CheckPostgres:
 		if component.HealthURL != "" {
 			return fmt.Errorf("component %q is a %s check and takes no health_url", component.ID, component.Check)
 		}

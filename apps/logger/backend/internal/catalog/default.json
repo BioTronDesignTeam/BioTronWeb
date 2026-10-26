@@ -55,10 +55,9 @@
   {
     "id": "infrastructure",
     "name": "Infrastructure",
-    "description": "Shared database, cache, and edge proxy",
+    "description": "Shared database and edge proxy",
     "components": [
       { "id": "postgres", "name": "Database", "check": "postgres" },
-      { "id": "redis", "name": "Cache", "check": "redis" },
       { "id": "edge-proxy", "name": "Edge proxy", "health_url": "http://edge-proxy:8080/_edge/health" }
     ]
   }

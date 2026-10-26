@@ -19,22 +19,21 @@ func TestDefaultCatalogHasUniqueServices(t *testing.T) {
 	if !services["logger-api"] {
 		t.Fatal("default catalog is missing logger-api")
 	}
-	for _, shared := range []string{"postgres", "redis", "edge-proxy"} {
+	for _, shared := range []string{"postgres", "edge-proxy"} {
 		if !services[shared] {
 			t.Fatalf("default catalog is missing the shared %s", shared)
 		}
 	}
 }
 
-// The database and cache speak no HTTP, so they are pinged through Logger's
-// own connections and carry no URL. Everything else still needs one, and a
+// The database speaks no HTTP, so it is pinged through Logger's own pool
+// and carries no URL. Everything else still needs one, and a
 // URL on a ping check would never be used, so it is refused rather than
 // silently ignored.
 func TestCatalogChecksDefaultToHTTPAndValidateTheirShape(t *testing.T) {
 	catalog, err := Load(`[
       {"id":"infra","name":"Infra","components":[
         {"id":"db","name":"Database","check":"postgres"},
-        {"id":"cache","name":"Cache","check":"redis"},
         {"id":"web","name":"Web","health_url":"http://web/"}
       ]}
     ]`)
@@ -42,16 +41,16 @@ func TestCatalogChecksDefaultToHTTPAndValidateTheirShape(t *testing.T) {
 		t.Fatal(err)
 	}
 	components := catalog.Applications()[0].Components
-	if components[0].Check != CheckPostgres || components[1].Check != CheckRedis {
-		t.Fatalf("dependency checks = %q %q", components[0].Check, components[1].Check)
+	if components[0].Check != CheckPostgres {
+		t.Fatalf("dependency check = %q", components[0].Check)
 	}
-	if components[2].Check != CheckHTTP {
-		t.Fatalf("an unspecified check should default to http, got %q", components[2].Check)
+	if components[1].Check != CheckHTTP {
+		t.Fatalf("an unspecified check should default to http, got %q", components[1].Check)
 	}
 
 	rejected := map[string]string{
 		"http without a url":      `[{"id":"a","name":"A","components":[{"id":"x","name":"X"}]}]`,
-		"unknown check":           `[{"id":"a","name":"A","components":[{"id":"x","name":"X","check":"mysql"}]}]`,
+		"unknown check":           `[{"id":"a","name":"A","components":[{"id":"x","name":"X","check":"redis"}]}]`,
 		"url on a postgres check": `[{"id":"a","name":"A","components":[{"id":"x","name":"X","check":"postgres","health_url":"http://x/"}]}]`,
 	}
 	for name, raw := range rejected {
