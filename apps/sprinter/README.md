@@ -9,7 +9,7 @@ before it answers. Without `GEMINI_API_KEY` the bot echoes the question
 back instead; everything around the model still runs.
 
 A scheduler reads Calendar every few minutes, posts announcements for
-the scopes staff configured, and nudges a lead who has not announced an
+the scopes set up in the admin page, and nudges a lead who has not announced an
 event that is coming up or was cancelled.
 
 ## Layout
@@ -246,7 +246,7 @@ and Prisma. Do not add environment files below it. `go run .` reads
 `../.env`.
 
 - `VITE_API_URL`, `VITE_AUTH_URL`, `VITE_CALENDAR_URL`. Compiled into the
-  admin page: the bot's API, Auth for login, and Calendar for the scope
+  admin page: the bot's API, Auth for sign-in, and Calendar for the scope
   list. Never secrets.
 - `SPRINTER_DISCORD_ENABLED`. `true` runs the bot; anything empty or
   `false` runs the admin API alone. A value that is not a boolean stops
@@ -392,10 +392,10 @@ run.
 
 ## Frontend
 
-One admin page behind the shared GitHub login. Signed out, it shows the
-login screen. Signed in without `sprinter/admin`, it says so and points
-at Auth. With the permission it shows two panels: the four guards, and
-the automations with a form to add or edit one. Calendar scopes for the
-form come from Calendar's public `/v1/scopes`. The page uses
-`@biotron/style` for the wordmark, theme toggle, and user menu, and keeps
-the theme bootstrap in `index.html` like every other frontend.
+One admin page behind the shared GitHub sign-in. Signed out, it shows the
+sign-in screen. Signed in without `sprinter/admin`, it shows Access denied
+and "Ask a manager." With the permission it shows two panels: the four
+guards, and the automations with a form to add or edit one. Calendar scopes
+for the form come from Calendar's public `/v1/scopes`. The page uses
+`@biotron/style` for the session, wordmark, theme toggle, and account menu,
+and keeps the theme bootstrap in `index.html` like every other frontend.

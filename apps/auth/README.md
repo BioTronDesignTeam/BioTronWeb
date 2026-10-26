@@ -1,15 +1,15 @@
 # Auth
 
 Auth signs operators in with GitHub and records what each one may do in each
-BioTron tool. Login requires membership of the `BioTronDesignTeam` GitHub
+BioTron tool. Signing in requires membership of the `BioTronDesignTeam` GitHub
 organization. Each tool defines its own permissions. There is no request
 queue: an operator asks a manager in person or on Discord, and the manager
 grants the permission in the Org tab.
 
 A tool can opt in to a daily guest key. The key rotates at Eastern midnight.
-Staff read it in the Keys tab, and can rotate it early there. A guest session
-ends with the key, whether at midnight or by an early rotation, and works in
-that tool only. Exo is the only tool with a guest key.
+Managers and superusers read it in the Keys tab, and can rotate it early
+there. A guest session ends with the key, whether at midnight or by an early
+rotation, and works in that tool only. Exo is the only tool with a guest key.
 
 This app was the `OAuthManager` repository. The old name remains where a
 change would break something: the Go module path, the Compose project name
@@ -267,16 +267,21 @@ never sent.
 The header leads with the wordmark from `@biotron/style`; the "Auth" label
 hides on phones. Each operator sees:
 
-- **My access**. A read-only list of permissions per tool. Held ones are
-  green chips with a check. A member who is not staff sees only this panel,
-  with no tab bar.
-- **Keys** (staff). Each opted-in tool's daily key, hidden until revealed.
-  Rotate opens a confirmation dialog, then replaces today's key and signs out
-  every guest who used the old one.
-- **Org** (staff). Every operator who has signed in. Select one to see and
-  change their grants. Ban and the manager flag open a confirmation dialog
-  that says what will happen. The manager flag is superuser-only. A staff
-  member shows "Full access" and no grant form.
+- **My permissions**. A read-only list of permissions per tool. Held ones
+  are green chips with a check. A Member sees only this panel, with no tab
+  bar.
+- **Keys** (Manager and Superuser). Each opted-in tool's daily guest key,
+  hidden until revealed. Rotate opens a confirmation dialog, then replaces
+  today's key and signs out every guest who used the old one.
+- **Org** (Manager and Superuser). Every operator who has signed in, as
+  `@login · Role`, plus `· Banned` when banned. Select one to grant or
+  revoke their permissions. Ban and the manager flag open a confirmation
+  dialog that says what will happen; a manager change applies on the
+  person's next request. The manager flag is superuser-only. A manager or
+  superuser holds every permission and shows no grant form.
+
+The session, sign-in screen, and account menu are the shared ones from
+`@biotron/style` (`SessionProvider` without an app id, so guests stay out).
 
 `VITE_API_BASE` is the only frontend variable. It is compiled into the
 bundle; Compose passes it to `auth-web` as a build argument.
