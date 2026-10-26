@@ -5,23 +5,22 @@ package server
 
 import (
 	"context"
-	"errors"
-	"log"
 	"net/http"
 	"time"
 
+	"github.com/BioTronDesignTeam/BioTronWeb/go/authclient"
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient/httplog"
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/auth"
 	"github.com/BioTronDesignTeam/Sprinter/backend/internal/config"
 	"github.com/BioTronDesignTeam/Sprinter/backend/internal/store"
 )
 
-// Authorizer is the part of the Auth client this package uses. It is an
-// interface so the gate's 401/403/503 mapping can be tested without a server.
-type Authorizer interface {
-	Status(ctx context.Context, cookie string) (auth.Status, error)
-}
+// AppID is Sprinter's application id in Auth. PermissionAdmin is the one
+// permission it declares: Sprinter has no public routes and no reader tier.
+const (
+	AppID           = "sprinter"
+	PermissionAdmin = "admin"
+)
 
 // Store is the part of the database this package uses. Threads and
 // transcripts are the bot's, not the admin API's, so they are absent here.
@@ -42,7 +41,6 @@ type Store interface {
 
 type Handler struct {
 	store  Store
-	auth   Authorizer
 	config config.Config
 	// events carries the domain events an operator's edit produces. A nil or
 	// token-less client is a no-op, so the handlers call it unconditionally.
@@ -58,15 +56,17 @@ const bodyLimit = 256 * 1024
 
 // New returns the whole API as one handler. The routes, statuses, headers and
 // bodies are the ones the Fiber version answered, quirks included, so the
-// admin page and anything probing the API see no change.
-func New(cfg config.Config, sprinterStore Store, authClient Authorizer, events *logclient.Client, discordConnected func() bool) http.Handler {
+// admin page and anything probing the API see no change. authz asks Auth
+// about Sprinter's sessions; New adds the error format and events to it.
+func New(cfg config.Config, sprinterStore Store, authz *authclient.Client, events *logclient.Client, discordConnected func() bool) http.Handler {
 	if discordConnected == nil {
 		discordConnected = func() bool { return false }
 	}
 	handler := &Handler{
-		store: sprinterStore, auth: authClient, config: cfg,
+		store: sprinterStore, config: cfg,
 		events: events, discordConnected: discordConnected,
 	}
+	authz = authz.With(authclient.WithEvents(events), authclient.WithErrorWriter(writeRefusal))
 	adminCORS := newCORS(cfg.AllowedOrigins())
 
 	admin := http.NewServeMux()
@@ -88,19 +88,25 @@ func New(cfg config.Config, sprinterStore Store, authClient Authorizer, events *
 	admin.Handle("/", adminMethods("OPTIONS"))
 	// The gate runs before the route is known, so an unknown admin path asks
 	// for a session like a real one.
-	gated := adminCORS(handle(func(w http.ResponseWriter, r *http.Request) error {
-		r, err := handler.requireAdmin(r)
-		if err != nil {
-			return err
-		}
-		admin.ServeHTTP(w, r)
-		return nil
-	}))
+	//
+	//	no cookie, or Auth refuses the session -> 401  (sign in)
+	//	signed in without sprinter/admin       -> 403
+	//	a write without X-Requested-With       -> 403
+	//	Auth unreachable or unreadable         -> 503  (fail closed, never open)
+	gated := adminCORS(authz.Require(PermissionAdmin)(admin))
+
+	// What the page needs to draw itself: who is signed in, whether they may
+	// change anything, and whether the bot runs here at all, because with
+	// Discord off a guard or automation is saved but nothing acts on it.
+	authStatus := authz.StatusHandler(
+		[]authclient.StatusField{{Permission: PermissionAdmin, Field: "can_admin"}},
+		func(*http.Request) map[string]any { return map[string]any{"discord_enabled": cfg.DiscordEnabled()} },
+	)
 
 	mux := http.NewServeMux()
 	mux.Handle("GET /health", handle(handler.health))
 	mux.Handle("/health", methods("GET, HEAD"))
-	mux.Handle("GET /v1/auth/status", adminCORS(handle(handler.authStatus)))
+	mux.Handle("GET /v1/auth/status", adminCORS(authStatus))
 	// A preflight is answered inside adminCORS; any other OPTIONS falls
 	// through to nothing.
 	mux.Handle("OPTIONS /v1/auth/status", adminCORS(handle(notFound)))
@@ -137,90 +143,26 @@ func (h *Handler) health(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-// statusBody is what /v1/auth/status answers. The page needs to know whether
-// the bot runs here at all, because with Discord off a guard or automation is
-// saved but nothing acts on it, and an operator should not be left guessing.
-type statusBody struct {
-	auth.Status
-	DiscordEnabled bool `json:"discord_enabled"`
-}
-
-func (h *Handler) authStatus(w http.ResponseWriter, r *http.Request) error {
-	status, err := h.auth.Status(r.Context(), r.Header.Get("Cookie"))
-	if err != nil {
-		log.Printf("auth status: %v", err)
-		h.events.LogAsync(logclient.Error, "Authorization service unavailable", map[string]any{"error": err.Error()})
-		return errServiceUnavailable.because(err)
+// writeRefusal answers a refusal of the gate with the error body every other
+// failure here gets, so the page reads one format.
+func writeRefusal(w http.ResponseWriter, r *http.Request, refusal authclient.Refusal) {
+	switch refusal.Status {
+	case http.StatusUnauthorized:
+		writeError(w, r, errUnauthorized)
+	case http.StatusForbidden:
+		writeError(w, r, errForbidden)
+	default:
+		writeError(w, r, errServiceUnavailable.because(refusal.Err))
 	}
-	writeJSON(w, http.StatusOK, statusBody{Status: status, DiscordEnabled: h.config.DiscordEnabled()})
-	return nil
-}
-
-// requireAdmin is the whole gate. It asks Auth for the session rather than the
-// permission alone, so every admin event that follows can name the operator
-// who caused it. It returns the request carrying that operator.
-//
-//	no cookie, or Auth says 401       -> 401  (sign in)
-//	403, or allowed:false             -> 403  (signed in, not permitted)
-//	transport error, unexpected status -> 503  (fail closed, never open)
-func (h *Handler) requireAdmin(r *http.Request) (*http.Request, error) {
-	// A mutating request without this header cannot come from a cross-site
-	// form post, because a form cannot set it and a browser preflights it.
-	if mutating(r.Method) && r.Header.Get("X-Requested-With") != "XMLHttpRequest" {
-		return r, errForbidden
-	}
-	status, err := h.auth.Status(r.Context(), r.Header.Get("Cookie"))
-	if err != nil {
-		switch {
-		case errors.Is(err, auth.ErrUnauthenticated):
-			return r, errUnauthorized
-		case errors.Is(err, auth.ErrForbidden):
-			return r, errForbidden
-		default:
-			log.Printf("authorization check: %v", err)
-			h.events.LogAsync(logclient.Error, "Authorization service unavailable", map[string]any{"error": err.Error()})
-			return r, errServiceUnavailable
-		}
-	}
-	// Status answers an absent or rejected session with an empty operator and
-	// no error, which is the 401.
-	if status.Operator == nil {
-		return r, errUnauthorized
-	}
-	if !status.CanAdmin {
-		return r, errForbidden
-	}
-	httplog.SetActor(r, status.Operator.Login)
-	return r.WithContext(context.WithValue(r.Context(), operatorKey, status.Operator)), nil
-}
-
-type contextKey string
-
-// operatorKey holds the operator requireAdmin resolved. The key has its own
-// type so nothing else in the request can collide with it.
-const operatorKey contextKey = "sprinter.operator"
-
-func operatorFrom(r *http.Request) *auth.Operator {
-	operator, _ := r.Context().Value(operatorKey).(*auth.Operator)
-	return operator
 }
 
 // adminEvent reports one admin change at Info, naming the operator behind it.
 // Call it only after the store call succeeded, so the log holds what happened
 // rather than what was attempted.
 func (h *Handler) adminEvent(r *http.Request, message string, payload map[string]any) {
-	if operator := operatorFrom(r); operator != nil {
+	if operator := authclient.OperatorFrom(r); operator != nil {
 		payload["actor_id"] = operator.GitHubID
 		payload["actor_login"] = operator.Login
 	}
 	h.events.LogAsync(logclient.Info, message, payload)
-}
-
-func mutating(method string) bool {
-	switch method {
-	case http.MethodGet, http.MethodHead, http.MethodOptions:
-		return false
-	default:
-		return true
-	}
 }

@@ -11,20 +11,32 @@ import (
 	"testing"
 	"time"
 
+	"github.com/BioTronDesignTeam/BioTronWeb/go/authclient"
+	"github.com/BioTronDesignTeam/BioTronWeb/go/authclient/authclienttest"
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient/logclienttest"
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/auth"
 	"github.com/BioTronDesignTeam/Sprinter/backend/internal/config"
 	"github.com/BioTronDesignTeam/Sprinter/backend/internal/store"
 )
 
-type fakeAuth struct {
-	status auth.Status
-	err    error
+// authAs returns a client whose stand-in Auth signs every cookie in as
+// octocat, holding the permissions granted.
+func authAs(t *testing.T, granted ...string) *authclient.Client {
+	t.Helper()
+	stub := authclienttest.New(t)
+	stub.SignIn(authclient.Operator{GitHubID: 7, Login: "octocat"}, granted...)
+	return stub.Client(AppID)
 }
 
-func (f fakeAuth) Status(context.Context, string) (auth.Status, error) {
-	return f.status, f.err
+func adminAuth(t *testing.T) *authclient.Client { return authAs(t, PermissionAdmin) }
+
+// authAnswering returns a client whose stand-in Auth answers every cookie with
+// status.
+func authAnswering(t *testing.T, status int) *authclient.Client {
+	t.Helper()
+	stub := authclienttest.New(t)
+	stub.Answer(status)
+	return stub.Client(AppID)
 }
 
 // fakeStore answers from memory and records the last write, which is all the
@@ -79,13 +91,9 @@ func (f *fakeStore) UpdateAutomation(_ context.Context, automation store.Automat
 
 func (f *fakeStore) DeleteAutomation(context.Context, string) error { return nil }
 
-func admin() auth.Status {
-	return auth.Status{Operator: &auth.Operator{GitHubID: 7, Login: "octocat"}, CanAdmin: true}
-}
-
-func newTestApp(t *testing.T, authorizer Authorizer, sprinterStore Store) *testApp {
+func newTestApp(t *testing.T, authz *authclient.Client, sprinterStore Store) *testApp {
 	t.Helper()
-	return &testApp{t: t, app: New(config.Config{}, sprinterStore, authorizer, &logclient.Client{}, nil)}
+	return &testApp{t: t, app: New(config.Config{}, sprinterStore, authz, &logclient.Client{}, nil)}
 }
 
 type testApp struct {
@@ -135,62 +143,55 @@ func withCookie(extra map[string]string) map[string]string {
 func TestRequireAdminMapsEveryOutcome(t *testing.T) {
 	cases := []struct {
 		name       string
-		authorizer Authorizer
+		authorizer *authclient.Client
 		method     string
 		headers    map[string]string
 		want       int
 	}{
 		{
 			name:       "no cookie is 401",
-			authorizer: fakeAuth{},
+			authorizer: authAnswering(t, http.StatusUnauthorized),
 			method:     http.MethodGet,
 			want:       http.StatusUnauthorized,
 		},
 		{
 			name:       "rejected session is 401",
-			authorizer: fakeAuth{},
+			authorizer: authAnswering(t, http.StatusUnauthorized),
 			method:     http.MethodGet,
 			headers:    withCookie(nil),
 			want:       http.StatusUnauthorized,
 		},
 		{
-			name:       "unauthenticated error is 401",
-			authorizer: fakeAuth{err: auth.ErrUnauthenticated},
+			name:       "a guest of another tool is 401",
+			authorizer: authAnswering(t, http.StatusForbidden),
 			method:     http.MethodGet,
 			headers:    withCookie(nil),
 			want:       http.StatusUnauthorized,
 		},
 		{
 			name:       "signed in without permission is 403",
-			authorizer: fakeAuth{status: auth.Status{Operator: &auth.Operator{Login: "octocat"}}},
+			authorizer: authAs(t),
 			method:     http.MethodGet,
 			headers:    withCookie(nil),
 			want:       http.StatusForbidden,
 		},
 		{
-			name:       "forbidden error is 403",
-			authorizer: fakeAuth{err: auth.ErrForbidden},
-			method:     http.MethodGet,
-			headers:    withCookie(nil),
-			want:       http.StatusForbidden,
-		},
-		{
-			name:       "transport failure is 503, never a pass",
-			authorizer: fakeAuth{err: errors.New("dial tcp: connection refused")},
+			name:       "a broken Auth is 503, never a pass",
+			authorizer: authAnswering(t, http.StatusInternalServerError),
 			method:     http.MethodGet,
 			headers:    withCookie(nil),
 			want:       http.StatusServiceUnavailable,
 		},
 		{
 			name:       "a write without X-Requested-With is 403",
-			authorizer: fakeAuth{status: admin()},
+			authorizer: adminAuth(t),
 			method:     http.MethodDelete,
 			headers:    withCookie(nil),
 			want:       http.StatusForbidden,
 		},
 		{
 			name:       "an admin read passes",
-			authorizer: fakeAuth{status: admin()},
+			authorizer: adminAuth(t),
 			method:     http.MethodGet,
 			headers:    withCookie(nil),
 			want:       http.StatusOK,
@@ -213,7 +214,7 @@ func TestRequireAdminMapsEveryOutcome(t *testing.T) {
 
 func TestPutGuardStoresAndValidates(t *testing.T) {
 	sprinterStore := &fakeStore{}
-	app := newTestApp(t, fakeAuth{status: admin()}, sprinterStore)
+	app := newTestApp(t, adminAuth(t), sprinterStore)
 
 	body := `{"guild_id":"123456789012345678","role_ids":["223456789012345678"],"channel_ids":[]}`
 	status, response := app.do(http.MethodPut, "/v1/admin/guards/agent", body, withCookie(xhr))
@@ -254,7 +255,7 @@ func TestPutGuardStoresAndValidates(t *testing.T) {
 
 func TestCreateAutomationValidatesBody(t *testing.T) {
 	sprinterStore := &fakeStore{}
-	app := newTestApp(t, fakeAuth{status: admin()}, sprinterStore)
+	app := newTestApp(t, adminAuth(t), sprinterStore)
 
 	good := `{"kind":"ANNOUNCE","name":"Weekly meetings","scope_id":"8f1a0c62-1f1e-4a1d-9c4f-5b2f0f4d1234",` +
 		`"channel_id":"323456789012345678","deliver":"CHANNEL","post_hour":9}`
@@ -287,7 +288,7 @@ func TestCreateAutomationValidatesBody(t *testing.T) {
 }
 
 func TestHealthReportsDatabaseAndDiscord(t *testing.T) {
-	app := newTestApp(t, fakeAuth{}, &fakeStore{})
+	app := newTestApp(t, authAnswering(t, http.StatusUnauthorized), &fakeStore{})
 	status, body := app.do(http.MethodGet, "/health", "", nil)
 	if status != http.StatusOK || !strings.Contains(body, `"database":"ok"`) {
 		t.Fatalf("status = %d body = %s", status, body)
@@ -300,7 +301,7 @@ func TestHealthReportsDatabaseAndDiscord(t *testing.T) {
 		t.Fatalf("body = %s", body)
 	}
 
-	down := newTestApp(t, fakeAuth{}, &fakeStore{pingErr: errors.New("no connection")})
+	down := newTestApp(t, authAnswering(t, http.StatusUnauthorized), &fakeStore{pingErr: errors.New("no connection")})
 	status, body = down.do(http.MethodGet, "/health", "", nil)
 	if status != http.StatusServiceUnavailable || !strings.Contains(body, `"database":"unavailable"`) {
 		t.Fatalf("status = %d body = %s", status, body)
@@ -313,7 +314,7 @@ func TestDiscordFlagIsReported(t *testing.T) {
 	for _, enabled := range []bool{false, true} {
 		app := &testApp{t: t, app: New(
 			config.Config{Discord: enabled}, &fakeStore{guards: []store.Guard{}},
-			fakeAuth{status: admin()}, &logclient.Client{}, nil,
+			adminAuth(t), &logclient.Client{}, nil,
 		)}
 		want := `"discord_enabled":` + map[bool]string{true: "true", false: "false"}[enabled]
 
@@ -337,7 +338,7 @@ func TestDiscordFlagIsReported(t *testing.T) {
 func TestRoutingMatchesTheOldServer(t *testing.T) {
 	origins := config.Config{FrontendURL: "http://localhost:5178"}
 	app := &testApp{t: t, app: New(origins, &fakeStore{guards: []store.Guard{}},
-		fakeAuth{status: admin()}, &logclient.Client{}, nil)}
+		adminAuth(t), &logclient.Client{}, nil)}
 	origin := map[string]string{"Origin": "http://localhost:5178"}
 	preflight := map[string]string{"Origin": "http://localhost:5178", "Access-Control-Request-Method": "PUT"}
 	cases := []struct {
@@ -413,7 +414,7 @@ func TestRoutingMatchesTheOldServer(t *testing.T) {
 }
 
 func TestBodyOverTheLimitIs413(t *testing.T) {
-	app := newTestApp(t, fakeAuth{status: admin()}, &fakeStore{})
+	app := newTestApp(t, adminAuth(t), &fakeStore{})
 	big := `{"guild_id":"` + strings.Repeat("1", bodyLimit) + `"}`
 	status, header, body := app.doHeaders(http.MethodPut, "/v1/admin/guards/agent", big, withCookie(xhr))
 	if status != http.StatusRequestEntityTooLarge || body != `{"error":"request entity too large"}` {
@@ -429,7 +430,7 @@ type panicStore struct{ fakeStore }
 func (panicStore) ListGuards(context.Context) ([]store.Guard, error) { panic("boom") }
 
 func TestPanicIsAJSON500(t *testing.T) {
-	app := newTestApp(t, fakeAuth{status: admin()}, &panicStore{})
+	app := newTestApp(t, adminAuth(t), &panicStore{})
 	status, body := app.do(http.MethodGet, "/v1/admin/guards", "", withCookie(nil))
 	if status != http.StatusInternalServerError || body != `{"error":"internal server error"}` {
 		t.Fatalf("status = %d body = %s", status, body)
@@ -463,7 +464,7 @@ func eventsTo(t *testing.T) (*logclient.Client, func(path string) logclienttest.
 func TestRequestEventsCarryActorAndCause(t *testing.T) {
 	events, wait := eventsTo(t)
 	app := &testApp{t: t, app: New(config.Config{}, &fakeStore{guards: []store.Guard{}},
-		fakeAuth{status: admin()}, events, nil)}
+		adminAuth(t), events, nil)}
 	app.do(http.MethodPut, "/v1/admin/guards/agent", `{"guild_id":"nope","role_ids":[]}`, withCookie(xhr))
 	event := wait("/v1/admin/guards/agent")
 	if event.Level != "warning" || event.Payload["actor"] != "octocat" ||
@@ -472,10 +473,33 @@ func TestRequestEventsCarryActorAndCause(t *testing.T) {
 	}
 
 	down := &testApp{t: t, app: New(config.Config{}, &fakeStore{},
-		fakeAuth{err: errors.New("dial tcp: connection refused")}, events, nil)}
+		authAnswering(t, http.StatusInternalServerError), events, nil)}
 	down.do(http.MethodGet, "/v1/auth/status", "", withCookie(nil))
 	event = wait("/v1/auth/status")
-	if event.Level != "error" || event.Payload["error"] != "dial tcp: connection refused" {
+	if event.Level != "error" || event.Payload["error"] != "auth /v1/session returned HTTP 500" {
 		t.Fatalf("event = %+v", event)
+	}
+}
+
+// The page reads /v1/auth/status to choose between the sign-in screen, the
+// no-permission notice, and the admin UI, so its fields stay as they were.
+func TestAuthStatusBody(t *testing.T) {
+	app := newTestApp(t, authAnswering(t, http.StatusUnauthorized), &fakeStore{})
+	status, body := app.do(http.MethodGet, "/v1/auth/status", "", nil)
+	if want := `{"can_admin":false,"permissions":{"admin":false},"discord_enabled":false}`; status != http.StatusOK || body != want {
+		t.Fatalf("anonymous: %d %s, want %s", status, body, want)
+	}
+
+	app = newTestApp(t, authAs(t), &fakeStore{})
+	status, body = app.do(http.MethodGet, "/v1/auth/status", "", withCookie(nil))
+	if status != http.StatusOK || !strings.HasPrefix(body, `{"operator":{"github_id":7,"login":"octocat",`) ||
+		!strings.Contains(body, `"can_admin":false`) {
+		t.Fatalf("signed in without admin: %d %s", status, body)
+	}
+
+	app = newTestApp(t, authAnswering(t, http.StatusInternalServerError), &fakeStore{})
+	status, body = app.do(http.MethodGet, "/v1/auth/status", "", withCookie(nil))
+	if status != http.StatusServiceUnavailable || body != `{"error":"service unavailable"}` {
+		t.Fatalf("Auth down: %d %s", status, body)
 	}
 }
