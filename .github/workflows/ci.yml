@@ -264,7 +264,7 @@ jobs:
   passed:
     name: ci passed
     if: always()
-    needs: [compose-config, changes, frontend, backend, logclient, secrets, vulnerabilities]
+    needs: [compose-config, changes, frontend, backend, shared, secrets, vulnerabilities]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
