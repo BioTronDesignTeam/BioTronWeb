@@ -43,7 +43,6 @@ jobs:
           - { name: auth-migrate, context: apps/auth/prisma, dockerfile: apps/auth/prisma/Dockerfile }
           - { name: exo-web, context: ., dockerfile: apps/exo/frontend/Dockerfile }
           - { name: exo-api, context: ., dockerfile: apps/exo/backend/Dockerfile }
-          - { name: exo-migrate, context: apps/exo/prisma, dockerfile: apps/exo/prisma/Dockerfile }
           - { name: sprinter-web, context: ., dockerfile: apps/sprinter/frontend/Dockerfile }
           - { name: sprinter-bot, context: ., dockerfile: apps/sprinter/backend/Dockerfile }
           - { name: sprinter-migrate, context: apps/sprinter/prisma, dockerfile: apps/sprinter/prisma/Dockerfile }

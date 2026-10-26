@@ -1,24 +1,12 @@
 name: biotron-exo-gui
 
 services:
-  exo-migrate:
-    image: ${IMAGE_REGISTRY:-biotron-}exo-migrate:${IMAGE_TAG:-local}
-    build:
-      context: ./prisma
-      dockerfile: Dockerfile
-    environment:
-      DATABASE_URL: ${EXO_DATABASE_URL:-${DATABASE_URL:-}}
-    networks:
-      - biotron
-    restart: "no"
-
   exo-api:
     image: ${IMAGE_REGISTRY:-biotron-}exo-api:${IMAGE_TAG:-local}
     build:
       context: ../..
       dockerfile: apps/exo/backend/Dockerfile
     environment:
-      DATABASE_URL: ${EXO_DATABASE_URL:-${DATABASE_URL:-}}
       OAUTH_MANAGER_URL: ${EXO_OAUTH_MANAGER_URL:-${OAUTH_MANAGER_URL:-http://oauth-manager:8080}}
       PORT: "8080"
       FRONTEND_URL: ${EXO_FRONTEND_URL:-${FRONTEND_URL:-http://localhost:5174}}
@@ -37,9 +25,6 @@ services:
         aliases:
           - exo-api
           - ${BIOTRON_INSTANCE:-local}-exo-api
-    depends_on:
-      exo-migrate:
-        condition: service_completed_successfully
     restart: unless-stopped
 
   exo-web:

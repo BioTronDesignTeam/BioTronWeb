@@ -16,21 +16,20 @@ its events as `exo-api`. The code is MIT licensed; see `LICENSE`.
 |------|------|
 | `backend/` | Go `net/http` API. `/health` and the permission gate. No database code yet. |
 | `frontend/` | Vite and React UI, served by Nginx. |
-| `prisma/` | Schema and migrations. No models yet. |
 | `scripts/` | `mock_telemetry.sh`, a stand-in for the ESP32. See Scripts. |
-| `docker-compose.yml` | `exo-migrate`, `exo-api`, `exo-web` on the `biotron` network. |
+| `docker-compose.yml` | `exo-api` and `exo-web` on the `biotron` network. |
 | `.env.example` | Every variable the app reads. Copy it to `.env`. |
 
 ## Run
 
-Exo needs the shared Postgres from `infra/` and a running Auth.
+Exo needs a running Auth, which needs the shared Postgres from `infra/`.
 Start them first, from the monorepo root (see `apps/auth/README.md`), then Exo:
 
 ```bash
 docker compose -f infra/docker-compose.yml --env-file infra/.env up -d
 docker compose up -d --build auth-migrate auth-api auth-web
-cp apps/exo/.env.example apps/exo/.env    # use the same Postgres password
-docker compose up -d --build exo-migrate exo-api exo-web
+cp apps/exo/.env.example apps/exo/.env
+docker compose up -d --build exo-api exo-web
 ```
 
 The UI is at http://localhost:5174 and the API at http://localhost:8081. The
@@ -39,9 +38,8 @@ browser signs in against Auth on port 8080. The API reaches Auth at
 
 ## Develop
 
-Open the monorepo in its devcontainer. It supplies Node 24, Go 1.27, and a
-Postgres that `.env.example` already points at. The post-create
-step installs the workspaces and applies this app's migrations. Then:
+Open the monorepo in its devcontainer. It supplies Node 24 and Go 1.27, and
+its post-create step installs the workspaces. Then:
 
 ```bash
 npm run dev -w apps/exo/frontend             # http://localhost:5174
@@ -53,8 +51,7 @@ The backend defaults to port 8080, which Auth uses, so pass `PORT=8081`.
 
 ## Environment
 
-One file, `apps/exo/.env`, feeds Compose, the backend, the frontend, and
-Prisma. Do not add environment files below it. The backend reads `PORT`,
+One file, `apps/exo/.env`, feeds Compose, the backend, and the frontend. Do not add environment files below it. The backend reads `PORT`,
 `FRONTEND_URL`, `TRUSTED_PROXIES`, and `OAUTH_MANAGER_URL` in
 `backend/internal/config`. The shared `go/logclient` reads `LOG_LEVEL`
 and the optional Grafana and PostHog variables listed in
@@ -64,7 +61,6 @@ and the optional Grafana and PostHog variables listed in
 - `TRUSTED_PROXIES` must include the edge Nginx network. The API reads
   `Cf-Connecting-Ip` only from a trusted proxy.
 - `OAUTH_MANAGER_URL` unset or unreachable: every gated route answers `503`.
-- `DATABASE_URL` reaches `exo-migrate` and `exo-api`. Only Prisma reads it.
 
 `VITE_API_URL` and `VITE_AUTH_URL` are compiled into the frontend bundle;
 Compose passes them to `exo-web` as build arguments. A production build fails
@@ -161,16 +157,12 @@ and machine and nothing else.
 
 ## Database
 
-Prisma 6.19.3, pinned exactly. `prisma/package.json` overrides `deepmerge-ts`
-to `8.0.0`; `@prisma/config` asks for `7.1.5`. `schema.prisma` declares no
-models. Three migrations exist: two created operator, session, and guest-key
-tables, and `20260829200000_drop_local_auth` dropped them because Auth owns
-that. After all three, the `exo` schema holds no tables. The telemetry tables
-land with ingest, and the Go query layer is still to be chosen.
-
-To create a migration in the devcontainer, source `apps/exo/.env` and run
-`npm run --prefix apps/exo/prisma migrate`. The `exo-migrate` service applies
-the migrations as the image's `node` user.
+Exo has none yet. Its Prisma schema held only a local copy of Auth's
+tables, which a later migration dropped, so the `exo-migrate` image and
+`DATABASE_URL` went too. A deployment migrated before then keeps an empty
+`exo` schema with Prisma's `_prisma_migrations` table; it is harmless, and
+`DROP SCHEMA exo CASCADE` removes it. The telemetry tables bring back a
+schema and a migrate service when ingest lands.
 
 ## Scripts
 

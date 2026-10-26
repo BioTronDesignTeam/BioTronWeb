@@ -50,7 +50,7 @@ updates:
 
   # The Prisma CLI of each app, in its own lockfile beside its schema.
   # Prisma 7 is a planned migration, not a bump (AGENTS.md), so majors stay
-  # off; the five folders move together in one pull request.
+  # off; the four folders move together in one pull request.
   - package-ecosystem: npm
     directories:
       - /apps/*/prisma
