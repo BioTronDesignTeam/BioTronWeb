@@ -11,12 +11,12 @@ import (
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient/httplog"
 )
 
-// Refusal is one request the client turned away.
-type Refusal struct {
+// refusal is one request the client turned away.
+type refusal struct {
 	// Status is 401 (sign in), 403 (signed in, not permitted, or a mutating
 	// request without X-Requested-With), or 503 (Auth could not answer).
 	Status int
-	// Message is the default body text.
+	// Message is the body's error text.
 	Message string
 	// Permission is the permission the route asked for, if any.
 	Permission string
@@ -24,9 +24,6 @@ type Refusal struct {
 	// the outage. Require has already recorded it with httplog.SetError.
 	Err error
 }
-
-// ErrorWriter answers a refusal. See WithErrorWriter.
-type ErrorWriter func(w http.ResponseWriter, r *http.Request, refusal Refusal)
 
 type sessionKey struct{}
 
@@ -53,7 +50,7 @@ func (c *Client) Require(permission string) func(http.Handler) http.Handler {
 			// A form on another site cannot set this header, and a browser
 			// preflights a request that does, so it stops a cross-site post.
 			if mutating(r.Method) && r.Header.Get("X-Requested-With") != "XMLHttpRequest" {
-				c.refuse(w, r, Refusal{http.StatusForbidden, "X-Requested-With header required", permission, ErrMissingXHR})
+				c.refuse(w, r, refusal{http.StatusForbidden, "X-Requested-With header required", permission, ErrMissingXHR})
 				return
 			}
 			session, err := c.Lookup(r.Context(), r.Header.Get("Cookie"), permission)
@@ -62,11 +59,11 @@ func (c *Client) Require(permission string) func(http.Handler) http.Handler {
 				return
 			}
 			if !session.Authenticated() {
-				c.refuse(w, r, Refusal{http.StatusUnauthorized, "authentication required", permission, ErrUnauthenticated})
+				c.refuse(w, r, refusal{http.StatusUnauthorized, "authentication required", permission, ErrUnauthenticated})
 				return
 			}
 			if !session.Can(permission) {
-				c.refuse(w, r, Refusal{http.StatusForbidden, "permission required", permission, ErrForbidden})
+				c.refuse(w, r, refusal{http.StatusForbidden, "permission required", permission, ErrForbidden})
 				return
 			}
 			httplog.SetActor(r, session.Operator.Login)
@@ -149,27 +146,27 @@ func (c *Client) unavailable(w http.ResponseWriter, r *http.Request, permission 
 		payload["permission"] = permission
 	}
 	c.events.LogAsync(logclient.Error, "Authorization service unavailable", payload)
-	c.refuse(w, r, Refusal{http.StatusServiceUnavailable, "authorization service unavailable", permission, err})
+	c.refuse(w, r, refusal{http.StatusServiceUnavailable, "authorization service unavailable", permission, err})
 }
 
-func (c *Client) refuse(w http.ResponseWriter, r *http.Request, refusal Refusal) {
-	httplog.SetError(r, refusal.Err)
-	c.writeError(w, r, refusal)
+func (c *Client) refuse(w http.ResponseWriter, r *http.Request, denial refusal) {
+	httplog.SetError(r, denial.Err)
+	writeJSONError(w, denial)
 }
 
 // writeJSONError is the default refusal body, {"error": message}, plus the
 // permission a signed-in caller lacks.
-func writeJSONError(w http.ResponseWriter, _ *http.Request, refusal Refusal) {
-	body := map[string]string{"error": refusal.Message}
-	if errors.Is(refusal.Err, ErrForbidden) {
-		body["permission"] = refusal.Permission
+func writeJSONError(w http.ResponseWriter, denial refusal) {
+	body := map[string]string{"error": denial.Message}
+	if errors.Is(denial.Err, ErrForbidden) {
+		body["permission"] = denial.Permission
 	}
 	encoded, err := json.Marshal(body)
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-	writeBody(w, refusal.Status, encoded)
+	writeBody(w, denial.Status, encoded)
 }
 
 func writeBody(w http.ResponseWriter, status int, body []byte) {
@@ -186,4 +183,3 @@ func mutating(method string) bool {
 		return true
 	}
 }
-

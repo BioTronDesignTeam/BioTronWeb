@@ -2,7 +2,6 @@ package authclient_test
 
 import (
 	"context"
-	"errors"
 	"io"
 	"log"
 	"net/http"
@@ -242,24 +241,6 @@ func TestDefaultRefusalBodies(t *testing.T) {
 		if ct := got.header.Get("Content-Type"); ct != "application/json; charset=utf-8" {
 			t.Errorf("%s: Content-Type = %q", tc.name, ct)
 		}
-	}
-}
-
-// A tool keeps its own error format.
-func TestWithErrorWriter(t *testing.T) {
-	auth := authclienttest.New(t)
-	var refusal authclient.Refusal
-	client := auth.Client("calendar").With(authclient.WithErrorWriter(func(w http.ResponseWriter, _ *http.Request, r authclient.Refusal) {
-		refusal = r
-		w.WriteHeader(r.Status)
-		_, _ = io.WriteString(w, strings.ToLower(http.StatusText(r.Status)))
-	}))
-	got := gated(t, client, "write", http.MethodGet, cookie, nil)
-	if got.status != http.StatusUnauthorized || got.body != "unauthorized" {
-		t.Fatalf("%d %q", got.status, got.body)
-	}
-	if !errors.Is(refusal.Err, authclient.ErrUnauthenticated) || refusal.Permission != "write" {
-		t.Fatalf("refusal = %+v", refusal)
 	}
 }
 

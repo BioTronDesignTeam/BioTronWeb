@@ -76,11 +76,10 @@ func (s Session) Can(permission string) bool {
 
 // Client asks Auth about sessions for one tool.
 type Client struct {
-	baseURL    string
-	appID      string
-	http       *http.Client
-	events     *logclient.Client
-	writeError ErrorWriter
+	baseURL string
+	appID   string
+	http    *http.Client
+	events  *logclient.Client
 }
 
 // Option configures a Client.
@@ -97,22 +96,14 @@ func WithEvents(events *logclient.Client) Option {
 	return func(c *Client) { c.events = events }
 }
 
-// WithErrorWriter replaces the body of every refusal, so a tool keeps the
-// error format its frontend and tests already read. Without it, a refusal is
-// {"error": message}, with "permission" added to a missing-permission 403.
-func WithErrorWriter(write ErrorWriter) Option {
-	return func(c *Client) { c.writeError = write }
-}
-
 // New returns a client for the tool appID, which must match its row in Auth's
 // apps table. An empty baseURL is allowed: every gated request then fails
 // closed with 503, and Configured reports false so the service can warn.
 func New(baseURL, appID string, options ...Option) *Client {
 	c := &Client{
-		baseURL:    strings.TrimRight(strings.TrimSpace(baseURL), "/"),
-		appID:      appID,
-		http:       &http.Client{Timeout: Timeout},
-		writeError: writeJSONError,
+		baseURL: strings.TrimRight(strings.TrimSpace(baseURL), "/"),
+		appID:   appID,
+		http:    &http.Client{Timeout: Timeout},
 	}
 	for _, option := range options {
 		option(c)
@@ -121,7 +112,7 @@ func New(baseURL, appID string, options ...Option) *Client {
 }
 
 // With returns a copy of the client with more options applied, so a server
-// package can add its own error writer and events to a client main built.
+// package can add its events to a client main built.
 func (c *Client) With(options ...Option) *Client {
 	copied := *c
 	for _, option := range options {

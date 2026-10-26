@@ -53,9 +53,7 @@ It never fails open. Wrap a whole route prefix, not single handlers, so a
 route added under it later cannot forget the check.
 
 The default refusal body is `{"error": "<message>"}`, with `"permission"`
-added to a missing-permission 403. A tool whose frontend or tests read a
-different body passes `WithErrorWriter` and writes its own from the
-`Refusal`.
+added to a missing-permission 403.
 
 ## StatusHandler
 
