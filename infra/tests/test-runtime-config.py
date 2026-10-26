@@ -89,6 +89,23 @@ class RuntimeConfigTests(unittest.TestCase):
         del self.env['LOGGER_DATABASE_URL']
         self.run_command('./launch', 'web', '--runtime', '--dry-run', success=False)
 
+    def test_every_app_migrates_through_the_one_migrate_image(self):
+        services = self.config()['services']
+        migrates = sorted(name for name in services if name.endswith('-migrate'))
+        self.assertEqual(migrates, sorted(f'{app}-migrate' for app in DATABASE_APPS))
+        for app in DATABASE_APPS:
+            service = services[f'{app}-migrate']
+            self.assertEqual(service['image'], 'biotron-migrate:local')
+            self.assertEqual(service['build']['dockerfile'], 'infra/migrate/Dockerfile')
+            self.assertEqual(service['command'], [app])
+
+    def test_deploy_builds_every_image_compose_builds(self):
+        workflow = (ROOT / '.github/workflows/deploy.yml').read_text()
+        built = set(re.findall(r'- \{ name: ([a-z-]+),', workflow))
+        images = {service['image'].removeprefix('biotron-').split(':')[0]
+                  for service in self.config()['services'].values() if 'build' in service}
+        self.assertEqual(images, built - {'edge-nginx'})
+
     def test_exo_needs_no_database(self):
         services = self.config()['services']
         self.assertNotIn('exo-migrate', services)

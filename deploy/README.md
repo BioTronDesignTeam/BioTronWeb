@@ -364,13 +364,13 @@ because two copies must not both take writes.
 
 ## Disk space
 
-The images for one commit take about 4 GB, most of it the four `*-migrate`
-images, and each instance can run a different commit. A deploy removes this
-registry's images that no container uses any more; every commit's images stay
-in GHCR for a rollback. Keep about 10 GB free on the filesystem that holds
-`/var/lib/docker` for a host running both instances. If it sits on a small
-partition, move Docker's data root (`"data-root"` in
-`/etc/docker/daemon.json`, then restart Docker) or grow the partition.
+The images for one commit take a few GB, and each instance can run a
+different commit. A deploy removes this registry's images that no container
+uses any more; every commit's images stay in GHCR for a rollback. Keep
+about 10 GB free on the filesystem that holds `/var/lib/docker` for a host
+running both instances. If it sits on a small partition, move Docker's data
+root (`"data-root"` in `/etc/docker/daemon.json`, then restart Docker) or
+grow the partition.
 
 An instance deployed before Redis was removed keeps its `redis-data` volume.
 The first deploy without Redis removes the container; the volume holds

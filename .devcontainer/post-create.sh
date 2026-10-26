@@ -19,11 +19,11 @@ for app in apps/*/; do
 done
 
 echo "== database: every app's migrations against the sidecar Postgres"
+npm ci --prefix infra/migrate --no-audit --no-fund >/dev/null
 for app in auth calendar logger sprinter; do
   (
     set -a; . "apps/${app}/.env"; set +a
-    npm ci --prefix "apps/${app}/prisma" --no-audit --no-fund >/dev/null
-    npm run --prefix "apps/${app}/prisma" deploy
+    infra/migrate/migrate "$app"
   )
 done
 

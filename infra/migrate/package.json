@@ -1,0 +1,12 @@
+{
+  "name": "biotron-migrate",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The one Prisma CLI that applies every app's migrations; see infra/migrate/migrate.",
+  "devDependencies": {
+    "prisma": "6.19.3"
+  },
+  "overrides": {
+    "deepmerge-ts": "8.0.0"
+  }
+}

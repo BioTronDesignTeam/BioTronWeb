@@ -290,8 +290,9 @@ A guest session from Exo's key holds `exo-gui/live` and `exo-gui/historical`
 and nothing else.
 
 To create a migration in the devcontainer, source `apps/auth/.env` and run
-`npm run --prefix apps/auth/prisma migrate`. The `auth-migrate` service
-applies the migrations as the image's `node` user.
+`infra/migrate/migrate auth dev --name <name>` from the repository root.
+The `auth-migrate` service applies the migrations with the shared migrate
+image, `infra/migrate`.
 
 ### Queries
 

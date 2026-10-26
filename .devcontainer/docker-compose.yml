@@ -22,15 +22,12 @@ services:
       # the host's native binaries. Each node_modules is masked by a volume so
       # the container installs its own Linux ones without touching the host's.
       - nm-auth-frontend:/workspaces/biotron/apps/auth/frontend/node_modules
-      - nm-auth-prisma:/workspaces/biotron/apps/auth/prisma/node_modules
       - nm-calendar-frontend:/workspaces/biotron/apps/calendar/frontend/node_modules
-      - nm-calendar-prisma:/workspaces/biotron/apps/calendar/prisma/node_modules
       - nm-exo-frontend:/workspaces/biotron/apps/exo/frontend/node_modules
       - nm-logger-frontend:/workspaces/biotron/apps/logger/frontend/node_modules
-      - nm-logger-prisma:/workspaces/biotron/apps/logger/prisma/node_modules
       - nm-site-frontend:/workspaces/biotron/apps/site/frontend/node_modules
       - nm-sprinter-frontend:/workspaces/biotron/apps/sprinter/frontend/node_modules
-      - nm-sprinter-prisma:/workspaces/biotron/apps/sprinter/prisma/node_modules
+      - nm-migrate:/workspaces/biotron/infra/migrate/node_modules
       - nm-root:/workspaces/biotron/node_modules
       - nm-style:/workspaces/biotron/packages/style/node_modules
     extra_hosts:
@@ -58,14 +55,11 @@ services:
 volumes:
   postgres-data:
   nm-auth-frontend:
-  nm-auth-prisma:
   nm-calendar-frontend:
-  nm-calendar-prisma:
   nm-exo-frontend:
   nm-logger-frontend:
-  nm-logger-prisma:
   nm-site-frontend:
   nm-sprinter-frontend:
-  nm-sprinter-prisma:
+  nm-migrate:
   nm-root:
   nm-style:

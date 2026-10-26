@@ -20,6 +20,7 @@ up, deployed, migrated, and rotated is in `deploy/README.md`.
 | `infisical/` | The `biotron-secrets` project: Infisical with its own Postgres and Redis |
 | `no-host-ports.yml` | Drops every host port from a named instance |
 | `.env.example`, `edge/.env.example` | Local data-service settings; the edge's sites and tunnel token |
+| `migrate/` | The one migrate image: Prisma applies each app's `apps/<app>/prisma/migrations` to its own schema |
 | `nginx/` | The versioned edge image, per-instance hostname routing, proxy headers, and health endpoint |
 | `tests/` | Compose and launch regression checks; `python3 infra/tests/test-runtime-config.py` |
 

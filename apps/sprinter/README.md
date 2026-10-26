@@ -340,9 +340,8 @@ The reason codes on `Command refused` are `no_guard`, `no_guild`,
 
 ## Database
 
-Prisma 6.19.3, pinned exactly. `prisma/package.json` also overrides the
-transitive dependency `deepmerge-ts` to 8.0.0; `@prisma/config` asks for
-7.1.5. Seven tables in the `sprinter` schema:
+Prisma 6.19.3, pinned exactly, in `infra/migrate`. Seven tables in the
+`sprinter` schema:
 
 | Table | What |
 |-------|------|
@@ -363,9 +362,9 @@ a model cannot be talked into a write. The second pool qualifies every
 table as `logger.x` or `oauth.x` and carries no `search_path` of its own.
 
 To create a migration in the devcontainer, source `apps/sprinter/.env`
-and run `npm run --prefix apps/sprinter/prisma migrate`. The
-`sprinter-migrate` service applies the migrations as the image's `node`
-user.
+and run `infra/migrate/migrate sprinter dev --name <name>` from the
+repository root. The `sprinter-migrate` service applies the migrations
+with the shared migrate image, `infra/migrate`.
 
 ### Queries
 

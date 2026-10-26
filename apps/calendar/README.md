@@ -227,9 +227,9 @@ scope with series cannot be deleted. The Go store sets `search_path`
 from the `?schema=` in `DATABASE_URL`.
 
 To create a migration in the devcontainer, source `apps/calendar/.env`
-and run `npm run --prefix apps/calendar/prisma migrate`. The
-`calendar-migrate` service applies the migrations as the image's `node`
-user.
+and run `infra/migrate/migrate calendar dev --name <name>` from the
+repository root. The `calendar-migrate` service applies the migrations
+with the shared migrate image, `infra/migrate`.
 
 The store's SQL is in `backend/internal/store/queries/queries.sql`. sqlc
 1.31.1 turns it into Go beside it, reading the schema from the Prisma

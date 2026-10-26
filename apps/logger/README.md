@@ -163,10 +163,11 @@ survives.
 Prisma 6.19.3, pinned exactly. The schema named by `?schema=` in
 `DATABASE_URL` (`logger`) holds `health_checks`, which the monitor writes
 and the status routes read. The `logs` table of the old log store was
-dropped by `20261025120000_drop_logs`. To create a
-migration in the devcontainer, source `apps/logger/.env` and run
-`npm run --prefix apps/logger/prisma migrate`. The `logger-migrate` service
-applies the migrations as the image's `node` user.
+dropped by `20261025120000_drop_logs`. To create a migration in the
+devcontainer, source `apps/logger/.env` and run
+`infra/migrate/migrate logger dev --name <name>` from the repository root.
+The `logger-migrate` service applies the migrations with the shared migrate
+image, `infra/migrate`.
 
 The store writes no SQL inline. Its queries live in
 `backend/internal/store/queries/queries.sql`, and sqlc 1.31.1 turns them
