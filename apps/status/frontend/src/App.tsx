@@ -56,7 +56,7 @@ const statusMeta: Record<StatusState, { label: string; headline: string; descrip
   unknown: {
     label: 'No data',
     headline: 'Status is not being observed',
-    description: 'Logger has no recent health checks to report.',
+    description: 'Status has no recent health checks to report.',
   },
 };
 
@@ -305,7 +305,7 @@ function Shell({ children }: { children: ReactNode }) {
         <a className="brand" href="/">
           <Brand className="brand__mark" />
           <span className="brand__divider" aria-hidden="true" />
-          <span className="brand__name">Status Logger</span>
+          <span className="brand__name">Status</span>
         </a>
         <div className="topbar-actions">
           <ThemeToggle />
