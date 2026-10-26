@@ -17,9 +17,8 @@
         try {
           var hostname = window.location.hostname
           var domain = ''
-          if (hostname === 'biotron.ca' || hostname.endsWith('.biotron.ca')) domain = '; Domain=biotron.ca'
-          if (hostname === 'biotron-dev.com' || hostname.endsWith('.biotron-dev.com')) domain = '; Domain=biotron-dev.com'
           if (hostname === 'uwbiotron.dev' || hostname.endsWith('.uwbiotron.dev')) domain = '; Domain=uwbiotron.dev'
+          if (hostname === 'uwbiotron.ca' || hostname.endsWith('.uwbiotron.ca')) domain = '; Domain=uwbiotron.ca'
           var secure = window.location.protocol === 'https:' ? '; Secure' : ''
           var match = document.cookie.match(/(?:^|;\s*)biotron-theme=(dark|light)(?:;|$)/)
           var theme = match ? match[1] : null
