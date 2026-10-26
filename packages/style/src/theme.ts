@@ -3,15 +3,14 @@ export type Theme = 'light' | 'dark';
 const themeCookie = 'biotron-theme';
 const themeCookieMaxAge = 60 * 60 * 24 * 365;
 
-// Staging and production. Anywhere else, such as localhost, the cookie is
-// host-only; cookies ignore ports, so every local app still shares it.
-const sharedCookieDomains = ['uwbiotron.dev', 'uwbiotron.ca'];
-
+// The cookie belongs to the page's domain, its hostname's last two labels, so
+// calendar.uwbiotron.ca and uwbiotron.ca share one preference. BioTron's
+// domains never sit under a multi-part suffix such as co.uk, so two labels is
+// enough. localhost, any other name without a dot, and an IP address get a
+// host-only cookie; cookies ignore ports, so every local app still shares it.
 function cookieDomain(hostname: string) {
-  const domain = sharedCookieDomains.find(
-    (candidate) => hostname === candidate || hostname.endsWith(`.${candidate}`),
-  );
-  return domain ? `; Domain=${domain}` : '';
+  if (!hostname.includes('.') || hostname.startsWith('[') || /^[\d.]+$/.test(hostname)) return '';
+  return `; Domain=${hostname.split('.').slice(-2).join('.')}`;
 }
 
 // Reads the cookie as the bootstrap in every index.html does.

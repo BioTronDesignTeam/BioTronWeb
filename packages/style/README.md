@@ -65,9 +65,12 @@ white flash on a stored dark-mode visit. The bootstrap reads the shared
 `color-scheme`, and paints the palette's dark or light page colour
 immediately.
 
-The cookie is host-wide on `localhost`, so it crosses local development ports.
-On staging it is scoped to `uwbiotron.dev` and in production to
-`uwbiotron.ca`, so the preference crosses application subdomains.
+The theme toggle writes the cookie for the last two labels of the page's
+hostname, such as `uwbiotron.ca` for `calendar.uwbiotron.ca`, so the
+preference crosses application subdomains. BioTron's domains never sit under
+a multi-part suffix such as `co.uk`, so two labels is enough. On `localhost`,
+any other name without a dot, and an IP address the cookie is host-only;
+cookies ignore ports, so it still crosses local development ports.
 `ThemeToggle` also checks the cookie while a page is open, allowing
 already-open applications to follow a change made in another tab.
 

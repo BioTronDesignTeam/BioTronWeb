@@ -122,8 +122,10 @@ names, such as `OAuthManager` and `exo-gui`. They mean the paths above.
   blue `#3050b0` are highlight fills only. Accent text on graphite is
   `#7f9cf5`. Pale blue `#aedbfc` does not appear in dark mode. Use the
   `--biotron-*` tokens.
-- The theme preference is the `biotron-theme` cookie. It is set on the parent
-  domain so every tool shows the same theme. It holds no secret.
+- The theme preference is the `biotron-theme` cookie. It is set on the last
+  two labels of the hostname, such as `uwbiotron.ca`, so every tool shows the
+  same theme; on localhost and IP addresses it is host-only. It holds no
+  secret.
 - The five tool frontends keep the full theme bootstrap script inline in
   `index.html`, before React loads. It stops a white flash on page load. Do
   not move it into React or into `@biotron/style`.
