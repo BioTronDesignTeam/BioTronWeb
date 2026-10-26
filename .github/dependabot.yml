@@ -48,12 +48,12 @@ updates:
       - dependency-name: "@types/node"
         update-types: [version-update:semver-major]
 
-  # The Prisma CLI of each app, in its own lockfile beside its schema.
+  # The one Prisma CLI that applies every app's migrations (infra/migrate).
   # Prisma 7 is a planned migration, not a bump (AGENTS.md), so majors stay
-  # off; the four folders move together in one pull request.
+  # off.
   - package-ecosystem: npm
     directories:
-      - /apps/*/prisma
+      - /infra/migrate
     schedule:
       interval: weekly
       day: monday
@@ -88,7 +88,7 @@ updates:
       - /.devcontainer
       - /apps/*/backend
       - /apps/*/frontend
-      - /apps/*/prisma
+      - /infra/migrate
       - /infra/nginx
     schedule:
       interval: weekly

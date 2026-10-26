@@ -2,10 +2,12 @@ name: biotron-calendar
 
 services:
   calendar-migrate:
-    image: ${IMAGE_REGISTRY:-biotron-}calendar-migrate:${IMAGE_TAG:-local}
+    # The one migrate image (infra/migrate), applying this app's migrations.
+    image: ${IMAGE_REGISTRY:-biotron-}migrate:${IMAGE_TAG:-local}
     build:
-      context: ./prisma
-      dockerfile: Dockerfile
+      context: ../..
+      dockerfile: infra/migrate/Dockerfile
+    command: ["calendar"]
     environment:
       DATABASE_URL: ${CALENDAR_DATABASE_URL:-${DATABASE_URL:-}}
     networks:

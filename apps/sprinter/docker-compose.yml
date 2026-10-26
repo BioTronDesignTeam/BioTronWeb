@@ -2,10 +2,12 @@ name: biotron-sprinter
 
 services:
   sprinter-migrate:
-    image: ${IMAGE_REGISTRY:-biotron-}sprinter-migrate:${IMAGE_TAG:-local}
+    # The one migrate image (infra/migrate), applying this app's migrations.
+    image: ${IMAGE_REGISTRY:-biotron-}migrate:${IMAGE_TAG:-local}
     build:
-      context: ./prisma
-      dockerfile: Dockerfile
+      context: ../..
+      dockerfile: infra/migrate/Dockerfile
+    command: ["sprinter"]
     environment:
       DATABASE_URL: ${SPRINTER_DATABASE_URL:-${DATABASE_URL:-}}
     networks:

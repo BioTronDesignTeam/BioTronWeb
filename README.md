@@ -18,7 +18,7 @@ where the platform is developed now; the separate repositories are frozen.
 | `packages/style` | `@biotron/style`: brand, theme, shared controls | `BioTronStyle` |
 | `go/logclient` | Go client every service uses to send events to Grafana and PostHog | `Logger/client` |
 | `go/authclient` | Go client and middleware the gated backends use to ask Auth about a session | new |
-| `infra` | Edge Nginx, cloudflared, Postgres, deployment manifests | `Server` |
+| `infra` | Edge Nginx, cloudflared, Postgres, the migrate image, deployment manifests | `Server` |
 
 Each app keeps its own `README.md`, `.env.example`, `docker-compose.yml`, and
 `prisma/` where it always was.
@@ -56,7 +56,7 @@ in exactly one place so it cannot drift:
 | React, React DOM | 19.2 | each app's `package.json`, same range |
 | Tailwind | 4.3 | root `package.json`; an app opts in by importing it |
 | Type packages | React 19.2, Node 24 | root `package.json` |
-| Prisma | 6.19.3 | each `apps/*/prisma/package.json`, exact |
+| Prisma | 6.19.3 | `infra/migrate/package.json`, exact |
 | Go | 1.27.3 | every `go.mod`, `go.work`, every backend Dockerfile |
 | golangci-lint, sqlc, actionlint, TruffleHog | 2.15.0, 1.31.1, 1.7.12, 3.97.4 | `.devcontainer/Dockerfile` `FROM` lines; CI reads them there |
 
@@ -94,7 +94,8 @@ edits an `.env` or removes a volume.
 Add `--dry-run` to any of them to print the docker commands and run nothing.
 Use `--build` after a pull and after any `VITE_*` change, because those values
 go into the built frontend. Migrations need no step of their own: each app's
-`*-migrate` container applies what is pending and exits before its API starts.
+`*-migrate` container runs the one migrate image (`infra/migrate`) on that
+app's schema, applies what is pending, and exits before its API starts.
 
 App `.env` files are optional local inputs. `./launch` selects the ones that
 exist and checks required configuration only for selected apps. A deployed

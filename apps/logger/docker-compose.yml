@@ -2,10 +2,12 @@ name: biotron-logger
 
 services:
   logger-migrate:
-    image: ${IMAGE_REGISTRY:-biotron-}logger-migrate:${IMAGE_TAG:-local}
+    # The one migrate image (infra/migrate), applying this app's migrations.
+    image: ${IMAGE_REGISTRY:-biotron-}migrate:${IMAGE_TAG:-local}
     build:
-      context: ./prisma
-      dockerfile: Dockerfile
+      context: ../..
+      dockerfile: infra/migrate/Dockerfile
+    command: ["logger"]
     environment:
       DATABASE_URL: ${LOGGER_DATABASE_URL:-${DATABASE_URL:-}}
     networks:
