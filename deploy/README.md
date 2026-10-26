@@ -2,9 +2,9 @@
 
 Every push to `main` deploys to staging at `uwbiotron.dev`. Pushing a `v*`
 tag, such as `v1.4.0`, on a `main` commit deploys that commit's images to
-production at `uwbiotron.ca`. Until production gets its own Oracle VM, both
-run side by side on one host, `haimekena`, and nothing either one does can
-stop or change the other.
+production at `uwbiotron.ca`. The two instances can run side by side on one
+host or each on its own, and nothing either one does can stop or change the
+other.
 
 The host keeps no checkout and no `.env` files. Each deploy downloads the
 commit's Compose files from GitHub, pulls that commit's images from GHCR, and
@@ -119,8 +119,8 @@ tags. A production reviewer is optional. In each, set:
 
 | Name | Kind | Value |
 | --- | --- | --- |
-| `DEPLOY_HOST` | variable | The host's Tailscale name, `haimekena` for both today |
-| `DEPLOY_EDGE` | variable | `true` in exactly one Environment per host: `production` today. Both once production has its own host |
+| `DEPLOY_HOST` | variable | The Tailscale name of the host that runs this instance |
+| `DEPLOY_EDGE` | variable | `true` in exactly one Environment per host: `production` when both instances share a host, both when each has its own |
 | `TS_OAUTH_CLIENT_ID`, `TS_AUDIENCE` | secrets | Tailscale federated identity credentials |
 
 No application secret lives in GitHub. Delete the old `SITE_ENV`,
@@ -229,8 +229,8 @@ host: without its `ENCRYPTION_KEY` nothing in Infisical can be read again.
    sudo visudo -c
    ```
 
-   A host that serves staging alone, as haimekena will once production moves
-   (see below), also lets `deploy-staging` run `biotron-deploy edge *`.
+   A host that serves one instance creates only that instance's account and
+   also lets it run `biotron-deploy edge *`, since it owns that host's edge.
    A host set up with the old single `deploy` account: create the two
    accounts, replace `/etc/sudoers.d/biotron-deploy` as above, move the
    Tailscale policy to the two tags, then `sudo userdel -r deploy`.
@@ -289,126 +289,51 @@ instance, run the grant script once more:
 cd / && sudo docker compose -p biotron-prod exec -T postgres bash < /opt/biotron/prod/infra/postgres/init/10-sprinter-reader.sh
 ```
 
-## Migrating haimekena from the checkout and `.env` files
+## Copying an instance's data
 
-Today `haimekena` runs one instance from a checkout of `main` at
-`~/BioTronWeb`, with seven `.env` files, the Compose projects `biotron` (apps)
-and `biotron-infrastructure` (Nginx, cloudflared, Postgres, Redis), images
-built on the host, and the tunnel token in
-`/etc/biotron/secrets/cloudflare-tunnel-token`. It serves `uwbiotron.dev`.
+Use this to seed a new instance from an existing database, or to move an
+instance to another host. Writes must stop on the source while the copy runs,
+because two copies must not both take writes.
 
-**Decide first which data is production's.** This plan treats today's data as
-production's: it moves to `biotron-prod` at `uwbiotron.ca`, and staging, which
-keeps `uwbiotron.dev`, gets a copy. People who use `uwbiotron.dev` today, and
-calendar subscribers whose feed URLs name it, would then be looking at
-staging. Either tell them about `uwbiotron.ca` first, or swap the two domains
-in Infisical and `EDGE_SITES`; nothing else changes.
-
-Everything up to the cutover runs beside the old stack without touching it:
-new projects, networks, volumes, and container names never collide with the
-old ones, and the new instances publish no host ports. Staging has no
-downtime. Production needs a write freeze of a minute or two while its data is
-copied, because two copies must not both take writes.
-
-1. **Make room.** `docker system df` on the host shows about 4 GB of
-   reclaimable build cache and only 2.7 GB free on `/var`. Run
-   `sudo docker builder prune -af`, and preferably move Docker's data root to
-   the root filesystem or grow `/var` (see "Disk space").
-2. **Merge to `main`.** Only commits on `main` deploy. The first staging deploy
-   job fails because the host is not ready; that changes nothing on the host.
-   Rerun it after step 8.
-3. **Install tools and the deploy accounts:** steps 1–4 of the fresh-host setup.
-4. **Start Infisical** (step 5) and **fill it** (step 6). For production,
-   take the optional Sprinter keys from the current `apps/*/.env` files, and
-   create a GitHub App for `auth.uwbiotron.ca`. Staging gets its own GitHub App
-   for `auth.uwbiotron.dev`, which replaces today's OAuth app. Each instance
-   also gets its own `AUTH_SESSION_SIGNING_KEY`.
-   Generate fresh Postgres passwords for both; the new clusters start empty.
-5. **Write `/etc/biotron/edge.env`** with the token from
-   `/etc/biotron/secrets/cloudflare-tunnel-token` and
-   `EDGE_SITES="staging=uwbiotron.dev:noindex prod=uwbiotron.ca"`. In
-   Cloudflare, add the `uwbiotron.ca` hostnames to the existing tunnel, origin
-   `http://nginx:8080`. Until the new edge runs, the old Nginx answers them
-   with `404`.
-6. **Deploy staging:** `sudo biotron-deploy staging <commit>`. It starts empty,
-   migrated, and unreachable from outside, because the old edge still serves
-   `uwbiotron.dev`.
-7. **Deploy production the same way:** `sudo biotron-deploy prod <commit>`.
-   Production deploys only a commit that a `v*` tag names, so tag `<commit>`
-   as a release first (see "Releasing"); the tag's own workflow run fails
-   until the cutover is done, which changes nothing on the host.
-   Then stop its apps, keeping its Postgres and Redis running, and pull the
-   edge image so the cutover does not wait for it. Run these from a directory
-   with no Compose file, such as `/`, so Compose goes by the project name alone:
+1. **Deploy the target** with `sudo biotron-deploy <instance> <commit>`. It
+   starts empty and migrated. Then stop its apps, keeping its Postgres and
+   Redis running. Run these from a directory with no Compose file, such as
+   `/`, so Compose goes by the project name alone:
 
    ```sh
    cd /
-   sudo docker compose -p biotron-prod stop $(sudo docker compose -p biotron-prod ps --services | grep -vx 'postgres\|redis')
-   sudo docker pull ghcr.io/biotrondesignteam/edge-nginx:<commit>
+   sudo docker compose -p biotron-<instance> stop $(sudo docker compose -p biotron-<instance> ps --services | grep -vx 'postgres\|redis')
    ```
 
-8. **Cut over.** Downtime starts here.
+2. **Stop the source's apps** the same way. Downtime starts here.
+3. **Dump the source** and, for another host, copy the file there over
+   Tailscale:
 
    ```sh
-   cd ~/BioTronWeb && docker compose stop && cd /         # old apps: no more writes
-   docker exec biotron-infrastructure-postgres-1 \
-     pg_dump -U biotron -d biotron --format=custom --no-owner --no-privileges > ~/biotron-cutover.dump
-   sudo docker compose -p biotron-prod exec -T postgres \
-     pg_restore -U biotron -d biotron --clean --if-exists --no-owner --no-privileges < ~/biotron-cutover.dump
-   sudo docker compose -p biotron-prod exec -T postgres bash < /opt/biotron/prod/infra/postgres/init/10-sprinter-reader.sh
-   sudo biotron-deploy prod <commit>                       # reapplies newer migrations, starts the apps
-   docker stop biotron-infrastructure-cloudflared-1 biotron-infrastructure-nginx-1
-   sudo biotron-deploy edge <commit>
+   cd / && sudo docker compose -p biotron-<instance> exec -T postgres \
+     pg_dump -U biotron -d biotron --format=custom --no-owner --no-privileges > ~/biotron.dump
    ```
 
-   The restore brings back the old schema with its migration history, and the
-   second deploy reruns each app's migrations, applying whatever the new
-   commit adds. The new cloudflared connects with the same token, and
-   `uwbiotron.dev` and `uwbiotron.ca` are served again, by staging and
-   production. Redis is not copied: it holds caches and Logger's health
-   state, which refill on their own.
-9. **Give staging its copy** of the same dump, now or whenever staging needs
-   fresh data:
+4. **Restore it into the target**, grant the read-only role again, and deploy
+   once more, which reapplies any newer migrations and starts the apps:
 
    ```sh
    cd /
-   sudo docker compose -p biotron-staging stop $(sudo docker compose -p biotron-staging ps --services | grep -vx 'postgres\|redis')
-   sudo docker compose -p biotron-staging exec -T postgres \
-     pg_restore -U biotron -d biotron --clean --if-exists --no-owner --no-privileges < ~/biotron-cutover.dump
-   sudo docker compose -p biotron-staging exec -T postgres bash < /opt/biotron/staging/infra/postgres/init/10-sprinter-reader.sh
-   sudo biotron-deploy staging <commit>
+   sudo docker compose -p biotron-<instance> exec -T postgres \
+     pg_restore -U biotron -d biotron --clean --if-exists --no-owner --no-privileges < ~/biotron.dump
+   sudo docker compose -p biotron-<instance> exec -T postgres bash < /opt/biotron/<instance>/infra/postgres/init/10-sprinter-reader.sh
+   sudo biotron-deploy <instance> <commit>
    ```
 
-10. **Verify** every hostname of both domains, sign-in on both, and the
-    `X-Robots-Tag` header on staging only. Rerun the failed staging deploy job
-    from step 2 and check it passes.
-11. **Remove the old layout** once satisfied. Keep the old Postgres volume and
-    the dump for a week as a fallback:
+5. **Switch traffic** if the instance moved hosts: move its hostnames to the
+   new host's Cloudflare tunnel, update `EDGE_SITES` on both hosts, and set
+   `DEPLOY_HOST` (and `DEPLOY_EDGE`) in its GitHub Environment.
+6. **Verify** every hostname, a sign-in, and that only staging's responses
+   carry `X-Robots-Tag`. Keep the dump and the old volumes for a week as a
+   fallback, then `shred -u` the dump.
 
-    ```sh
-    cd ~/BioTronWeb
-    docker compose down                                   # old apps
-    docker compose -f infra/docker-compose.yml --env-file infra/.env down   # keeps volumes
-    docker network rm biotron biotron-edge 2>/dev/null || true
-    docker image rm $(docker image ls --format '{{.Repository}}:{{.Tag}}' 'biotron-*')
-    shred -u apps/*/.env infra/.env
-    cd ~ && rm -rf ~/BioTronWeb
-    sudo shred -u /etc/biotron/secrets/cloudflare-tunnel-token && sudo rmdir /etc/biotron/secrets
-    # a week later:
-    docker volume rm biotron-infrastructure_postgres-data biotron-infrastructure_redis-data
-    shred -u ~/biotron-cutover.dump
-    ```
-
-To back out before step 11, stop the new edge and start the old stack again:
-
-```sh
-cd / && sudo docker compose -p biotron-edge stop
-docker start biotron-infrastructure-nginx-1 biotron-infrastructure-cloudflared-1
-cd ~/BioTronWeb && docker compose start
-```
-
-Writes made to production in between stay in `biotron-prod` and are not in
-the old database.
+Redis is not copied: it holds caches and Logger's health state, which refill
+on their own.
 
 ## Rotation
 
@@ -438,33 +363,12 @@ the old database.
   `biotron-secrets` Postgres first). Never change `ENCRYPTION_KEY`: it
   encrypts everything stored. See `infra/infisical/README.md` for backups.
 
-## Moving production to the Oracle VM
-
-Production's data and settings are already separate, so the move is a copy
-and a switch of hosts:
-
-1. Set up the VM as in "Setting up a host from scratch", with its own
-   Infisical or by pointing `INFISICAL_API_URL` in its `prod/identity.env` at
-   the existing one over Tailscale (then publish that Infisical privately, not
-   on loopback). Create a new Cloudflare tunnel for production and set the
-   VM's `EDGE_SITES="prod=uwbiotron.ca"`.
-2. Deploy production on the VM, stop its apps, and copy the data with the
-   cutover commands above, from `biotron-prod` on haimekena to the VM.
-3. Move the `uwbiotron.ca` hostnames from haimekena's tunnel to the VM's,
-   then stop `biotron-prod` on haimekena.
-4. In GitHub, set `DEPLOY_HOST` in the `production` Environment to the VM and
-   `DEPLOY_EDGE=true` in both Environments. On haimekena, let
-   `deploy-staging` run `biotron-deploy edge *` too (step 2 of the setup), set
-   `EDGE_SITES="staging=uwbiotron.dev:noindex"` and redeploy its edge.
-5. Once production on the VM has run for a while, remove `biotron-prod` and
-   its volumes from haimekena.
-
 ## Disk space
 
 The images for one commit take about 4 GB, most of it the five `*-migrate`
 images, and each instance can run a different commit. A deploy removes this
 registry's images that no container uses any more; every commit's images stay
-in GHCR for a rollback. On haimekena, `/var`, which holds `/var/lib/docker`,
-is 12 GB. Move Docker's data root to the larger root filesystem
-(`"data-root"` in `/etc/docker/daemon.json`, then restart Docker) or grow
-`/var` before running both instances.
+in GHCR for a rollback. Keep about 10 GB free on the filesystem that holds
+`/var/lib/docker` for a host running both instances. If it sits on a small
+partition, move Docker's data root (`"data-root"` in
+`/etc/docker/daemon.json`, then restart Docker) or grow the partition.
