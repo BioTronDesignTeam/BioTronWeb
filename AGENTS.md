@@ -151,8 +151,8 @@ writing the words again, and keep docs that quote the UI in step.
   and `RequireStaff`.
 - A manager change applies on the person's next request. It never signs
   them out. A ban refuses their next request everywhere.
-- Show friendly shared messages for refusals (`friendlyError`), never raw
-  `unauthorized`, `forbidden`, or `service unavailable`.
+- Show friendly shared messages for refusals (`friendlyError`), never the
+  raw reason a backend sends, such as `permission required`.
 
 ## Logging
 

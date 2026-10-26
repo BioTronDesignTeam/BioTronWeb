@@ -63,30 +63,24 @@ export function identityLine(person: RoleFlags & { login: string }): string {
 }
 
 /**
- * Backends answer refusals with terse status text ("unauthorized",
- * "Forbidden", "service unavailable", "HTTP 403"). None of that is meant for a
- * person. This turns a failed response into a shared sentence and keeps any
+ * Backends answer a refused session with a status and a terse reason, such as
+ * go/authclient's {"error":"permission required"}. None of that is meant for
+ * a person. This turns a failed response into a shared sentence and keeps any
  * other, specific message the server sent.
  */
 export function friendlyError(status: number, message?: string): string {
   const raw = (message ?? '').trim();
   const lowered = raw.toLowerCase();
-  if (status === 401 || lowered === 'unauthorized' || lowered === 'authentication required') {
+  if (status === 401) {
     return authStrings.expired;
   }
   if (
-    lowered === 'forbidden'
-    || lowered === 'permission required'
-    || lowered === 'x-requested-with header required'
-    || (status === 403 && (raw === '' || /^http 403$/i.test(raw)))
+    status === 403
+    && ['', 'http 403', 'permission required', 'x-requested-with header required'].includes(lowered)
   ) {
     return authStrings.forbidden;
   }
-  if (
-    status === 503
-    || lowered === 'service unavailable'
-    || lowered === 'authorization service unavailable'
-  ) {
+  if (status === 503) {
     return authStrings.serviceUnavailable;
   }
   if (raw === '' || /^http \d{3}$/i.test(raw) || /^request failed \(\d{3}\)$/i.test(raw)) {
