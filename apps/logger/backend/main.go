@@ -55,7 +55,7 @@ func run() error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	dataStore, err := store.New(ctx, cfg.DatabaseURL, cfg.RedisURL)
+	dataStore, err := store.New(ctx, cfg.DatabaseURL)
 	if err != nil {
 		return err
 	}

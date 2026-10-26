@@ -22,14 +22,12 @@ type Recorder interface {
 }
 
 type Store interface {
-	SetLatestHealth(context.Context, model.Health) error
+	SetLatestHealth(model.Health)
 	InsertHealth(context.Context, model.Health) error
-	// PingPostgres and PingRedis probe the shared infrastructure through the
-	// connections Logger already holds, so the database and cache can sit in
-	// the catalog without the monitor learning their wire protocols or being
-	// handed a second set of credentials.
+	// PingPostgres probes the shared database through the pool Logger already
+	// holds, so the database can sit in the catalog without the monitor
+	// learning its wire protocol or being handed a second set of credentials.
 	PingPostgres(context.Context) error
-	PingRedis(context.Context) error
 }
 
 type Monitor struct {
@@ -114,9 +112,7 @@ func (m *Monitor) poll(ctx context.Context) {
 
 	for result := range results {
 		health := result.health
-		if err := m.store.SetLatestHealth(ctx, health); err != nil {
-			log.Printf("cache health for %s: %v", health.Service, err)
-		}
+		m.store.SetLatestHealth(health)
 		m.note(health)
 
 		previous, exists := m.last[health.Service]
@@ -160,8 +156,6 @@ func (m *Monitor) probe(ctx context.Context, component catalog.Component) model.
 	switch component.Check {
 	case catalog.CheckPostgres:
 		return m.probeDependency(ctx, component, m.store.PingPostgres)
-	case catalog.CheckRedis:
-		return m.probeDependency(ctx, component, m.store.PingRedis)
 	default:
 		return m.probeHTTP(ctx, component)
 	}

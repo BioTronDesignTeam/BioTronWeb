@@ -36,15 +36,12 @@ type memoryStore struct {
 	latest      []model.Health
 	persisted   []model.Health
 	postgresErr error
-	redisErr    error
 }
 
 func (s *memoryStore) PingPostgres(context.Context) error { return s.postgresErr }
-func (s *memoryStore) PingRedis(context.Context) error    { return s.redisErr }
 
-func (s *memoryStore) SetLatestHealth(_ context.Context, health model.Health) error {
+func (s *memoryStore) SetLatestHealth(health model.Health) {
 	s.latest = append(s.latest, health)
-	return nil
 }
 
 func (s *memoryStore) InsertHealth(_ context.Context, health model.Health) error {
@@ -76,32 +73,28 @@ func TestPollCachesAndPersistsHealth(t *testing.T) {
 	}
 }
 
-// The shared database and cache are probed through the store's own
-// connections, not over HTTP, and each one is judged on its own so the page can
-// say which of the two is missing.
-func TestPollPingsSharedInfrastructureThroughTheStore(t *testing.T) {
+// The shared database is probed through the store's own pool, not over HTTP,
+// and a failed ping carries the error as its detail.
+func TestPollPingsTheDatabaseThroughTheStore(t *testing.T) {
 	serviceCatalog, err := catalog.Load(`[
       {"id":"infrastructure","name":"Infrastructure","components":[
-        {"id":"postgres","name":"Database","check":"postgres"},
-        {"id":"redis","name":"Cache","check":"redis"}
+        {"id":"postgres","name":"Database","check":"postgres"}
       ]}
     ]`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	dataStore := &memoryStore{redisErr: errors.New("dial tcp redis:6379: connection refused")}
-	monitor := New(dataStore, serviceCatalog, nil, time.Second, time.Hour, time.Second)
-	monitor.poll(context.Background())
 
-	byService := make(map[string]model.Health)
-	for _, health := range dataStore.latest {
-		byService[health.Service] = health
+	dataStore := &memoryStore{}
+	New(dataStore, serviceCatalog, nil, time.Second, time.Hour, time.Second).poll(context.Background())
+	if len(dataStore.latest) != 1 || !dataStore.latest[0].OK || dataStore.latest[0].Detail == "" {
+		t.Fatalf("postgres health = %#v, want ok with a timing detail", dataStore.latest)
 	}
-	if postgres := byService["postgres"]; !postgres.OK || postgres.Detail == "" {
-		t.Fatalf("postgres health = %#v, want ok with a timing detail", postgres)
-	}
-	if redis := byService["redis"]; redis.OK || redis.Detail != "dial tcp redis:6379: connection refused" {
-		t.Fatalf("redis health = %#v, want down with the dial error as detail", redis)
+
+	dataStore = &memoryStore{postgresErr: errors.New("dial tcp postgres:5432: connection refused")}
+	New(dataStore, serviceCatalog, nil, time.Second, time.Hour, time.Second).poll(context.Background())
+	if len(dataStore.latest) != 1 || dataStore.latest[0].OK || dataStore.latest[0].Detail != "dial tcp postgres:5432: connection refused" {
+		t.Fatalf("postgres health = %#v, want down with the dial error as detail", dataStore.latest)
 	}
 }
 

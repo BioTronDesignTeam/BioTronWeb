@@ -11,7 +11,6 @@ import (
 type Config struct {
 	Port                  string
 	DatabaseURL           string
-	RedisURL              string
 	CatalogJSON           string
 	TrustedProxies        []string
 	HealthInterval        time.Duration
@@ -25,7 +24,6 @@ func Load() Config {
 	return Config{
 		Port:        getenv("PORT", "8080"),
 		DatabaseURL: os.Getenv("DATABASE_URL"),
-		RedisURL:    getenv("REDIS_URL", "redis://127.0.0.1:6379/0"),
 		CatalogJSON: os.Getenv("LOGGER_CATALOG_JSON"),
 		// Peers whose Cf-Connecting-Ip header may be believed. Only the edge
 		// proxy sets that header (Server/nginx/snippets/proxy-headers.conf
@@ -43,9 +41,6 @@ func Load() Config {
 func (c Config) Validate() error {
 	if c.DatabaseURL == "" {
 		return errors.New("DATABASE_URL is required")
-	}
-	if c.RedisURL == "" {
-		return errors.New("REDIS_URL is required")
 	}
 	if c.HealthInterval <= 0 || c.HealthHistoryInterval <= 0 || c.HealthTimeout <= 0 {
 		return errors.New("health durations must be positive")

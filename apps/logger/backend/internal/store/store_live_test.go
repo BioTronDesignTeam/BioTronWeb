@@ -10,31 +10,28 @@ import (
 	"github.com/BioTronDesignTeam/Logger/backend/internal/model"
 )
 
-// These exercise the store against a real PostgreSQL and Redis, because what
-// they pin, which rows each query returns and in what order, cannot be
-// observed from Go alone. Set LOGGER_TEST_DATABASE_URL to a throwaway database
-// with the logger schema migrated, and LOGGER_TEST_REDIS_URL to a throwaway
-// Redis; without both the suite skips. The addresses look like this:
+// These exercise the store against a real PostgreSQL, because what they pin,
+// which rows each query returns and in what order, cannot be observed from Go
+// alone. Set LOGGER_TEST_DATABASE_URL to a throwaway database with the logger
+// schema migrated; without it the suite skips. The address looks like this:
 //
 //	postgresql://user:pass@host:5432/db?schema=logger (a placeholder; trufflehog:ignore)
-//	redis://host:6379/15
 //
-// Export the variables first. `-e NAME` with no value passes each through,
-// which also keeps the password out of the command line.
+// Export the variable first. `-e NAME` with no value passes it through, which
+// also keeps the password out of the command line.
 //
 //	docker run --rm -v "$PWD:/w" -w /w/apps/logger/backend \
-//	  -e LOGGER_TEST_DATABASE_URL -e LOGGER_TEST_REDIS_URL \
+//	  -e LOGGER_TEST_DATABASE_URL \
 //	  biotron-dev:local go test ./internal/store/ -run Live -v
 
 func liveStore(t *testing.T) (*Store, context.Context, string) {
 	t.Helper()
 	databaseURL := os.Getenv("LOGGER_TEST_DATABASE_URL")
-	redisURL := os.Getenv("LOGGER_TEST_REDIS_URL")
-	if databaseURL == "" || redisURL == "" {
-		t.Skip("LOGGER_TEST_DATABASE_URL or LOGGER_TEST_REDIS_URL is not set")
+	if databaseURL == "" {
+		t.Skip("LOGGER_TEST_DATABASE_URL is not set")
 	}
 	ctx := context.Background()
-	store, err := New(ctx, databaseURL, redisURL)
+	store, err := New(ctx, databaseURL)
 	if err != nil {
 		t.Fatalf("connect: %v", err)
 	}
@@ -46,9 +43,6 @@ func liveStore(t *testing.T) (*Store, context.Context, string) {
 	clean := func() {
 		if _, err := store.db.Exec(ctx, `DELETE FROM health_checks WHERE service = $1`, service); err != nil {
 			t.Errorf("clean health checks: %v", err)
-		}
-		if err := store.cache.Del(ctx, healthKey(service)).Err(); err != nil {
-			t.Errorf("clean cache: %v", err)
 		}
 	}
 	t.Cleanup(clean)
@@ -65,8 +59,8 @@ func TestLiveLatestHealthFallsBackToPostgres(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Nothing in Redis yet, so the latest row comes from Postgres, with a NULL
-	// detail read back as empty, and is then cached.
+	// The monitor has not probed it yet, so the latest row comes from
+	// Postgres, with a NULL detail read back as empty.
 	latest, err := store.LatestHealth(ctx, []string{service})
 	if err != nil {
 		t.Fatal(err)
@@ -75,8 +69,16 @@ func TestLiveLatestHealthFallsBackToPostgres(t *testing.T) {
 	if !got.OK || got.Detail != "" || !got.CheckedAt.Equal(base.Add(time.Minute)) {
 		t.Fatalf("latest = %#v", got)
 	}
-	if n, err := store.cache.Exists(ctx, healthKey(service)).Result(); err != nil || n != 1 {
-		t.Fatalf("cached = %d, %v", n, err)
+
+	// Once the monitor has a reading, it wins over the stored row.
+	probed := model.Health{Service: service, OK: false, Detail: "HTTP 503 in 2ms", CheckedAt: base.Add(2 * time.Minute)}
+	store.SetLatestHealth(probed)
+	latest, err = store.LatestHealth(ctx, []string{service})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if latest[service] != probed {
+		t.Fatalf("latest = %#v, want the monitor's reading %#v", latest[service], probed)
 	}
 
 	var detail *string

@@ -2,16 +2,15 @@ package store
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
 	"regexp"
+	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/redis/go-redis/v9"
 
 	"github.com/BioTronDesignTeam/Logger/backend/internal/model"
 	"github.com/BioTronDesignTeam/Logger/backend/internal/store/queries"
@@ -19,13 +18,19 @@ import (
 
 var schemaPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
+// Store keeps health history in Postgres and the latest reading of each
+// component in memory. The monitor and the API run in this one process, so the
+// monitor's last reading is all the status page needs; Postgres answers only
+// for a component not yet probed since this process started.
 type Store struct {
 	db      *pgxpool.Pool
 	queries *queries.Queries
-	cache   *redis.Client
+
+	mu     sync.RWMutex
+	latest map[string]model.Health
 }
 
-func New(ctx context.Context, databaseURL, redisURL string) (*Store, error) {
+func New(ctx context.Context, databaseURL string) (*Store, error) {
 	databaseConfig, err := databaseConfig(databaseURL)
 	if err != nil {
 		return nil, err
@@ -38,45 +43,23 @@ func New(ctx context.Context, databaseURL, redisURL string) (*Store, error) {
 		db.Close()
 		return nil, fmt.Errorf("ping postgres: %w", err)
 	}
-
-	redisOptions, err := redis.ParseURL(redisURL)
-	if err != nil {
-		db.Close()
-		return nil, fmt.Errorf("parse redis URL: %w", err)
-	}
-	cache := redis.NewClient(redisOptions)
-	if err := cache.Ping(ctx).Err(); err != nil {
-		db.Close()
-		_ = cache.Close()
-		return nil, fmt.Errorf("ping redis: %w", err)
-	}
-
-	return &Store{db: db, queries: queries.New(db), cache: cache}, nil
+	return &Store{db: db, queries: queries.New(db), latest: make(map[string]model.Health)}, nil
 }
 
-func (s *Store) Close() {
-	s.db.Close()
-	_ = s.cache.Close()
-}
+func (s *Store) Close() { s.db.Close() }
 
-func (s *Store) Ping(ctx context.Context) error {
-	if err := s.PingPostgres(ctx); err != nil {
-		return err
-	}
-	return s.PingRedis(ctx)
-}
+// Ping answers /health: Logger is up when its database answers.
+func (s *Store) Ping(ctx context.Context) error { return s.PingPostgres(ctx) }
 
-// PingPostgres and PingRedis are split out so the health monitor can report
-// the shared database and cache as separate components on the status page.
+// PingPostgres lets the health monitor report the shared database as its own
+// component on the status page.
 func (s *Store) PingPostgres(ctx context.Context) error { return s.db.Ping(ctx) }
-func (s *Store) PingRedis(ctx context.Context) error    { return s.cache.Ping(ctx).Err() }
 
-func (s *Store) SetLatestHealth(ctx context.Context, health model.Health) error {
-	raw, err := json.Marshal(health)
-	if err != nil {
-		return err
-	}
-	return s.cache.Set(ctx, healthKey(health.Service), raw, 0).Err()
+// SetLatestHealth remembers the monitor's newest reading of a component.
+func (s *Store) SetLatestHealth(health model.Health) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.latest[health.Service] = health
 }
 
 func (s *Store) InsertHealth(ctx context.Context, health model.Health) error {
@@ -92,34 +75,20 @@ func (s *Store) InsertHealth(ctx context.Context, health model.Health) error {
 	return nil
 }
 
+// LatestHealth answers from memory, and from Postgres for any component the
+// monitor has not probed since this process started.
 func (s *Store) LatestHealth(ctx context.Context, services []string) (map[string]model.Health, error) {
 	result := make(map[string]model.Health, len(services))
-	keys := make([]string, 0, len(services))
-	for _, service := range services {
-		keys = append(keys, healthKey(service))
-	}
-
-	// MGET answers one value per key, in order, so values[i] is services[i].
-	values, cacheErr := s.cache.MGet(ctx, keys...).Result()
-	if cacheErr == nil && len(values) == len(services) {
-		for i, service := range services {
-			raw, ok := values[i].(string)
-			if !ok {
-				continue
-			}
-			var health model.Health
-			if json.Unmarshal([]byte(raw), &health) == nil {
-				result[service] = health
-			}
-		}
-	}
-
 	missing := make([]string, 0, len(services))
+	s.mu.RLock()
 	for _, service := range services {
-		if _, ok := result[service]; !ok {
+		if health, ok := s.latest[service]; ok {
+			result[service] = health
+		} else {
 			missing = append(missing, service)
 		}
 	}
+	s.mu.RUnlock()
 	if len(missing) == 0 {
 		return result, nil
 	}
@@ -129,9 +98,7 @@ func (s *Store) LatestHealth(ctx context.Context, services []string) (map[string
 		return nil, fmt.Errorf("query latest health: %w", err)
 	}
 	for _, row := range rows {
-		health := model.Health{Service: row.Service, OK: row.Ok, Detail: row.Detail, CheckedAt: row.CheckedAt}
-		result[health.Service] = health
-		_ = s.SetLatestHealth(ctx, health)
+		result[row.Service] = model.Health{Service: row.Service, OK: row.Ok, Detail: row.Detail, CheckedAt: row.CheckedAt}
 	}
 	return result, nil
 }
@@ -228,5 +195,3 @@ func nullableString(value string) *string {
 func interval(duration time.Duration) pgtype.Interval {
 	return pgtype.Interval{Microseconds: duration.Microseconds(), Valid: true}
 }
-
-func healthKey(service string) string { return "logger:health:" + service }
