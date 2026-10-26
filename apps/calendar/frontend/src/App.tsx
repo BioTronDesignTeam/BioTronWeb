@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { calendarApi } from './api';
+import { useSession } from '@biotron/style';
+import { calendarApi, setUnauthorizedHandler } from './api';
 import { deleteConfirmation } from './deleteCopy';
 import { fullDateTimeLabel, stepAnchor, todayAnchor, viewRange, type CalendarView } from './date';
-import type { AuthStatus, EventPayload, EventSeries, Occurrence, Scope } from './types';
+import type { EventPayload, EventSeries, Occurrence, Scope } from './types';
 import { AdminPanel } from './components/AdminPanel';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { EventDetails } from './components/EventDetails';
@@ -15,7 +16,9 @@ import { SubscribePanel } from './components/SubscribePanel';
 import { ViewSwitch } from './components/ViewSwitch';
 
 export function App() {
-  const [auth, setAuth] = useState<AuthStatus>({ can_write: false });
+  // The page is public. Signing in only unlocks editing, for holders of calendar/write.
+  const { can, expire } = useSession();
+  const canWrite = can('write');
   const [scopes, setScopes] = useState<Scope[]>([]);
   const [occurrences, setOccurrences] = useState<Occurrence[]>([]);
   const [view, setView] = useState<CalendarView>('week');
@@ -65,14 +68,6 @@ export function App() {
     [occurrences, selectedScopes],
   );
 
-  const loadAuth = useCallback(async () => {
-    try {
-      setAuth(await calendarApi.authStatus());
-    } catch {
-      setAuth({ can_write: false });
-    }
-  }, []);
-
   const loadScopes = useCallback(async () => {
     setScopes(await calendarApi.scopes());
   }, []);
@@ -111,7 +106,7 @@ export function App() {
   }, [range.from, range.to]);
 
   const loadAdmin = useCallback(async () => {
-    if (!auth.can_write) return;
+    if (!canWrite) return;
     setAdminLoading(true);
     setAdminError('');
     try {
@@ -123,11 +118,15 @@ export function App() {
     } finally {
       setAdminLoading(false);
     }
-  }, [auth.can_write]);
+  }, [canWrite]);
 
   useEffect(() => {
-    void Promise.all([loadAuth(), loadScopes()]).catch(() => setError('Could not load the calendar.'));
-  }, [loadAuth, loadScopes]);
+    void loadScopes().catch(() => setError('Could not load the calendar.'));
+  }, [loadScopes]);
+
+  useEffect(() => {
+    setUnauthorizedHandler(expire);
+  }, [expire]);
 
   useEffect(() => {
     void loadOccurrences();
@@ -206,7 +205,7 @@ export function App() {
   }
 
   const editorScopes = managing ? adminScopes : scopes;
-  const showingAdmin = managing && auth.can_write;
+  const showingAdmin = managing && canWrite;
   const step = (direction: -1 | 1) => setAnchor((current) => stepAnchor(view, current, direction));
   const viewSwitch = <ViewSwitch view={view} onChange={setView} />;
   // The Manage screen's button. It must not inherit the slot of an earlier click on the grid.
@@ -221,7 +220,7 @@ export function App() {
     // document and scrolls the usual way.
     <div className={`bg-white text-ink dark:bg-page dark:text-white ${showingAdmin ? 'min-h-dvh' : 'flex h-dvh flex-col overflow-hidden'}`}>
       <Header
-        auth={auth} managing={managing} onPublic={() => setManaging(false)} onLoggedOut={() => { setAuth({ can_write: false }); setManaging(false); }}
+        canWrite={canWrite} managing={managing} onPublic={() => setManaging(false)} onSignedOut={() => setManaging(false)}
         toolbar={showingAdmin ? undefined : <CalendarToolbar view={view} anchor={anchor} onStep={step} />}
         viewSwitch={showingAdmin ? undefined : viewSwitch}
         sidebar={showingAdmin ? undefined : { open: sidebarOpen, filterCount: selectedScopes.length, onToggle: () => setSidebarOpen((open) => !open) }}
@@ -241,19 +240,19 @@ export function App() {
         />
       ) : (
         <div className="flex min-h-0 flex-1">
-          <Sidebar open={sidebarOpen} view={view} anchor={anchor} onStep={step} viewSwitch={viewSwitch} onManage={auth.can_write ? () => setManaging(true) : undefined} scopes={scopes} selectedScopes={selectedScopes} onScopeChange={setSelectedScopes} onClose={() => setSidebarOpen(false)}
+          <Sidebar open={sidebarOpen} view={view} anchor={anchor} onStep={step} viewSwitch={viewSwitch} onManage={canWrite ? () => setManaging(true) : undefined} scopes={scopes} selectedScopes={selectedScopes} onScopeChange={setSelectedScopes} onClose={() => setSidebarOpen(false)}
             onSubscribe={() => {
               // As a drawer the sidebar would sit open behind the subscribe panel.
               if (!window.matchMedia('(min-width: 1024px)').matches) setSidebarOpen(false);
               setShowSubscribe(true);
             }}
           />
-          <PublicCalendar view={view} anchor={anchor} onCreate={auth.can_write ? (draft) => { setEventDraft(draft); setCreatingEvent(true); } : undefined} onOpenDay={(day) => { setAnchor(day); setView('day'); }} occurrences={visibleOccurrences} loading={loading} error={error} onSelectEvent={(occurrence) => { setEventActionError(''); setSelectedOccurrence(occurrence); }} />
+          <PublicCalendar view={view} anchor={anchor} onCreate={canWrite ? (draft) => { setEventDraft(draft); setCreatingEvent(true); } : undefined} onOpenDay={(day) => { setAnchor(day); setView('day'); }} occurrences={visibleOccurrences} loading={loading} error={error} onSelectEvent={(occurrence) => { setEventActionError(''); setSelectedOccurrence(occurrence); }} />
         </div>
       )}
 
       {showSubscribe && <SubscribePanel scopes={scopes} onClose={() => setShowSubscribe(false)} />}
-      {selectedOccurrence && <EventDetails occurrence={selectedOccurrence} canWrite={auth.can_write} error={eventActionError} onClose={() => { setEventActionError(''); setSelectedOccurrence(undefined); }} onEditSeries={() => void openEditor(selectedOccurrence, 'series')} onEditOccurrence={() => void openEditor(selectedOccurrence, 'occurrence')} onCancelOccurrence={() => setCancellingOccurrence(selectedOccurrence)} onCancelSeries={() => setCancellingSeries(selectedOccurrence)} onDeleteSeries={() => setDeletingSeries(selectedOccurrence)} />}
+      {selectedOccurrence && <EventDetails occurrence={selectedOccurrence} canWrite={canWrite} error={eventActionError} onClose={() => { setEventActionError(''); setSelectedOccurrence(undefined); }} onEditSeries={() => void openEditor(selectedOccurrence, 'series')} onEditOccurrence={() => void openEditor(selectedOccurrence, 'occurrence')} onCancelOccurrence={() => setCancellingOccurrence(selectedOccurrence)} onCancelSeries={() => setCancellingSeries(selectedOccurrence)} onDeleteSeries={() => setDeletingSeries(selectedOccurrence)} />}
       {cancellingOccurrence && (
         <ConfirmDialog
           title="Cancel this occurrence?"
