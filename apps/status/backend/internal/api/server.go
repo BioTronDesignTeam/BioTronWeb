@@ -103,25 +103,13 @@ func New(store Store, serviceCatalog *catalog.Catalog, options Options) http.Han
 
 	// The public layer answers with no session at all. It runs time-series
 	// queries for anyone who asks, so it is rate limited per client address.
-	// Unknown /v1 paths share the bucket.
 	publicLimit := newLimiter(options.StatusRateLimit, time.Minute, proxies.clientIP)
 	public := func(h handlerFunc) http.Handler { return publicLimit.wrap(handle(h)) }
 	mux.Handle("GET /v1/status", public(cacheFor(30*time.Second, server.status)))
 	mux.Handle("GET /v1/status/history", public(cacheFor(30*time.Second, server.statusHistory)))
 
-	notFound := unmatched(mux, "/", "/v1", "/v1/")
-	mux.Handle("/v1", public(notFound))
-	mux.Handle("/v1/", public(notFound))
-	mux.Handle("/", handle(notFound))
-
-	handler := lenientPaths(mux)
-	handler = recoverPanics(handler)
-	// Fiber never cancelled a request's context when the client went away, and
-	// the status queries keep that: a visitor who leaves mid-query would
-	// otherwise cancel the cold history query the next visitors wait behind.
-	handler = keepContext(handler)
-
-	// Outermost, so the request log records the status the client got.
+	// httplog is outermost, so the request log records the status the client
+	// got and a panic is logged as the 500 it became.
 	//
 	// Quiet covers the two routes the status page polls on every load.
 	return httplog.New(options.Events, httplog.Options{
@@ -132,13 +120,7 @@ func New(store Store, serviceCatalog *catalog.Catalog, options Options) http.Han
 			// rate limit itself; the limiter already counts them.
 			return status == http.StatusTooManyRequests
 		},
-	})(handler)
-}
-
-func keepContext(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		next.ServeHTTP(w, r.WithContext(context.WithoutCancel(r.Context())))
-	})
+	})(mux)
 }
 
 // cacheFor lets shared caches hold the public status responses briefly. They are

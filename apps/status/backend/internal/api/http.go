@@ -3,7 +3,6 @@ package api
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -18,8 +17,7 @@ import (
 
 // The plumbing net/http leaves to the app: handlers that return an error, one
 // JSON error shape, the client address behind the edge, and a per-address
-// limiter. Each piece answers exactly as the Fiber app it replaced did, so the
-// status page sees no change.
+// limiter.
 
 // httpError is an error with the status and message the client receives.
 // Anything else a handler returns is a 500 whose cause stays in the log.
@@ -37,8 +35,6 @@ func newError(code int, message ...string) *httpError {
 	}
 	return err
 }
-
-var errNotFound = newError(http.StatusNotFound)
 
 // handlerFunc is a handler that may fail. The adapter turns the failure into
 // the JSON error and hands its cause to the request log.
@@ -69,8 +65,7 @@ func writeError(w http.ResponseWriter, r *http.Request, err error) {
 	writeJSON(w, code, map[string]any{"error": message})
 }
 
-// writeJSON sends value with encoding/json's Marshal, as Fiber did: no
-// trailing newline, and HTML characters escaped.
+// writeJSON sends value as the whole body.
 func writeJSON(w http.ResponseWriter, code int, value any) {
 	raw, err := json.Marshal(value)
 	if err != nil {
@@ -81,88 +76,6 @@ func writeJSON(w http.ResponseWriter, code int, value any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(code)
 	_, _ = w.Write(raw)
-}
-
-func writeText(w http.ResponseWriter, code int, text string) {
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	w.WriteHeader(code)
-	_, _ = w.Write([]byte(text))
-}
-
-// recoverPanics answers a panic with the same JSON 500 as any other failure,
-// and names the panic as the request's error. It sits inside httplog, so the
-// request log records the 500 the caller got.
-func recoverPanics(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		defer func() {
-			recovered := recover()
-			if recovered == nil {
-				return
-			}
-			if httplog.IsAbort(recovered) {
-				panic(recovered)
-			}
-			err, ok := recovered.(error)
-			if !ok {
-				err = fmt.Errorf("%v", recovered)
-			}
-			writeError(w, r, err)
-		}()
-		next.ServeHTTP(w, r)
-	})
-}
-
-// lenientPaths routes "/v1/status/" as "/v1/status", as Fiber's default
-// non-strict routing did. Only routing sees the trimmed path; the request log
-// still records the path the client sent.
-func lenientPaths(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		path := r.URL.Path
-		if len(path) > 1 && strings.HasSuffix(path, "/") {
-			trimmed := strings.TrimRight(path, "/")
-			if trimmed == "" {
-				trimmed = "/"
-			}
-			routed := *r
-			address := *r.URL
-			address.Path = trimmed
-			address.RawPath = ""
-			routed.URL = &address
-			r = &routed
-		}
-		next.ServeHTTP(w, r)
-	})
-}
-
-// methodsInOrder is the order Fiber listed methods in an Allow header.
-var methodsInOrder = []string{
-	http.MethodGet, http.MethodHead, http.MethodPost, http.MethodPut, http.MethodDelete,
-	http.MethodConnect, http.MethodOptions, http.MethodTrace, http.MethodPatch,
-}
-
-// unmatched answers a request no route took: 405 with an Allow header when
-// the path exists under another method, 404 otherwise. ServeMux would answer
-// both in plain text; the API answers every error in JSON.
-func unmatched(mux *http.ServeMux, fallbacks ...string) handlerFunc {
-	isFallback := make(map[string]bool, len(fallbacks))
-	for _, pattern := range fallbacks {
-		isFallback[pattern] = true
-	}
-	return func(w http.ResponseWriter, r *http.Request) error {
-		allowed := make([]string, 0, 2)
-		for _, method := range methodsInOrder {
-			probe := *r
-			probe.Method = method
-			if _, pattern := mux.Handler(&probe); pattern != "" && !isFallback[pattern] {
-				allowed = append(allowed, method)
-			}
-		}
-		if len(allowed) == 0 {
-			return errNotFound
-		}
-		w.Header().Set("Allow", strings.Join(allowed, ", "))
-		return newError(http.StatusMethodNotAllowed)
-	}
 }
 
 // proxyTrust decides which peers may name the client in Cf-Connecting-Ip.
@@ -210,9 +123,8 @@ func (t proxyTrust) trusts(address netip.Addr) bool {
 	return false
 }
 
-// clientIP is the address every limiter keys on. A trusted peer's
-// Cf-Connecting-Ip is taken as it stands, even when absent, exactly as Fiber
-// did without IP validation; anyone else is judged by the peer address.
+// clientIP is the address every limiter keys on: a trusted peer's
+// Cf-Connecting-Ip when it holds an address, the peer otherwise.
 func (t proxyTrust) clientIP(r *http.Request) string {
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
@@ -224,14 +136,15 @@ func (t proxyTrust) clientIP(r *http.Request) string {
 	}
 	peer = peer.Unmap()
 	if t.trusts(peer) {
-		return strings.Join(r.Header.Values("Cf-Connecting-Ip"), ", ")
+		if client, err := netip.ParseAddr(strings.TrimSpace(r.Header.Get("Cf-Connecting-Ip"))); err == nil {
+			return client.Unmap().String()
+		}
 	}
 	return peer.String()
 }
 
 // limiter allows max requests per key in fixed windows, counted in whole
-// seconds. It sends the X-RateLimit-* headers on every request it lets
-// through and Retry-After on the 429, the same headers Fiber's limiter sent.
+// seconds. A refused request gets 429 with Retry-After.
 type limiter struct {
 	max     int
 	window  int64
@@ -283,13 +196,9 @@ func (l *limiter) wrap(next http.Handler) http.Handler {
 
 		if remaining < 0 {
 			w.Header().Set("Retry-After", strconv.FormatInt(resetIn, 10))
-			writeText(w, http.StatusTooManyRequests, http.StatusText(http.StatusTooManyRequests))
+			http.Error(w, http.StatusText(http.StatusTooManyRequests), http.StatusTooManyRequests)
 			return
 		}
-		header := w.Header()
-		header.Set("X-RateLimit-Limit", strconv.Itoa(l.max))
-		header.Set("X-RateLimit-Remaining", strconv.Itoa(remaining))
-		header.Set("X-RateLimit-Reset", strconv.FormatInt(resetIn, 10))
 		next.ServeHTTP(w, r)
 	})
 }

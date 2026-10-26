@@ -437,7 +437,9 @@ func cached[T any](ctx context.Context, cache *ttlCache, key string, load func(c
 			return typed, nil
 		}
 	}
-	value, err := load(ctx)
+	// Other requests wait behind this load, so a visitor who leaves mid-query
+	// must not cancel it for them.
+	value, err := load(context.WithoutCancel(ctx))
 	if err != nil {
 		var zero T
 		log.Printf("build %s: %v", key, err)

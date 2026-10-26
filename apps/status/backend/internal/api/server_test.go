@@ -72,16 +72,19 @@ func TestRequestLogSkipsThrottledRequests(t *testing.T) {
 		Events:         events,
 	})
 
-	get := func() int {
-		request := httptest.NewRequest(http.MethodGet, "/v1/nope", nil)
+	get := func(path string) int {
+		request := httptest.NewRequest(http.MethodGet, path, nil)
 		request.Header.Set("Cf-Connecting-Ip", "203.0.113.7")
 		return serve(app, request).Code
 	}
-	if got := get(); got != http.StatusNotFound {
-		t.Fatalf("first request = %d, want 404", got)
+	if got := get("/v1/status"); got != http.StatusOK {
+		t.Fatalf("first request = %d, want 200", got)
 	}
-	if got := get(); got != http.StatusTooManyRequests {
+	if got := get("/v1/status"); got != http.StatusTooManyRequests {
 		t.Fatalf("second request = %d, want 429", got)
+	}
+	if got := get("/v1/nope"); got != http.StatusNotFound {
+		t.Fatalf("unknown path = %d, want 404", got)
 	}
 
 	if len(events.events) != 1 {
