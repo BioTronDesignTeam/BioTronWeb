@@ -192,10 +192,9 @@ Database URLs also remain app-specific because each app owns a different
 Postgres schema; Sprinter's read-only connection has different permissions.
 
 Calendar shares `VITE_API_URL` between browser requests and feed metadata.
-Its old `VITE_SITE_URL` is unused and can be deleted. `PUBLIC_BASE_URL` is
-now optional: remove it when it matches `VITE_API_URL`, or retain it for a
-separate subscriber address. CORS lists contain extra origins only; the
-configured frontend (and Calendar's public site) is already included.
+`PUBLIC_BASE_URL` is optional: remove it when it matches `VITE_API_URL`, or
+retain it for a separate subscriber address. CORS lists contain extra origins
+only; the configured frontend (and Calendar's public site) is already included.
 
 ## The devcontainer
 
@@ -243,7 +242,5 @@ same ports as before.
   (`github.com/BioTronDesignTeam/Logger/backend` and so on). Renaming them
   to `github.com/BioTronDesignTeam/BioTronWeb/apps/<app>/backend` is a
   find-and-replace plus `go work sync`.
-- The CI, CodeQL, sqlc, and actionlint workflows under `.github/workflows`
-  are written but have never run on GitHub.
 - The React hook and effect findings Oxlint reports are warnings; each app
   should clear its own and the rules then return to errors.
