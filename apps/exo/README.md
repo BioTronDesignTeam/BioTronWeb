@@ -16,7 +16,6 @@ its events as `exo-api`. The code is MIT licensed; see `LICENSE`.
 |------|------|
 | `backend/` | Go `net/http` API. `/health` and the permission gate. No database code yet. |
 | `frontend/` | Vite and React UI, served by Nginx. |
-| `scripts/` | `mock_telemetry.sh`, a stand-in for the ESP32. See Scripts. |
 | `docker-compose.yml` | `exo-api` and `exo-web` on the `biotron` network. |
 | `.env.example` | Every variable the app reads. Copy it to `.env`. |
 
@@ -139,24 +138,26 @@ tables, which a later migration dropped, so the `exo-migrate` image and
 `DROP SCHEMA exo CASCADE` removes it. The telemetry tables bring back a
 schema and a migrate service when ingest lands.
 
-## Scripts
+## Telemetry wire shape
 
-`scripts/mock_telemetry.sh` stands in for the ESP32. It needs `bash`, `awk`,
-`curl`, and GNU `date`; macOS `date` cannot print microseconds. Each POST is
-one batch from one machine: a `machine_id` and samples 10 ms apart, each with
-a microsecond `sampled_at`, a per-run `seq`, battery voltage and current,
-temperature, position, velocity, torque, and error for `left` and `right`,
-and `mcu_status` and `link_status`.
+The planned ingest takes one POST per batch from one machine. Nothing serves
+it yet. A batch is a `machine_id` and its samples, about 10 ms apart. Each
+sample has a microsecond `sampled_at`, a per-run `seq`, the battery, both
+legs, and two status strings:
 
-| Variable | Default | Meaning |
-|---|---|---|
-| `MACHINE_ID` | `exo-001` | the batch's `machine_id` |
-| `INGEST_URL` | `http://localhost:8080/api/telemetry` | where to POST |
-| `RATE_HZ` | `1` | batches per second |
-| `BATCH` | `10` | samples per batch |
-| `COUNT` | `0` | stop after this many batches; `0` runs until Ctrl-C |
-
-Two notes. The API does not serve `/api/telemetry`; the script shows the
-wire shape and prints whatever status the server returns. And the default
-port, 8080, is Auth's host port here; the Exo API is on 8081, so run it as
-`INGEST_URL=http://localhost:8081/api/telemetry ./scripts/mock_telemetry.sh`.
+```json
+{
+  "machine_id": "exo-001",
+  "samples": [
+    {
+      "sampled_at": 1767225600000000,
+      "seq": 0,
+      "battery": { "voltage": 48.1, "current": 3.0 },
+      "left": { "temp": 41.0, "position": 1.2, "velocity": 0.0, "torque": 2.0, "error": 0 },
+      "right": { "temp": 41.0, "position": 1.2, "velocity": 0.0, "torque": 2.0, "error": 0 },
+      "mcu_status": "ok",
+      "link_status": "ok"
+    }
+  ]
+}
+```
