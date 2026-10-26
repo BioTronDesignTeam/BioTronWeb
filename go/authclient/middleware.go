@@ -1,14 +1,11 @@
 package authclient
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"log"
 	"net/http"
-	"sort"
-	"strconv"
 
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient/httplog"
@@ -91,8 +88,8 @@ type StatusField struct {
 //	{"operator": {...}, "can_write": true, "permissions": {"write": true}, ...extra}
 //
 // operator is left out when no one is signed in. Each field reports its
-// permission, in the order given; permissions repeats them by name; extra adds
-// the tool's own keys, sorted. An anonymous caller gets 200 with every
+// permission; permissions repeats them by name; extra adds the tool's own
+// keys, which never replace these. An anonymous caller gets 200 with every
 // permission false. Only an Auth that cannot answer is an error: 503.
 func (c *Client) StatusHandler(fields []StatusField, extra func(*http.Request) map[string]any) http.Handler {
 	permissions := make([]string, len(fields))
@@ -105,28 +102,22 @@ func (c *Client) StatusHandler(fields []StatusField, extra func(*http.Request) m
 			c.unavailable(w, r, "", err)
 			return
 		}
-		var body object
+		body := map[string]any{}
+		if extra != nil {
+			for key, value := range extra(r) {
+				body[key] = value
+			}
+		}
 		if session.Operator != nil {
-			body.add("operator", session.Operator)
+			body["operator"] = session.Operator
 		}
 		held := make(map[string]bool, len(fields))
 		for _, field := range fields {
-			body.add(field.Field, session.Can(field.Permission))
+			body[field.Field] = session.Can(field.Permission)
 			held[field.Permission] = session.Can(field.Permission)
 		}
-		body.add("permissions", held)
-		if extra != nil {
-			more := extra(r)
-			keys := make([]string, 0, len(more))
-			for key := range more {
-				keys = append(keys, key)
-			}
-			sort.Strings(keys)
-			for _, key := range keys {
-				body.add(key, more[key])
-			}
-		}
-		encoded, err := body.encode()
+		body["permissions"] = held
+		encoded, err := json.Marshal(body)
 		if err != nil {
 			httplog.SetError(r, err)
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -166,15 +157,14 @@ func (c *Client) refuse(w http.ResponseWriter, r *http.Request, refusal Refusal)
 	c.writeError(w, r, refusal)
 }
 
-// writeJSONError is the default refusal body: compact JSON, no trailing
-// newline, charset in the content type, as Exo's Fiber app answered.
+// writeJSONError is the default refusal body, {"error": message}, plus the
+// permission a signed-in caller lacks.
 func writeJSONError(w http.ResponseWriter, _ *http.Request, refusal Refusal) {
-	var body object
-	body.add("error", refusal.Message)
+	body := map[string]string{"error": refusal.Message}
 	if errors.Is(refusal.Err, ErrForbidden) {
-		body.add("permission", refusal.Permission)
+		body["permission"] = refusal.Permission
 	}
-	encoded, err := body.encode()
+	encoded, err := json.Marshal(body)
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
@@ -184,7 +174,6 @@ func writeJSONError(w http.ResponseWriter, _ *http.Request, refusal Refusal) {
 
 func writeBody(w http.ResponseWriter, status int, body []byte) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.Header().Set("Content-Length", strconv.Itoa(len(body)))
 	w.WriteHeader(status)
 	_, _ = w.Write(body)
 }
@@ -198,37 +187,3 @@ func mutating(method string) bool {
 	}
 }
 
-// object is a JSON object that keeps its keys in the order they were added,
-// so a body reads the same as the struct it replaced.
-type object struct {
-	keys   []string
-	values []any
-}
-
-func (o *object) add(key string, value any) {
-	o.keys = append(o.keys, key)
-	o.values = append(o.values, value)
-}
-
-func (o *object) encode() ([]byte, error) {
-	var buffer bytes.Buffer
-	buffer.WriteByte('{')
-	for i, key := range o.keys {
-		if i > 0 {
-			buffer.WriteByte(',')
-		}
-		name, err := json.Marshal(key)
-		if err != nil {
-			return nil, err
-		}
-		value, err := json.Marshal(o.values[i])
-		if err != nil {
-			return nil, err
-		}
-		buffer.Write(name)
-		buffer.WriteByte(':')
-		buffer.Write(value)
-	}
-	buffer.WriteByte('}')
-	return buffer.Bytes(), nil
-}

@@ -127,7 +127,7 @@ func TestCORSAnswersAsFiberDid(t *testing.T) {
 			"Access-Control-Allow-Origin": "http://localhost:5176", "Access-Control-Allow-Credentials": "true",
 			"Vary": "Origin", "Content-Type": "application/json; charset=utf-8",
 		},
-		body: `{"operator":{"github_id":4242,"login":"ada","name":"Ada Lovelace","avatar_url":"","is_superuser":false,"is_manager":false,"is_staff":false,"is_guest":false,"guest_app_id":""},"can_write":true,"permissions":{"write":true}}`,
+		body: `{"can_write":true,"operator":{"github_id":4242,"login":"ada","name":"Ada Lovelace","avatar_url":"","is_superuser":false,"is_manager":false,"is_staff":false,"is_guest":false,"guest_app_id":""},"permissions":{"write":true}}`,
 	})
 }
 

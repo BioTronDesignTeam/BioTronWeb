@@ -486,13 +486,13 @@ func TestRequestEventsCarryActorAndCause(t *testing.T) {
 func TestAuthStatusBody(t *testing.T) {
 	app := newTestApp(t, authAnswering(t, http.StatusUnauthorized), &fakeStore{})
 	status, body := app.do(http.MethodGet, "/v1/auth/status", "", nil)
-	if want := `{"can_admin":false,"permissions":{"admin":false},"discord_enabled":false}`; status != http.StatusOK || body != want {
+	if want := `{"can_admin":false,"discord_enabled":false,"permissions":{"admin":false}}`; status != http.StatusOK || body != want {
 		t.Fatalf("anonymous: %d %s, want %s", status, body, want)
 	}
 
 	app = newTestApp(t, authAs(t), &fakeStore{})
 	status, body = app.do(http.MethodGet, "/v1/auth/status", "", withCookie(nil))
-	if status != http.StatusOK || !strings.HasPrefix(body, `{"operator":{"github_id":7,"login":"octocat",`) ||
+	if status != http.StatusOK || !strings.Contains(body, `"operator":{"github_id":7,"login":"octocat",`) ||
 		!strings.Contains(body, `"can_admin":false`) {
 		t.Fatalf("signed in without admin: %d %s", status, body)
 	}

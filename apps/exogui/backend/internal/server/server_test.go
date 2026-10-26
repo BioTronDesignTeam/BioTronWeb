@@ -332,12 +332,12 @@ func TestGatedRouteThroughTheStack(t *testing.T) {
 func TestAuthStatus(t *testing.T) {
 	handler, stub := gatedHandler(t, &recorder{})
 	do(t, handler, http.MethodGet, "/v1/auth/status", nil).expect(t, http.StatusOK,
-		`{"can_live":false,"can_historical":false,"can_commands":false,"permissions":{"commands":false,"historical":false,"live":false}}`, nil)
+		`{"can_commands":false,"can_historical":false,"can_live":false,"permissions":{"commands":false,"historical":false,"live":false}}`, nil)
 
 	stub.SignIn(authclient.Operator{Login: "guest", IsGuest: true, GuestAppID: auth.AppID}, auth.PermissionLive, auth.PermissionHistorical)
 	got := do(t, handler, http.MethodGet, "/v1/auth/status", map[string]string{"Cookie": "oauth_session=guest"})
 	if got.status != http.StatusOK || !strings.Contains(got.body, `"login":"guest"`) ||
-		!strings.Contains(got.body, `"can_live":true,"can_historical":true,"can_commands":false`) {
+		!strings.Contains(got.body, `"can_commands":false,"can_historical":true,"can_live":true`) {
 		t.Fatalf("guest status = %d %s", got.status, got.body)
 	}
 }

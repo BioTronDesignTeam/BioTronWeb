@@ -353,14 +353,14 @@ func TestStatusHandler(t *testing.T) {
 	)
 
 	got := serveStatus(t, handler, "")
-	if want := `{"can_admin":false,"permissions":{"admin":false},"discord_enabled":true}`; got.status != http.StatusOK || got.body != want {
+	if want := `{"can_admin":false,"discord_enabled":true,"permissions":{"admin":false}}`; got.status != http.StatusOK || got.body != want {
 		t.Fatalf("anonymous: %d %s, want %s", got.status, got.body, want)
 	}
 
 	auth.SignIn(authclient.Operator{GitHubID: 7, Login: "octocat"}, "admin")
 	got = serveStatus(t, handler, cookie)
-	want := `{"operator":{"github_id":7,"login":"octocat","name":"","avatar_url":"","is_superuser":false,"is_manager":false,"is_staff":false,"is_guest":false,"guest_app_id":""},` +
-		`"can_admin":true,"permissions":{"admin":true},"discord_enabled":true}`
+	want := `{"can_admin":true,"discord_enabled":true,"operator":{"github_id":7,"login":"octocat","name":"","avatar_url":"","is_superuser":false,"is_manager":false,"is_staff":false,"is_guest":false,"guest_app_id":""},` +
+		`"permissions":{"admin":true}}`
 	if got.status != http.StatusOK || got.body != want {
 		t.Fatalf("signed in: %d %s, want %s", got.status, got.body, want)
 	}

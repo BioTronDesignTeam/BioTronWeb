@@ -60,8 +60,8 @@ different body passes `WithErrorWriter` and writes its own from the
 ## StatusHandler
 
 Serves `/v1/auth/status`: the operator (left out when no one is signed in),
-one boolean field per permission in the order given, `permissions` by name,
-then the tool's own `extra` keys, sorted. An anonymous caller gets 200 with
+one boolean field per permission, `permissions` by name, and the tool's own
+`extra` keys, which never replace those. An anonymous caller gets 200 with
 every permission false; only an Auth that cannot answer is 503.
 
 ## Tests
