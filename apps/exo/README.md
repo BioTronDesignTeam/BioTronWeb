@@ -132,20 +132,30 @@ Exo reports to Grafana and PostHog as `exo-api`. `/health` is never sent.
 
 ## Frontend
 
-Sign-in is the shared `AuthScreen` with a GitHub button and a guest key
-field. GitHub sign-in redirects to `{VITE_AUTH_URL}/auth/github/login` with
-this origin as `redirect`. The guest field posts `app_id` and `key` to
-`/auth/guest`. A return with `?auth=denied` shows the non-member notice.
+The session, sign-in screen, and account menu come from `@biotron/style`.
+The sign-in card is titled "Exo GUI" and offers Sign in with GitHub and the
+Daily guest key. GitHub sign-in redirects to
+`{VITE_AUTH_URL}/auth/github/login` with this origin as `redirect`. The
+guest field posts `app_id` and `key` to `/auth/guest`. A return with
+`?auth=denied` or `?auth=banned` shows the matching notice, and the query
+is removed from the address.
 
-`AuthProvider` checks the session with `/auth/me?app=exo-gui` on load, when
-the tab regains focus or becomes visible, and every ten minutes, so a guest
-session that ends at Eastern midnight is noticed without a reload. Only a
-`401` or `403` signs an operator out; a network error never drops a signed-in
-session. Logout sends `X-Requested-With`, which Auth requires.
+`SessionProvider` checks the session with `/auth/me?app=exo-gui`, then asks
+`/v1/check` for `live`, `historical`, and `commands`. It re-checks on load,
+when the tab regains focus or becomes visible, and every ten minutes, so a
+guest session that ends at Eastern midnight is noticed without a reload, and
+then says the session expired. Only a `401` or `403` signs an operator out;
+a network error never drops a signed-in session, and an Auth outage shows a
+retrying "can't reach sign-in" screen instead of the sign-in card. Sign out
+sends `X-Requested-With`, which Auth requires.
 
-The top bar leads with the wordmark from `@biotron/style`, then the machine
+A signed-in member with none of the three permissions sees Access denied,
+not the app. Guests hold `live` and `historical`, so they get in.
+
+The top bar leads with the wordmark from `@biotron/style` and, on wide
+screens, the "Exo GUI" label, then the machine
 selector, the Live / Historical toggle in the centre, and the theme toggle
-and user menu on the right. The machine list is one placeholder,
+and account menu on the right. The machine list is one placeholder,
 `TestDummyExo`, hard-coded in `App.tsx`. The main area names the chosen mode
 and machine and nothing else.
 
