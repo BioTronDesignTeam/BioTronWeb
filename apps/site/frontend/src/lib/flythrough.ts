@@ -20,7 +20,3 @@ export function jumpToStop(stop: Stop) {
   const y = range.start + progress * (range.end - range.start);
   scrollToY(y, { duration: 1.4 });
 }
-
-export function hasFlythrough() {
-  return range !== null;
-}
