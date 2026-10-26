@@ -1,7 +1,15 @@
-import type { AuthStatus, EventOverride, EventPayload, EventSeries, Occurrence, Scope } from './types';
+import { friendlyError } from '@biotron/style';
+import type { EventOverride, EventPayload, EventSeries, Occurrence, Scope } from './types';
 
 export const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8083').replace(/\/$/, '');
 export const AUTH_URL = (import.meta.env.VITE_AUTH_URL || 'http://localhost:8080').replace(/\/$/, '');
+
+// Told when an editor request answers 401, so the session is re-checked and
+// the page can say it expired instead of showing the raw refusal.
+let onUnauthorized: () => void = () => undefined;
+export function setUnauthorizedHandler(handler: () => void) {
+  onUnauthorized = handler;
+}
 
 async function request<T>(path: string, init: RequestInit = {}, authenticated = false): Promise<T> {
   const mutating = init.method && init.method !== 'GET';
@@ -16,21 +24,21 @@ async function request<T>(path: string, init: RequestInit = {}, authenticated = 
     headers,
   });
   if (!response.ok) {
-    let message = `Request failed (${response.status})`;
+    if (authenticated && response.status === 401) onUnauthorized();
+    let message = '';
     try {
       const body = (await response.json()) as { error?: string };
       if (body.error) message = body.error;
     } catch {
-      // Preserve the status fallback when the response is not JSON.
+      // Fall back to the status alone when the response is not JSON.
     }
-    throw new Error(message);
+    throw new Error(friendlyError(response.status, message));
   }
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 }
 
 export const calendarApi = {
-  authStatus: () => request<AuthStatus>('/v1/auth/status', {}, true),
   scopes: () => request<Scope[]>('/v1/scopes'),
   occurrences: (from: string, to: string, scopeId?: string, signal?: AbortSignal) => {
     const query = new URLSearchParams({ from, to });
@@ -72,19 +80,6 @@ export const calendarApi = {
     return request<void>(`/v1/admin/events/${id}/occurrences?${query}`, { method: 'DELETE' }, true);
   },
 };
-
-export function login() {
-  window.location.href = `${AUTH_URL}/auth/github/login?redirect=${encodeURIComponent(window.location.origin)}`;
-}
-
-export async function logout() {
-  const response = await fetch(`${AUTH_URL}/auth/logout`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'X-Requested-With': 'XMLHttpRequest' },
-  });
-  if (!response.ok) throw new Error(`Sign out failed (${response.status})`);
-}
 
 export function feedURL(scopeId?: string) {
   const path = scopeId ? `${API_URL}/v1/feeds/scopes/${scopeId}.ics` : `${API_URL}/v1/feeds/all.ics`;

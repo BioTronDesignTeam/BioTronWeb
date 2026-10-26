@@ -69,21 +69,6 @@ export interface EventSeries {
   overrides?: EventOverride[];
 }
 
-export interface Operator {
-  github_id: number;
-  login: string;
-  name: string;
-  avatar_url: string;
-  is_superuser: boolean;
-  is_manager: boolean;
-  is_staff: boolean;
-}
-
-export interface AuthStatus {
-  operator?: Operator;
-  can_write: boolean;
-}
-
 export interface EventPayload {
   scope_id: string;
   title: string;
