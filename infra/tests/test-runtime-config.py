@@ -12,6 +12,8 @@ from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[2]
 APPS = ('auth', 'calendar', 'exo', 'logger', 'site', 'sprinter')
+# The apps that own a database schema, each with its own DATABASE_URL.
+DATABASE_APPS = ('auth', 'calendar', 'logger', 'sprinter')
 
 
 def database_url_parts(url):
@@ -51,13 +53,12 @@ class RuntimeConfigTests(unittest.TestCase):
                                           'config', '--format', 'json').stdout)
 
     def secrets(self):
-        for app in APPS:
-            if app != 'site':
-                self.env[f'{app.upper()}_DATABASE_URL'] = f'fixture-{app}'
+        for app in DATABASE_APPS:
+            self.env[f'{app.upper()}_DATABASE_URL'] = f'fixture-{app}'
         self.env.update(POSTGRES_PASSWORD='fixture-db', SPRINTER_READER_PASSWORD='fixture-reader')
 
     def test_no_env_files_required_to_parse_or_stop_web(self):
-        self.assertEqual(len(self.config()['services']), 17)
+        self.assertEqual(len(self.config()['services']), 16)
         self.run_command('./launch', 'stop', 'web', '--runtime', '--dry-run')
 
     def test_database_and_public_config_are_isolated(self):
@@ -66,9 +67,7 @@ class RuntimeConfigTests(unittest.TestCase):
                         SPRINTER_FRONTEND_URL='https://sprinter.example.test',
                         AUTH_WEB_PORT='15173', SPRINTER_WEB_PORT='15178')
         services = self.config()['services']
-        for app in APPS:
-            if app == 'site':
-                continue
+        for app in DATABASE_APPS:
             self.assertEqual(services[f'{app}-migrate']['environment']['DATABASE_URL'],
                              f'fixture-{app}')
         self.assertEqual(services['auth-api']['environment']['FRONTEND_URL'],
@@ -89,6 +88,14 @@ class RuntimeConfigTests(unittest.TestCase):
         self.secrets()
         del self.env['LOGGER_DATABASE_URL']
         self.run_command('./launch', 'web', '--runtime', '--dry-run', success=False)
+
+    def test_exo_needs_no_database(self):
+        services = self.config()['services']
+        self.assertNotIn('exo-migrate', services)
+        self.assertNotIn('DATABASE_URL', services['exo-api']['environment'])
+        args = [f'--no-{app}' for app in APPS if app != 'exo']
+        result = self.run_command('./launch', 'web', '--runtime', '--dry-run', *args)
+        self.assertIn('exo-api', result.stdout)
 
     def test_excluded_apps_do_not_need_secrets(self):
         args = [f'--no-{app}' for app in APPS if app != 'site']

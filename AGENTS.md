@@ -138,7 +138,7 @@ names, such as `OAuthManager` and `exo-gui`. They mean the paths above.
 
 - **Prisma stays on `6.19.3`, exact.** Prisma 7 removes `url` from the schema
   datasource block. Adopting it needs a `prisma.config.ts` and a driver adapter
-  in all five schema-owning apps. Treat it as a planned migration, not a bump.
+  in all four schema-owning apps. Treat it as a planned migration, not a bump.
 - **`@types/node` stays on the 24.x line.** It matches the Node 24 runtime.
   Newer types would declare APIs that do not exist at runtime.
 - **The Instagram icon is drawn locally** in

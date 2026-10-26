@@ -28,7 +28,6 @@ owner="${POSTGRES_USER:-biotron}:$POSTGRES_PASSWORD"
 reader="sprinter_reader:$SPRINTER_READER_PASSWORD"
 : "${AUTH_DATABASE_URL:=postgresql://$owner@$db?schema=oauth}"
 : "${CALENDAR_DATABASE_URL:=postgresql://$owner@$db?schema=calendar}"
-: "${EXO_DATABASE_URL:=postgresql://$owner@$db?schema=exo}"
 : "${LOGGER_DATABASE_URL:=postgresql://$owner@$db?schema=logger}"
 : "${SPRINTER_DATABASE_URL:=postgresql://$owner@$db?schema=sprinter}"
 : "${SPRINTER_READ_DATABASE_URL:=postgresql://$reader@$db}"
@@ -47,7 +46,7 @@ reader="sprinter_reader:$SPRINTER_READER_PASSWORD"
 : "${EXO_FRONTEND_URL:=https://exogui.$d}"
 : "${SPRINTER_FRONTEND_URL:=https://sprinter.$d}"
 
-export AUTH_DATABASE_URL CALENDAR_DATABASE_URL EXO_DATABASE_URL LOGGER_DATABASE_URL \
+export AUTH_DATABASE_URL CALENDAR_DATABASE_URL LOGGER_DATABASE_URL \
   SPRINTER_DATABASE_URL SPRINTER_READ_DATABASE_URL AUTH_FRONTEND_URL \
   AUTH_OAUTH_CALLBACK_URL AUTH_CORS_ORIGINS AUTH_COOKIE_DOMAIN AUTH_COOKIE_SECURE \
   CALENDAR_FRONTEND_URL CALENDAR_SITE_URL CALENDAR_VITE_API_URL \

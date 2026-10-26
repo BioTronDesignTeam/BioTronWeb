@@ -364,7 +364,7 @@ because two copies must not both take writes.
 
 ## Disk space
 
-The images for one commit take about 4 GB, most of it the five `*-migrate`
+The images for one commit take about 4 GB, most of it the four `*-migrate`
 images, and each instance can run a different commit. A deploy removes this
 registry's images that no container uses any more; every commit's images stay
 in GHCR for a rollback. Keep about 10 GB free on the filesystem that holds

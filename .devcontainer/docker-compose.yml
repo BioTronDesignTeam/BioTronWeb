@@ -26,7 +26,6 @@ services:
       - nm-calendar-frontend:/workspaces/biotron/apps/calendar/frontend/node_modules
       - nm-calendar-prisma:/workspaces/biotron/apps/calendar/prisma/node_modules
       - nm-exo-frontend:/workspaces/biotron/apps/exo/frontend/node_modules
-      - nm-exo-prisma:/workspaces/biotron/apps/exo/prisma/node_modules
       - nm-logger-frontend:/workspaces/biotron/apps/logger/frontend/node_modules
       - nm-logger-prisma:/workspaces/biotron/apps/logger/prisma/node_modules
       - nm-site-frontend:/workspaces/biotron/apps/site/frontend/node_modules
@@ -63,7 +62,6 @@ volumes:
   nm-calendar-frontend:
   nm-calendar-prisma:
   nm-exo-frontend:
-  nm-exo-prisma:
   nm-logger-frontend:
   nm-logger-prisma:
   nm-site-frontend:
