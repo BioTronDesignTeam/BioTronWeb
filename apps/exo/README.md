@@ -23,7 +23,7 @@ its events as `exo-api`. The code is MIT licensed; see `LICENSE`.
 
 ## Run
 
-Exo needs the shared Postgres and Redis from `infra/` and a running Auth.
+Exo needs the shared Postgres from `infra/` and a running Auth.
 Start them first, from the monorepo root (see `apps/auth/README.md`), then Exo:
 
 ```bash
@@ -40,7 +40,7 @@ browser signs in against Auth on port 8080. The API reaches Auth at
 ## Develop
 
 Open the monorepo in its devcontainer. It supplies Node 24, Go 1.27, and a
-Postgres and Redis that `.env.example` already points at. The post-create
+Postgres that `.env.example` already points at. The post-create
 step installs the workspaces and applies this app's migrations. Then:
 
 ```bash

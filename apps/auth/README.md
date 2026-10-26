@@ -44,7 +44,7 @@ The API port must stay 8080: the GitHub App's callback is registered as
 ## Develop
 
 Open the monorepo in its devcontainer. It supplies Node 24, Go 1.27, and a
-Postgres and Redis that `.env.example` already points at. The post-create
+Postgres that `.env.example` already points at. The post-create
 step installs the workspaces and applies this app's migrations. Then:
 
 ```bash

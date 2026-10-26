@@ -1,4 +1,4 @@
-# One instance of the platform: its Postgres and Redis, then the six apps.
+# One instance of the platform: its Postgres, then the six apps.
 # Locally the project is `biotron`; `./launch --instance staging` runs the same
 # files as `biotron-staging`, with its own network, volumes, and settings.
 # App .env files are optional for local development. Runtime deployment

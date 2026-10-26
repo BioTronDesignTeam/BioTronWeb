@@ -1,4 +1,4 @@
-# Postgres and Redis for one instance. The root docker-compose.yml includes this
+# Postgres for one instance. The root docker-compose.yml includes this
 # file, so an instance's data services and apps form one Compose project:
 # `biotron` locally, `biotron-<instance>` from `./launch --instance <instance>`.
 # The edge Nginx and tunnel live in edge/docker-compose.yml and the secrets
@@ -37,31 +37,13 @@ services:
     networks:
       - biotron
 
-  redis:
-    image: redis:8.10.1-alpine
-    restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes"]
-    volumes:
-      - redis-data:/data
-    ports:
-      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-    networks:
-      - biotron
-
 networks:
   biotron:
     external: true
     name: ${BIOTRON_NETWORK:-biotron}
 
-# Named by instance, not by project, so a laptop keeps the volumes it had
+# Named by instance, not by project, so a laptop keeps the volume it had
 # before the data services joined the root project.
 volumes:
   postgres-data:
     name: biotron-${BIOTRON_INSTANCE:-infrastructure}_postgres-data
-  redis-data:
-    name: biotron-${BIOTRON_INSTANCE:-infrastructure}_redis-data

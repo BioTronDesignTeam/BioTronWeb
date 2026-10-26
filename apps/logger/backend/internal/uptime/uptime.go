@@ -8,7 +8,7 @@
 // wall-clock duration each observed state held.
 //
 // The package deliberately depends on nothing but the standard library and the
-// model types, so the maths is testable without Postgres, Redis, or HTTP.
+// model types, so the maths is testable without Postgres or HTTP.
 package uptime
 
 import (

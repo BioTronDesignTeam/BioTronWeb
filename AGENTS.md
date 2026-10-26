@@ -21,7 +21,7 @@ Local development can use untracked `.env` files.
 | `apps/sprinter` | Discord bot and admin UI | `Sprinter` |
 | `packages/style` | `@biotron/style` shared components | `BioTronStyle` |
 | `go/logclient` | Go client that sends events to Grafana and PostHog | `Logger/client` |
-| `infra` | Edge Nginx, cloudflared, Postgres, Redis | `Server` |
+| `infra` | Edge Nginx, cloudflared, Postgres | `Server` |
 
 The old repositories are frozen. Code comments and app ids still use some old
 names, such as `OAuthManager` and `exo-gui`. They mean the paths above.
@@ -47,7 +47,7 @@ names, such as `OAuthManager` and `exo-gui`. They mean the paths above.
 ## Run and verify
 
 - Use `./launch`. It wraps every compose file; `./launch --help` lists it all.
-- For local work, start Postgres and Redis with `./launch infra`. `./launch`
+- For local work, start Postgres with `./launch infra`. `./launch`
   creates the external `biotron` network that infra and every app join.
 - Do not start `cloudflared` for local work. It opens a public tunnel. The
   edge is its own target: `./launch edge --no-tunnel` starts Nginx alone.
@@ -165,15 +165,14 @@ names, such as `OAuthManager` and `exo-gui`. They mean the paths above.
 ## Deployment
 
 - Path: Cloudflare edge, then Cloudflare Tunnel, then the `cloudflared`
-  container, then Nginx, then the app containers. One Postgres and one Redis
-  per instance.
+  container, then Nginx, then the app containers. One Postgres per instance.
 - Cloudflare Tunnel is the only public ingress. Tailscale SSH is the only
-  admin path. Never publish SSH, Nginx, app, Postgres, or Redis ports; a named
+  admin path. Never publish SSH, Nginx, app, or Postgres ports; a named
   instance publishes no host ports at all.
 - Each instance (`staging`, `prod`) is its own Compose project,
-  `biotron-<instance>`, on its own network with its own Postgres, Redis,
+  `biotron-<instance>`, on its own network with its own Postgres,
   volumes, and Infisical environment. Never let two instances share a
-  network, a database, or a Redis.
+  network or a database.
 - One edge per host: the `biotron-edge` project. Its Nginx joins every
   instance's network and reaches apps by instance-qualified aliases such as
   `prod-oauth-manager`. It is the only container on more than one network.
