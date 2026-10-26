@@ -97,7 +97,14 @@ names, such as `OAuthManager` and `exo-gui`. They mean the paths above.
 - A backend that cannot reach Auth answers 503. It fails closed, never open.
 - App ids and permissions: `exo-gui` has `live`, `historical`, and `commands`.
   `calendar` has `write`. `sprinter` has an admin check.
-- New tools register as apps in Auth. Do not build a separate login.
+- New tools register as apps in Auth. Do not build a separate sign-in.
+- Frontends get the session from `@biotron/style`: `SessionProvider`,
+  `useSession`, `RequireAuth`, `SignInScreen`, `AccessDenied`, and
+  `AccountControls`. Do not write another session check. Calendar stays
+  public and gates only its editing on `can('write')`. Logger and Site are
+  public and must not mount the provider.
+- A signed-in Exo member with none of `live`, `historical`, or `commands`
+  sees Access denied, not the app. Guests still get in.
 - Only Exo has a daily guest key. Guests may use Live and Historical, never
   Commands.
 - Day boundaries and guest-key rotation use `America/Toronto`.
@@ -105,8 +112,8 @@ names, such as `OAuthManager` and `exo-gui`. They mean the paths above.
 ## Theme and brand
 
 - The palette is `#16033c`, `#160b6c`, `#aedbfc`, `#3050b0`, and `#ffffff`.
-- Use `@biotron/style` for the login screen, theme toggle, user menu, logout
-  control, wordmark, and favicon. The favicon is the BioTron hand, never the
+- Use `@biotron/style` for the session, sign-in screen, theme toggle, account
+  menu, wordmark, and favicon. The favicon is the BioTron hand, never the
   Vite default.
 - Dark mode is graphite, not brand purple: page `#070b0e`, surfaces `#0e151b`
   and `#131c24`, white text, `#9fb0ba` secondary text. Purple `#160b6c` and
@@ -118,8 +125,32 @@ names, such as `OAuthManager` and `exo-gui`. They mean the paths above.
 - The five tool frontends keep the full theme bootstrap script inline in
   `index.html`, before React loads. It stops a white flash on page load. Do
   not move it into React or into `@biotron/style`.
-- Login screens stay short: the logo and the product name. Exo keeps its
-  daily-guest-key option.
+- Sign-in screens stay short: the logo and the product name. Exo keeps its
+  Daily guest key option.
+
+## Wording
+
+Every user-facing word about signing in, roles, and permissions lives in
+`authStrings` in `packages/style/src/auth/strings.ts`. Use it rather than
+writing the words again, and keep docs that quote the UI in step.
+
+| Say | Never say |
+|---|---|
+| Sign in, Sign in with GitHub, Sign out, Last sign-in | Log in, login, logout |
+| Superuser, Manager, Member, Guest | staff, administrator, admin (as a role) |
+| permission (the thing); grant, revoke (the actions) | access as a noun, except "Access denied" |
+| Daily guest key | daily key, product key |
+| Ask a manager. | Contact an administrator, ask in Auth |
+| Exo GUI | Exo Telemetry |
+
+- A role suffix shows one role, highest first: `@login · Superuser`. A ban
+  follows it: `@login · Manager · Banned`.
+- Staff (manager or superuser) is a code identifier only, as in `is_staff`
+  and `RequireStaff`.
+- A manager change applies on the person's next request. It never signs
+  them out. A ban refuses their next request everywhere.
+- Show friendly shared messages for refusals (`friendlyError`), never raw
+  `unauthorized`, `forbidden`, or `service unavailable`.
 
 ## Logging
 
@@ -221,7 +252,7 @@ names, such as `OAuthManager` and `exo-gui`. They mean the paths above.
   meeting keeps its local hour across daylight-saving changes.
 - PostgreSQL is the source of truth. Do not add a Redis cache until measured
   load justifies it.
-- Keep every URL environment-driven. Public reads need no login. Every editor
+- Keep every URL environment-driven. Public reads need no sign-in. Every editor
   mutation needs a server-verified `calendar/write` permission from Auth.
 
 ## Public site
