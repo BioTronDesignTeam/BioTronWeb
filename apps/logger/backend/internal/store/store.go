@@ -75,6 +75,16 @@ func (s *Store) InsertHealth(ctx context.Context, health model.Health) error {
 	return nil
 }
 
+// DeleteHealthBefore deletes the history rows checked before cutoff and
+// returns how many went.
+func (s *Store) DeleteHealthBefore(ctx context.Context, cutoff time.Time) (int64, error) {
+	deleted, err := s.queries.DeleteHealthBefore(ctx, cutoff)
+	if err != nil {
+		return 0, fmt.Errorf("delete old health checks: %w", err)
+	}
+	return deleted, nil
+}
+
 // LatestHealth answers from memory, and from Postgres for any component the
 // monitor has not probed since this process started.
 func (s *Store) LatestHealth(ctx context.Context, services []string) (map[string]model.Health, error) {

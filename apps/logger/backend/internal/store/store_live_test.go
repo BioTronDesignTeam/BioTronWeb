@@ -127,3 +127,38 @@ func TestLiveHealthHistoryCollapsesRuns(t *testing.T) {
 		t.Fatalf("history =\n%swant\n%s", got, want)
 	}
 }
+
+func TestLiveDeleteHealthBeforeKeepsTheCutoff(t *testing.T) {
+	store, ctx, service := liveStore(t)
+	cutoff := time.Date(2026, time.September, 1, 12, 0, 0, 0, time.UTC)
+	for _, at := range []time.Time{cutoff.Add(-time.Hour), cutoff, cutoff.Add(time.Hour)} {
+		if err := store.InsertHealth(ctx, model.Health{Service: service, OK: true, CheckedAt: at}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Other services' rows may sit before the cutoff too, so only a lower
+	// bound holds for the count.
+	deleted, err := store.DeleteHealthBefore(ctx, cutoff)
+	if err != nil || deleted < 1 {
+		t.Fatalf("deleted = %d, %v", deleted, err)
+	}
+	var left []time.Time
+	rows, err := store.db.Query(ctx, `SELECT checked_at FROM health_checks WHERE service = $1 ORDER BY checked_at`, service)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for rows.Next() {
+		var at time.Time
+		if err := rows.Scan(&at); err != nil {
+			t.Fatal(err)
+		}
+		left = append(left, at)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if len(left) != 2 || !left[0].Equal(cutoff) {
+		t.Fatalf("rows left = %v, want the cutoff and the hour after", left)
+	}
+}

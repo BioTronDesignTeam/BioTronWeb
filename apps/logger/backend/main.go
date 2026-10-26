@@ -65,6 +65,7 @@ func run() error {
 
 	healthMonitor := monitor.New(dataStore, serviceCatalog, events, cfg.HealthInterval, cfg.HealthHistoryInterval, cfg.HealthTimeout)
 	go healthMonitor.Run(ctx)
+	go monitor.Retain(ctx, dataStore, api.HistoryRetention, time.Hour)
 
 	app := api.New(dataStore, serviceCatalog, api.Options{
 		HealthInterval:        cfg.HealthInterval,

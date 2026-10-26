@@ -40,3 +40,9 @@ UNION ALL
 		OR next_at IS NULL
 )
 ORDER BY service, checked_at;
+
+-- name: DeleteHealthBefore :execrows
+-- Retention: drops the rows older than every window the status page shows.
+-- health_checks_checked_at_idx serves the range.
+DELETE FROM health_checks
+WHERE checked_at < sqlc.arg(cutoff)::timestamptz;
