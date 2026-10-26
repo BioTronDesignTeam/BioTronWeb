@@ -3,14 +3,10 @@ package server
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"log"
-	"net"
 	"net/http"
-	"net/netip"
 	"strings"
-	"time"
 
 	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/store"
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient/httplog"
@@ -34,25 +30,11 @@ func handle(fn handlerFunc) http.Handler {
 type httpError struct {
 	status  int
 	message string
-	// cause, when set, is what the log records instead: a 503 should say
-	// what was unavailable, not only that something was.
-	cause error
 }
 
 func (e *httpError) Error() string { return e.message }
 
-func (e *httpError) because(cause error) *httpError {
-	return &httpError{status: e.status, message: e.message, cause: cause}
-}
-
-var (
-	errUnauthorized       = &httpError{status: http.StatusUnauthorized, message: "Unauthorized"}
-	errForbidden          = &httpError{status: http.StatusForbidden, message: "Forbidden"}
-	errNotFound           = &httpError{status: http.StatusNotFound, message: "Not Found"}
-	errMethodNotAllowed   = &httpError{status: http.StatusMethodNotAllowed, message: "Method Not Allowed"}
-	errBodyTooLarge       = &httpError{status: http.StatusRequestEntityTooLarge, message: "Request Entity Too Large"}
-	errServiceUnavailable = &httpError{status: http.StatusServiceUnavailable, message: "Service Unavailable"}
-)
+var errBodyTooLarge = &httpError{status: http.StatusRequestEntityTooLarge, message: "Request Entity Too Large"}
 
 func badRequest(message string) error {
 	return &httpError{status: http.StatusBadRequest, message: message}
@@ -64,15 +46,11 @@ func badRequest(message string) error {
 func writeError(w http.ResponseWriter, r *http.Request, err error) {
 	status := http.StatusInternalServerError
 	message := "internal server error"
-	logged := err
 	var known *httpError
 	switch {
 	case errors.As(err, &known):
 		status = known.status
 		message = strings.ToLower(known.message)
-		if known.cause != nil {
-			logged = known.cause
-		}
 	case errors.Is(err, store.ErrNotFound):
 		status, message = http.StatusNotFound, "not found"
 	case errors.Is(err, store.ErrConflict):
@@ -81,7 +59,7 @@ func writeError(w http.ResponseWriter, r *http.Request, err error) {
 	if status >= 500 {
 		log.Printf("request failed: %v", err)
 	}
-	httplog.SetError(r, logged)
+	httplog.SetError(r, err)
 	writeJSON(w, status, map[string]string{"error": message})
 }
 
@@ -91,9 +69,7 @@ func writeJSON(w http.ResponseWriter, status int, body any) {
 		log.Printf("encode response: %v", err)
 		status, raw = http.StatusInternalServerError, []byte(`{"error":"internal server error"}`)
 	}
-	header := w.Header()
-	header.Set("Content-Type", "application/json; charset=utf-8")
-	header.Set("Content-Length", fmt.Sprint(len(raw)))
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
 	_, _ = w.Write(raw)
 }
@@ -113,32 +89,6 @@ func bind(r *http.Request, destination any) error {
 		return badRequest("body must be a JSON object")
 	}
 	return nil
-}
-
-func notFound(http.ResponseWriter, *http.Request) error {
-	return errNotFound
-}
-
-// methods answers a known path asked with a method it does not serve. The
-// Allow list names what the path does serve, HEAD included with GET.
-func methods(allow string) http.Handler {
-	return handle(func(w http.ResponseWriter, r *http.Request) error {
-		w.Header().Set("Allow", allow)
-		return errMethodNotAllowed
-	})
-}
-
-// adminMethods is methods below /v1/admin, where every path has a preflight
-// route: an OPTIONS that is not a preflight matched that route and found
-// nothing behind it, which is a 404, not a wrong method.
-func adminMethods(allow string) http.Handler {
-	return handle(func(w http.ResponseWriter, r *http.Request) error {
-		if r.Method == http.MethodOptions {
-			return errNotFound
-		}
-		w.Header().Set("Allow", allow)
-		return errMethodNotAllowed
-	})
 }
 
 // newCORS lets the admin page's origins make credentialed requests. A
@@ -176,136 +126,12 @@ func newCORS(origins []string) func(http.Handler) http.Handler {
 	}
 }
 
-// normalizePath routes /health/ and /HEALTH as /health, as the routes have
-// always matched: no trailing slash, any case. The request keeps its own
-// path everywhere else, so the log shows what the client asked for.
-func normalizePath(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		path := strings.ToLower(r.URL.Path)
-		if len(path) > 1 {
-			path = strings.TrimRight(path, "/")
-			if path == "" {
-				path = "/"
-			}
-		}
-		if path != r.URL.Path {
-			routed := r.Clone(r.Context())
-			routed.URL.Path, routed.URL.RawPath = path, ""
-			r = routed
-		}
-		next.ServeHTTP(w, r)
-	})
-}
-
-// limitBody refuses a body over limit before any handler reads it, and caps
-// one that did not say its length.
+// limitBody caps every request body; bind answers a body over it with 413.
 func limitBody(limit int64) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.ContentLength > limit {
-				w.Header().Set("Connection", "close")
-				writeError(w, r, errBodyTooLarge)
-				return
-			}
 			r.Body = http.MaxBytesReader(w, r.Body, limit)
 			next.ServeHTTP(w, r)
 		})
 	}
 }
-
-// recoverJSON answers a panic with the same JSON 500 as any other failure,
-// then panics again so httplog, outside it, logs the stack and the 500.
-func recoverJSON(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		recorder := &statusRecorder{ResponseWriter: w}
-		defer func() {
-			if recovered := recover(); recovered != nil {
-				if !httplog.IsAbort(recovered) && recorder.status == 0 {
-					writeJSON(recorder, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
-				}
-				panic(recovered)
-			}
-		}()
-		next.ServeHTTP(recorder, r)
-	})
-}
-
-// accessLog prints one console line per request, for `docker logs`. The
-// client address is the Cf-Connecting-Ip header only when the peer is one of
-// trustedProxies; from anyone else the header is a claim, not an address.
-// Line breaks are escaped: the path is decoded and the address can come from
-// a header, so either could otherwise forge a line of its own.
-func accessLog(trustedProxies []string) func(http.Handler) http.Handler {
-	trusted := parseProxies(trustedProxies)
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			started := time.Now()
-			recorder := &statusRecorder{ResponseWriter: w}
-			defer func() {
-				status := recorder.status
-				if status == 0 {
-					status = http.StatusOK
-				}
-				line := fmt.Sprintf("%3d | %13v | %15s | %-7s | %s",
-					status, time.Since(started), clientIP(r, trusted), r.Method, r.URL.Path)
-				log.Print(strings.ReplaceAll(strings.ReplaceAll(line, "\r", `\r`), "\n", `\n`))
-			}()
-			next.ServeHTTP(recorder, r)
-		})
-	}
-}
-
-func parseProxies(values []string) []netip.Prefix {
-	var prefixes []netip.Prefix
-	for _, value := range values {
-		if prefix, err := netip.ParsePrefix(value); err == nil {
-			prefixes = append(prefixes, prefix.Masked())
-		} else if addr, err := netip.ParseAddr(value); err == nil {
-			prefixes = append(prefixes, netip.PrefixFrom(addr.Unmap(), addr.Unmap().BitLen()))
-		}
-	}
-	return prefixes
-}
-
-func clientIP(r *http.Request, trusted []netip.Prefix) string {
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		host = r.RemoteAddr
-	}
-	peer, err := netip.ParseAddr(host)
-	if err != nil {
-		return host
-	}
-	for _, prefix := range trusted {
-		if prefix.Contains(peer.Unmap()) {
-			if forwarded := strings.TrimSpace(r.Header.Get("Cf-Connecting-Ip")); forwarded != "" {
-				return forwarded
-			}
-			break
-		}
-	}
-	return host
-}
-
-// statusRecorder remembers the status written through it. Unwrap lets
-// http.ResponseController reach the writer underneath.
-type statusRecorder struct {
-	http.ResponseWriter
-	status int
-}
-
-func (w *statusRecorder) WriteHeader(code int) {
-	if w.status == 0 && code >= 200 {
-		w.status = code
-	}
-	w.ResponseWriter.WriteHeader(code)
-}
-
-func (w *statusRecorder) Write(b []byte) (int, error) {
-	if w.status == 0 {
-		w.status = http.StatusOK
-	}
-	return w.ResponseWriter.Write(b)
-}
-
-func (w *statusRecorder) Unwrap() http.ResponseWriter { return w.ResponseWriter }

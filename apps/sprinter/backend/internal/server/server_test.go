@@ -333,9 +333,9 @@ func TestDiscordFlagIsReported(t *testing.T) {
 	}
 }
 
-// The routes answer exactly as the Fiber version did, quirks included, so the
-// admin page and anything that probes the API see no change.
-func TestRoutingMatchesTheOldServer(t *testing.T) {
+// Routing is plain http.ServeMux: exact paths and the mux's own 404 and 405.
+// CORS answers a preflight before any route or gate.
+func TestRouting(t *testing.T) {
 	origins := config.Config{FrontendURL: "http://localhost:5178"}
 	app := &testApp{t: t, app: New(origins, &fakeStore{guards: []store.Guard{}},
 		adminAuth(t), &logclient.Client{}, nil)}
@@ -348,16 +348,16 @@ func TestRoutingMatchesTheOldServer(t *testing.T) {
 		body               string
 		header             map[string]string
 	}{
-		{name: "unknown path", method: http.MethodGet, path: "/nope", status: 404, body: `{"error":"not found"}`},
-		{name: "trailing slash", method: http.MethodGet, path: "/health/", status: 200},
-		{name: "any case", method: http.MethodGet, path: "/HEALTH", status: 200},
+		{name: "unknown path", method: http.MethodGet, path: "/nope", status: 404},
+		{name: "trailing slash", method: http.MethodGet, path: "/health/", status: 404},
+		{name: "any case", method: http.MethodGet, path: "/HEALTH", status: 404},
 		{
 			name: "wrong method on health", method: http.MethodPost, path: "/health", status: 405,
-			body: `{"error":"method not allowed"}`, header: map[string]string{"Allow": "GET, HEAD"},
+			header: map[string]string{"Allow": "GET, HEAD"},
 		},
 		{
 			name: "wrong method on status", method: http.MethodPost, path: "/v1/auth/status", status: 405,
-			header: map[string]string{"Allow": "GET, HEAD, OPTIONS"},
+			header: map[string]string{"Allow": "GET, HEAD"},
 		},
 		{
 			name: "status with an allowed origin", method: http.MethodGet, path: "/v1/auth/status", headers: origin,
@@ -382,17 +382,17 @@ func TestRoutingMatchesTheOldServer(t *testing.T) {
 		},
 		{
 			name: "an OPTIONS that is not a preflight", method: http.MethodOptions, path: "/v1/auth/status",
-			headers: origin, status: 404, header: map[string]string{"Vary": "Origin", "Access-Control-Allow-Origin": ""},
+			headers: origin, status: 405, header: map[string]string{"Vary": "Origin", "Access-Control-Allow-Origin": ""},
 		},
 		{
 			name: "admin path with a wrong method", method: http.MethodPost, path: "/v1/admin/guards/agent",
-			headers: withCookie(xhr), status: 405, header: map[string]string{"Allow": "GET, HEAD, PUT, DELETE, OPTIONS"},
+			headers: withCookie(xhr), status: 405, header: map[string]string{"Allow": "DELETE, GET, HEAD, PUT"},
 		},
 		{
 			name: "unknown admin path", method: http.MethodGet, path: "/v1/admin/nope",
-			headers: withCookie(nil), status: 405, header: map[string]string{"Allow": "OPTIONS"},
+			headers: withCookie(nil), status: 404,
 		},
-		{name: "admin list with a trailing slash", method: http.MethodGet, path: "/v1/admin/guards/", headers: withCookie(nil), status: 200, body: `[]`},
+		{name: "admin list with a trailing slash", method: http.MethodGet, path: "/v1/admin/guards/", headers: withCookie(nil), status: 404},
 		{name: "delete answers no content", method: http.MethodDelete, path: "/v1/admin/guards/agent", headers: withCookie(xhr), status: 204},
 	}
 	for _, testCase := range cases {
@@ -416,12 +416,9 @@ func TestRoutingMatchesTheOldServer(t *testing.T) {
 func TestBodyOverTheLimitIs413(t *testing.T) {
 	app := newTestApp(t, adminAuth(t), &fakeStore{})
 	big := `{"guild_id":"` + strings.Repeat("1", bodyLimit) + `"}`
-	status, header, body := app.doHeaders(http.MethodPut, "/v1/admin/guards/agent", big, withCookie(xhr))
+	status, _, body := app.doHeaders(http.MethodPut, "/v1/admin/guards/agent", big, withCookie(xhr))
 	if status != http.StatusRequestEntityTooLarge || body != `{"error":"request entity too large"}` {
 		t.Fatalf("status = %d body = %s", status, body)
-	}
-	if header.Get("Connection") != "close" {
-		t.Fatalf("Connection = %q", header.Get("Connection"))
 	}
 }
 
@@ -429,10 +426,10 @@ type panicStore struct{ fakeStore }
 
 func (panicStore) ListGuards(context.Context) ([]store.Guard, error) { panic("boom") }
 
-func TestPanicIsAJSON500(t *testing.T) {
+func TestPanicIs500(t *testing.T) {
 	app := newTestApp(t, adminAuth(t), &panicStore{})
 	status, body := app.do(http.MethodGet, "/v1/admin/guards", "", withCookie(nil))
-	if status != http.StatusInternalServerError || body != `{"error":"internal server error"}` {
+	if status != http.StatusInternalServerError {
 		t.Fatalf("status = %d body = %s", status, body)
 	}
 }
@@ -460,7 +457,7 @@ func eventsTo(t *testing.T) (*logclient.Client, func(path string) logclienttest.
 }
 
 // The request log names the operator behind an admin call, and the cause
-// behind a failure, as it did when Fiber handlers returned their errors.
+// behind a failure.
 func TestRequestEventsCarryActorAndCause(t *testing.T) {
 	events, wait := eventsTo(t)
 	app := &testApp{t: t, app: New(config.Config{}, &fakeStore{guards: []store.Guard{}},
@@ -499,7 +496,7 @@ func TestAuthStatusBody(t *testing.T) {
 
 	app = newTestApp(t, authAnswering(t, http.StatusInternalServerError), &fakeStore{})
 	status, body = app.do(http.MethodGet, "/v1/auth/status", "", withCookie(nil))
-	if status != http.StatusServiceUnavailable || body != `{"error":"service unavailable"}` {
+	if status != http.StatusServiceUnavailable || body != `{"error":"authorization service unavailable"}` {
 		t.Fatalf("Auth down: %d %s", status, body)
 	}
 }

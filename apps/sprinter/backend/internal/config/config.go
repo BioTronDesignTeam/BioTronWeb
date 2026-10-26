@@ -46,7 +46,6 @@ type Config struct {
 	OAuthManagerURL string
 	FrontendURL     string
 	CORSOrigins     []string
-	TrustedProxies  []string
 }
 
 func Load() Config {
@@ -69,7 +68,6 @@ func Load() Config {
 		OAuthManagerURL: trimURL(getenv("OAUTH_MANAGER_URL", "http://oauth-manager:8080")),
 		FrontendURL:     trimURL(getenv("FRONTEND_URL", DefaultFrontendURL)),
 		CORSOrigins:     splitCSV(os.Getenv("CORS_ORIGINS")),
-		TrustedProxies:  splitCSV(getenv("TRUSTED_PROXIES", "127.0.0.1,::1")),
 	}
 }
 
