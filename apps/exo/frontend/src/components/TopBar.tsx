@@ -1,7 +1,6 @@
-import { Brand, ThemeToggle, UserMenu } from '@biotron/style'
+import { AccountControls, Brand } from '@biotron/style'
 import MachineSelector from './MachineSelector'
 import ModeToggle, { type ViewMode } from './ModeToggle'
-import { useAuth } from '../auth/context'
 
 interface TopBarProps {
   machines: string[]
@@ -18,9 +17,6 @@ export default function TopBar({
   mode,
   onModeChange,
 }: TopBarProps) {
-  const { state, logout } = useAuth()
-  const operator = state.status === 'authed' ? state.operator : undefined
-
   return (
     <header className="sticky top-0 z-30 border-b border-[#aedbfc] bg-white/90 backdrop-blur dark:border-white/[0.14] dark:bg-surface/90">
       <div className="grid grid-cols-3 items-center px-6 py-3">
@@ -36,18 +32,8 @@ export default function TopBar({
           <ModeToggle mode={mode} onModeChange={onModeChange} />
         </div>
 
-        {/* Right: theme toggle + user menu */}
-        <div className="flex items-center gap-2 justify-self-end">
-          <ThemeToggle />
-          <UserMenu
-            user={operator ? {
-              name: operator.name,
-              login: operator.login,
-              avatarUrl: operator.avatar_url,
-            } : undefined}
-            onLogout={logout}
-          />
-        </div>
+        {/* Right: theme toggle + account menu */}
+        <AccountControls className="justify-self-end" />
       </div>
     </header>
   )
