@@ -17,7 +17,7 @@ func routingApp(t *testing.T) http.Handler {
 	t.Helper()
 	return New(
 		config.Config{FrontendURL: "http://localhost:5176", SiteURL: "http://localhost:5177"},
-		nil, fakeAuth(t, signedInEditor), logclient.NewFromEnv("calendar-api"), time.UTC,
+		nil, editorAuth(t).Client(AppID), logclient.NewFromEnv("calendar-api"), time.UTC,
 	)
 }
 
@@ -127,7 +127,7 @@ func TestCORSAnswersAsFiberDid(t *testing.T) {
 			"Access-Control-Allow-Origin": "http://localhost:5176", "Access-Control-Allow-Credentials": "true",
 			"Vary": "Origin", "Content-Type": "application/json; charset=utf-8",
 		},
-		body: `{"operator":{"github_id":4242,"login":"ada","name":"Ada Lovelace","avatar_url":"","is_superuser":false,"is_manager":false,"is_staff":false},"can_write":true}`,
+		body: `{"operator":{"github_id":4242,"login":"ada","name":"Ada Lovelace","avatar_url":"","is_superuser":false,"is_manager":false,"is_staff":false,"is_guest":false,"guest_app_id":""},"can_write":true,"permissions":{"write":true}}`,
 	})
 }
 

@@ -91,7 +91,7 @@ frontend, and Prisma. Do not add environment files below it.
 | Method | Path | Who | Notes |
 |--------|------|-----|-------|
 | GET | `/health` | anyone | `503` when the database is down |
-| GET | `/v1/auth/status` | anyone | `operator` and `can_write` for the cookie sent |
+| GET | `/v1/auth/status` | anyone | `operator`, `can_write`, and `permissions` for the cookie sent |
 | GET | `/v1/scopes` | anyone | active scopes |
 | GET | `/v1/events?from=&to=&scope_id=` | anyone | occurrences in a date window; default today to three months ahead |
 | GET | `/v1/events/upcoming?limit=&days=` | anyone | the next occurrences; `limit` 1 to 20, default 5; `days` 1 to 90, default 42 |
@@ -110,9 +110,10 @@ frontend, and Prisma. Do not add environment files below it.
 | DELETE | `/v1/admin/events/:id/occurrences?recurrence_id_local=&expected_sequence=` | editor | resets one occurrence to the series |
 
 Editor means an operator whose Auth session holds `calendar/write`. On
-every editor request the API forwards the cookie to Auth's `/auth/me`
-and `/v1/check?app=calendar&permission=write`. It reads both so the log
-can name the operator behind the change. No cookie answers `401`, a
+every editor request the API forwards the cookie, through `go/authclient`,
+to Auth's `/v1/session?app=calendar&permission=write`, which names the
+operator and their permission in one call, so the log can name the
+operator behind the change. The public routes never call Auth. No cookie answers `401`, a
 session without the permission `403`, an unreachable Auth `503`. Every
 mutating request must carry `X-Requested-With: XMLHttpRequest`, which
 blocks cross-site form posts.
