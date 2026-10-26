@@ -31,6 +31,31 @@ import { AuthScreen, ThemeToggle, UserMenu } from '@biotron/style';
 import '@biotron/style/styles.css';
 ```
 
+## Sessions
+
+`src/auth` is the one sign-in flow for Auth, Exo, Calendar, and Sprinter.
+Logger and Site are public and must not mount it.
+
+```tsx
+<SessionProvider authUrl={AUTH_URL} appId="sprinter" permissions={['admin']}>
+  <RequireAuth productName="Sprinter" permission="admin">{page}</RequireAuth>
+</SessionProvider>
+```
+
+- `useSession()` gives `status` (`loading`, `anon`, `authed`, or
+  `unavailable` when Auth cannot be reached), `operator`, `can(permission)`,
+  `login`, `loginGuest`, `logout`, `refresh`, and `expire` (call it when an
+  API answers 401).
+- The provider reads Auth's `?auth=denied` and `?auth=banned` notices, strips
+  them from the address, and says when a live session expires.
+- `RequireAuth` shows loading, sign-in, the outage screen, or `AccessDenied`
+  before the page. A public page skips it and gates only its editing controls
+  on `can()`.
+- `AccountControls` is the right end of a header: theme switch, then the
+  account menu or a Sign in button.
+- `authStrings` holds every user-facing word about signing in, roles, and
+  permissions. `friendlyError` turns raw server refusals into those words.
+
 ## Theme bootstrap
 
 Every frontend must keep the full theme bootstrap directly in its
