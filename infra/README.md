@@ -296,8 +296,8 @@ it revokes the schema-wide `logger` grant that earlier versions gave.
 
 Both schemas get explicit grants on named tables only, with no default
 privileges: `logger.health_checks`, and in `oauth` `operators`, `apps`,
-`permissions`, and `grants`, never `sessions` or `guest_keys` — `guest_keys` holds the daily Exo guest key in
-plaintext, so it must never be readable outside Auth.
+`permissions`, and `grants`, never `guest_keys`, which holds the daily Exo
+guest key in plaintext and must never be readable outside Auth.
 
 ## Releases
 

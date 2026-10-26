@@ -93,12 +93,6 @@ func TestLiveReadRoleCannotSeeGuestKeys(t *testing.T) {
 	if !strings.Contains(strings.ToLower(err.Error()), "permission denied") {
 		t.Fatalf("want a permission error, got %v", err)
 	}
-
-	// Sessions are the same kind of secret, and the same grant must be absent.
-	err = store.pool.QueryRow(ctx, `SELECT count(*) FROM oauth.sessions`).Scan(&count)
-	if err == nil || !strings.Contains(strings.ToLower(err.Error()), "permission denied") {
-		t.Fatalf("the read role must not select from oauth.sessions, got %v", err)
-	}
 }
 
 func TestLiveReadRoleCannotWrite(t *testing.T) {

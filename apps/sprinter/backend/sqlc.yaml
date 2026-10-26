@@ -44,7 +44,7 @@ sql:
   # the two files in internal/readstore/schema move the tables into logger
   # and oauth after them, so the queries can name the schema as the pool
   # must. The oauth file moves only the four tables sprinter_reader may read,
-  # so a query against sessions or guest_keys does not generate.
+  # so a query against guest_keys does not generate.
   - engine: postgresql
     schema:
       - ../../logger/prisma/migrations/*/migration.sql

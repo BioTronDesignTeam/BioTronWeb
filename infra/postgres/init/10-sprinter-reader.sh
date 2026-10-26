@@ -51,10 +51,10 @@ GRANT USAGE ON SCHEMA logger, oauth TO sprinter_reader;
 REVOKE SELECT ON ALL TABLES IN SCHEMA logger FROM sprinter_reader;
 ALTER DEFAULT PRIVILEGES FOR ROLE :"owner" IN SCHEMA logger REVOKE SELECT ON TABLES FROM sprinter_reader;
 
--- Auth: named tables only, no default privileges. sessions and guest_keys
--- must never be granted here or later; guest_keys holds the daily Exo guest
--- key in plaintext, and sessions is the login token store. A new oauth table
--- needs a deliberate line added to this list, not an automatic grant.
+-- Auth: named tables only, no default privileges. guest_keys must never be
+-- granted here or later: it holds the daily Exo guest key in plaintext. A new
+-- oauth table needs a deliberate line added to this list, not an automatic
+-- grant.
 --
 -- On a fresh cluster none of these tables exist yet (Logger and Auth have not
 -- migrated), so each grant is guarded with to_regclass and skipped rather
