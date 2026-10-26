@@ -177,7 +177,7 @@ func (h *Handler) RotateProductDailyKey(w http.ResponseWriter, r *http.Request) 
 	key, err := h.Store.RotateProductDailyKey(r.Context(), appID, easternDay(time.Now()), candidate)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
-			httpx.JSON(w, http.StatusNotFound, map[string]any{"error": "no daily key for this product"})
+			httpx.JSON(w, http.StatusNotFound, map[string]any{"error": "This tool has no Daily guest key."})
 			return
 		}
 		fail(r, err, "auth: rotate product daily key")
