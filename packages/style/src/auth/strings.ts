@@ -77,6 +77,7 @@ export function friendlyError(status: number, message?: string): string {
   if (
     lowered === 'forbidden'
     || lowered === 'permission required'
+    || lowered === 'x-requested-with header required'
     || (status === 403 && (raw === '' || /^http 403$/i.test(raw)))
   ) {
     return authStrings.forbidden;
