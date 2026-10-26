@@ -14,6 +14,7 @@ import (
 
 	"github.com/joho/godotenv"
 
+	"github.com/BioTronDesignTeam/BioTronWeb/go/authclient"
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
 	"github.com/BioTronDesignTeam/exo-gui/backend/internal/auth"
 	"github.com/BioTronDesignTeam/exo-gui/backend/internal/config"
@@ -45,8 +46,7 @@ func run() error {
 	if !events.Enabled() {
 		log.Println("warning: neither Grafana nor PostHog is configured — structured events go nowhere")
 	}
-	authz := auth.NewClient(cfg.OAuthManagerURL)
-	authz.Events = events
+	authz := authclient.New(cfg.OAuthManagerURL, auth.AppID, authclient.WithEvents(events))
 	if !authz.Configured() {
 		// Not fatal: /health and the frontend still work. Gated routes fail
 		// closed with 503 rather than opening up.

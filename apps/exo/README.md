@@ -1,7 +1,7 @@
 # Exo
 
 Exo is the operator UI and the telemetry API for the exoskeleton. Today the
-API serves `/health` and the permission gate. The live, historical, and
+API serves `/health`, `/v1/auth/status`, and the gated prefixes. The live, historical, and
 command routes are a plan, not code. The machine list in the UI is a
 placeholder. The hardware side, an STM32 that reads the sensors and an ESP32
 that posts telemetry, is not in this repository.
@@ -74,35 +74,50 @@ if either is unset. Nothing in the UI calls the API yet.
 
 Auth owns identity and permissions. Exo's app id is `exo-gui`. It declares
 three permissions: `live`, `historical`, and `commands`. A daily guest key
-opens `live` and `historical` on Exo and never `commands`. Auth enforces that
-inside `/v1/check`; Exo enforces it by asking.
+opens `live` and `historical` on Exo and never `commands`. Auth enforces that;
+Exo holds it by asking on every request.
 
-`backend/internal/auth` is the one gate. `Require(permission)` is middleware
-for a route prefix. It forwards the caller's cookie to
-`GET {OAUTH_MANAGER_URL}/v1/check?app=exo-gui&permission=<key>` and maps the
-answer to a status:
+The gate is `go/authclient`. Each permission has its own route prefix, and
+`Require(permission)` wraps the whole prefix, so a route added under it
+cannot forget the check:
+
+| Prefix | Permission | Who passes |
+|---|---|---|
+| `/v1/live/` | `live` | granted members, managers, superusers, daily guests |
+| `/v1/historical/` | `historical` | granted members, managers, superusers, daily guests |
+| `/v1/commands/` | `commands` | granted members, managers, superusers; never a guest |
+
+A signed-in member with no Exo GUI permission is refused by all three.
+Each request asks `GET {OAUTH_MANAGER_URL}/v1/session?app=exo-gui&permission=<key>`
+with the caller's cookie:
 
 | Situation | Exo answers |
 |---|---|
-| No cookie, or Auth answers `401` | `401` |
-| Auth answers `{"allowed": false}` or `403` | `403` |
+| Mutating request without `X-Requested-With: XMLHttpRequest` | `403`, Auth not asked |
+| No cookie, or Auth refuses the session | `401` |
+| Signed in without the permission | `403` with `{"error":"permission required","permission":"<key>"}` |
 | Auth unreachable, unexpected status, or `OAUTH_MANAGER_URL` unset | `503` |
-| `{"allowed": true}` | the handler runs |
+| Signed in with the permission | the handler runs |
 
 A request with no cookie never reaches Auth. `401` and `403` stay distinct,
 so a signed-in operator is never sent back to a sign-in button that already
-worked. A handler reads the decision with `auth.DecisionFrom(r)`.
+worked. A handler reads the operator with `authclient.OperatorFrom(r)`, and
+the request event names them as `actor`.
 
-No route uses the gate yet. `server.go` shows the intended wiring in a
-comment: mount each route under a gated prefix, never check inside a
-handler, so a second route under the prefix cannot forget it. Use the
-constants in `backend/internal/auth`, not string literals.
+`GET /v1/auth/status` tells the UI who is signed in and what they hold:
+`{"operator": {...}, "can_live": true, "can_historical": true,
+"can_commands": false, "permissions": {...}}`, with `operator` left out when
+no one is signed in.
+
+No data or command route exists yet. Mount each in the mux for its prefix in
+`server.go`. Use the constants in `backend/internal/auth`, not string
+literals.
 
 ## Backend
 
 Go's standard `net/http`, with no framework. Exo issues no sessions; Auth
-does. CORS allows `FRONTEND_URL` only, with `GET`, `POST`, and `OPTIONS`. One
-route exists: `GET /health` answers `{"status":"ok"}` to anyone. Logger's
+does. CORS allows `FRONTEND_URL` only, with `GET`, `POST`, and `OPTIONS`.
+`GET /health` answers `{"status":"ok"}` to anyone. Logger's
 monitor polls it. Routes match exactly: `/health/` and `/HEALTH` are `404`.
 
 Exo reports to Grafana and PostHog as `exo-api`. `/health` is never sent.
@@ -110,7 +125,7 @@ Exo reports to Grafana and PostHog as `exo-api`. `/health` is never sent.
 | Message | Level | Payload |
 |---|---|---|
 | Exo API started | Info | `port` |
-| HTTP request completed | Info; Warning on 4xx; Error on 5xx | `method`, `path`, `status`, `duration_ms`, and `error` when it failed |
+| HTTP request completed | Info; Warning on 4xx; Error on 5xx | `method`, `path`, `status`, `duration_ms`, `actor` once the gate let them through, and `error` when it failed |
 | Authorization service unavailable | Error | `permission`, `error` |
 | Authorization not configured | Warning | |
 | Exo API stopping | Info | |
