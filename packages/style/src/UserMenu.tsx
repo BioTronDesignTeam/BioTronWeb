@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { authStrings } from './auth/strings';
 
 const UserIcon = () => (
   <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -23,7 +24,7 @@ export type UserMenuProps = {
 export function UserMenu({
   user,
   onLogout,
-  logoutLabel = 'Sign out',
+  logoutLabel = authStrings.signOut,
   className = '',
 }: UserMenuProps) {
   const [open, setOpen] = useState(false);
@@ -45,8 +46,8 @@ export function UserMenu({
     };
   }, [open]);
 
-  const displayName = user?.name || user?.login || 'BioTron member';
-  const detail = user?.detail || (user?.login ? `@${user.login}` : 'Authenticated account');
+  const displayName = user?.name || user?.login || authStrings.fallbackName;
+  const detail = user?.detail || (user?.login ? `@${user.login}` : authStrings.fallbackDetail);
 
   return (
     <div ref={ref} className={`biotron-user-menu ${className}`.trim()}>
@@ -56,7 +57,7 @@ export function UserMenu({
         onClick={() => setOpen((value) => !value)}
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label="User menu"
+        aria-label={authStrings.userMenu}
       >
         {user?.avatarUrl ? <img src={user.avatarUrl} alt="" /> : <UserIcon />}
       </button>

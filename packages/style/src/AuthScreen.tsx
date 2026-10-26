@@ -1,4 +1,5 @@
 import { useState, type FormEvent, type ReactNode } from 'react';
+import { authStrings } from './auth/strings';
 import { Brand } from './Brand';
 import { ThemeToggle } from './ThemeToggle';
 
@@ -95,11 +96,11 @@ function AuthActionControl({ action }: { action: AuthAction }) {
 
 function guestLabels(guestAccess: GuestAccess) {
   return {
-    label: guestAccess.label ?? 'Daily guest key',
-    placeholder: guestAccess.placeholder ?? 'XXXX-XXXX-XXXX',
-    submitLabel: guestAccess.submitLabel ?? 'Continue as guest',
-    submittingLabel: guestAccess.submittingLabel ?? 'Checking…',
-    errorMessage: guestAccess.errorMessage ?? 'Invalid or expired key.',
+    label: guestAccess.label ?? authStrings.guestKeyLabel,
+    placeholder: guestAccess.placeholder ?? authStrings.guestKeyPlaceholder,
+    submitLabel: guestAccess.submitLabel ?? authStrings.guestSubmit,
+    submittingLabel: guestAccess.submittingLabel ?? authStrings.guestSubmitting,
+    errorMessage: guestAccess.errorMessage ?? authStrings.guestInvalid,
   };
 }
 
