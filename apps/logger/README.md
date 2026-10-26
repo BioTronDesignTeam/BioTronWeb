@@ -160,9 +160,8 @@ probed since Logger started.
 
 Prisma 6.19.3, pinned exactly. The schema named by `?schema=` in
 `DATABASE_URL` (`logger`) holds `health_checks`, which the monitor writes
-and the status routes read, and `logs`, which nothing uses any more.
-`logs` keeps the events stored before the move to Grafana; no migration
-drops it, because that cannot be undone. To create a
+and the status routes read. The `logs` table of the old log store was
+dropped by `20261025120000_drop_logs`. To create a
 migration in the devcontainer, source `apps/logger/.env` and run
 `npm run --prefix apps/logger/prisma migrate`. The `logger-migrate` service
 applies the migrations as the image's `node` user.
