@@ -156,7 +156,9 @@ component's state flips.
 Postgres holds the history. The monitor and the status routes run in one
 process, so the latest health of each component stays in memory; the
 status routes read Postgres only for a component the monitor has not
-probed since Logger started.
+probed since Logger started. Once an hour Logger deletes the rows older than
+91 days: the 90-day window plus a day, so the reading that opens the window
+survives.
 
 Prisma 6.19.3, pinned exactly. The schema named by `?schema=` in
 `DATABASE_URL` (`logger`) holds `health_checks`, which the monitor writes

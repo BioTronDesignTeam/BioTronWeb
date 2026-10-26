@@ -30,6 +30,12 @@ const (
 	bucketTimeZone = "America/Toronto"
 )
 
+// HistoryRetention is how long health history is kept: the longest window the
+// status page shows, plus a day. The day keeps the carry-in row, the last
+// reading before the ninety-day window opens, which says what state a
+// component was already in.
+const HistoryRetention = (historyDays + 1) * 24 * time.Hour
+
 type overallStatus struct {
 	State     string    `json:"state"`
 	Uptime24h *float64  `json:"uptime_24h"`

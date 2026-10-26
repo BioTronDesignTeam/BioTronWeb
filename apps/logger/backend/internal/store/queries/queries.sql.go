@@ -12,6 +12,21 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const deleteHealthBefore = `-- name: DeleteHealthBefore :execrows
+DELETE FROM health_checks
+WHERE checked_at < $1::timestamptz
+`
+
+// Retention: drops the rows older than every window the status page shows.
+// health_checks_checked_at_idx serves the range.
+func (q *Queries) DeleteHealthBefore(ctx context.Context, cutoff time.Time) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteHealthBefore, cutoff)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const healthHistory = `-- name: HealthHistory :many
 WITH window_rows AS (
 	SELECT service, ok, checked_at,
