@@ -28,7 +28,7 @@ function TabButton({
 
 /**
  * Staff see three tabs, which fit in one row at every width the header
- * supports. A member has only their own access to look at, so for them there
+ * supports. A member has only their own permissions to look at, so for them there
  * is no bar at all: a single tab with nothing to switch to is noise, and the
  * panel underneath already carries its own heading.
  */
@@ -45,7 +45,7 @@ export default function TabBar({
   return (
     <div className="mb-6 grid grid-cols-3 gap-1 rounded-xl bg-slate-200/80 p-1 ring-1 ring-slate-300 dark:bg-surface-2/80 dark:ring-white/10">
       <TabButton active={tab === 'access'} onClick={() => onSelect('access')}>
-        My access
+        My permissions
       </TabButton>
       <TabButton active={tab === 'keys'} onClick={() => onSelect('keys')}>
         Keys
