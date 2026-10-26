@@ -54,6 +54,8 @@ func TestGuestsAreRefusedTheCatalogAndGrants(t *testing.T) {
 		"/me/grants":                            http.StatusForbidden,
 		"/auth/me?app=exo-gui":                  http.StatusOK,
 		"/v1/check?app=exo-gui&permission=live": http.StatusOK,
+		"/v1/session?app=exo-gui":               http.StatusOK,
+		"/v1/session?app=calendar":              http.StatusForbidden,
 	} {
 		request := httptest.NewRequest(http.MethodGet, target, nil)
 		request.AddCookie(&http.Cookie{Name: auth.SessionCookie, Value: value})

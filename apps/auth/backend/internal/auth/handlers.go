@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -233,7 +234,12 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, r, http.StatusForbidden)
 		return
 	}
-	httpx.JSON(w, http.StatusOK, map[string]any{
+	httpx.JSON(w, http.StatusOK, operatorBody(op))
+}
+
+// operatorBody is the operator as /auth/me and /v1/session describe them.
+func operatorBody(op *store.SessionOperator) map[string]any {
+	return map[string]any{
 		"github_id":    op.GitHubID,
 		"login":        op.Login,
 		"name":         op.Name,
@@ -243,7 +249,52 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 		"is_staff":     op.IsStaff(),
 		"is_guest":     op.IsGuest(),
 		"guest_app_id": op.GuestAppID,
-	})
+	}
+}
+
+// maxSessionPermissions caps the permissions one /v1/session call may ask
+// about. No tool declares more than a few.
+const maxSessionPermissions = 16
+
+// Session answers /auth/me and /v1/check in one call: who is signed in, and
+// which of the asked permissions they hold on one tool.
+//
+//	GET /v1/session?app=calendar&permission=write
+//	{"operator": {...as /auth/me...}, "permissions": {"write": true}}
+//
+// A tool that asked the two separately could see the session end between the
+// calls and mistake that for an outage. The rules are those of the two
+// routes: no usable session is 401 (from RequireSession), and a guest asking
+// about any tool but its own is 403, as /auth/me answers. Asking about no
+// permission is allowed and returns only the operator.
+func (h *Handler) Session(w http.ResponseWriter, r *http.Request) {
+	op := OperatorFrom(r)
+	if op == nil {
+		httpx.Error(w, r, http.StatusUnauthorized)
+		return
+	}
+	query := r.URL.Query()
+	appID := query.Get("app")
+	keys := query["permission"]
+	if appID == "" || len(keys) > maxSessionPermissions || slices.Contains(keys, "") {
+		httpx.JSON(w, http.StatusBadRequest, map[string]any{"error": "app query param required, with at most 16 non-empty permission params"})
+		return
+	}
+	if op.IsGuest() && appID != op.GuestAppID {
+		httpx.Error(w, r, http.StatusForbidden)
+		return
+	}
+	permissions := make(map[string]bool, len(keys))
+	for _, key := range keys {
+		ok, err := h.allowed(r.Context(), op, appID, key)
+		if err != nil {
+			fail(r, err, "auth: session permissions")
+			httpx.Status(w, http.StatusInternalServerError)
+			return
+		}
+		permissions[key] = ok
+	}
+	httpx.JSON(w, http.StatusOK, map[string]any{"operator": operatorBody(op), "permissions": permissions})
 }
 
 func (h *Handler) ListApps(w http.ResponseWriter, r *http.Request) {
