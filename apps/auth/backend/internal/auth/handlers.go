@@ -370,7 +370,7 @@ type grantBody struct {
 func readGrantBody(w http.ResponseWriter, r *http.Request) (grantBody, bool) {
 	var body grantBody
 	if err := httpx.Decode(w, r, &body); err != nil || body.OperatorID == nil || *body.OperatorID <= 0 || body.AppID == "" || body.PermissionKey == "" {
-		httpx.JSON(w, http.StatusBadRequest, map[string]any{"error": "operator_id, app_id, permission_key required"})
+		httpx.JSON(w, http.StatusBadRequest, map[string]any{"error": "Choose a member, a tool, and a permission."})
 		return body, false
 	}
 	return body, true
@@ -383,7 +383,7 @@ func (h *Handler) CreateGrant(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := h.Store.CreateGrant(r.Context(), *body.OperatorID, body.AppID, body.PermissionKey); err != nil {
 		if errors.Is(err, store.ErrNotFound) {
-			httpx.JSON(w, http.StatusNotFound, map[string]any{"error": "permission not found"})
+			httpx.JSON(w, http.StatusNotFound, map[string]any{"error": "That permission doesn't exist for this tool."})
 			return
 		}
 		fail(r, err, "grants: create")
@@ -488,11 +488,11 @@ func (h *Handler) setBanned(w http.ResponseWriter, r *http.Request, banned bool)
 		return
 	}
 	if id == store.GuestGitHubID {
-		httpx.JSON(w, http.StatusBadRequest, map[string]any{"error": "cannot ban the guest account"})
+		httpx.JSON(w, http.StatusBadRequest, map[string]any{"error": "Guests can't be banned. Rotate the Daily guest key to sign them out."})
 		return
 	}
 	if id == actor.GitHubID {
-		httpx.JSON(w, http.StatusBadRequest, map[string]any{"error": "cannot ban yourself"})
+		httpx.JSON(w, http.StatusBadRequest, map[string]any{"error": "You can't ban yourself."})
 		return
 	}
 	target, err := h.Store.GetOperator(r.Context(), id)
@@ -505,7 +505,8 @@ func (h *Handler) setBanned(w http.ResponseWriter, r *http.Request, banned bool)
 		return
 	}
 	if h.isSuperuser(target.GitHubID) && !actor.IsSuperuser {
-		httpx.Error(w, r, http.StatusForbidden)
+		httplog.SetError(r, errors.New(http.StatusText(http.StatusForbidden)))
+		httpx.JSON(w, http.StatusForbidden, map[string]any{"error": "Only a superuser can ban or unban a superuser."})
 		return
 	}
 	if err := h.Store.SetBanned(r.Context(), id, banned); err != nil {
@@ -538,11 +539,11 @@ func (h *Handler) SetManager(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if id == store.GuestGitHubID {
-		httpx.JSON(w, http.StatusBadRequest, map[string]any{"error": "cannot change the guest account"})
+		httpx.JSON(w, http.StatusBadRequest, map[string]any{"error": "Guests can't be made managers."})
 		return
 	}
 	if id == actor.GitHubID {
-		httpx.JSON(w, http.StatusBadRequest, map[string]any{"error": "cannot change your own manager flag"})
+		httpx.JSON(w, http.StatusBadRequest, map[string]any{"error": "You can't change your own Manager role."})
 		return
 	}
 	if err := h.Store.SetManager(r.Context(), id, body.Manager); err != nil {
