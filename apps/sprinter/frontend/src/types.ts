@@ -42,16 +42,8 @@ export interface AutomationPayload {
   enabled: boolean;
 }
 
-export interface Operator {
-  github_id: number;
-  login: string;
-  name: string;
-  avatar_url: string;
-}
-
-export interface AuthStatus {
-  operator?: Operator;
-  can_admin: boolean;
+/** What `/v1/auth/status` adds beyond the session: Sprinter reads only this. */
+export interface SprinterStatus {
   // False where SPRINTER_DISCORD_ENABLED is off: settings save, nothing runs.
   discord_enabled?: boolean;
 }

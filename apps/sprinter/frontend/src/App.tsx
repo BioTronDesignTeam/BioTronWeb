@@ -1,38 +1,44 @@
 import { useCallback, useEffect, useState } from 'react';
-import { AuthScreen } from '@biotron/style';
-import { login, sprinterApi } from './api';
-import type { Automation, AutomationPayload, AuthStatus, Guard, GuardSubject, Scope } from './types';
+import { RequireAuth, useSession } from '@biotron/style';
+import { setUnauthorizedHandler, sprinterApi } from './api';
+import type { Automation, AutomationPayload, Guard, GuardSubject, Scope } from './types';
 import { AutomationsPanel } from './components/AutomationsPanel';
 import { GuardsPanel } from './components/GuardsPanel';
 import { Header } from './components/Header';
 
 export function App() {
-  const [auth, setAuth] = useState<AuthStatus>({ can_admin: false });
-  const [authLoaded, setAuthLoaded] = useState(false);
+  return (
+    <RequireAuth
+      productName="Sprinter"
+      description="Sign in with GitHub to manage the BioTron Discord bot."
+      permission="admin"
+    >
+      <div className="min-h-dvh bg-white text-ink dark:bg-page dark:text-white">
+        <Header />
+        <Administration />
+      </div>
+    </RequireAuth>
+  );
+}
+
+function Administration() {
+  const { expire } = useSession();
+  const [discordEnabled, setDiscordEnabled] = useState<boolean>();
   const [guards, setGuards] = useState<Guard[]>([]);
   const [automations, setAutomations] = useState<Automation[]>([]);
   const [scopes, setScopes] = useState<Scope[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const loadAuth = useCallback(async () => {
-    try {
-      setAuth(await sprinterApi.authStatus());
-    } catch {
-      setAuth({ can_admin: false });
-    } finally {
-      setAuthLoaded(true);
-    }
-  }, []);
-
   useEffect(() => {
-    void loadAuth();
-  }, [loadAuth]);
+    setUnauthorizedHandler(expire);
+  }, [expire]);
 
-  const loadAdmin = useCallback(async () => {
-    if (!auth.can_admin) return;
+  const load = useCallback(async () => {
     setLoading(true);
     setError('');
+    // Only says whether Discord is on; the page works the same without it.
+    void sprinterApi.status().then((status) => setDiscordEnabled(status.discord_enabled), () => undefined);
     try {
       const [nextGuards, nextAutomations] = await Promise.all([sprinterApi.guards(), sprinterApi.automations()]);
       setGuards(nextGuards);
@@ -48,11 +54,11 @@ export function App() {
       setError((current) => current || (caught instanceof Error ? caught.message : 'Could not load calendar scopes.'));
     }
     setLoading(false);
-  }, [auth.can_admin]);
+  }, []);
 
   useEffect(() => {
-    void loadAdmin();
-  }, [loadAdmin]);
+    void load();
+  }, [load]);
 
   async function saveGuard(subject: GuardSubject, body: { guild_id: string; role_ids: string[]; channel_ids: string[] }) {
     const updated = await sprinterApi.saveGuard(subject, body);
@@ -79,48 +85,23 @@ export function App() {
     setAutomations((current) => current.filter((candidate) => candidate.id !== automation.id));
   }
 
-  if (!authLoaded) {
-    return <div className="min-h-dvh bg-white dark:bg-page" />;
-  }
-
-  if (!auth.operator) {
-    return (
-      <AuthScreen
-        productName="Sprinter"
-        description="Sign in with GitHub to manage the BioTron Discord bot."
-        action={{ label: 'Log in with GitHub', icon: 'github', onClick: login }}
-      />
-    );
-  }
-
   return (
-    <div className="min-h-dvh bg-white text-ink dark:bg-page dark:text-white">
-      <Header auth={auth} onLoggedOut={() => setAuth({ can_admin: false })} />
-      <main className="mx-auto w-full max-w-[1200px] space-y-8 px-4 pb-16 pt-8 sm:px-6 lg:px-8">
-        {!auth.can_admin ? (
-          <p className="rounded-2xl border border-ink/10 bg-white px-5 py-4 text-sm dark:border-line dark:bg-surface">
-            Sprinter administration needs the sprinter/admin permission. Ask a manager in Auth to grant it.
-          </p>
-        ) : (
-          <>
-            {auth.discord_enabled === false && (
-              <p className="rounded-xl border border-ink/10 bg-white px-4 py-3 text-sm dark:border-line dark:bg-surface" role="status">
-                Discord is turned off in this environment. Guards and automations save, but the bot does not answer commands or post until it is turned on.
-              </p>
-            )}
-            {error && <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800 dark:bg-red-950/30 dark:text-red-200">{error}</p>}
-            {loading && <div className="h-1 animate-pulse rounded-full bg-brand" />}
-            <GuardsPanel guards={guards} onSave={saveGuard} onClear={clearGuard} />
-            <AutomationsPanel
-              automations={automations}
-              scopes={scopes}
-              onCreate={createAutomation}
-              onUpdate={updateAutomation}
-              onDelete={deleteAutomation}
-            />
-          </>
-        )}
-      </main>
-    </div>
+    <main className="mx-auto w-full max-w-[1200px] space-y-8 px-4 pb-16 pt-8 sm:px-6 lg:px-8">
+      {discordEnabled === false && (
+        <p className="rounded-xl border border-ink/10 bg-white px-4 py-3 text-sm dark:border-line dark:bg-surface" role="status">
+          Discord is turned off in this environment. Guards and automations save, but the bot does not answer commands or post until it is turned on.
+        </p>
+      )}
+      {error && <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800 dark:bg-red-950/30 dark:text-red-200">{error}</p>}
+      {loading && <div className="h-1 animate-pulse rounded-full bg-brand" />}
+      <GuardsPanel guards={guards} onSave={saveGuard} onClear={clearGuard} />
+      <AutomationsPanel
+        automations={automations}
+        scopes={scopes}
+        onCreate={createAutomation}
+        onUpdate={updateAutomation}
+        onDelete={deleteAutomation}
+      />
+    </main>
   );
 }
