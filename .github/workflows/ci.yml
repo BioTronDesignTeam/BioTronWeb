@@ -44,7 +44,7 @@ jobs:
     outputs:
       frontends: ${{ steps.plan.outputs.frontends }}
       backends: ${{ steps.plan.outputs.backends }}
-      logclient: ${{ steps.plan.outputs.logclient }}
+      shared: ${{ steps.plan.outputs.shared }}
       golangci-lint: ${{ steps.tools.outputs.golangci-lint }}
       trufflehog: ${{ steps.tools.outputs.trufflehog }}
     steps:
@@ -94,19 +94,19 @@ jobs:
           fi
           if jq -e 'index("gowork") != null' <<<"$CHANGED" >/dev/null; then
             backends="$with_backend"
-            logclient=true
+            shared='["authclient","logclient"]'
           else
             backends=$(jq -c --argjson go "$with_backend" '[.[] | select(. as $x | $go | index($x) != null)]' <<<"$changed_apps")
-            logclient=false
+            shared='[]'
           fi
           {
             echo "frontends=$frontends"
             echo "backends=$backends"
-            echo "logclient=$logclient"
+            echo "shared=$shared"
           } >> "$GITHUB_OUTPUT"
           echo "frontends: $frontends"
           echo "backends:  $backends"
-          echo "logclient: $logclient"
+          echo "shared:    $shared"
       # The tool releases of the devcontainer image, read from its FROM lines
       # (which Dependabot updates), so CI and ./pr-precheck run the same ones.
       - name: read tool versions
@@ -180,27 +180,33 @@ jobs:
       - run: go vet ./...
       - run: go test ./...
 
-  logclient:
-    name: go/logclient
+  # The shared Go modules under go/, which every backend builds through
+  # go.work.
+  shared:
+    name: go/${{ matrix.module }}
     needs: changes
-    if: needs.changes.outputs.logclient == 'true'
+    if: needs.changes.outputs.shared != '[]'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        module: ${{ fromJSON(needs.changes.outputs.shared) }}
     defaults:
       run:
-        working-directory: go/logclient
+        working-directory: go/${{ matrix.module }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version-file: go/logclient/go.mod
-          cache-dependency-path: go/logclient/go.sum
+          go-version-file: go/${{ matrix.module }}/go.mod
+          cache-dependency-path: go/${{ matrix.module }}/go.sum
       - uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
         with:
           version: ${{ needs.changes.outputs.golangci-lint }}
-          working-directory: go/logclient
+          working-directory: go/${{ matrix.module }}
       - run: go vet ./...
       - run: go test ./...
 

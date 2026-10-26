@@ -1,5 +1,5 @@
 # CodeQL code scanning of the whole repository: the TypeScript of every
-# frontend and packages/style, the Go of the five backends and go/logclient,
+# frontend and packages/style, the Go of the five backends and the go/ modules,
 # and the GitHub Actions workflows themselves. The results go to the
 # repository's Security tab (code scanning) and to each pull request.
 #

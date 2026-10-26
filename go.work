@@ -9,5 +9,6 @@ use (
 	./apps/exo/backend
 	./apps/logger/backend
 	./apps/sprinter/backend
+	./go/authclient
 	./go/logclient
 )

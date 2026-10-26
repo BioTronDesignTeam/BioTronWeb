@@ -17,6 +17,7 @@ where the platform is developed now; the separate repositories are frozen.
 | `apps/sprinter` | Discord bot and admin UI | `Sprinter` |
 | `packages/style` | `@biotron/style`: brand, theme, shared controls | `BioTronStyle` |
 | `go/logclient` | Go client every service uses to send events to Grafana and PostHog | `Logger/client` |
+| `go/authclient` | Go client and middleware the gated backends use to ask Auth about a session | new |
 | `infra` | Edge Nginx, cloudflared, Postgres, Redis, deployment manifests | `Server` |
 
 Each app keeps its own `README.md`, `.env.example`, `docker-compose.yml`, and
@@ -27,8 +28,8 @@ Each app keeps its own `README.md`, `.env.example`, `docker-compose.yml`, and
 - **`package.json`** declares the npm workspaces: `packages/*` and
   `apps/*/frontend`. One `package-lock.json`. Every frontend depends on
   `"@biotron/style": "*"`, which npm links to `packages/style`.
-- **`go.work`** lists every backend and `go/logclient`. Each backend keeps its
-  own `go.mod`, so an image compiles only its own code, but locally everything
+- **`go.work`** lists every backend and the shared modules under `go/`. Each
+  backend keeps its own `go.mod`, so an image compiles only its own code, but locally everything
   resolves together.
 - **`docker-compose.yml`** is one instance of the platform: it includes
   `infra/docker-compose.yml` (Postgres and Redis) and every app, so an
@@ -112,9 +113,9 @@ explicitly; `all` and the default `stop` cover one instance's data services
 and apps only.
 
 Frontend images build from the repository root so they can see
-`packages/style`, and the Auth, Exo, and Calendar API images build from
-the root so they can see `go/logclient`; each app's compose file already
-sets `context: ../..` for them.
+`packages/style`, and the API images build from the root so they can see
+the shared modules under `go/`; each app's compose file already sets
+`context: ../..` for them.
 
 ### Before opening a pull request
 
@@ -241,8 +242,6 @@ same ports as before.
   (`github.com/BioTronDesignTeam/Logger/backend` and so on). Renaming them
   to `github.com/BioTronDesignTeam/BioTronWeb/apps/<app>/backend` is a
   find-and-replace plus `go work sync`.
-- The OAuthManager permission-check client that Exo, Calendar, and Sprinter
-  each hand-roll belongs in `go/authcheck`. It is not extracted here.
 - The CI, CodeQL, sqlc, and actionlint workflows under `.github/workflows`
   are written but have never run on GitHub.
 - The React hook and effect findings Oxlint reports are warnings; each app

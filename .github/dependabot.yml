@@ -15,9 +15,10 @@
 # docker entry below updates, and the workflows read them from there.
 version: 2
 updates:
-  # The five backends and go/logclient. They form one go.work workspace, and
-  # the backends build go/logclient through it, so one pull request moves
-  # every module together.
+  # The five backends and the shared modules under go/ (logclient,
+  # authclient). They form one go.work workspace, and the backends build the
+  # shared modules through it, so one pull request moves every module
+  # together.
   - package-ecosystem: gomod
     directories:
       - /apps/*/backend

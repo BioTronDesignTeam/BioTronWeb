@@ -21,6 +21,7 @@ Local development can use untracked `.env` files.
 | `apps/sprinter` | Discord bot and admin UI | `Sprinter` |
 | `packages/style` | `@biotron/style` shared components | `BioTronStyle` |
 | `go/logclient` | Go client that sends events to Grafana and PostHog | `Logger/client` |
+| `go/authclient` | Go client and middleware that ask Auth about a session | new |
 | `infra` | Edge Nginx, cloudflared, Postgres, Redis | `Server` |
 
 The old repositories are frozen. Code comments and app ids still use some old
@@ -86,6 +87,7 @@ names, such as `OAuthManager` and `exo-gui`. They mean the paths above.
   session cookie.
 - The other backends keep no session. Each one forwards the request's `Cookie`
   header to Auth, and Auth answers whether that session holds the permission.
+  They all do it through `go/authclient`; do not hand-roll another client.
 - On a deployment, set `COOKIE_DOMAIN` to the parent domain, such as
   `.biotron.ca`, so the browser sends the cookie to every app hostname. Leave
   it blank on localhost. Auth refuses to start with a cookie domain and
