@@ -1,15 +1,6 @@
-import { Brand, ThemeToggle, UserMenu } from '@biotron/style';
-import type { Me } from '../api';
+import { AccountControls, Brand, identityLine } from '@biotron/style';
 
-function roleSuffix(me: Me): string {
-  if (me.is_guest) return ' · guest';
-  if (me.is_superuser) return ' · superuser';
-  if (me.is_manager) return ' · manager';
-  if (me.is_staff) return ' · staff';
-  return '';
-}
-
-export default function AppHeader({ me, onLogout }: { me: Me; onLogout: () => void }) {
+export default function AppHeader() {
   return (
     <header className="sticky top-0 z-30 border-b border-[#aedbfc] bg-white/90 pt-safe backdrop-blur dark:border-white/[0.14] dark:bg-surface/90">
       <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-x-4 gap-y-3 px-page py-4">
@@ -23,18 +14,7 @@ export default function AppHeader({ me, onLogout }: { me: Me; onLogout: () => vo
             Auth
           </span>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <ThemeToggle />
-          <UserMenu
-            user={{
-              name: me.name,
-              login: me.login,
-              avatarUrl: me.avatar_url,
-              detail: `@${me.login}${roleSuffix(me)}`,
-            }}
-            onLogout={onLogout}
-          />
-        </div>
+        <AccountControls className="flex-wrap gap-3" detail={identityLine} />
       </div>
     </header>
   );

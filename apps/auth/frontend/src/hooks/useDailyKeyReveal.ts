@@ -3,8 +3,8 @@ import { type ProductDailyKey } from '../api';
 
 /**
  * Reveal and copy state for the Keys tab. It lives above the tab so a key you
- * revealed is still revealed when you come back from another tab, and it is
- * reset explicitly on logout because the root component never unmounts.
+ * revealed is still revealed when you come back from another tab. Signing out
+ * unmounts the console, which drops it.
  */
 export function useDailyKeyReveal(onError: (message: string) => void) {
   const [revealedAppIds, setRevealedAppIds] = useState<ReadonlySet<string>>(() => new Set());
@@ -35,10 +35,5 @@ export function useDailyKeyReveal(onError: (message: string) => void) {
     [onError],
   );
 
-  const reset = useCallback(() => {
-    setRevealedAppIds(new Set());
-    setCopiedAppId(null);
-  }, []);
-
-  return { revealedAppIds, copiedAppId, toggle, copy, reset };
+  return { revealedAppIds, copiedAppId, toggle, copy };
 }
