@@ -241,7 +241,7 @@ func waitForEvent(t *testing.T, sent <-chan logclienttest.Event, message string)
 func TestAdminEventNamesTheOperator(t *testing.T) {
 	events, sent := logclienttest.New(t, "calendar-api")
 	handler := &Handler{events: events}
-	authz := withCalendarErrors(editorAuth(t).Client(AppID), events)
+	authz := editorAuth(t).Client(AppID).With(authclient.WithEvents(events))
 
 	app := authz.Require(PermissionWrite)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		handler.adminEvent(r, "Scope created", map[string]any{
@@ -271,8 +271,8 @@ func TestAdminEventNamesTheOperator(t *testing.T) {
 	}
 }
 
-// Moving the gate to go/authclient must not change who is let in or what the
-// admin page is told, so every branch is pinned with its body.
+// The write gate decides who is let in and what the editor page is told, so
+// every branch is pinned with its body.
 func TestWriteGateKeepsItsStatusMapping(t *testing.T) {
 	events, sent := logclienttest.New(t, "calendar-api")
 	tests := []struct {
@@ -284,18 +284,18 @@ func TestWriteGateKeepsItsStatusMapping(t *testing.T) {
 		body    string
 	}{
 		{name: "editor", arrange: func(a *authclienttest.Auth) { a.SignIn(ada, PermissionWrite) }, cookie: "session=abc", want: http.StatusCreated},
-		{name: "no cookie", arrange: func(a *authclienttest.Auth) { a.SignIn(ada, PermissionWrite) }, want: http.StatusUnauthorized, body: `{"error":"unauthorized"}`},
-		{name: "session rejected", arrange: func(a *authclienttest.Auth) { a.Answer(http.StatusUnauthorized) }, cookie: "session=abc", want: http.StatusUnauthorized, body: `{"error":"unauthorized"}`},
-		{name: "a guest of another tool", arrange: func(a *authclienttest.Auth) { a.Answer(http.StatusForbidden) }, cookie: "session=abc", want: http.StatusUnauthorized, body: `{"error":"unauthorized"}`},
-		{name: "permission missing", arrange: func(a *authclienttest.Auth) { a.SignIn(ada) }, cookie: "session=abc", want: http.StatusForbidden, body: `{"error":"forbidden"}`},
-		{name: "auth broken", arrange: func(a *authclienttest.Auth) { a.Answer(http.StatusInternalServerError) }, cookie: "session=abc", want: http.StatusServiceUnavailable, body: `{"error":"service unavailable"}`},
-		{name: "no X-Requested-With", arrange: func(a *authclienttest.Auth) { a.SignIn(ada, PermissionWrite) }, cookie: "session=abc", omitXHR: true, want: http.StatusForbidden, body: `{"error":"forbidden"}`},
+		{name: "no cookie", arrange: func(a *authclienttest.Auth) { a.SignIn(ada, PermissionWrite) }, want: http.StatusUnauthorized, body: `{"error":"authentication required"}`},
+		{name: "session rejected", arrange: func(a *authclienttest.Auth) { a.Answer(http.StatusUnauthorized) }, cookie: "session=abc", want: http.StatusUnauthorized, body: `{"error":"authentication required"}`},
+		{name: "a guest of another tool", arrange: func(a *authclienttest.Auth) { a.Answer(http.StatusForbidden) }, cookie: "session=abc", want: http.StatusUnauthorized, body: `{"error":"authentication required"}`},
+		{name: "permission missing", arrange: func(a *authclienttest.Auth) { a.SignIn(ada) }, cookie: "session=abc", want: http.StatusForbidden, body: `{"error":"permission required","permission":"write"}`},
+		{name: "auth broken", arrange: func(a *authclienttest.Auth) { a.Answer(http.StatusInternalServerError) }, cookie: "session=abc", want: http.StatusServiceUnavailable, body: `{"error":"authorization service unavailable"}`},
+		{name: "no X-Requested-With", arrange: func(a *authclienttest.Auth) { a.SignIn(ada, PermissionWrite) }, cookie: "session=abc", omitXHR: true, want: http.StatusForbidden, body: `{"error":"X-Requested-With header required"}`},
 	}
 
 	for _, test := range tests {
 		stub := authclienttest.New(t)
 		test.arrange(stub)
-		app := withCalendarErrors(stub.Client(AppID), events).Require(PermissionWrite)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		app := stub.Client(AppID).With(authclient.WithEvents(events)).Require(PermissionWrite)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusCreated)
 		}))
 

@@ -32,15 +32,15 @@ type Handler struct {
 	now func() time.Time
 }
 
-// New returns the whole API as one http.Handler. The routes, statuses,
-// headers, and bodies are the ones the Fiber app served, because the
-// frontends, the site, and every subscribed calendar depend on them.
+// New returns the whole API as one http.Handler. The public routes answer
+// any origin on the public list without credentials; the editor routes, and
+// the status the editor page reads, answer only the editor origins.
 func New(cfg config.Config, calendarStore *store.Store, authz *authclient.Client, events *logclient.Client, location *time.Location) http.Handler {
 	h := &Handler{
 		store: calendarStore, config: cfg,
 		events: events, location: location, now: time.Now,
 	}
-	authz = withCalendarErrors(authz, events)
+	authz = authz.With(authclient.WithEvents(events))
 	publicCORS := newCORS(cfg.PublicAllowedOrigins(), false,
 		[]string{http.MethodGet, http.MethodHead, http.MethodOptions},
 		[]string{"Content-Type"})
@@ -51,30 +51,19 @@ func New(cfg config.Config, calendarStore *store.Store, authz *authclient.Client
 		},
 		[]string{"Content-Type", "X-Requested-With"})
 
-	public := func(handle handlerFunc) http.Handler { return publicCORS.wrap(h.serve(handle)) }
-	// An OPTIONS request that is not a preflight passes through CORS to
-	// nothing, which Fiber answered with a 404.
-	publicOptions := publicCORS.wrap(http.HandlerFunc(notFound))
+	public := http.NewServeMux()
+	public.Handle("GET /v1/scopes", h.serve(h.listScopes))
+	public.Handle("GET /v1/events", h.serve(h.listOccurrences))
+	public.Handle("GET /v1/events/upcoming", h.serve(h.listUpcoming))
+	public.Handle("GET /v1/feeds/all.ics", h.serve(h.allFeed))
+	public.Handle("GET /v1/feeds/scopes/{file}", h.serve(h.scopeFeed))
 
-	mux := http.NewServeMux()
-	mux.Handle("GET /health", h.serve(h.health))
-	mux.Handle("GET /v1/auth/status", adminCORS.wrap(authz.StatusHandler(
-		[]authclient.StatusField{{Permission: PermissionWrite, Field: "can_write"}}, nil)))
-	mux.Handle("OPTIONS /v1/auth/status", adminCORS.wrap(http.HandlerFunc(notFound)))
-	mux.Handle("GET /v1/scopes", public(h.listScopes))
-	mux.Handle("OPTIONS /v1/scopes", publicOptions)
-	mux.Handle("GET /v1/events", public(h.listOccurrences))
-	mux.Handle("OPTIONS /v1/events", publicOptions)
-	mux.Handle("GET /v1/events/upcoming", public(h.listUpcoming))
-	mux.Handle("OPTIONS /v1/events/upcoming", publicOptions)
-	mux.Handle("GET /v1/feeds/all.ics", public(h.allFeed))
-	mux.Handle("GET /v1/feeds/scopes/{file}", feedFile(public(h.scopeFeed)))
-	mux.Handle("OPTIONS /v1/feeds", publicOptions)
-	mux.Handle("OPTIONS /v1/feeds/", publicOptions)
+	status := http.NewServeMux()
+	status.Handle("GET /v1/auth/status", authz.StatusHandler(
+		[]authclient.StatusField{{Permission: PermissionWrite, Field: "can_write"}}, nil))
 
-	// Everything under /v1/admin passes through the admin CORS policy and the
-	// calendar/write gate before it is routed, unknown paths included, as it did
-	// under Fiber's group middleware.
+	// Every editor route needs calendar/write. The gate wraps the whole
+	// prefix, so a route added under it cannot forget the check.
 	admin := http.NewServeMux()
 	admin.Handle("GET /v1/admin/scopes", h.serve(h.listAdminScopes))
 	admin.Handle("POST /v1/admin/scopes", h.serve(h.createScope))
@@ -90,21 +79,15 @@ func New(cfg config.Config, calendarStore *store.Store, authz *authclient.Client
 	admin.Handle("DELETE /v1/admin/events/{id}", h.serve(h.deleteEvent))
 	admin.Handle("PUT /v1/admin/events/{id}/occurrences", h.serve(h.upsertOccurrence))
 	admin.Handle("DELETE /v1/admin/events/{id}/occurrences", h.serve(h.deleteOccurrenceOverride))
-	admin.Handle("OPTIONS /v1/admin", http.HandlerFunc(notFound))
-	admin.Handle("OPTIONS /v1/admin/", http.HandlerFunc(notFound))
-	adminRoutes := adminCORS.wrap(authz.Require(PermissionWrite)(routeJSON(admin)))
 
-	routes := routeJSON(mux)
-	app := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if isAdminPath(r.URL.Path) {
-			adminRoutes.ServeHTTP(w, r)
-			return
-		}
-		routes.ServeHTTP(w, r)
-	})
+	mux := http.NewServeMux()
+	mux.Handle("GET /health", h.serve(h.health))
+	mux.Handle("/v1/", publicCORS.wrap(public))
+	mux.Handle("/v1/auth/status", adminCORS.wrap(status))
+	mux.Handle("/v1/admin/", adminCORS.wrap(authz.Require(PermissionWrite)(admin)))
 	// httplog is outermost so the status it logs is the one the client got,
-	// and recoverJSON inside it so a panic is logged as the 500 it became.
-	return httplog.New(events, httplog.Options{})(recoverJSON(fiberPaths(app)))
+	// and a panic is logged as the 500 it became.
+	return httplog.New(events, httplog.Options{})(mux)
 }
 
 func (h *Handler) health(w http.ResponseWriter, r *http.Request) error {
@@ -116,29 +99,6 @@ func (h *Handler) health(w http.ResponseWriter, r *http.Request) error {
 		})
 	}
 	return writeJSON(w, http.StatusOK, map[string]any{"service": "biotron-calendar", "status": "ok"})
-}
-
-// withCalendarErrors returns authz answering its refusals with Calendar's own
-// error body, {"error":"unauthorized"} and the like, which the admin page
-// shows, and reporting an Auth outage as an event. The public routes never
-// reach it: they call nothing.
-func withCalendarErrors(authz *authclient.Client, events *logclient.Client) *authclient.Client {
-	return authz.With(authclient.WithEvents(events), authclient.WithErrorWriter(
-		func(w http.ResponseWriter, r *http.Request, refusal authclient.Refusal) {
-			var err *httpError
-			switch refusal.Status {
-			case http.StatusUnauthorized:
-				err = errUnauthorized
-			case http.StatusForbidden:
-				err = errForbidden
-			default:
-				// The request event keeps the cause authclient recorded.
-				writeError(w, errServiceUnavailable)
-				return
-			}
-			httplog.SetError(r, err)
-			writeError(w, err)
-		}))
 }
 
 // adminEvent reports one admin change at Info, naming the operator behind it.

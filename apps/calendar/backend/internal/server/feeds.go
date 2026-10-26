@@ -22,8 +22,8 @@ func (h *Handler) allFeed(w http.ResponseWriter, r *http.Request) error {
 }
 
 func (h *Handler) scopeFeed(w http.ResponseWriter, r *http.Request) error {
-	id := strings.TrimSuffix(r.PathValue("file"), ".ics")
-	if uuid.Validate(id) != nil {
+	id, ics := strings.CutSuffix(r.PathValue("file"), ".ics")
+	if !ics || uuid.Validate(id) != nil {
 		return errNotFound
 	}
 	scope, err := h.store.GetScope(r.Context(), id)
@@ -79,13 +79,11 @@ func sendCacheable(w http.ResponseWriter, r *http.Request, body []byte, lastModi
 			return notModified(w)
 		}
 	}
-	writeBody(w, http.StatusOK, body)
+	_, _ = w.Write(body)
 	return nil
 }
 
-// A 304 must not carry a body. net/http drops one for this status, and also
-// the Content-Type and Content-Length, which Fiber used to send with it; the
-// validators and Cache-Control stay.
+// A 304 carries no body; the validators and Cache-Control stay.
 func notModified(w http.ResponseWriter) error {
 	w.WriteHeader(http.StatusNotModified)
 	return nil

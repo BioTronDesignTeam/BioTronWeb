@@ -5,10 +5,8 @@ import (
 	"strings"
 )
 
-// cors is the CORS policy the Fiber cors middleware applied, header for
-// header, so browsers see exactly what they saw before: the origin echoed back
-// only when it is on the list, a 204 for every preflight even from a stranger,
-// and the same Vary lines.
+// cors echoes an Origin back only when it is on the list, and answers every
+// preflight itself with 204, so a preflight never reaches a route or a gate.
 type cors struct {
 	origins     map[string]bool
 	credentials bool
@@ -36,7 +34,7 @@ func (c *cors) wrap(next http.Handler) http.Handler {
 		// Not a CORS request, or an OPTIONS that is not a preflight: the route
 		// answers it as it would anything else.
 		if origin == "" || (r.Method == http.MethodOptions && r.Header.Get("Access-Control-Request-Method") == "") {
-			addVary(w.Header(), "Origin")
+			w.Header().Add("Vary", "Origin")
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -45,12 +43,12 @@ func (c *cors) wrap(next http.Handler) http.Handler {
 			allowOrigin = raw
 		}
 		if r.Method != http.MethodOptions {
-			addVary(w.Header(), "Origin")
+			w.Header().Add("Vary", "Origin")
 			c.allowOrigin(w.Header(), allowOrigin)
 			next.ServeHTTP(w, r)
 			return
 		}
-		addVary(w.Header(), "Access-Control-Request-Method", "Access-Control-Request-Headers", "Origin")
+		w.Header().Add("Vary", "Access-Control-Request-Method, Access-Control-Request-Headers, Origin")
 		c.allowOrigin(w.Header(), allowOrigin)
 		w.Header().Set("Access-Control-Allow-Methods", c.methods)
 		w.Header().Set("Access-Control-Allow-Headers", c.headers)
@@ -66,26 +64,4 @@ func (c *cors) allowOrigin(header http.Header, origin string) {
 	if c.credentials {
 		header.Set("Access-Control-Allow-Credentials", "true")
 	}
-}
-
-// addVary adds each field to a single Vary line once, which is how Fiber kept
-// it when a request passed through two CORS layers.
-func addVary(header http.Header, fields ...string) {
-	values := []string{}
-	if existing := header.Get("Vary"); existing != "" {
-		values = strings.Split(existing, ", ")
-	}
-	for _, field := range fields {
-		present := false
-		for _, value := range values {
-			if strings.EqualFold(value, field) {
-				present = true
-				break
-			}
-		}
-		if !present {
-			values = append(values, field)
-		}
-	}
-	header.Set("Vary", strings.Join(values, ", "))
 }
