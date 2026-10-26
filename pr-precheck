@@ -11,7 +11,7 @@ locally.
 Includes committed, staged, unstaged, and untracked nonignored changes.
 
   --base REF  Compare with this local ref (default: origin/main, then main)
-  --all       Check every app and the shared Go client
+  --all       Check every app and the shared Go modules
   --plan      Show selected checks without running or installing anything
   --help      Show this help
 
@@ -76,16 +76,16 @@ for app in $apps; do
   if $all_frontends || [[ " $touched " == *" $app "* ]]; then frontends="${frontends:+$frontends }$app"; fi
   if [[ $app != site ]] && { $all_backends || [[ " $touched " == *" $app "* ]]; }; then backends="${backends:+$backends }$app"; fi
 done
-logclient=no
-if $all_backends; then logclient=yes; fi
-printf 'Base: %s (merge base %.12s)\nFrontends: %s\nBackends: %s\nLog client: %s\n' "$base" "$merge_base" "${frontends:-none}" "${backends:-none}" "$logclient"
+shared=no
+if $all_backends; then shared=yes; fi
+printf 'Base: %s (merge base %.12s)\nFrontends: %s\nBackends: %s\nShared Go modules: %s\n' "$base" "$merge_base" "${frontends:-none}" "${backends:-none}" "$shared"
 echo 'Workflows: actionlint and ShellCheck on every workflow'
 echo 'Security: commit history, staged and working files, vulnerabilities and misconfigurations'
 if $plan; then exit 0; fi
 
 required='trufflehog trivy jq actionlint shellcheck'
 if [[ -n $frontends ]]; then required="$required npm"; fi
-if [[ -n $backends || $logclient == yes ]]; then required="$required go golangci-lint sqlc"; fi
+if [[ -n $backends || $shared == yes ]]; then required="$required go golangci-lint sqlc"; fi
 missing=''
 for tool in $required; do
   if ! command -v "$tool" >/dev/null 2>&1; then missing="$missing $tool"; fi
@@ -181,7 +181,7 @@ if [[ -n $frontends ]]; then
 fi
 modules=''
 for app in $backends; do modules="$modules apps/$app/backend"; done
-if [[ $logclient == yes ]]; then modules="$modules go/logclient"; fi
+if [[ $shared == yes ]]; then modules="$modules go/authclient go/logclient"; fi
 for module in $modules; do
   run "$module lint" in_directory "$root/$module" golangci-lint run ./...
   run "$module vet" in_directory "$root/$module" go vet ./...
