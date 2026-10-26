@@ -250,3 +250,22 @@ jobs:
           ignore-unfixed: true
           exit-code: '1'
           trivyignores: .trivyignore.yaml
+
+  # The one check the main ruleset requires. The build and test jobs above
+  # only exist for the parts a change touches, so they cannot be required by
+  # name; this job waits for all of them and fails if any failed or was
+  # cancelled. A skipped job (nothing to build) counts as passing.
+  passed:
+    name: ci passed
+    if: always()
+    needs: [compose-config, changes, frontend, backend, logclient, secrets, vulnerabilities]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "$RESULTS"
+          for result in $RESULTS; do
+            case $result in success|skipped) ;; *) exit 1 ;; esac
+          done
