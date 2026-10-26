@@ -3,7 +3,6 @@ import type { ModelId } from '../data/projects';
 
 /** Ordered stops along the Home camera path. */
 export type Stop = 'about' | ModelId;
-export const STOP_ORDER: Stop[] = ['about', 'exo', 'emg', 'enable'];
 
 interface SceneState {
   /** Normalized progress (0..1) through the Home fly-through section. */

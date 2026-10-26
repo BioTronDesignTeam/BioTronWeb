@@ -53,23 +53,6 @@ export function useIsLandscapePhone(maxHeight = 520): boolean {
   return isLandscapePhone;
 }
 
-/** True for fine pointers (mouse). Used to gate hover-only flourishes. */
-export function useHasFinePointer(): boolean {
-  const [fine, setFine] = useState(() => {
-    if (typeof window === 'undefined') return true;
-    return window.matchMedia('(pointer: fine)').matches;
-  });
-
-  useEffect(() => {
-    const mq = window.matchMedia('(pointer: fine)');
-    const onChange = () => setFine(mq.matches);
-    mq.addEventListener('change', onChange);
-    return () => mq.removeEventListener('change', onChange);
-  }, []);
-
-  return fine;
-}
-
 /** Detects whether the browser can create a WebGL context. */
 export function useWebGLSupported(): boolean {
   const [supported, setSupported] = useState(true);
