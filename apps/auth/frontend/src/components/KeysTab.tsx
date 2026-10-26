@@ -52,16 +52,16 @@ export default function KeysTab({
   return (
     <section className={panel}>
       <div className={panelHeader}>
-        <h2 className={panelHeading}>Daily product keys</h2>
+        <h2 className={panelHeading}>Daily guest keys</h2>
         <p className={`mt-1 ${mutedText}`}>
-          Each enabled product receives its own key. Keys rotate independently at Eastern midnight.
-          A guest who signs in with a product&apos;s key gets that product&apos;s Live and
+          Each tool that admits guests has its own daily guest key, which rotates at Eastern midnight.
+          A guest who signs in with a tool&apos;s key gets that tool&apos;s Live and
           Historical permissions until the key rotates, and nothing else. Rotate a key early to
           sign out every guest who used it.
         </p>
       </div>
       {dailyKeys.length === 0 ? (
-        <p className={panelEmpty}>No products currently use daily keys.</p>
+        <p className={panelEmpty}>No tool uses a daily guest key.</p>
       ) : (
         <ul className={divided}>
           {dailyKeys.map((key) => {
@@ -81,7 +81,7 @@ export default function KeysTab({
                     // 375px column once the tracking and size come down.
                     className="mt-3 font-mono text-base tracking-[0.12em] break-all text-slate-900 sm:text-lg sm:tracking-[0.16em] dark:text-white"
                     aria-label={
-                      revealed ? `${key.app_name} daily key ${key.key}` : `${key.app_name} daily key hidden`
+                      revealed ? `${key.app_name} daily guest key ${key.key}` : `${key.app_name} daily guest key hidden`
                     }
                   >
                     {revealed ? key.key : hiddenKey}
@@ -117,11 +117,11 @@ export default function KeysTab({
         {pending && (
           <>
             <p id="rotate-key-title" className="text-sm font-semibold text-slate-900 dark:text-white">
-              Rotate today&apos;s {pending.app_name} key?
+              Rotate today&apos;s {pending.app_name} daily guest key?
             </p>
             <p id="rotate-key-detail" className={`mt-1 ${mutedText}`}>
               Every guest signed in with the current key is signed out at their next request, and
-              the current key stops working. Share the new key with whoever should keep access.
+              the current key stops working. Share the new key with the guests who should keep using {pending.app_name}.
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               <button type="button" onClick={rotate} className={dangerButton}>
