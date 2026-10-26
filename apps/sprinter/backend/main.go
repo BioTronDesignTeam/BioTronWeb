@@ -200,7 +200,7 @@ func buildRunner(cfg config.Config, reader *readstore.Store, events *logclient.C
 	if reader != nil {
 		source = reader
 	}
-	available := tools.All(source, cfg.LoggerURL, cfg.CalendarURL)
+	available := tools.All(source, cfg.StatusURL, cfg.CalendarURL)
 	loop := agent.New(answering, available, agent.Options{Timeout: cfg.AgentTimeout})
 	names := make([]string, 0, len(available))
 	for _, tool := range available {

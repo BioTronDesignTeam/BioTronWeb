@@ -148,7 +148,7 @@ saying it was cut and how to narrow the question.
 
 | Tool | Source | Arguments | Cap |
 |------|--------|-----------|-----|
-| `platform_status` | `GET {LOGGER_URL}/v1/status` | none | 6000 characters |
+| `platform_status` | `GET {STATUS_URL}/v1/status` | none | 6000 characters |
 | `health_history` | `logger.health_checks` | `service` (required), `hours` 1–168 (24) | 6000 characters, 200 checks |
 | `calendar_upcoming` | `GET {CALENDAR_URL}/v1/events/upcoming` | `limit` 1–20 (5), `days` 1–90 (42) | 4000 characters |
 | `who_has_access` | `oauth.apps`, `oauth.grants`, `oauth.operators`, `oauth.permissions` | `app` (required) | 6000 characters |
@@ -273,7 +273,7 @@ and Prisma. Do not add environment files below it. `go run .` reads
 - `FRONTEND_URL` and `CORS_ORIGINS`. The origins that may make
   credentialed admin requests. List each host as `localhost` and
   `127.0.0.1`.
-- `LOGGER_URL`. Logger's status API, where `platform_status` reads.
+- `STATUS_URL`. The status API, where `platform_status` reads.
 - `LOG_LEVEL` and the optional Grafana and PostHog variables listed in
   `go/logclient/README.md`. Where events go.
 

@@ -10,11 +10,11 @@ import (
 
 const statusCap = 6000
 
-// PlatformStatus reads Logger's public status document: the same thing the
+// PlatformStatus reads the public status document: the same thing the
 // status page shows. It is the first tool to reach for, because it answers
 // "is anything broken right now" in one call.
 type PlatformStatus struct {
-	LoggerURL string
+	StatusURL string
 }
 
 func (t PlatformStatus) Spec() model.ToolSpec {
@@ -30,10 +30,10 @@ func (t PlatformStatus) Spec() model.ToolSpec {
 }
 
 func (t PlatformStatus) Run(ctx context.Context, _ json.RawMessage) (string, error) {
-	if t.LoggerURL == "" {
-		return "", errors.New("no Logger URL is configured")
+	if t.StatusURL == "" {
+		return "", errors.New("no Status URL is configured")
 	}
-	body, err := fetchJSON(ctx, t.LoggerURL+"/v1/status")
+	body, err := fetchJSON(ctx, t.StatusURL+"/v1/status")
 	if err != nil {
 		return "", err
 	}

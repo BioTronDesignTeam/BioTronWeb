@@ -37,8 +37,8 @@ type Reader interface {
 // All builds every tool. A nil reader leaves out the two SQL tools, which is
 // what happens when READ_DATABASE_URL is unset: the bot still answers from the
 // two public endpoints rather than refusing to start.
-func All(reader Reader, loggerURL, calendarURL string) []Tool {
-	all := []Tool{PlatformStatus{LoggerURL: loggerURL}}
+func All(reader Reader, statusURL, calendarURL string) []Tool {
+	all := []Tool{PlatformStatus{StatusURL: statusURL}}
 	if calendarURL != "" {
 		all = append(all, CalendarUpcoming{CalendarURL: calendarURL})
 	}

@@ -110,7 +110,7 @@ func TestCutsNeverSplitACharacter(t *testing.T) {
 
 func TestEverySpecIsUsableJSONSchema(t *testing.T) {
 	reader := &stubReader{}
-	all := All(reader, "http://logger", "http://calendar")
+	all := All(reader, "http://status", "http://calendar")
 	if len(all) != 4 {
 		t.Fatalf("tools = %d, want 4", len(all))
 	}
@@ -137,7 +137,7 @@ func TestEverySpecIsUsableJSONSchema(t *testing.T) {
 	}
 	// A missing reader must leave out the SQL tools rather than build tools that
 	// would panic on their first call.
-	if got := len(All(nil, "http://logger", "http://calendar")); got != 2 {
+	if got := len(All(nil, "http://status", "http://calendar")); got != 2 {
 		t.Fatalf("tools without a reader = %d, want 2", got)
 	}
 }
@@ -239,6 +239,6 @@ func TestCalendarUpcomingValidatesItsArguments(t *testing.T) {
 		t.Fatal("an unconfigured Calendar URL must be an error")
 	}
 	if _, err := run(t, PlatformStatus{}, `{}`); err == nil {
-		t.Fatal("an unconfigured Logger URL must be an error")
+		t.Fatal("an unconfigured Status URL must be an error")
 	}
 }

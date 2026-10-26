@@ -317,7 +317,7 @@ func TestNameCarriesTheModelID(t *testing.T) {
 // adapter cannot convert would otherwise be found by a person in Discord.
 func TestEveryRealToolDeclarationConverts(t *testing.T) {
 	var specs []model.ToolSpec
-	for _, tool := range tools.All(nil, "http://logger", "http://calendar") {
+	for _, tool := range tools.All(nil, "http://status", "http://calendar") {
 		specs = append(specs, tool.Spec())
 	}
 	// The SQL tools need a reader to be built, so their specs are taken from
