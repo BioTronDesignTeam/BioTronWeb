@@ -70,8 +70,7 @@ When Nginx starts, `nginx/docker-entrypoint.d/40-biotron-sites.sh` renders
 `www` redirects to the apex. Unknown hostnames return `404`. Upstreams are
 resolved per request, so an instance that is down answers `502` and the
 others are unaffected. `/api/` is removed before forwarding so an external
-request for `/api/health` reaches the Go service as `/health`. Calendar
-`/feeds/` is forwarded without removing the prefix.
+request for `/api/health` reaches the Go service as `/health`.
 
 `:noindex` marks an instance that search engines should leave alone, such as
 staging: every response from its hostnames, errors included, carries

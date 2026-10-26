@@ -48,12 +48,6 @@ server {
         include /etc/nginx/snippets/proxy-headers.conf;
     }
 
-    location /feeds/ {
-        set $backend http://${INSTANCE}-calendar-api:8080;
-        proxy_pass $backend;
-        include /etc/nginx/snippets/proxy-headers.conf;
-    }
-
     location / {
         set $frontend http://${INSTANCE}-calendar-web:80;
         proxy_pass $frontend;
