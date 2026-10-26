@@ -191,8 +191,10 @@ answer a matching `If-None-Match` with `304`. Only the feeds honour
 ## Frontend
 
 The header leads with the wordmark from `@biotron/style`; the "Calendar"
-label hides on phones. Log in sends the browser to Auth's GitHub login
-and back. An editor gets a Manage button.
+label hides on phones. The page is public; Sign in sends the browser to
+Auth's GitHub sign-in and back, and a holder of `calendar/write` gets a
+Manage button. The session and account controls are the shared ones from
+`@biotron/style`.
 
 - **Month grid** on tablets and up, **Agenda** on phones: the same weeks
   as a grid with today circled, or as a list of days with events.
