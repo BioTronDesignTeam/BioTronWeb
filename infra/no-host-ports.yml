@@ -16,9 +16,9 @@ services:
     ports: !reset []
   auth-web:
     ports: !reset []
-  exo-api:
+  exogui-api:
     ports: !reset []
-  exo-web:
+  exogui-web:
     ports: !reset []
   status-api:
     ports: !reset []

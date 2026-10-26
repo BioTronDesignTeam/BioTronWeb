@@ -13,7 +13,7 @@ where the platform is developed now; the separate repositories are frozen.
 | `apps/calendar` | Public calendars and feeds (Go API, React UI, Prisma) | `BiotronCalendar` |
 | `apps/status` | Public status page and health monitor | `Logger` |
 | `apps/auth` | GitHub OAuth, sessions, per-tool permissions | `OAuthManager` |
-| `apps/exo` | Exoskeleton operator UI and telemetry API | `exo-gui` |
+| `apps/exogui` | Exoskeleton operator UI and telemetry API | `exo-gui` |
 | `apps/sprinter` | Discord bot and admin UI | `Sprinter` |
 | `packages/style` | `@biotron/style`: brand, theme, shared controls | `BioTronStyle` |
 | `go/logclient` | Go client every service uses to send events to Grafana and PostHog | `Logger/client` |

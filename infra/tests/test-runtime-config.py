@@ -11,7 +11,7 @@ import unittest
 from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[2]
-APPS = ('auth', 'calendar', 'exo', 'status', 'site', 'sprinter')
+APPS = ('auth', 'calendar', 'exogui', 'status', 'site', 'sprinter')
 # The apps that own a database schema, each with its own DATABASE_URL.
 DATABASE_APPS = ('auth', 'calendar', 'status', 'sprinter')
 
@@ -106,13 +106,13 @@ class RuntimeConfigTests(unittest.TestCase):
                   for service in self.config()['services'].values() if 'build' in service}
         self.assertEqual(images, built - {'edge-nginx'})
 
-    def test_exo_needs_no_database(self):
+    def test_exogui_needs_no_database(self):
         services = self.config()['services']
-        self.assertNotIn('exo-migrate', services)
-        self.assertNotIn('DATABASE_URL', services['exo-api']['environment'])
-        args = [f'--no-{app}' for app in APPS if app != 'exo']
+        self.assertNotIn('exogui-migrate', services)
+        self.assertNotIn('DATABASE_URL', services['exogui-api']['environment'])
+        args = [f'--no-{app}' for app in APPS if app != 'exogui']
         result = self.run_command('./launch', 'web', '--runtime', '--dry-run', *args)
-        self.assertIn('exo-api', result.stdout)
+        self.assertIn('exogui-api', result.stdout)
 
     def test_excluded_apps_do_not_need_secrets(self):
         args = [f'--no-{app}' for app in APPS if app != 'site']
@@ -161,7 +161,7 @@ class RuntimeConfigTests(unittest.TestCase):
 
     def test_apps_carry_instance_qualified_aliases_for_the_edge(self):
         edge_targets = {'site-web', 'calendar-api', 'calendar-web', 'oauth-manager',
-                        'oauth-web', 'exo-api', 'exo-web', 'status-api', 'status-web',
+                        'oauth-web', 'exogui-api', 'exogui-web', 'status-api', 'status-web',
                         'sprinter', 'sprinter-web'}
         for instance in (None, 'staging'):
             if instance:

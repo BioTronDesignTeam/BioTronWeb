@@ -22,9 +22,9 @@ include:
   - path: apps/auth/docker-compose.yml
     project_directory: apps/auth
     env_file: ${AUTH_ENV_FILE:-/dev/null}
-  - path: apps/exo/docker-compose.yml
-    project_directory: apps/exo
-    env_file: ${EXO_ENV_FILE:-/dev/null}
+  - path: apps/exogui/docker-compose.yml
+    project_directory: apps/exogui
+    env_file: ${EXOGUI_ENV_FILE:-/dev/null}
   - path: apps/sprinter/docker-compose.yml
     project_directory: apps/sprinter
     env_file: ${SPRINTER_ENV_FILE:-/dev/null}

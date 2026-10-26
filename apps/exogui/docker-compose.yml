@@ -1,0 +1,54 @@
+name: biotron-exogui
+
+services:
+  exogui-api:
+    image: ${IMAGE_REGISTRY:-biotron-}exogui-api:${IMAGE_TAG:-local}
+    build:
+      context: ../..
+      dockerfile: apps/exogui/backend/Dockerfile
+    environment:
+      OAUTH_MANAGER_URL: ${EXOGUI_OAUTH_MANAGER_URL:-${OAUTH_MANAGER_URL:-http://oauth-manager:8080}}
+      PORT: "8080"
+      FRONTEND_URL: ${EXOGUI_FRONTEND_URL:-${FRONTEND_URL:-http://localhost:5174}}
+      TRUSTED_PROXIES: ${EXOGUI_TRUSTED_PROXIES:-${TRUSTED_PROXIES:-127.0.0.1,::1,172.16.0.0/12}}
+      GRAFANA_OTLP_ENDPOINT: ${EXOGUI_GRAFANA_OTLP_ENDPOINT:-${GRAFANA_OTLP_ENDPOINT:-}}
+      GRAFANA_OTLP_USER: ${EXOGUI_GRAFANA_OTLP_USER:-${GRAFANA_OTLP_USER:-}}
+      GRAFANA_OTLP_TOKEN: ${EXOGUI_GRAFANA_OTLP_TOKEN:-${GRAFANA_OTLP_TOKEN:-}}
+      POSTHOG_HOST: ${EXOGUI_POSTHOG_HOST:-${POSTHOG_HOST:-}}
+      POSTHOG_API_KEY: ${EXOGUI_POSTHOG_API_KEY:-${POSTHOG_API_KEY:-}}
+      BIOTRON_ENV: ${EXOGUI_BIOTRON_ENV:-${BIOTRON_ENV:-}}
+      LOG_LEVEL: ${EXOGUI_LOG_LEVEL:-${LOG_LEVEL:-info}}
+    ports:
+      - "127.0.0.1:${EXOGUI_API_PORT:-${API_PORT:-8081}}:8080"
+    networks:
+      biotron:
+        aliases:
+          - exogui-api
+          - ${BIOTRON_INSTANCE:-local}-exogui-api
+    restart: unless-stopped
+
+  exogui-web:
+    environment:
+      BASE_DOMAIN: ${BASE_DOMAIN:-localhost}
+    image: ${IMAGE_REGISTRY:-biotron-}exogui-web:${IMAGE_TAG:-local}
+    build:
+      context: ../..
+      dockerfile: apps/exogui/frontend/Dockerfile
+      args:
+        VITE_API_URL: ${EXOGUI_VITE_API_URL:-${VITE_API_URL:-http://localhost:8081}}
+        VITE_AUTH_URL: ${EXOGUI_VITE_AUTH_URL:-${VITE_AUTH_URL:-http://localhost:8080}}
+    ports:
+      - "127.0.0.1:${EXOGUI_WEB_PORT:-${WEB_PORT:-5174}}:80"
+    networks:
+      biotron:
+        aliases:
+          - exogui-web
+          - ${BIOTRON_INSTANCE:-local}-exogui-web
+    depends_on:
+      - exogui-api
+    restart: unless-stopped
+
+networks:
+  biotron:
+    external: true
+    name: ${BIOTRON_NETWORK:-biotron}

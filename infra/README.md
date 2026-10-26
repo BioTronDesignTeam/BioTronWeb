@@ -63,7 +63,7 @@ When Nginx starts, `nginx/docker-entrypoint.d/40-biotron-sites.sh` renders
 | `uwbiotron.ca` | `prod-site-web:80` | none |
 | `calendar.uwbiotron.ca` | `prod-calendar-web:80` | `prod-calendar-api:8080` |
 | `auth.uwbiotron.ca` | `prod-oauth-web:80` | `prod-oauth-manager:8080` |
-| `exogui.uwbiotron.ca` | `prod-exo-web:80` | `prod-exo-api:8080` |
+| `exogui.uwbiotron.ca` | `prod-exogui-web:80` | `prod-exogui-api:8080` |
 | `status.uwbiotron.ca` | `prod-status-web:80` | `prod-status-api:8080` |
 | `sprinter.uwbiotron.ca` | `prod-sprinter-web:80` | `prod-sprinter:8080` |
 

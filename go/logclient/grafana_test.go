@@ -78,7 +78,7 @@ func TestGrafanaReceivesOTLPLogs(t *testing.T) {
 	server := newOTLPServer(t)
 	client := &Client{
 		minimum: 1,
-		grafana: newGrafana(server.URL+"/otlp/", "123456", "glc_secret", "exo-api", "staging", testBatchOptions),
+		grafana: newGrafana(server.URL+"/otlp/", "123456", "glc_secret", "exogui-api", "staging", testBatchOptions),
 	}
 	if !client.Enabled() {
 		t.Fatal("Grafana alone must enable the client")
@@ -98,7 +98,7 @@ func TestGrafanaReceivesOTLPLogs(t *testing.T) {
 		t.Fatalf("paths = %v, want one POST to /otlp/v1/logs", server.paths)
 	}
 	resource := server.bodies[0].ResourceLogs[0].Resource.Attributes
-	if len(resource) != 2 || *resource[0].Value.StringValue != "exo-api" || *resource[1].Value.StringValue != "staging" {
+	if len(resource) != 2 || *resource[0].Value.StringValue != "exogui-api" || *resource[1].Value.StringValue != "staging" {
 		t.Fatalf("resource = %+v", resource)
 	}
 	records := server.records()
@@ -143,7 +143,7 @@ func TestGrafanaFailureNeverReachesTheCaller(t *testing.T) {
 	defer log.SetOutput(os.Stderr)
 	server := newOTLPServer(t)
 	server.failWith = http.StatusUnauthorized
-	client := &Client{minimum: 1, grafana: newGrafana(server.URL, "123456", "glc_secret", "exo-api", "", testBatchOptions)}
+	client := &Client{minimum: 1, grafana: newGrafana(server.URL, "123456", "glc_secret", "exogui-api", "", testBatchOptions)}
 	client.LogAsync(Info, "sent anyway", nil)
 	if err := client.Close(context.Background()); err != nil {
 		t.Fatal(err)
@@ -159,16 +159,16 @@ func TestGrafanaFromEnvNeedsAllThreeVariables(t *testing.T) {
 	t.Setenv("GRAFANA_OTLP_ENDPOINT", "")
 	t.Setenv("GRAFANA_OTLP_USER", "")
 	t.Setenv("GRAFANA_OTLP_TOKEN", "")
-	if newGrafanaFromEnv("exo-api") != nil {
+	if newGrafanaFromEnv("exogui-api") != nil {
 		t.Fatal("unset variables must disable Grafana")
 	}
 	t.Setenv("GRAFANA_OTLP_ENDPOINT", "https://otlp-gateway.example/otlp")
 	t.Setenv("GRAFANA_OTLP_TOKEN", "glc_secret")
-	if newGrafanaFromEnv("exo-api") != nil {
+	if newGrafanaFromEnv("exogui-api") != nil {
 		t.Fatal("a missing user must disable Grafana")
 	}
 	t.Setenv("GRAFANA_OTLP_USER", "123456")
-	g := newGrafanaFromEnv("exo-api")
+	g := newGrafanaFromEnv("exogui-api")
 	if g == nil || g.endpoint != "https://otlp-gateway.example/otlp/v1/logs" {
 		t.Fatalf("grafana = %+v", g)
 	}

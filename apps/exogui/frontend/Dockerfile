@@ -17,19 +17,19 @@ ENV VITE_AUTH_URL=${VITE_AUTH_URL}
 
 COPY package.json package-lock.json ./
 COPY packages/style/package.json packages/style/
-COPY apps/exo/frontend/package.json apps/exo/frontend/
-RUN npm ci --ignore-scripts --include-workspace-root --workspace packages/style --workspace apps/exo/frontend
+COPY apps/exogui/frontend/package.json apps/exogui/frontend/
+RUN npm ci --ignore-scripts --include-workspace-root --workspace packages/style --workspace apps/exogui/frontend
 
 COPY packages/style packages/style
-COPY apps/exo/frontend apps/exo/frontend
-RUN npm run build -w packages/style && npm run build -w apps/exo/frontend
+COPY apps/exogui/frontend apps/exogui/frontend
+RUN npm run build -w packages/style && npm run build -w apps/exogui/frontend
 
 FROM nginx:1.27-alpine
 
 COPY deploy/40-domain.sh /docker-entrypoint.d/40-domain.sh
 RUN chmod +x /docker-entrypoint.d/40-domain.sh
 
-COPY apps/exo/frontend/nginx.conf /etc/nginx/conf.d/default.conf
-COPY --from=build /repo/apps/exo/frontend/dist /usr/share/nginx/html
+COPY apps/exogui/frontend/nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /repo/apps/exogui/frontend/dist /usr/share/nginx/html
 
 EXPOSE 80

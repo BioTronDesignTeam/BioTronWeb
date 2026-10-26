@@ -42,7 +42,7 @@ func run() error {
 	_ = godotenv.Load("../.env")
 
 	cfg := config.Load()
-	events := logclient.NewFromEnv("exo-api")
+	events := logclient.NewFromEnv("exogui-api")
 	if !events.Enabled() {
 		log.Println("warning: neither Grafana nor PostHog is configured — structured events go nowhere")
 	}

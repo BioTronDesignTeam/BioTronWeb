@@ -6,7 +6,7 @@ go 1.27.3
 use (
 	./apps/auth/backend
 	./apps/calendar/backend
-	./apps/exo/backend
+	./apps/exogui/backend
 	./apps/status/backend
 	./apps/sprinter/backend
 	./go/authclient

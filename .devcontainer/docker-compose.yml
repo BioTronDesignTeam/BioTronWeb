@@ -23,7 +23,7 @@ services:
       # the container installs its own Linux ones without touching the host's.
       - nm-auth-frontend:/workspaces/biotron/apps/auth/frontend/node_modules
       - nm-calendar-frontend:/workspaces/biotron/apps/calendar/frontend/node_modules
-      - nm-exo-frontend:/workspaces/biotron/apps/exo/frontend/node_modules
+      - nm-exogui-frontend:/workspaces/biotron/apps/exogui/frontend/node_modules
       - nm-status-frontend:/workspaces/biotron/apps/status/frontend/node_modules
       - nm-site-frontend:/workspaces/biotron/apps/site/frontend/node_modules
       - nm-sprinter-frontend:/workspaces/biotron/apps/sprinter/frontend/node_modules
@@ -56,7 +56,7 @@ volumes:
   postgres-data:
   nm-auth-frontend:
   nm-calendar-frontend:
-  nm-exo-frontend:
+  nm-exogui-frontend:
   nm-status-frontend:
   nm-site-frontend:
   nm-sprinter-frontend:

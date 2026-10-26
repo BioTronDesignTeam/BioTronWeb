@@ -75,8 +75,8 @@ jobs:
               - 'apps/status/**'
             auth:
               - 'apps/auth/**'
-            exo:
-              - 'apps/exo/**'
+            exogui:
+              - 'apps/exogui/**'
             sprinter:
               - 'apps/sprinter/**'
       - name: plan the fan-out
@@ -84,8 +84,8 @@ jobs:
         env:
           CHANGED: ${{ steps.filter.outputs.changes }}
         run: |
-          all='["site","calendar","status","auth","exo","sprinter"]'
-          with_backend='["calendar","status","auth","exo","sprinter"]'
+          all='["site","calendar","status","auth","exogui","sprinter"]'
+          with_backend='["calendar","status","auth","exogui","sprinter"]'
           changed_apps=$(jq -c --argjson all "$all" '[.[] | select(. as $x | $all | index($x) != null)]' <<<"$CHANGED")
           if jq -e 'index("style") != null' <<<"$CHANGED" >/dev/null; then
             frontends="$all"

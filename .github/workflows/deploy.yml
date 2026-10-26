@@ -38,8 +38,8 @@ jobs:
           - { name: status-api, context: ., dockerfile: apps/status/backend/Dockerfile }
           - { name: auth-web, context: ., dockerfile: apps/auth/frontend/Dockerfile }
           - { name: auth-api, context: ., dockerfile: apps/auth/backend/Dockerfile }
-          - { name: exo-web, context: ., dockerfile: apps/exo/frontend/Dockerfile }
-          - { name: exo-api, context: ., dockerfile: apps/exo/backend/Dockerfile }
+          - { name: exogui-web, context: ., dockerfile: apps/exogui/frontend/Dockerfile }
+          - { name: exogui-api, context: ., dockerfile: apps/exogui/backend/Dockerfile }
           - { name: sprinter-web, context: ., dockerfile: apps/sprinter/frontend/Dockerfile }
           - { name: sprinter-bot, context: ., dockerfile: apps/sprinter/backend/Dockerfile }
           - { name: migrate, context: ., dockerfile: infra/migrate/Dockerfile }

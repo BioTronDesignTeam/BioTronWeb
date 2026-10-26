@@ -17,7 +17,7 @@ Local development can use untracked `.env` files.
 | `apps/calendar` | Public calendars and feeds | `BiotronCalendar` |
 | `apps/status` | Public status page and health monitor | `Logger` |
 | `apps/auth` | GitHub OAuth, sessions, permissions | `OAuthManager` |
-| `apps/exo` | Exoskeleton operator UI and API | `exo-gui` |
+| `apps/exogui` | Exoskeleton operator UI and API | `exo-gui` |
 | `apps/sprinter` | Discord bot and admin UI | `Sprinter` |
 | `packages/style` | `@biotron/style` shared components | `BioTronStyle` |
 | `go/logclient` | Go client that sends events to Grafana and PostHog | `Logger/client` |

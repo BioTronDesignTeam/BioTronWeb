@@ -62,7 +62,7 @@ trap 'exit 143' TERM
   git ls-files --others --exclude-standard -z
 } > "$scratch/changed"
 
-apps='site calendar status auth exo sprinter'
+apps='site calendar status auth exogui sprinter'
 frontends='' backends='' touched='' all_frontends=$all all_backends=$all
 while IFS= read -r -d '' file; do
   case "$file" in

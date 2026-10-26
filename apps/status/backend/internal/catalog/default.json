@@ -30,8 +30,8 @@
     "name": "Exoskeleton GUI",
     "description": "Operator interface and telemetry API",
     "components": [
-      { "id": "exo-web", "name": "Web", "health_url": "http://exo-web/" },
-      { "id": "exo-api", "name": "API", "health_url": "http://exo-api:8080/health" }
+      { "id": "exo-web", "name": "Web", "health_url": "http://exogui-web/" },
+      { "id": "exo-api", "name": "API", "health_url": "http://exogui-api:8080/health" }
     ]
   },
   {

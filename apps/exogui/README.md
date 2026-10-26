@@ -8,7 +8,7 @@ that posts telemetry, is not in this repository.
 
 This app was the `exo-gui` repository. `exo-gui` is still its app id in Auth,
 its Go module path, and its Compose project name `biotron-exo-gui`. It reports
-its events as `exo-api`. The code is MIT licensed; see `LICENSE`.
+its events as `exogui-api`. The code is MIT licensed; see `LICENSE`.
 
 ## Layout
 
@@ -16,7 +16,7 @@ its events as `exo-api`. The code is MIT licensed; see `LICENSE`.
 |------|------|
 | `backend/` | Go `net/http` API. `/health` and the permission gate. No database code yet. |
 | `frontend/` | Vite and React UI, served by Nginx. |
-| `docker-compose.yml` | `exo-api` and `exo-web` on the `biotron` network. |
+| `docker-compose.yml` | `exogui-api` and `exogui-web` on the `biotron` network. |
 | `.env.example` | Every variable the app reads. Copy it to `.env`. |
 
 ## Run
@@ -27,8 +27,8 @@ Start them first, from the monorepo root (see `apps/auth/README.md`), then Exo:
 ```bash
 docker compose -f infra/docker-compose.yml --env-file infra/.env up -d
 docker compose up -d --build auth-migrate auth-api auth-web
-cp apps/exo/.env.example apps/exo/.env
-docker compose up -d --build exo-api exo-web
+cp apps/exogui/.env.example apps/exogui/.env
+docker compose up -d --build exogui-api exogui-web
 ```
 
 The UI is at http://localhost:5174 and the API at http://localhost:8081. The
@@ -41,8 +41,8 @@ Open the monorepo in its devcontainer. It supplies Node 24 and Go 1.27, and
 its post-create step installs the workspaces. Then:
 
 ```bash
-npm run dev -w apps/exo/frontend             # http://localhost:5174
-cd apps/exo/backend && PORT=8081 go run .    # http://localhost:8081, reads ../.env
+npm run dev -w apps/exogui/frontend          # http://localhost:5174
+cd apps/exogui/backend && PORT=8081 go run . # http://localhost:8081, reads ../.env
 npm run lint                                 # Oxlint, from the root
 ```
 
@@ -50,7 +50,7 @@ The backend defaults to port 8080, which Auth uses, so pass `PORT=8081`.
 
 ## Environment
 
-One file, `apps/exo/.env`, feeds Compose, the backend, and the frontend. Do not add environment files below it. The backend reads `PORT`,
+One file, `apps/exogui/.env`, feeds Compose, the backend, and the frontend. Do not add environment files below it. The backend reads `PORT`,
 `FRONTEND_URL`, `TRUSTED_PROXIES`, and `OAUTH_MANAGER_URL` in
 `backend/internal/config`. The shared `go/logclient` reads `LOG_LEVEL`
 and the optional Grafana and PostHog variables listed in
@@ -62,7 +62,7 @@ and the optional Grafana and PostHog variables listed in
 - `OAUTH_MANAGER_URL` unset or unreachable: every gated route answers `503`.
 
 `VITE_API_URL` and `VITE_AUTH_URL` are compiled into the frontend bundle;
-Compose passes them to `exo-web` as build arguments. A production build fails
+Compose passes them to `exogui-web` as build arguments. A production build fails
 if either is unset. Nothing in the UI calls the API yet.
 
 ## Authorization
@@ -115,7 +115,7 @@ does. CORS allows `FRONTEND_URL` only, with `GET`, `POST`, and `OPTIONS`.
 `GET /health` answers `{"status":"ok"}` to anyone. Status's
 monitor polls it. Routes match exactly: `/health/` and `/HEALTH` are `404`.
 
-Exo reports to Grafana and PostHog as `exo-api`. `/health` is never sent.
+Exo reports to Grafana and PostHog as `exogui-api`. `/health` is never sent.
 
 | Message | Level | Payload |
 |---|---|---|

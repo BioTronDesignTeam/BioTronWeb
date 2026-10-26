@@ -98,14 +98,14 @@ server {
     }
 
     location /api/ {
-        set $backend http://${INSTANCE}-exo-api:8080;
+        set $backend http://${INSTANCE}-exogui-api:8080;
         rewrite ^/api/?(.*)$ /$1 break;
         proxy_pass $backend;
         include /etc/nginx/snippets/proxy-headers.conf;
     }
 
     location / {
-        set $frontend http://${INSTANCE}-exo-web:80;
+        set $frontend http://${INSTANCE}-exogui-web:80;
         proxy_pass $frontend;
         include /etc/nginx/snippets/proxy-headers.conf;
     }

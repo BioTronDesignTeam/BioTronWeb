@@ -10,7 +10,7 @@ The service name is passed in code so that the binary and its Grafana
 `service_name` label cannot drift apart:
 
 ```go
-events := logclient.NewFromEnv("exo-api")
+events := logclient.NewFromEnv("exogui-api")
 events.LogAsync(logclient.Info, "Exo API started", map[string]any{"port": port})
 events.LogAsync(logclient.Info, "Exo API stopping", nil)
 if err := events.Close(ctx); err != nil {
@@ -56,7 +56,7 @@ stays off and warns, naming the missing variables but never a value.
   through the OTLP gateway into Loki. `service.name` becomes the `service_name`
   label; the message is the line, the level its severity, and each top-level
   payload field a structured-metadata attribute (nested values as JSON). Find
-  them in Explore with `{service_name="exo-api"}`. The JSON body is written
+  them in Explore with `{service_name="exogui-api"}`. The JSON body is written
   by hand rather than with the OpenTelemetry SDK so that every service image
   does not pull in protobuf and the otel modules for one POST; `grafana.go`
   says more.
@@ -108,7 +108,7 @@ Each Go service that calls `NewFromEnv` must pass these through, beside its
 |---|---|
 | `apps/auth/docker-compose.yml` | `auth-api` |
 | `apps/calendar/docker-compose.yml` | `calendar-api` |
-| `apps/exo/docker-compose.yml` | `exo-api` |
+| `apps/exogui/docker-compose.yml` | `exogui-api` |
 | `apps/status/docker-compose.yml` | `status-api` |
 | `apps/sprinter/docker-compose.yml` | `sprinter-bot` |
 
