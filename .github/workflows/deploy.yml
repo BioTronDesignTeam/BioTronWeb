@@ -34,8 +34,8 @@ jobs:
           - { name: site-web, context: ., dockerfile: apps/site/frontend/Dockerfile }
           - { name: calendar-web, context: ., dockerfile: apps/calendar/frontend/Dockerfile }
           - { name: calendar-api, context: ., dockerfile: apps/calendar/backend/Dockerfile }
-          - { name: logger-web, context: ., dockerfile: apps/logger/frontend/Dockerfile }
-          - { name: logger-api, context: ., dockerfile: apps/logger/backend/Dockerfile }
+          - { name: status-web, context: ., dockerfile: apps/status/frontend/Dockerfile }
+          - { name: status-api, context: ., dockerfile: apps/status/backend/Dockerfile }
           - { name: auth-web, context: ., dockerfile: apps/auth/frontend/Dockerfile }
           - { name: auth-api, context: ., dockerfile: apps/auth/backend/Dockerfile }
           - { name: exo-web, context: ., dockerfile: apps/exo/frontend/Dockerfile }

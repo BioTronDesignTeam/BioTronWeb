@@ -11,9 +11,9 @@ import unittest
 from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[2]
-APPS = ('auth', 'calendar', 'exo', 'logger', 'site', 'sprinter')
+APPS = ('auth', 'calendar', 'exo', 'status', 'site', 'sprinter')
 # The apps that own a database schema, each with its own DATABASE_URL.
-DATABASE_APPS = ('auth', 'calendar', 'logger', 'sprinter')
+DATABASE_APPS = ('auth', 'calendar', 'status', 'sprinter')
 
 
 def database_url_parts(url):
@@ -86,7 +86,7 @@ class RuntimeConfigTests(unittest.TestCase):
     def test_launch_fails_for_missing_selected_credentials(self):
         self.run_command('./launch', 'web', '--runtime', '--dry-run', success=False)
         self.secrets()
-        del self.env['LOGGER_DATABASE_URL']
+        del self.env['STATUS_DATABASE_URL']
         self.run_command('./launch', 'web', '--runtime', '--dry-run', success=False)
 
     def test_every_app_migrates_through_the_one_migrate_image(self):
@@ -161,7 +161,7 @@ class RuntimeConfigTests(unittest.TestCase):
 
     def test_apps_carry_instance_qualified_aliases_for_the_edge(self):
         edge_targets = {'site-web', 'calendar-api', 'calendar-web', 'oauth-manager',
-                        'oauth-web', 'exo-api', 'exo-web', 'logger-api', 'logger-web',
+                        'oauth-web', 'exo-api', 'exo-web', 'status-api', 'status-web',
                         'sprinter', 'sprinter-web'}
         for instance in (None, 'staging'):
             if instance:

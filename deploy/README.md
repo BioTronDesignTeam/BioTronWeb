@@ -35,7 +35,7 @@ What keeps the two instances apart:
 
 - **Networks.** Each instance has its own Docker network, `biotron-staging` or
   `biotron-prod`, with the same service aliases (`postgres`,
-  `oauth-manager`, `logger-api`) inside. A staging container cannot resolve or
+  `oauth-manager`, `status-api`) inside. A staging container cannot resolve or
   reach anything of production's. Only Nginx joins both, and it reaches the
   apps through aliases that carry the instance name, such as
   `prod-oauth-manager`.
@@ -283,7 +283,7 @@ host: without its `ENCRYPTION_KEY` nothing in Infisical can be read again.
    staging's responses carry `X-Robots-Tag`.
 
 A fresh Postgres creates `sprinter_reader` on its first start but cannot grant
-it Logger's and Auth's tables, which do not exist yet. After the first deploy
+it Status's and Auth's tables, which do not exist yet. After the first deploy
 of an instance, and after a deploy that changes the script, run the grant
 script once more:
 

@@ -381,7 +381,7 @@ docker run --rm -v "$PWD:/src" -w /src/apps/sprinter/backend sqlc/sqlc:1.31.1 ge
 
 sqlc reads the schema from the Prisma migrations themselves, so a query
 that names a column no migration created does not generate. The read
-pool's schema is Logger's and Auth's migrations, followed by the two
+pool's schema is Status's and Auth's migrations, followed by the two
 files in `backend/internal/readstore/schema`, which move their tables
 into `logger` and `oauth` as Postgres has them. Only `health_checks` and
 the four `oauth` tables `sprinter_reader` may read are moved, so a query

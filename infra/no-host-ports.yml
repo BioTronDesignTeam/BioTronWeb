@@ -20,9 +20,9 @@ services:
     ports: !reset []
   exo-web:
     ports: !reset []
-  logger-api:
+  status-api:
     ports: !reset []
-  logger-web:
+  status-web:
     ports: !reset []
   sprinter-bot:
     ports: !reset []

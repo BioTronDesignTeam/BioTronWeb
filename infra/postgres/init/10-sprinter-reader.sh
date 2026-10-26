@@ -38,14 +38,14 @@ CREATE SCHEMA IF NOT EXISTS oauth;
 
 GRANT USAGE ON SCHEMA logger, oauth TO sprinter_reader;
 
--- Logger: health_checks only, granted with the oauth tables below. It is the
+-- Status: health_checks only, granted with the oauth tables below. It is the
 -- one table Sprinter's tools read; a new logger table needs a deliberate
 -- grant there, as a new oauth one does.
 --
 -- Earlier versions of this script granted the whole schema, present and
 -- future tables. Revoking that first narrows an existing cluster when the
 -- script is rerun. The default-privileges rule names the role that owns
--- Logger's tables, the role Logger migrates as: this cluster's superuser. It is
+-- Status's tables, the role Status migrates as: this cluster's superuser. It is
 -- passed in as :"owner" rather than written out, so a cluster whose
 -- POSTGRES_USER is not "biotron" still runs.
 REVOKE SELECT ON ALL TABLES IN SCHEMA logger FROM sprinter_reader;
@@ -56,7 +56,7 @@ ALTER DEFAULT PRIVILEGES FOR ROLE :"owner" IN SCHEMA logger REVOKE SELECT ON TAB
 -- oauth table needs a deliberate line added to this list, not an automatic
 -- grant.
 --
--- On a fresh cluster none of these tables exist yet (Logger and Auth have not
+-- On a fresh cluster none of these tables exist yet (Status and Auth have not
 -- migrated), so each grant is guarded with to_regclass and skipped rather
 -- than failing the whole script. Rerun this script after their first
 -- migrations to pick the grants up.

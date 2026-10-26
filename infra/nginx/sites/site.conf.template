@@ -123,14 +123,14 @@ server {
     }
 
     location /api/ {
-        set $backend http://${INSTANCE}-logger-api:8080;
+        set $backend http://${INSTANCE}-status-api:8080;
         rewrite ^/api/?(.*)$ /$1 break;
         proxy_pass $backend;
         include /etc/nginx/snippets/proxy-headers.conf;
     }
 
     location / {
-        set $frontend http://${INSTANCE}-logger-web:80;
+        set $frontend http://${INSTANCE}-status-web:80;
         proxy_pass $frontend;
         include /etc/nginx/snippets/proxy-headers.conf;
     }

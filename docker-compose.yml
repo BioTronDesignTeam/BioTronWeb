@@ -16,9 +16,9 @@ include:
   - path: apps/calendar/docker-compose.yml
     project_directory: apps/calendar
     env_file: ${CALENDAR_ENV_FILE:-/dev/null}
-  - path: apps/logger/docker-compose.yml
-    project_directory: apps/logger
-    env_file: ${LOGGER_ENV_FILE:-/dev/null}
+  - path: apps/status/docker-compose.yml
+    project_directory: apps/status
+    env_file: ${STATUS_ENV_FILE:-/dev/null}
   - path: apps/auth/docker-compose.yml
     project_directory: apps/auth
     env_file: ${AUTH_ENV_FILE:-/dev/null}

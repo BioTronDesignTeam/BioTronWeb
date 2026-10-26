@@ -9,7 +9,7 @@ Usage: ./launch <target> [options]
 
 Targets
   infra     Postgres
-  web       The apps: site, calendar, auth, exo, logger, sprinter
+  web       The apps: site, calendar, auth, exo, status, sprinter
   all       infra, then web
   edge      The edge Nginx and the Cloudflare tunnel (not part of all)
   secrets   Independent Infisical stack (not part of all)
@@ -51,7 +51,7 @@ USAGE
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 cd "$root"
 
-apps='site calendar auth exo logger sprinter'
+apps='site calendar auth exo status sprinter'
 infra_services='postgres'
 target='' build=false pull=false tunnel=true dry_run=false excluded='' stop_target='all' runtime=false instance=''
 

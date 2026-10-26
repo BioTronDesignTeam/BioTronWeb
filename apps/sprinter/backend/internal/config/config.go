@@ -65,7 +65,7 @@ func Load() Config {
 		AgentTimeout:    getduration("AGENT_TIMEOUT", 2*time.Minute),
 		PollInterval:    getduration("POLL_INTERVAL", 5*time.Minute),
 		CalendarURL:     trimURL(getenv("CALENDAR_URL", "http://calendar-api:8080")),
-		LoggerURL:       trimURL(getenv("LOGGER_URL", "http://logger-api:8080")),
+		LoggerURL:       trimURL(getenv("LOGGER_URL", "http://status-api:8080")),
 		OAuthManagerURL: trimURL(getenv("OAUTH_MANAGER_URL", "http://oauth-manager:8080")),
 		FrontendURL:     trimURL(getenv("FRONTEND_URL", DefaultFrontendURL)),
 		CORSOrigins:     splitCSV(os.Getenv("CORS_ORIGINS")),

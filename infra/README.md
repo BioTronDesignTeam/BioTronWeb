@@ -33,7 +33,7 @@ An instance is one Compose project holding its Postgres and six apps:
 no host ports.
 
 - Inside an instance's network the services keep their plain aliases:
-  `postgres`, `oauth-manager`, `logger-api`, `calendar-api`, `site-web`,
+  `postgres`, `oauth-manager`, `status-api`, `calendar-api`, `site-web`,
   and so on. Apps reach each other and their database by
   these names, and cannot see any other instance.
 - Every web and API service also carries an instance-qualified alias, such as
@@ -64,7 +64,7 @@ When Nginx starts, `nginx/docker-entrypoint.d/40-biotron-sites.sh` renders
 | `calendar.uwbiotron.ca` | `prod-calendar-web:80` | `prod-calendar-api:8080` |
 | `auth.uwbiotron.ca` | `prod-oauth-web:80` | `prod-oauth-manager:8080` |
 | `exogui.uwbiotron.ca` | `prod-exo-web:80` | `prod-exo-api:8080` |
-| `status.uwbiotron.ca` | `prod-logger-web:80` | `prod-logger-api:8080` |
+| `status.uwbiotron.ca` | `prod-status-web:80` | `prod-status-api:8080` |
 | `sprinter.uwbiotron.ca` | `prod-sprinter-web:80` | `prod-sprinter:8080` |
 
 `www` redirects to the apex. Unknown hostnames return `404`. Upstreams are
@@ -125,7 +125,7 @@ sudo docker compose -p biotron-prod ps
 
 The Nginx health response at `/_edge/health` is `ok`. Cloudflared exposes its
 readiness and metrics endpoint to the private edge network at
-`http://cloudflared:2000` for future Logger integration; it is not published
+`http://cloudflared:2000` for future Status integration; it is not published
 on the host.
 
 Test each public hostname through Cloudflare after its instance is running.
@@ -271,7 +271,7 @@ repositories use need no change, and `pgx` already speaks SCRAM.
 ## Read-only role for Sprinter
 
 Sprinter's model tools read the `logger` and `oauth` schemas (today only
-`logger.health_checks` and four `oauth` tables), which Logger and
+`logger.health_checks` and four `oauth` tables), which Status and
 Auth own. The read-only guarantee lives in Postgres, not in Sprinter's Go
 code, through a dedicated role: `sprinter_reader`.
 
@@ -288,7 +288,7 @@ The Postgres container already has `SPRINTER_READER_PASSWORD` in its
 environment. For a named instance on a host, add `-p biotron-<instance>` and
 use the copy in `/opt/biotron/<instance>/infra/postgres/init/`.
 
-Rerun this command after Logger's and Auth's first migrations on a fresh
+Rerun this command after Status's and Auth's first migrations on a fresh
 cluster. At init time neither schema has tables yet, so the script's grants
 have nothing to grant; rerunning it once the apps have created their tables
 picks them up. Rerun it on an existing cluster too after the script changes:

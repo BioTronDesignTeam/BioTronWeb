@@ -8,7 +8,7 @@ signed in and what they may do. Import
 which this module uses), `go.work` lists it, and each backend Dockerfile
 copies `go/authclient/` into the build.
 
-Logger and the site are public and must not depend on it.
+Status and the site are public and must not depend on it.
 
 ```go
 authz := authclient.New(cfg.OAuthManagerURL, "calendar", authclient.WithEvents(events))

@@ -28,7 +28,7 @@
       "label": "Exo"
     },
     "5175": {
-      "label": "Logger"
+      "label": "Status"
     },
     "5176": {
       "label": "Calendar"
@@ -46,7 +46,7 @@
       "label": "Exo API"
     },
     "8082": {
-      "label": "Logger API"
+      "label": "Status API"
     },
     "8083": {
       "label": "Calendar API"

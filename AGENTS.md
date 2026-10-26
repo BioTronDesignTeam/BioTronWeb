@@ -15,7 +15,7 @@ Local development can use untracked `.env` files.
 |---|---|---|
 | `apps/site` | Public team website | `Biotron-Site` |
 | `apps/calendar` | Public calendars and feeds | `BiotronCalendar` |
-| `apps/logger` | Public status page and health monitor | `Logger` |
+| `apps/status` | Public status page and health monitor | `Logger` |
 | `apps/auth` | GitHub OAuth, sessions, permissions | `OAuthManager` |
 | `apps/exo` | Exoskeleton operator UI and API | `exo-gui` |
 | `apps/sprinter` | Discord bot and admin UI | `Sprinter` |
@@ -65,7 +65,7 @@ names, such as `OAuthManager` and `exo-gui`. They mean the paths above.
 |---|---|---|
 | Auth | `5173` | `8080` |
 | Exo | `5174` | `8081` |
-| Logger | `5175` | `8082` |
+| Status | `5175` | `8082` |
 | Calendar | `5176` | `8083` |
 | Site | `5177` | n/a |
 | Sprinter | `5178` | `8084` |
@@ -75,7 +75,7 @@ names, such as `OAuthManager` and `exo-gui`. They mean the paths above.
   app that names the port, in one change.
 - Only host ports follow this table. Every container listens on `8080`
   inside Docker. Services reach each other by network alias, such as
-  `http://oauth-manager:8080`, `http://logger-api:8080`, and
+  `http://oauth-manager:8080`, `http://status-api:8080`, and
   `http://calendar-api:8080`.
 - The `18080`-`18084` proxy ports are retired. Do not bring them back.
 - CORS allow-lists must name both the `localhost` and the `127.0.0.1` form of
@@ -103,7 +103,7 @@ names, such as `OAuthManager` and `exo-gui`. They mean the paths above.
 - Frontends get the session from `@biotron/style`: `SessionProvider`,
   `useSession`, `RequireAuth`, `SignInScreen`, `AccessDenied`, and
   `AccountControls`. Do not write another session check. Calendar stays
-  public and gates only its editing on `can('write')`. Logger and Site are
+  public and gates only its editing on `can('write')`. Status and Site are
   public and must not mount the provider.
 - A signed-in Exo member with none of `live`, `historical`, or `commands`
   sees Access denied, not the app. Guests still get in.
@@ -157,7 +157,7 @@ writing the words again, and keep docs that quote the UI in step.
 ## Logging
 
 - Every Go service sends events through `go/logclient`, to Grafana Cloud
-  and, for audit and product events, PostHog. Logger stores no logs; it is
+  and, for audit and product events, PostHog. Status stores no logs; it is
   the status page and health monitor only.
 - Request events hold only method, path, status, and duration. Never log a
   query string, cookie, authorization header, credential, or token.
@@ -210,8 +210,8 @@ writing the words again, and keep docs that quote the UI in step.
 - One edge per host: the `biotron-edge` project. Its Nginx joins every
   instance's network and reaches apps by instance-qualified aliases such as
   `prod-oauth-manager`. It is the only container on more than one network.
-- One app per hostname: `www`, `calendar`, `auth`, `exogui`, `status`
-  (Logger), and `sprinter`. `infra/nginx` is the source of truth. Within a
+- One app per hostname: `www`, `calendar`, `auth`, `exogui`, `status`,
+  and `sprinter`. `infra/nginx` is the source of truth. Within a
   hostname, `/` goes to the frontend and `/api/` to the backend.
 - Staging uses `uwbiotron.dev` and its app subdomains. Production uses
   `uwbiotron.ca`. Domains, secrets, and data differ; routing and containers do

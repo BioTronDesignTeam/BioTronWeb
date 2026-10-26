@@ -38,7 +38,7 @@ sql:
             go_type:
               type: time.Time
               pointer: true
-  # The read-only pool the agent's tools use. It reads Logger's and Auth's
+  # The read-only pool the agent's tools use. It reads Status's and Auth's
   # tables, so its schema is their migrations. Those are written unqualified
   # too, and each app applies them with its own schema on the search_path;
   # the two files in internal/readstore/schema move the tables into logger
@@ -47,7 +47,7 @@ sql:
   # so a query against guest_keys does not generate.
   - engine: postgresql
     schema:
-      - ../../logger/prisma/migrations/*/migration.sql
+      - ../../status/prisma/migrations/*/migration.sql
       - internal/readstore/schema/logger.sql
       - ../../auth/prisma/migrations/*/migration.sql
       - internal/readstore/schema/oauth.sql

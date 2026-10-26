@@ -7,7 +7,7 @@ use (
 	./apps/auth/backend
 	./apps/calendar/backend
 	./apps/exo/backend
-	./apps/logger/backend
+	./apps/status/backend
 	./apps/sprinter/backend
 	./go/authclient
 	./go/logclient

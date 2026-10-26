@@ -11,7 +11,7 @@ where the platform is developed now; the separate repositories are frozen.
 |---|---|---|
 | `apps/site` | Public team website (React, Three.js) | `Biotron-Site` |
 | `apps/calendar` | Public calendars and feeds (Go API, React UI, Prisma) | `BiotronCalendar` |
-| `apps/logger` | Public status page and health monitor | `Logger` |
+| `apps/status` | Public status page and health monitor | `Logger` |
 | `apps/auth` | GitHub OAuth, sessions, per-tool permissions | `OAuthManager` |
 | `apps/exo` | Exoskeleton operator UI and telemetry API | `exo-gui` |
 | `apps/sprinter` | Discord bot and admin UI | `Sprinter` |
@@ -36,10 +36,10 @@ Each app keeps its own `README.md`, `.env.example`, `docker-compose.yml`, and
   instance's data and apps are one Compose project. `./launch --instance
   staging` runs a second copy beside it with its own network and volumes. The
   edge and Infisical are separate projects. `docker compose up -d --build
-  logger-web` builds one service, and each app's compose file still works
+  status-web` builds one service, and each app's compose file still works
   alone from its folder once the `biotron` network exists.
 
-Ports do not change: Auth 5173/8080, Exo 5174/8081, Logger 5175/8082,
+Ports do not change: Auth 5173/8080, Exo 5174/8081, Status 5175/8082,
 Calendar 5176/8083, Site 5177, Sprinter 5178/8084.
 
 ## One baseline
@@ -68,7 +68,7 @@ An app's own `package.json` lists only what that app alone needs, such as
 ```bash
 npm ci                                   # every frontend and the library, once
 npm run build                            # builds packages/style, then each app
-npm run build -w apps/logger/frontend    # one app
+npm run build -w apps/status/frontend    # one app
 npm run lint                             # Oxlint, type-aware, one configuration for all frontends
 go work sync                             # after changing any go.mod
 docker compose up -d                     # the whole platform (injected configuration)
@@ -207,8 +207,8 @@ where none exists, and applies every app's migrations. After that any app
 runs natively against the sidecar, for example:
 
 ```bash
-cd apps/logger/backend && set -a && . ../.env && set +a && PORT=8082 go run .
-npm run dev -w apps/logger/frontend
+cd apps/status/backend && set -a && . ../.env && set +a && PORT=8082 go run .
+npm run dev -w apps/status/frontend
 ```
 
 Two things to know. The sidecar Postgres is its own definition, not a

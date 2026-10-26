@@ -112,7 +112,7 @@ literals.
 
 Go's standard `net/http`, with no framework. Exo issues no sessions; Auth
 does. CORS allows `FRONTEND_URL` only, with `GET`, `POST`, and `OPTIONS`.
-`GET /health` answers `{"status":"ok"}` to anyone. Logger's
+`GET /health` answers `{"status":"ok"}` to anyone. Status's
 monitor polls it. Routes match exactly: `/health/` and `/HEALTH` are `404`.
 
 Exo reports to Grafana and PostHog as `exo-api`. `/health` is never sent.
