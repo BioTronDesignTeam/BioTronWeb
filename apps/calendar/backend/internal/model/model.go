@@ -97,13 +97,3 @@ type Occurrence struct {
 	SeriesSequence   int       `json:"series_sequence"`
 	OverrideSequence int       `json:"override_sequence,omitempty"`
 }
-
-type Operator struct {
-	GitHubID    int64  `json:"github_id"`
-	Login       string `json:"login"`
-	Name        string `json:"name"`
-	AvatarURL   string `json:"avatar_url"`
-	IsSuperuser bool   `json:"is_superuser"`
-	IsManager   bool   `json:"is_manager"`
-	IsStaff     bool   `json:"is_staff"`
-}

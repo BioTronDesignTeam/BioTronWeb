@@ -7,13 +7,13 @@ import (
 	"net/http/httptest"
 	"reflect"
 	"sort"
-	"strings"
 	"testing"
 	"time"
 
+	"github.com/BioTronDesignTeam/BioTronWeb/go/authclient"
+	"github.com/BioTronDesignTeam/BioTronWeb/go/authclient/authclienttest"
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient/logclienttest"
-	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/auth"
 	calendarlogic "github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/calendar"
 	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/config"
 	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/model"
@@ -207,58 +207,15 @@ func newSeries(t *testing.T, id, title, startsAt, endsAt string) model.EventSeri
 	}
 }
 
-func TestRequiresRequestHeader(t *testing.T) {
-	tests := []struct {
-		method string
-		want   bool
-	}{
-		{method: "GET", want: false},
-		{method: "HEAD", want: false},
-		{method: "OPTIONS", want: false},
-		{method: "POST", want: true},
-		{method: "PATCH", want: true},
-		{method: "PUT", want: true},
-		{method: "DELETE", want: true},
-	}
-	for _, test := range tests {
-		if got := requiresRequestHeader(test.method); got != test.want {
-			t.Fatalf("requiresRequestHeader(%q) = %v, want %v", test.method, got, test.want)
-		}
-	}
-}
+var ada = authclient.Operator{GitHubID: 4242, Login: "ada", Name: "Ada Lovelace"}
 
-// authAnswer is what the stand-in Auth returns for the two calls Status makes.
-type authAnswer struct {
-	meStatus    int
-	meBody      string
-	checkStatus int
-	checkBody   string
-}
-
-// signedInEditor is the answer for an operator who may write.
-var signedInEditor = authAnswer{
-	meStatus:    http.StatusOK,
-	meBody:      `{"github_id":4242,"login":"ada","name":"Ada Lovelace"}`,
-	checkStatus: http.StatusOK,
-	checkBody:   `{"allowed":true}`,
-}
-
-func fakeAuth(t *testing.T, answer authAnswer) *auth.Client {
+// editorAuth is a stand-in Auth that signs every cookie in as Ada, who holds
+// calendar/write.
+func editorAuth(t *testing.T) *authclienttest.Auth {
 	t.Helper()
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case strings.HasPrefix(r.URL.Path, "/auth/me"):
-			w.WriteHeader(answer.meStatus)
-			_, _ = io.WriteString(w, answer.meBody)
-		case strings.HasPrefix(r.URL.Path, "/v1/check"):
-			w.WriteHeader(answer.checkStatus)
-			_, _ = io.WriteString(w, answer.checkBody)
-		default:
-			w.WriteHeader(http.StatusNotFound)
-		}
-	}))
-	t.Cleanup(server.Close)
-	return auth.NewClient(server.URL)
+	stub := authclienttest.New(t)
+	stub.SignIn(ada, PermissionWrite)
+	return stub
 }
 
 // waitForEvent picks one message out of the stream, because every request also
@@ -279,13 +236,14 @@ func waitForEvent(t *testing.T, sent <-chan logclienttest.Event, message string)
 }
 
 // An admin event is only useful if it names who caused it, so this drives the
-// whole chain: requireWrite resolves the operator from Auth, parks it on the
+// whole chain: the gate resolves the operator from Auth, parks it on the
 // request, and adminEvent puts it in the payload.
 func TestAdminEventNamesTheOperator(t *testing.T) {
 	events, sent := logclienttest.New(t, "calendar-api")
-	handler := &Handler{auth: fakeAuth(t, signedInEditor), events: events}
+	handler := &Handler{events: events}
+	authz := withCalendarErrors(editorAuth(t).Client(AppID), events)
 
-	app := handler.requireWrite(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	app := authz.Require(PermissionWrite)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		handler.adminEvent(r, "Scope created", map[string]any{
 			"scope_id": "scope-1", "kind": model.ScopeProject, "name": "Drivetrain", "parent_id": "root",
 		})
@@ -313,65 +271,31 @@ func TestAdminEventNamesTheOperator(t *testing.T) {
 	}
 }
 
-// Learning the operator must not change who is let in, so every branch of the
-// old CanWrite mapping is pinned here.
-func TestRequireWriteKeepsItsStatusMapping(t *testing.T) {
+// Moving the gate to go/authclient must not change who is let in or what the
+// admin page is told, so every branch is pinned with its body.
+func TestWriteGateKeepsItsStatusMapping(t *testing.T) {
 	events, sent := logclienttest.New(t, "calendar-api")
 	tests := []struct {
 		name    string
-		answer  authAnswer
+		arrange func(*authclienttest.Auth)
 		cookie  string
 		omitXHR bool
 		want    int
+		body    string
 	}{
-		{name: "editor", answer: signedInEditor, cookie: "session=abc", want: http.StatusCreated},
-		{name: "no cookie", answer: signedInEditor, want: http.StatusUnauthorized},
-		{
-			name:   "session rejected",
-			answer: authAnswer{meStatus: http.StatusUnauthorized, checkStatus: http.StatusUnauthorized},
-			cookie: "session=abc", want: http.StatusUnauthorized,
-		},
-		{
-			name: "permission missing",
-			answer: authAnswer{
-				meStatus: http.StatusOK, meBody: signedInEditor.meBody,
-				checkStatus: http.StatusOK, checkBody: `{"allowed":false}`,
-			},
-			cookie: "session=abc", want: http.StatusForbidden,
-		},
-		{
-			name: "permission forbidden",
-			answer: authAnswer{
-				meStatus: http.StatusOK, meBody: signedInEditor.meBody,
-				checkStatus: http.StatusForbidden,
-			},
-			cookie: "session=abc", want: http.StatusForbidden,
-		},
-		{
-			name: "session expired between the two calls",
-			answer: authAnswer{
-				meStatus: http.StatusOK, meBody: signedInEditor.meBody,
-				checkStatus: http.StatusUnauthorized,
-			},
-			cookie: "session=abc", want: http.StatusUnauthorized,
-		},
-		{
-			name: "auth broken",
-			answer: authAnswer{
-				meStatus: http.StatusOK, meBody: signedInEditor.meBody,
-				checkStatus: http.StatusInternalServerError,
-			},
-			cookie: "session=abc", want: http.StatusServiceUnavailable,
-		},
-		{
-			name: "no X-Requested-With", answer: signedInEditor, cookie: "session=abc",
-			omitXHR: true, want: http.StatusForbidden,
-		},
+		{name: "editor", arrange: func(a *authclienttest.Auth) { a.SignIn(ada, PermissionWrite) }, cookie: "session=abc", want: http.StatusCreated},
+		{name: "no cookie", arrange: func(a *authclienttest.Auth) { a.SignIn(ada, PermissionWrite) }, want: http.StatusUnauthorized, body: `{"error":"unauthorized"}`},
+		{name: "session rejected", arrange: func(a *authclienttest.Auth) { a.Answer(http.StatusUnauthorized) }, cookie: "session=abc", want: http.StatusUnauthorized, body: `{"error":"unauthorized"}`},
+		{name: "a guest of another tool", arrange: func(a *authclienttest.Auth) { a.Answer(http.StatusForbidden) }, cookie: "session=abc", want: http.StatusUnauthorized, body: `{"error":"unauthorized"}`},
+		{name: "permission missing", arrange: func(a *authclienttest.Auth) { a.SignIn(ada) }, cookie: "session=abc", want: http.StatusForbidden, body: `{"error":"forbidden"}`},
+		{name: "auth broken", arrange: func(a *authclienttest.Auth) { a.Answer(http.StatusInternalServerError) }, cookie: "session=abc", want: http.StatusServiceUnavailable, body: `{"error":"service unavailable"}`},
+		{name: "no X-Requested-With", arrange: func(a *authclienttest.Auth) { a.SignIn(ada, PermissionWrite) }, cookie: "session=abc", omitXHR: true, want: http.StatusForbidden, body: `{"error":"forbidden"}`},
 	}
 
 	for _, test := range tests {
-		handler := &Handler{auth: fakeAuth(t, test.answer), events: events}
-		app := handler.requireWrite(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		stub := authclienttest.New(t)
+		test.arrange(stub)
+		app := withCalendarErrors(stub.Client(AppID), events).Require(PermissionWrite)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusCreated)
 		}))
 
@@ -384,9 +308,10 @@ func TestRequireWriteKeepsItsStatusMapping(t *testing.T) {
 			request.Header.Del("X-Requested-With")
 		}
 		response := serveTest(app, request)
+		body, _ := io.ReadAll(response.Body)
 		response.Body.Close()
-		if response.StatusCode != test.want {
-			t.Fatalf("%s returned %d, want %d", test.name, response.StatusCode, test.want)
+		if response.StatusCode != test.want || string(body) != test.body {
+			t.Fatalf("%s returned %d %s, want %d %s", test.name, response.StatusCode, body, test.want, test.body)
 		}
 	}
 
@@ -398,6 +323,25 @@ func TestRequireWriteKeepsItsStatusMapping(t *testing.T) {
 	}
 	if _, ok := event.Payload["error"]; !ok {
 		t.Fatalf("Authorization service unavailable carried no error: %v", event.Payload)
+	}
+}
+
+// The public routes must never ask Auth, even when the browser sends a
+// session cookie: feeds and the site read them without credentials.
+func TestPublicRoutesNeverAskAuth(t *testing.T) {
+	stub := editorAuth(t)
+	app := New(config.Config{FrontendURL: "http://localhost:5176"}, nil, stub.Client(AppID), logclient.NewFromEnv("calendar-api"), time.UTC)
+	for _, target := range []string{"/v1/events?from=nope", "/v1/events/upcoming?from=nope", "/v1/feeds/scopes/nope"} {
+		request := httptest.NewRequest(http.MethodGet, target, nil)
+		request.Header.Set("Cookie", "session=abc")
+		response := serveTest(app, request)
+		response.Body.Close()
+		if response.StatusCode == http.StatusUnauthorized || response.StatusCode == http.StatusForbidden {
+			t.Fatalf("GET %s returned %d", target, response.StatusCode)
+		}
+	}
+	if stub.Calls() != 0 {
+		t.Fatalf("public routes asked Auth %d times", stub.Calls())
 	}
 }
 
@@ -417,7 +361,7 @@ func TestRefusedRequestIsLoggedWithTheStatusTheClientGot(t *testing.T) {
 	events, sent := logclienttest.New(t, "calendar-api")
 	app := New(
 		config.Config{FrontendURL: "http://localhost:5176"},
-		nil, nil, events, time.UTC,
+		nil, authclient.New("", AppID), events, time.UTC,
 	)
 
 	response := serveTest(app, httptest.NewRequest(http.MethodGet, "/v1/nope", nil))

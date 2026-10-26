@@ -3,6 +3,7 @@ module github.com/BioTronDesignTeam/BiotronCalendar/backend
 go 1.27.3
 
 require (
+	github.com/BioTronDesignTeam/BioTronWeb/go/authclient v0.0.0
 	github.com/BioTronDesignTeam/BioTronWeb/go/logclient v0.0.0
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.10.0
@@ -17,5 +18,7 @@ require (
 	golang.org/x/sync v0.22.0 // indirect
 	golang.org/x/text v0.41.0 // indirect
 )
+
+replace github.com/BioTronDesignTeam/BioTronWeb/go/authclient => ../../../go/authclient
 
 replace github.com/BioTronDesignTeam/BioTronWeb/go/logclient => ../../../go/logclient

@@ -12,8 +12,8 @@ import (
 
 	"github.com/joho/godotenv"
 
+	"github.com/BioTronDesignTeam/BioTronWeb/go/authclient"
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
-	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/auth"
 	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/config"
 	api "github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/server"
 	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/store"
@@ -46,7 +46,7 @@ func main() {
 	}
 	defer calendarStore.Close()
 
-	authClient := auth.NewClient(cfg.OAuthManagerURL)
+	authClient := authclient.New(cfg.OAuthManagerURL, api.AppID)
 	server := &http.Server{
 		Addr:              ":" + cfg.Port,
 		Handler:           api.New(cfg, calendarStore, authClient, events, location),
