@@ -63,8 +63,6 @@ updates:
     ignore:
       - dependency-name: prisma
         update-types: [version-update:semver-major]
-      - dependency-name: "@prisma/client"
-        update-types: [version-update:semver-major]
 
   # The actions of every workflow in .github/workflows, pinned by commit
   # SHA with the version in a comment; Dependabot moves both.
