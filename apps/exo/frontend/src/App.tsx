@@ -1,28 +1,15 @@
 import { useState } from 'react'
+import { RequireAuth } from '@biotron/style'
 import TopBar from './components/TopBar'
-import LoginScreen from './components/LoginScreen'
 import { type ViewMode } from './components/ModeToggle'
-import { useAuth } from './auth/context'
+import { EXO_PERMISSIONS, PRODUCT_NAME } from './config'
 
 // Placeholder until the machine list is fetched from the backend.
 const MACHINES = ['TestDummyExo']
 
-function App() {
-  const { state } = useAuth()
+function Telemetry() {
   const [machine, setMachine] = useState(MACHINES[0])
   const [mode, setMode] = useState<ViewMode>('live')
-
-  if (state.status === 'loading') {
-    return (
-      <div className="flex min-h-screen items-center justify-center text-sm text-slate-500 dark:text-muted">
-        Loading…
-      </div>
-    )
-  }
-
-  if (state.status === 'anon') {
-    return <LoginScreen />
-  }
 
   return (
     <div className="min-h-screen">
@@ -40,6 +27,14 @@ function App() {
         </p>
       </main>
     </div>
+  )
+}
+
+function App() {
+  return (
+    <RequireAuth productName={PRODUCT_NAME} permission={EXO_PERMISSIONS} guest>
+      <Telemetry />
+    </RequireAuth>
   )
 }
 
