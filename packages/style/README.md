@@ -61,9 +61,9 @@ Status and Site are public and must not mount it.
 Every frontend must keep the full theme bootstrap directly in its
 `index.html`, before the application module. React runs too late to prevent a
 white flash on a stored dark-mode visit. The bootstrap reads the shared
-`biotron-theme` cookie first, migrates the legacy per-origin `darkMode` value,
-toggles the `dark` class on `<html>`, sets `color-scheme`, and paints the
-palette's dark or light page colour immediately.
+`biotron-theme` cookie, toggles the `dark` class on `<html>`, sets
+`color-scheme`, and paints the palette's dark or light page colour
+immediately.
 
 The cookie is host-wide on `localhost`, so it crosses local development ports.
 On staging it is scoped to `uwbiotron.dev` and in production to

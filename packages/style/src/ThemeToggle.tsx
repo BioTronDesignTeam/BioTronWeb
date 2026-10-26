@@ -29,20 +29,15 @@ export function ThemeToggle({ className = '' }: ThemeToggleProps) {
       const stored = storedTheme();
       if (stored) setTheme((current) => current === stored ? current : stored);
     };
-    const onStorage = (event: StorageEvent) => {
-      if (event.key === 'darkMode') synchronize();
-    };
     const onVisibilityChange = () => {
       if (document.visibilityState === 'visible') synchronize();
     };
     const interval = window.setInterval(synchronize, 1000);
     window.addEventListener('focus', synchronize);
-    window.addEventListener('storage', onStorage);
     document.addEventListener('visibilitychange', onVisibilityChange);
     return () => {
       window.clearInterval(interval);
       window.removeEventListener('focus', synchronize);
-      window.removeEventListener('storage', onStorage);
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };
   }, []);
