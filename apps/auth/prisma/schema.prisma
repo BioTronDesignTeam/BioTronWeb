@@ -18,26 +18,9 @@ model Operator {
   isBanned     Boolean         @default(false) @map("is_banned")
   createdAt    DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
   lastLoginAt  DateTime        @default(now()) @map("last_login_at") @db.Timestamptz(6)
-  sessions     Session[]
   grants       Grant[]
 
   @@map("operators")
-}
-
-model Session {
-  id         String   @id
-  operatorId BigInt   @map("operator_id")
-  operator   Operator @relation(fields: [operatorId], references: [githubId], onDelete: Cascade)
-  guestAppId String?  @map("guest_app_id")
-  guestApp   App?     @relation("GuestSessions", fields: [guestAppId], references: [id], onDelete: Cascade)
-  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  expiresAt  DateTime @map("expires_at") @db.Timestamptz(6)
-  userAgent  String?  @map("user_agent")
-
-  @@index([operatorId])
-  @@index([guestAppId])
-  @@index([expiresAt])
-  @@map("sessions")
 }
 
 // Product-scoped guest login key, one per app and Eastern day. Only apps with
@@ -62,7 +45,6 @@ model App {
   createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
   permissions     Permission[]
   guestKeys       GuestKey[]
-  guestSessions   Session[]       @relation("GuestSessions")
 
   @@map("apps")
 }

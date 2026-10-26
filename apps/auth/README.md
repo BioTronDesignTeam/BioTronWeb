@@ -195,10 +195,9 @@ What that means in practice:
   an operator who renames their GitHub account signs in again. A sign-in
   records its own answer. Guests have no GitHub identity and are not checked.
 
-Sessions from before signed cookies were opaque tokens in the `sessions`
+Sessions from before signed cookies were opaque tokens in a `sessions`
 table. Those cookies no longer validate, so everyone signs in once more
-after the upgrade. The table is no longer read or written; a later migration
-can drop it.
+after the upgrade, and `20261025130000_drop_sessions` dropped the table.
 
 ### Permission check
 
@@ -274,10 +273,10 @@ bundle; Compose passes it to `auth-web` as a build argument.
 
 ## Database
 
-Prisma 6.19.3, pinned exactly. Six tables: `operators`, `sessions` (unused,
-see Sessions), `guest_keys`, `apps`, `permissions`, and `grants`. Tools and their
-permissions are rows that the migrations seed, so `auth-migrate` is what
-makes a fresh database usable. Without it, every permission check for a
+Prisma 6.19.3, pinned exactly. Five tables: `operators`, `guest_keys`,
+`apps`, `permissions`, and `grants`. Tools and their permissions are rows
+that the migrations seed, so `auth-migrate` is what makes a fresh database
+usable. Without it, every permission check for a
 non-staff operator answers `false`.
 
 | Tool | Permissions |

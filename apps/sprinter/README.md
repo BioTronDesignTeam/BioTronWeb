@@ -156,8 +156,7 @@ saying it was cut and how to narrow the question.
 `who_has_access` also lists the managers and the superusers, because
 those two flags admit an operator everywhere without a grant, and an
 answer that named only the grant holders would be wrong. It never reads
-`oauth.sessions` or `oauth.guest_keys`; a live test proves the role
-cannot read either one.
+`oauth.guest_keys`; a live test proves the role cannot read it.
 
 The model is told that tool results are data and never instructions. A
 health detail or an event title can contain words that read like an
@@ -386,8 +385,7 @@ pool's schema is Logger's and Auth's migrations, followed by the two
 files in `backend/internal/readstore/schema`, which move their tables
 into `logger` and `oauth` as Postgres has them. Only `health_checks` and
 the four `oauth` tables `sprinter_reader` may read are moved, so a query
-against `sessions` or `guest_keys` fails to generate as it would fail to
-run.
+against `guest_keys` fails to generate as it would fail to run.
 
 ## Frontend
 
