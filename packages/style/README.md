@@ -66,9 +66,9 @@ toggles the `dark` class on `<html>`, sets `color-scheme`, and paints the
 palette's dark or light page colour immediately.
 
 The cookie is host-wide on `localhost`, so it crosses local development ports.
-On BioTron hosts it is scoped to `biotron.ca` (and the current
-`biotron-dev.com` development domain), so the preference crosses application
-subdomains. `ThemeToggle` also checks the cookie while a page is open, allowing
+On staging it is scoped to `uwbiotron.dev` and in production to
+`uwbiotron.ca`, so the preference crosses application subdomains.
+`ThemeToggle` also checks the cookie while a page is open, allowing
 already-open applications to follow a change made in another tab.
 
 ## Palette
