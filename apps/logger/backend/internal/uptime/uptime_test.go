@@ -138,7 +138,7 @@ func TestLongGapIsUnknownAndLeavesTheDenominator(t *testing.T) {
 	if got := percent(t, result); got != 100 {
 		t.Fatalf("uptime = %v, want 100 over the observed time only", got)
 	}
-	ratio := result.UnknownRatio(24 * time.Hour)
+	ratio := float64(result.Unknown) / float64(24*time.Hour)
 	if ratio < 0.16 || ratio > 0.18 {
 		t.Fatalf("unknown ratio = %v, want roughly 4h/24h", ratio)
 	}
@@ -163,9 +163,6 @@ func TestWindowWithNoRowsIsNullNotHundred(t *testing.T) {
 	}
 	if result.Unknown != 24*time.Hour {
 		t.Fatalf("unknown = %s, want the whole window", result.Unknown)
-	}
-	if result.UnknownRatio(24*time.Hour) != 1 {
-		t.Fatalf("unknown ratio = %v, want 1", result.UnknownRatio(24*time.Hour))
 	}
 }
 
@@ -301,7 +298,7 @@ func TestDailyWindowsSpanDaylightSavingTransition(t *testing.T) {
 	windows := DailyWindows(now, 3, toronto)
 	fallBack := windows[1]
 
-	if fallBack.Duration() != 25*time.Hour {
-		t.Fatalf("fall-back day = %s, want 25h of wall-clock time", fallBack.Duration())
+	if length := fallBack.End.Sub(fallBack.Start); length != 25*time.Hour {
+		t.Fatalf("fall-back day = %s, want 25h of wall-clock time", length)
 	}
 }
