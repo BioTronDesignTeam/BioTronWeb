@@ -19,7 +19,7 @@ ENV VITE_CALENDAR_URL=${VITE_CALENDAR_URL}
 ENV VITE_SITE_URL=${VITE_SITE_URL}
 ENV VITE_GOOGLE_SITE_VERIFICATION=${VITE_GOOGLE_SITE_VERIFICATION}
 
-COPY package.json package-lock.json ./
+COPY package.json package-lock.json tsconfig.base.json ./
 COPY packages/style/package.json packages/style/
 COPY apps/biotron/frontend/package.json apps/biotron/frontend/
 RUN npm ci --ignore-scripts --include-workspace-root --workspace packages/style --workspace apps/biotron/frontend

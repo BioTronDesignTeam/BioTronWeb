@@ -15,7 +15,7 @@ ARG VITE_AUTH_URL
 ENV VITE_API_URL=${VITE_API_URL}
 ENV VITE_AUTH_URL=${VITE_AUTH_URL}
 
-COPY package.json package-lock.json ./
+COPY package.json package-lock.json tsconfig.base.json ./
 COPY packages/style/package.json packages/style/
 COPY apps/calendar/frontend/package.json apps/calendar/frontend/
 RUN npm ci --ignore-scripts --include-workspace-root --workspace packages/style --workspace apps/calendar/frontend

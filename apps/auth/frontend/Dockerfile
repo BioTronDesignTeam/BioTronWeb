@@ -13,7 +13,7 @@ WORKDIR /repo
 ARG VITE_API_BASE
 ENV VITE_API_BASE=${VITE_API_BASE}
 
-COPY package.json package-lock.json ./
+COPY package.json package-lock.json tsconfig.base.json ./
 COPY packages/style/package.json packages/style/
 COPY apps/auth/frontend/package.json apps/auth/frontend/
 RUN npm ci --ignore-scripts --include-workspace-root --workspace packages/style --workspace apps/auth/frontend
