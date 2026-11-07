@@ -174,7 +174,20 @@ through their existing test-database environment variables.
 | `.github/rulesets/main.json` | The `main` ruleset, as code; `scripts/apply-rulesets` applies it |
 | `.github/workflows/codeql.yml` | CodeQL for Go, TypeScript, and the workflows, on pull requests, `main`, and each Monday |
 | `.github/dependabot.yml` | Weekly grouped updates for Go, npm (root and Prisma), actions, Dockerfiles, and compose files |
-| `go/.golangci.yml` | One golangci-lint config for every Go module, passed with `--config`; it lists each enabled linter and why |
+| `go/.golangci.yml` | One golangci-lint config for every Go module, passed with `--config`; it lists each enabled linter and why, and sets the size limits (see below) |
+
+Run golangci-lint by hand from a module's folder with the shared config:
+`golangci-lint run --config ../../../go/.golangci.yml ./...` in a backend,
+`--config ../.golangci.yml` in a module under `go/`. It sets these limits:
+
+| Linter | Limit |
+|---|---|
+| `dupl` | 150 tokens of repeated code |
+| `gocognit`, `gocyclo` | complexity 30 per function |
+| `nolintlint` | every `//nolint` names its linter and gives a reason |
+
+Tests are exempt from the size limits: a test table is long on purpose.
+Nothing caps the number of reports, so a run shows every finding.
 
 Every action is pinned by commit SHA with its release in a comment, and
 Dependabot moves both, after a week of cooldown. Every check job reads the

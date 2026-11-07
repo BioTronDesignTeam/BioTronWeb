@@ -45,6 +45,26 @@ names, such as `OAuthManager` and `exo-gui`. They mean the paths above.
   Do not use a Prisma client from Go.
 - Run `./pr-precheck` inside the devcontainer before you open a pull request.
 
+## Go code
+
+- One golangci-lint config, `go/.golangci.yml`, serves every Go module. CI
+  and `./pr-precheck` pass it with `--config`; do so too when you run it by
+  hand. Do not add a `.golangci.yml` to a module.
+- Functions stay under complexity 30 (`gocognit`, `gocyclo`), and no block
+  of 150 tokens or more is repeated (`dupl`). Split a function that grows
+  past the limit into named steps, and move a repeated block into one
+  helper. Tests are exempt.
+- A `//nolint` names its linter and says why, and only where the code is
+  right and the linter is wrong. Fix the code first.
+- A backend's `internal/common` holds small helpers that at least two of its
+  packages use, with no better home, such as `common.Truncate` in Sprinter.
+  It imports the standard library only, never another package of
+  `internal/`. Do not create an empty one, and do not share it between
+  backends: a helper that every backend needs belongs in a module under
+  `go/`, and only when one already fits.
+- CI also runs `go test -race`, `go mod tidy -diff`, and govulncheck on each
+  module. Fix a govulncheck finding by upgrading the dependency.
+
 ## Run and verify
 
 - Use `./launch`. It wraps every compose file; `./launch --help` lists it all.
