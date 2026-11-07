@@ -7,8 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
-
 	"github.com/BioTronDesignTeam/BioTronWeb/apps/calendar/backend/internal/ical"
 	"github.com/BioTronDesignTeam/BioTronWeb/apps/calendar/backend/internal/model"
 )
@@ -22,8 +20,9 @@ func (h *Handler) allFeed(w http.ResponseWriter, r *http.Request) error {
 }
 
 func (h *Handler) scopeFeed(w http.ResponseWriter, r *http.Request) error {
-	id, ics := strings.CutSuffix(r.PathValue("file"), ".ics")
-	if !ics || uuid.Validate(id) != nil {
+	file, ics := strings.CutSuffix(r.PathValue("file"), ".ics")
+	id, ok := canonicalID(file)
+	if !ics || !ok {
 		return errNotFound
 	}
 	scope, err := h.store.GetScope(r.Context(), id)
