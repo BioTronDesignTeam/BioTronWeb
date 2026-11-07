@@ -715,7 +715,7 @@ function HistoryPage() {
   return (
     <main className="column">
       <nav className="crumbs" aria-label="Breadcrumb">
-        <a href="/">BioTron</a>
+        <a href="/">Status</a>
         <span aria-hidden="true">/</span>
         <span aria-current="page">History</span>
       </nav>
