@@ -6,9 +6,9 @@ command routes are a plan, not code. The machine list in the UI is a
 placeholder. The hardware side, an STM32 that reads the sensors and an ESP32
 that posts telemetry, is not in this repository.
 
-This app was the `exo-gui` repository. `exo-gui` is still its app id in Auth,
-its Go module path, and its Compose project name `biotron-exo-gui`. It reports
-its events as `exogui-api`. The code is MIT licensed; see `LICENSE`.
+This app was the `exo-gui` repository. `exo-gui` is still its app id in Auth.
+Its Compose project is `biotron-exogui`, and it reports its events as
+`exogui-api`. The code is MIT licensed; see `LICENSE`.
 
 ## Layout
 
@@ -21,15 +21,19 @@ its events as `exogui-api`. The code is MIT licensed; see `LICENSE`.
 
 ## Run
 
-Exo needs a running Auth, which needs the shared Postgres from `infra/`.
-Start them first, from the monorepo root (see `apps/auth/README.md`), then Exo:
+Exo needs a running Auth, which needs the shared Postgres. From the monorepo
+root, with `./launch` (it reads each app's `.env`; see `apps/auth/README.md`
+for Auth's):
 
 ```bash
-docker compose -f infra/docker-compose.yml --env-file infra/.env up -d
-docker compose up -d --build auth-migrate auth-api auth-web
 cp apps/exogui/.env.example apps/exogui/.env
-docker compose up -d --build exogui-api exogui-web
+./launch infra
+./launch web --build    # every app; --no-<app> leaves one out
 ```
+
+Plain `docker compose` from the root does not read `apps/exogui/.env`. To
+restart Exo alone, run it from this folder: `cd apps/exogui && docker compose
+up -d --build`.
 
 The UI is at http://localhost:5174 and the API at http://localhost:8081. The
 browser signs in against Auth on port 8080. The API reaches Auth at
@@ -57,7 +61,9 @@ and the optional Grafana and PostHog variables listed in
 `go/logclient/README.md`.
 
 - `FRONTEND_URL` is the one CORS origin.
-- `OAUTH_MANAGER_URL` unset or unreachable: every gated route answers `503`.
+- `OAUTH_MANAGER_URL` defaults to `http://oauth-manager:8080`, Auth on the
+  instance network; an empty value means the default too. When Auth is
+  unreachable, every gated route answers `503`.
 
 `VITE_API_URL` and `VITE_AUTH_URL` are compiled into the frontend bundle;
 Compose passes them to `exogui-web` as build arguments. A production build fails
@@ -89,7 +95,7 @@ with the caller's cookie:
 | Mutating request without `X-Requested-With: XMLHttpRequest` | `403`, Auth not asked |
 | No cookie, or Auth refuses the session | `401` |
 | Signed in without the permission | `403` with `{"error":"permission required","permission":"<key>"}` |
-| Auth unreachable, unexpected status, or `OAUTH_MANAGER_URL` unset | `503` |
+| Auth unreachable or an unexpected status | `503` |
 | Signed in with the permission | the handler runs |
 
 A request with no cookie never reaches Auth. `401` and `403` stay distinct,
@@ -120,8 +126,11 @@ Exo reports to Grafana and PostHog as `exogui-api`. `/health` is never sent.
 | Exo API started | Info | `port` |
 | HTTP request completed | Info; Warning on 4xx; Error on 5xx | `method`, `path`, `status`, `duration_ms`, `actor` once the gate let them through, and `error` when it failed |
 | Authorization service unavailable | Error | `permission`, `error` |
-| Authorization not configured | Warning | |
 | Exo API stopping | Info | |
+| Exo API failed | Error | `error`: the listener could not open or stopped serving; the process then exits non-zero and Docker restarts it |
+
+Every path out of the process flushes the queued events first, a failed
+listener included.
 
 ## Frontend
 
