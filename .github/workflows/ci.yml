@@ -162,7 +162,7 @@ jobs:
       - run: npm run build -w "apps/$APP/frontend"
       # Oxlint reads .oxlintrc.json at the root; type-aware rules resolve
       # through the app's own tsconfig.
-      - run: npx oxlint "apps/$APP/frontend/src"
+      - run: npx oxlint --deny-warnings "apps/$APP/frontend"
 
   # The shared library, once for every frontend run: each app build above
   # only type-checks the parts of it that app imports.
@@ -182,6 +182,7 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts --include-workspace-root --workspace packages/style
       - run: npm run typecheck -w packages/style
+      - run: npx oxlint --deny-warnings packages/style
 
   backend:
     name: backend ${{ matrix.app }}
