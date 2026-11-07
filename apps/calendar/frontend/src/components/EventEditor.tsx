@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState, type FormEvent } from 'react';
 import { addLocalDays, addWallClockHour, localDate, localInput, torontoLocalInput } from '../date';
+import { eventPayload, toAllDay, toTimed, type Schedule } from '../editorPatch';
 import type { EventPayload, EventSeries, Scope } from '../types';
 import { Modal } from './Modal';
 
@@ -30,14 +31,6 @@ const inputClass =
   'mt-1 min-h-11 w-full rounded-xl border border-ink/15 bg-transparent px-3 py-2 text-sm outline-none focus:border-brand dark:border-line-strong dark:bg-surface-deep dark:focus:border-link';
 const checkboxLabelClass =
   'flex min-h-11 items-center gap-3 rounded-xl border border-ink/10 px-3 dark:border-line';
-
-interface Schedule {
-  startsAt: string;
-  endsAt: string;
-  allDay: boolean;
-  weekly: boolean;
-  recurrenceUntil: string;
-}
 
 /**
  * The whole all-day / repeat branch, kept out of the editor body so the form
@@ -183,18 +176,11 @@ export function EventEditor({ event, draft, scopes, onClose, onSave }: EventEdit
     setError('');
     try {
       await onSave(
-        {
-          scope_id: scopeId,
-          title,
-          description,
-          location,
-          url,
-          starts_at_local: `${schedule.startsAt}:00`,
-          ends_at_local: `${schedule.endsAt}:00`,
-          all_day: schedule.allDay,
-          recurrence_until: schedule.weekly ? schedule.recurrenceUntil : '',
-          expected_sequence: event?.sequence || 0,
-        },
+        eventPayload(
+          { scope_id: scopeId, title, description, location, url },
+          schedule,
+          event?.sequence,
+        ),
         publish,
       );
     } catch (caught) {
@@ -306,23 +292,4 @@ export function EventEditor({ event, draft, scopes, onClose, onSave }: EventEdit
       </form>
     </Modal>
   );
-}
-
-/** All-day boundaries are midnight to midnight, with an exclusive end date. */
-function toAllDay({ startsAt, endsAt }: Schedule) {
-  const startDate = startsAt.slice(0, 10);
-  const endDate = endsAt.slice(0, 10) <= startDate ? startDate : endsAt.slice(0, 10);
-  const exclusive = new Date(`${endDate}T12:00:00Z`);
-  if (endDate === startDate) exclusive.setUTCDate(exclusive.getUTCDate() + 1);
-  return {
-    startsAt: `${startDate}T00:00`,
-    endsAt: `${exclusive.toISOString().slice(0, 10)}T00:00`,
-  };
-}
-
-/** Restore the times the event had before it was made all-day, or a sensible hour. */
-function toTimed({ startsAt }: Schedule, remembered?: { startsAt: string; endsAt: string }) {
-  if (remembered) return remembered;
-  const start = `${startsAt.slice(0, 10)}T18:00`;
-  return { startsAt: start, endsAt: addWallClockHour(start) };
 }

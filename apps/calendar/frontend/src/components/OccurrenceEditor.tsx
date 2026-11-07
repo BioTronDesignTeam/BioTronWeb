@@ -1,5 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { addLocalDays, torontoLocalInput } from '../date';
+import { occurrencePatch, seriesBaseline, type PatchFields } from '../editorPatch';
 import type { EventSeries, Occurrence } from '../types';
 import { Modal } from './Modal';
 
@@ -10,36 +11,6 @@ interface OccurrenceEditorProps {
   onSave: (patch: Record<string, string | null>) => Promise<void>;
   onReset: () => Promise<void>;
 }
-
-// Wall-clock arithmetic, done in a UTC frame so no daylight-saving change can
-// shift the result. The series stores wall clock and so does the patch.
-function wallClock(local: string) {
-  return new Date(`${local.slice(0, 19)}Z`);
-}
-
-function addWallClockMs(local: string, milliseconds: number) {
-  return new Date(wallClock(local).getTime() + milliseconds).toISOString().slice(0, 19);
-}
-
-// What this occurrence would be with no override at all: the series values, at
-// the generated start its recurrence id names. Anything equal to this is not a
-// change and must stay out of the patch, or the occurrence silently stops
-// following later series-wide edits.
-function seriesBaseline(occurrence: Occurrence, series: EventSeries) {
-  const duration =
-    wallClock(series.ends_at_local).getTime() - wallClock(series.starts_at_local).getTime();
-  const start = `${occurrence.recurrence_id_local.slice(0, 19)}`;
-  return {
-    title: series.title,
-    description: series.description,
-    location: series.location,
-    url: series.url,
-    starts_at_local: start,
-    ends_at_local: addWallClockMs(start, duration),
-  };
-}
-
-type PatchFields = ReturnType<typeof seriesBaseline>;
 
 const inputClass =
   'mt-1 min-h-11 w-full rounded-xl border border-ink/15 bg-transparent px-3 py-2 text-sm outline-none focus:border-brand dark:border-line-strong dark:bg-surface-deep dark:focus:border-link';
@@ -71,11 +42,7 @@ export function OccurrenceEditor({
       starts_at_local: `${startsAt}:00`,
       ends_at_local: `${endsAt}:00`,
     };
-    const patch: Record<string, string> = {};
-    for (const field of Object.keys(edited) as (keyof PatchFields)[]) {
-      if (edited[field] !== baseline[field]) patch[field] = edited[field];
-    }
-    return patch;
+    return occurrencePatch(edited, baseline);
   }
 
   async function submit(formEvent: FormEvent) {
