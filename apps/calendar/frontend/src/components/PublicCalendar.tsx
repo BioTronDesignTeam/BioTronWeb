@@ -91,7 +91,7 @@ function CalendarViews(props: PublicCalendarProps) {
   const { view, anchor } = props;
   const days = useMemo(() => viewDays(view, anchor), [view, anchor]);
   // The month the agenda takes as read, so it labels only the days outside it.
-  const currentMonth = (view === 'month' ? anchor : days[0]).getUTCMonth();
+  const currentMonth = (view === 'month' ? anchor : (days[0] ?? anchor)).getUTCMonth();
   const today = todayKey();
   const createAllDay = (day: Date) => props.onCreate?.({ startsAt: `${dateKey(day)}T00:00`, endsAt: `${dateKey(addDays(day, 1))}T00:00`, allDay: true });
 
@@ -181,7 +181,8 @@ function CalendarViews(props: PublicCalendarProps) {
             </div>
           ) : agendaDays.map((key, index) => {
             const dayMonth = Number(key.slice(5, 7)) - 1;
-            const previousMonth = index === 0 ? null : Number(agendaDays[index - 1].slice(5, 7)) - 1;
+            const previous = agendaDays[index - 1];
+            const previousMonth = previous === undefined ? null : Number(previous.slice(5, 7)) - 1;
             // The window spills into the months either side, so label the
             // change rather than leaving two bare "1"s next to each other.
             const showMonth = dayMonth !== currentMonth && dayMonth !== previousMonth;

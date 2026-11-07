@@ -69,9 +69,9 @@ export function Sidebar({ open, view, anchor, onStep, viewSwitch, onManage, scop
       const focusable = [...dialog.current.querySelectorAll<HTMLElement>(focusableSelector)]
         // Not offsetParent: it is null for a fixed element, which would drop the backdrop's Close button.
         .filter((element) => element.getClientRects().length > 0);
-      if (focusable.length === 0) return;
       const first = focusable[0];
-      const last = focusable[focusable.length - 1];
+      const last = focusable.at(-1);
+      if (!first || !last) return;
       const inside = dialog.current.contains(document.activeElement);
       if (event.shiftKey && (!inside || document.activeElement === first || document.activeElement === panel.current)) {
         event.preventDefault();

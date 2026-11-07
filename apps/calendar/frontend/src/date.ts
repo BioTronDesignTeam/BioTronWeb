@@ -144,7 +144,9 @@ export function viewDays(view: CalendarView, anchor: Date) {
 /** The API range for a view. `to` is the day after the last one drawn. */
 export function viewRange(view: CalendarView, anchor: Date) {
   const days = viewDays(view, anchor);
-  return { from: dateKey(days[0]), to: dateKey(addDays(days[days.length - 1], 1)) };
+  const first = days[0] ?? anchor;
+  const last = days.at(-1) ?? anchor;
+  return { from: dateKey(first), to: dateKey(addDays(last, 1)) };
 }
 
 /** One step of the arrows: a day, a week, or a month. A month step lands on the first. */
