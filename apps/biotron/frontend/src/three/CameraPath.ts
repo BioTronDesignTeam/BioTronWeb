@@ -18,7 +18,7 @@ export interface Keyframe {
  * (see PROJECTS[].anchor in data/projects.ts). Establishing + exit frames pull
  * back to reveal the whole room.
  */
-export const KEYFRAMES: Keyframe[] = [
+export const KEYFRAMES: [Keyframe, ...Keyframe[]] = [
   // Establishing shot: isometric pull-back over the whole room.
   { at: 0.0, pos: [7.5, 6.5, 9.5], target: [0, 0.8, -1.5] },
   // About board (mounted on the back-left wall).
@@ -52,10 +52,16 @@ const _b = new Vector3();
 /** Interpolated camera pose at a given progress, with eased segments. */
 export function sampleCamera(progress: number, outPos: Vector3, outTarget: Vector3) {
   const p = Math.min(1, Math.max(0, progress));
-  let i = 0;
-  while (i < KEYFRAMES.length - 1 && KEYFRAMES[i + 1].at < p) i++;
-  const a = KEYFRAMES[i];
-  const b = KEYFRAMES[Math.min(i + 1, KEYFRAMES.length - 1)];
+  // a is the last keyframe before p, b the first one at or after it; past the
+  // end both are the last keyframe.
+  const [first, ...rest] = KEYFRAMES;
+  let a = first;
+  let b = first;
+  for (const frame of rest) {
+    b = frame;
+    if (frame.at >= p) break;
+    a = frame;
+  }
   const span = b.at - a.at || 1;
   const tRaw = (p - a.at) / span;
   // smoothstep for natural slow-in / slow-out (the "dwell" feel).

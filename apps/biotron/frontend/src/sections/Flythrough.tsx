@@ -52,10 +52,9 @@ export default function Flythrough() {
   // Honor navigation requests to a specific stop (e.g. nav "About" from another page).
   useEffect(() => {
     const stop = (location.state as { stop?: Stop } | null)?.stop;
-    if (stop) {
-      const id = window.setTimeout(() => jumpToStop(stop), 400);
-      return () => window.clearTimeout(id);
-    }
+    if (!stop) return;
+    const id = window.setTimeout(() => jumpToStop(stop), 400);
+    return () => window.clearTimeout(id);
   }, [location.state]);
 
   return (

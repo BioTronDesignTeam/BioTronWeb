@@ -17,7 +17,7 @@ export interface RouteMeta {
 
 export const SITE_NAME = 'BioTron';
 
-export const ROUTES: RouteMeta[] = [
+export const ROUTES: [RouteMeta, ...RouteMeta[]] = [
   {
     path: '/',
     title: 'UW Biomechatronics Design Team | BioTron',
