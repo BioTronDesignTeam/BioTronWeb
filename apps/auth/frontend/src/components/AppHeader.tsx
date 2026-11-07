@@ -13,9 +13,10 @@ export default function AppHeader() {
             className="hidden h-6 w-px bg-[#16033c]/15 sm:block dark:bg-white/20"
             aria-hidden="true"
           />
-          <span className="hidden truncate text-sm font-semibold tracking-wide text-[#16033c] sm:block dark:text-white">
+          {/* The page's one h1, read on a phone where it is not drawn. */}
+          <h1 className="sr-only truncate text-sm font-semibold tracking-wide text-[#16033c] sm:not-sr-only sm:block dark:text-white">
             Auth
-          </span>
+          </h1>
         </div>
         <AccountControls className="flex-wrap gap-3" detail={identityLine} />
       </div>

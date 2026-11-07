@@ -41,9 +41,10 @@ export default function TopBar({
             className="hidden h-6 w-px bg-[#16033c]/15 lg:block dark:bg-white/20"
             aria-hidden="true"
           />
-          <span className="hidden truncate text-sm font-semibold tracking-wide text-[#16033c] lg:block dark:text-white">
+          {/* The page's one h1, read below lg where it is not drawn. */}
+          <h1 className="sr-only truncate text-sm font-semibold tracking-wide text-[#16033c] lg:not-sr-only lg:block dark:text-white">
             {PRODUCT_NAME}
-          </span>
+          </h1>
           <MachineSelector
             machines={machines}
             selected={selectedMachine}

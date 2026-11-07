@@ -10,9 +10,10 @@ export function Header() {
             className="hidden h-6 w-px bg-ink/15 sm:block dark:bg-white/20"
             aria-hidden="true"
           />
-          <span className="hidden truncate text-sm font-semibold tracking-wide sm:block">
+          {/* The page's one h1, read on a phone where it is not drawn. */}
+          <h1 className="sr-only truncate text-sm font-semibold tracking-wide sm:not-sr-only sm:block">
             Sprinter
-          </span>
+          </h1>
         </div>
         <AccountControls className="ml-auto" />
       </div>
