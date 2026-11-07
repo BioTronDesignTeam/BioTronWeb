@@ -182,7 +182,8 @@ export function AuthScreen({
         {description && <div className="biotron-auth-card__description">{description}</div>}
         <AuthNotices notices={notices} />
         {action && <AuthActionControl action={action} />}
-        {loading && <div className="biotron-auth-loading" aria-label="Loading" />}
+        {/* Decoration: the notice above already says it is retrying. */}
+        {loading && <div className="biotron-auth-loading" aria-hidden="true" />}
         {guestAccess && (
           <>
             <div className="biotron-auth-divider">
