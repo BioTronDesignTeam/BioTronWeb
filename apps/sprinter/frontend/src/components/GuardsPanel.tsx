@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import type { Guard, GuardSubject } from '../types';
 import { cancelClass, fieldClass, panelClass, primaryClass } from './classes';
 
@@ -67,12 +67,15 @@ function GuardRow({ subject, guard, onSave, onClear }: {
 
   // The row is uncontrolled from the server's point of view between saves, but
   // a save elsewhere (or the initial load landing after this row mounted)
-  // still needs to be reflected once the guard prop actually changes.
-  useEffect(() => {
+  // still needs to be reflected once the guard prop actually changes. The
+  // fields follow it during render, as React suggests, not in an effect.
+  const [shownGuard, setShownGuard] = useState(guard);
+  if (guard !== shownGuard) {
+    setShownGuard(guard);
     setGuildId(guard?.guild_id ?? '');
     setRoleIds(idsToText(guard?.role_ids ?? []));
     setChannelIds(idsToText(guard?.channel_ids ?? []));
-  }, [guard]);
+  }
 
   async function save() {
     setError('');
