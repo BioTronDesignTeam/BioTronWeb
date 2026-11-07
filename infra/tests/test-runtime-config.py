@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Exercise real Compose interpolation and launch selection, without a daemon."""
+import base64
+import hashlib
 import json
 import os
 import re
@@ -544,6 +546,43 @@ sleep() { :; }
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('not ready: calendar-migrate (exited 1)', result.stderr)
         self.assertIn('SECRET log line of a1', self.logs())
+
+
+class ContentSecurityPolicyTests(unittest.TestCase):
+    """The edge's enforced CSP allows exactly the inline scripts the apps ship."""
+
+    def policy(self):
+        template = (ROOT / 'infra/nginx/sites/csp.template').read_text()
+        line = '\n'.join(l for l in template.splitlines() if l and not l.startswith('#'))
+        return dict((d.split()[0], d.split()[1:]) for d in line.split('; '))
+
+    def test_every_inline_script_matches_a_hash_in_the_policy(self):
+        script_src = self.policy()['script-src']
+        self.assertNotIn("'unsafe-inline'", script_src)
+        allowed = {s[len("'sha256-"):-1] for s in script_src if s.startswith("'sha256-")}
+        pages = sorted(ROOT.glob('apps/*/frontend/index.html'))
+        self.assertEqual(len(pages), 6)
+        found = set()
+        for page in pages:
+            html = page.read_bytes()
+            for attributes, body in re.findall(rb'<script([^>]*)>(.*?)</script>', html, re.S):
+                if b'src=' in attributes:
+                    continue
+                digest = base64.b64encode(hashlib.sha256(body).digest()).decode()
+                self.assertIn(digest, allowed, f'{page.relative_to(ROOT)}: an inline script '
+                              'whose hash is not in infra/nginx/sites/csp.template')
+                found.add(digest)
+        # No stale hash stays behind to allow a script nobody ships.
+        self.assertEqual(found, allowed)
+
+    def test_violations_are_reported_to_the_edge(self):
+        policy = self.policy()
+        self.assertEqual(policy['report-uri'], ['/_edge/csp-report'])
+        self.assertEqual(policy['report-to'], ['csp'])
+        nginx_conf = (ROOT / 'infra/nginx/nginx.conf').read_text()
+        self.assertIn("add_header Content-Security-Policy $csp_policy always;", nginx_conf)
+        self.assertIn('Reporting-Endpoints \'csp="/_edge/csp-report"\'', nginx_conf)
+        self.assertNotIn('Report-Only $', nginx_conf)
 
 
 class LineEndingTests(unittest.TestCase):

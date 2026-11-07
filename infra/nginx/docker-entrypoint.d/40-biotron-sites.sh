@@ -23,7 +23,7 @@ out=/etc/nginx/conf.d
 
 fail() { echo "EDGE_SITES: $*" >&2; exit 1; }
 
-policy=$(grep -v '^#' "$sites/csp-report-only.template" | grep -v '^$')
+policy=$(grep -v '^#' "$sites/csp.template" | grep -v '^$')
 csp_map=$(mktemp)
 robots_map=$(mktemp)
 rm -f "$out/default.conf"
@@ -59,7 +59,7 @@ done
 [ "$count" -gt 0 ] || fail 'name at least one instance'
 
 {
-  printf 'map $host $csp_report_only {\n    hostnames;\n    default "";\n'
+  printf 'map $host $csp_policy {\n    hostnames;\n    default "";\n'
   cat "$csp_map"
   printf '}\n\nmap $host $robots_tag {\n    hostnames;\n    default "";\n'
   cat "$robots_map"

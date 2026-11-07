@@ -229,9 +229,13 @@ writing the words again, and keep docs that quote the UI in step.
 
 - `infra/nginx` enforces a document-level CSP: `frame-ancestors 'none'`,
   `base-uri 'none'`, `object-src 'none'`, `form-action 'self'`.
-- The resource-loading CSP ships as Report-Only on purpose. Enforcing it means
-  keeping per-app script hashes for the inline theme bootstrap. Ask before you
-  enforce it.
+- The resource-loading CSP is enforced too (`infra/nginx/sites/csp.template`).
+  Its `script-src` allows same-origin bundles and one SHA-256 hash, which
+  covers the inline theme bootstrap because all five copies are
+  byte-identical. Keep them identical. An edit to the bootstrap needs the new
+  hash in the template in the same change; `infra/tests` fails until it is
+  there. Browsers report violations to `/_edge/csp-report`, which the edge
+  logs.
 - HSTS is sent only when `X-Forwarded-Proto` is `https`, because the edge
   listens on plain HTTP behind cloudflared. This was tested against a local
   stub, never against the real Cloudflare edge.
