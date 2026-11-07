@@ -41,7 +41,11 @@ func (h *Handler) createScope(w http.ResponseWriter, r *http.Request) error {
 	if len(body.Name) < 2 || len(body.Name) > 80 || body.ParentID == "" {
 		return writeJSON(w, http.StatusBadRequest, map[string]any{"error": "name and parent_id are required"})
 	}
-	parent, err := h.store.GetScope(r.Context(), body.ParentID)
+	parentID, ok := canonicalID(body.ParentID)
+	if !ok {
+		return writeJSON(w, http.StatusBadRequest, map[string]any{"error": "parent_id must be a UUID"})
+	}
+	parent, err := h.store.GetScope(r.Context(), parentID)
 	if err != nil {
 		return err
 	}
@@ -59,7 +63,6 @@ func (h *Handler) createScope(w http.ResponseWriter, r *http.Request) error {
 	if !active {
 		return writeJSON(w, http.StatusConflict, map[string]any{"error": "the selected parent belongs to an archived scope"})
 	}
-	parentID := parent.ID
 	scope, err := h.store.CreateScope(r.Context(), model.Scope{
 		Kind: body.Kind, Name: body.Name, Slug: store.Slug(body.Name), ParentID: &parentID,
 	})
@@ -83,7 +86,11 @@ func (h *Handler) renameScope(w http.ResponseWriter, r *http.Request) error {
 	if len(body.Name) < 2 || len(body.Name) > 80 {
 		return writeJSON(w, http.StatusBadRequest, map[string]any{"error": "name must be between 2 and 80 characters"})
 	}
-	scope, err := h.store.RenameScope(r.Context(), r.PathValue("id"), body.Name, store.Slug(body.Name))
+	id, err := pathID(r)
+	if err != nil {
+		return err
+	}
+	scope, err := h.store.RenameScope(r.Context(), id, body.Name, store.Slug(body.Name))
 	if err != nil {
 		return err
 	}
@@ -92,7 +99,11 @@ func (h *Handler) renameScope(w http.ResponseWriter, r *http.Request) error {
 }
 
 func (h *Handler) archiveScope(w http.ResponseWriter, r *http.Request) error {
-	scope, err := h.store.SetScopeArchived(r.Context(), r.PathValue("id"), true)
+	id, err := pathID(r)
+	if err != nil {
+		return err
+	}
+	scope, err := h.store.SetScopeArchived(r.Context(), id, true)
 	if err != nil {
 		return err
 	}
@@ -101,7 +112,11 @@ func (h *Handler) archiveScope(w http.ResponseWriter, r *http.Request) error {
 }
 
 func (h *Handler) restoreScope(w http.ResponseWriter, r *http.Request) error {
-	scope, err := h.store.GetScope(r.Context(), r.PathValue("id"))
+	id, err := pathID(r)
+	if err != nil {
+		return err
+	}
+	scope, err := h.store.GetScope(r.Context(), id)
 	if err != nil {
 		return err
 	}
@@ -125,7 +140,10 @@ func (h *Handler) restoreScope(w http.ResponseWriter, r *http.Request) error {
 func (h *Handler) deleteScope(w http.ResponseWriter, r *http.Request) error {
 	// The row is gone once the delete returns, so its id has to be read from
 	// the path.
-	scopeID := r.PathValue("id")
+	scopeID, err := pathID(r)
+	if err != nil {
+		return err
+	}
 	if err := h.store.DeleteScope(r.Context(), scopeID); err != nil {
 		return err
 	}

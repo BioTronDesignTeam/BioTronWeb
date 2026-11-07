@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/google/uuid"
+
 	"github.com/BioTronDesignTeam/BioTronWeb/apps/calendar/backend/internal/store"
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient/httplog"
 )
@@ -97,4 +99,41 @@ func decodeBody(r *http.Request, out any) error {
 		return errBadRequest
 	}
 	return nil
+}
+
+// canonicalID is value as the lower-case hyphenated UUID Postgres stores, or
+// false when it is not a UUID. A value that reached Postgres unchecked failed
+// its uuid cast and came back as a 500. uuid.Validate alone is not enough:
+// it also accepts a urn:uuid: prefix, which Postgres refuses.
+func canonicalID(value string) (string, bool) {
+	parsed, err := uuid.Parse(strings.TrimSpace(value))
+	if err != nil {
+		return "", false
+	}
+	return parsed.String(), true
+}
+
+// pathID is the {id} of a route. An id that is not a UUID names nothing, so
+// it is a 404.
+func pathID(r *http.Request) (string, error) {
+	id, ok := canonicalID(r.PathValue("id"))
+	if !ok {
+		return "", errNotFound
+	}
+	return id, nil
+}
+
+// scopeQuery is the optional ?scope_id= filter, empty when absent. It is
+// false when the value is not a UUID.
+func scopeQuery(r *http.Request) (string, bool) {
+	raw := strings.TrimSpace(r.URL.Query().Get("scope_id"))
+	if raw == "" {
+		return "", true
+	}
+	return canonicalID(raw)
+}
+
+// writeBadScope answers a ?scope_id= that is not a UUID.
+func writeBadScope(w http.ResponseWriter) error {
+	return writeJSON(w, http.StatusBadRequest, map[string]any{"error": "scope_id must be a UUID"})
 }

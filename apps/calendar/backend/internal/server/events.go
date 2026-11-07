@@ -9,8 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
-
 	calendarlogic "github.com/BioTronDesignTeam/BioTronWeb/apps/calendar/backend/internal/calendar"
 	"github.com/BioTronDesignTeam/BioTronWeb/apps/calendar/backend/internal/common"
 	"github.com/BioTronDesignTeam/BioTronWeb/apps/calendar/backend/internal/model"
@@ -35,9 +33,9 @@ func (h *Handler) listOccurrences(w http.ResponseWriter, r *http.Request) error 
 	if err != nil {
 		return writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
 	}
-	scopeID := strings.TrimSpace(r.URL.Query().Get("scope_id"))
-	if scopeID != "" && uuid.Validate(scopeID) != nil {
-		return writeJSON(w, http.StatusBadRequest, map[string]any{"error": "scope_id must be a UUID"})
+	scopeID, ok := scopeQuery(r)
+	if !ok {
+		return writeBadScope(w)
 	}
 	series, err := h.store.ListSeries(r.Context(), scopeID, false, h.window(from, to))
 	if err != nil {
@@ -164,7 +162,11 @@ func (h *Handler) window(from, to time.Time) *store.Window {
 // The editor lists the whole calendar, past and future, drafts included, so
 // this read is deliberately not windowed.
 func (h *Handler) listAdminEvents(w http.ResponseWriter, r *http.Request) error {
-	series, err := h.store.ListSeries(r.Context(), strings.TrimSpace(r.URL.Query().Get("scope_id")), true, nil)
+	scopeID, ok := scopeQuery(r)
+	if !ok {
+		return writeBadScope(w)
+	}
+	series, err := h.store.ListSeries(r.Context(), scopeID, true, nil)
 	if err != nil {
 		return err
 	}
@@ -201,7 +203,11 @@ func (h *Handler) createEvent(w http.ResponseWriter, r *http.Request) error {
 }
 
 func (h *Handler) updateEvent(w http.ResponseWriter, r *http.Request) error {
-	current, err := h.store.GetSeries(r.Context(), r.PathValue("id"))
+	id, err := pathID(r)
+	if err != nil {
+		return err
+	}
+	current, err := h.store.GetSeries(r.Context(), id)
 	if err != nil {
 		return err
 	}
@@ -262,7 +268,11 @@ func (h *Handler) updateEvent(w http.ResponseWriter, r *http.Request) error {
 }
 
 func (h *Handler) publishEvent(w http.ResponseWriter, r *http.Request) error {
-	current, err := h.store.GetSeries(r.Context(), r.PathValue("id"))
+	id, err := pathID(r)
+	if err != nil {
+		return err
+	}
+	current, err := h.store.GetSeries(r.Context(), id)
 	if err != nil {
 		return err
 	}
@@ -292,7 +302,11 @@ func (h *Handler) cancelEvent(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	event, err := h.store.CancelSeries(r.Context(), r.PathValue("id"), sequence)
+	id, err := pathID(r)
+	if err != nil {
+		return err
+	}
+	event, err := h.store.CancelSeries(r.Context(), id, sequence)
 	if err != nil {
 		return err
 	}
@@ -303,7 +317,10 @@ func (h *Handler) cancelEvent(w http.ResponseWriter, r *http.Request) error {
 func (h *Handler) deleteEvent(w http.ResponseWriter, r *http.Request) error {
 	// The row is gone once the delete returns, so its id has to be read from
 	// the path.
-	seriesID := r.PathValue("id")
+	seriesID, err := pathID(r)
+	if err != nil {
+		return err
+	}
 	deleted, err := h.store.DeleteSeries(r.Context(), seriesID)
 	if err != nil {
 		return err
@@ -314,7 +331,11 @@ func (h *Handler) deleteEvent(w http.ResponseWriter, r *http.Request) error {
 }
 
 func (h *Handler) upsertOccurrence(w http.ResponseWriter, r *http.Request) error {
-	event, err := h.store.GetSeries(r.Context(), r.PathValue("id"))
+	id, err := pathID(r)
+	if err != nil {
+		return err
+	}
+	event, err := h.store.GetSeries(r.Context(), id)
 	if err != nil {
 		return err
 	}
@@ -399,7 +420,10 @@ func (h *Handler) deleteOccurrenceOverride(w http.ResponseWriter, r *http.Reques
 	}
 	// The override is gone once the reset returns, so the series id has to be
 	// read from the path.
-	seriesID := r.PathValue("id")
+	seriesID, err := pathID(r)
+	if err != nil {
+		return err
+	}
 	if err := h.store.ResetOverride(r.Context(), seriesID, recurrenceID, expected); err != nil {
 		return err
 	}
@@ -419,6 +443,11 @@ func (h *Handler) eventFromInput(body eventInput) (model.EventSeries, error) {
 	if body.ScopeID == "" || len(body.Title) < 2 || len(body.Title) > 160 {
 		return model.EventSeries{}, errors.New("scope_id and a title between 2 and 160 characters are required")
 	}
+	scopeID, ok := canonicalID(body.ScopeID)
+	if !ok {
+		return model.EventSeries{}, errors.New("scope_id must be a UUID")
+	}
+	body.ScopeID = scopeID
 	if len(body.Description) > 5000 || len(body.Location) > 300 || len(body.URL) > 1000 {
 		return model.EventSeries{}, errors.New("one or more event fields are too long")
 	}
