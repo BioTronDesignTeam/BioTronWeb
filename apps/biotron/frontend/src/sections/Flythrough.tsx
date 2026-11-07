@@ -73,9 +73,7 @@ export default function Flythrough() {
               <span className="line">Welcome to</span>
               <span className="line accent">Biotron.</span>
             </h1>
-            <p className="flythrough__lead">
-              Scroll through our workshop.
-            </p>
+            <p className="flythrough__lead">Scroll through our workshop.</p>
             <div className="flythrough__cta">
               <ActionButton onClick={() => jumpToStop('exo')} variant="primary">
                 Explore projects <ArrowUpRight size={18} />

@@ -1,9 +1,22 @@
 import { friendlyError } from '@biotron/style';
-import type { Automation, AutomationPayload, Guard, GuardSubject, Scope, SprinterStatus } from './types';
+import type {
+  Automation,
+  AutomationPayload,
+  Guard,
+  GuardSubject,
+  Scope,
+  SprinterStatus,
+} from './types';
 
 export const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8084').replace(/\/$/, '');
-export const AUTH_URL = (import.meta.env.VITE_AUTH_URL || 'http://localhost:8080').replace(/\/$/, '');
-export const CALENDAR_URL = (import.meta.env.VITE_CALENDAR_URL || 'http://localhost:8083').replace(/\/$/, '');
+export const AUTH_URL = (import.meta.env.VITE_AUTH_URL || 'http://localhost:8080').replace(
+  /\/$/,
+  '',
+);
+export const CALENDAR_URL = (import.meta.env.VITE_CALENDAR_URL || 'http://localhost:8083').replace(
+  /\/$/,
+  '',
+);
 
 // Told when an admin request answers 401, so the session is re-checked and
 // the page can say it expired instead of showing the raw refusal.
@@ -46,15 +59,30 @@ async function request<T>(path: string, init: RequestInit = {}, authenticated = 
 export const sprinterApi = {
   status: () => request<SprinterStatus>('/v1/auth/status', {}, true),
   guards: () => request<Guard[]>('/v1/admin/guards', {}, true),
-  saveGuard: (subject: GuardSubject, body: { guild_id: string; role_ids: string[]; channel_ids: string[] }) =>
-    request<Guard>(`/v1/admin/guards/${subject}`, { method: 'PUT', body: JSON.stringify(body) }, true),
+  saveGuard: (
+    subject: GuardSubject,
+    body: { guild_id: string; role_ids: string[]; channel_ids: string[] },
+  ) =>
+    request<Guard>(
+      `/v1/admin/guards/${subject}`,
+      { method: 'PUT', body: JSON.stringify(body) },
+      true,
+    ),
   clearGuard: (subject: GuardSubject) =>
     request<void>(`/v1/admin/guards/${subject}`, { method: 'DELETE' }, true),
   automations: () => request<Automation[]>('/v1/admin/automations', {}, true),
   createAutomation: (body: AutomationPayload) =>
-    request<Automation>('/v1/admin/automations', { method: 'POST', body: JSON.stringify(body) }, true),
+    request<Automation>(
+      '/v1/admin/automations',
+      { method: 'POST', body: JSON.stringify(body) },
+      true,
+    ),
   updateAutomation: (id: string, body: Partial<AutomationPayload>) =>
-    request<Automation>(`/v1/admin/automations/${id}`, { method: 'PATCH', body: JSON.stringify(body) }, true),
+    request<Automation>(
+      `/v1/admin/automations/${id}`,
+      { method: 'PATCH', body: JSON.stringify(body) },
+      true,
+    ),
   deleteAutomation: (id: string) =>
     request<void>(`/v1/admin/automations/${id}`, { method: 'DELETE' }, true),
   // The Calendar scopes list is public and unauthenticated, and lives on a
@@ -66,4 +94,3 @@ export const sprinterApi = {
     return response.json() as Promise<Scope[]>;
   },
 };
-

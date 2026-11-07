@@ -36,7 +36,10 @@ export default function SplitText({
   const reduced = useReducedMotion();
 
   // A token is identified by its place in the text, which never reorders.
-  const tokens = (by === 'word' ? text.split(' ') : Array.from(text)).map((value, at) => ({ value, key: `${at}:${value}` }));
+  const tokens = (by === 'word' ? text.split(' ') : Array.from(text)).map((value, at) => ({
+    value,
+    key: `${at}:${value}`,
+  }));
 
   useGSAP(
     () => {
@@ -53,11 +56,7 @@ export default function SplitText({
         // holds a compositor layer for every word for the life of the page.
         onStart: () => parts.forEach((part) => (part.style.willChange = 'transform')),
         onComplete: () => parts.forEach((part) => (part.style.willChange = '')),
-        ...(trigger
-          ? {
-              scrollTrigger: { trigger: ref.current, start: 'top 85%' },
-            }
-          : {}),
+        ...(trigger ? { scrollTrigger: { trigger: ref.current, start: 'top 85%' } } : {}),
       });
     },
     { scope: ref, dependencies: [reduced, text] },

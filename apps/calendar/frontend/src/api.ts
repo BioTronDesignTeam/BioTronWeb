@@ -2,7 +2,10 @@ import { friendlyError } from '@biotron/style';
 import type { EventOverride, EventPayload, EventSeries, Occurrence, Scope } from './types';
 
 export const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8083').replace(/\/$/, '');
-export const AUTH_URL = (import.meta.env.VITE_AUTH_URL || 'http://localhost:8080').replace(/\/$/, '');
+export const AUTH_URL = (import.meta.env.VITE_AUTH_URL || 'http://localhost:8080').replace(
+  /\/$/,
+  '',
+);
 
 // Told when an editor request answers 401, so the session is re-checked and
 // the page can say it expired instead of showing the raw refusal.
@@ -50,7 +53,11 @@ export const calendarApi = {
   createScope: (body: { kind: 'PROJECT' | 'SUBTEAM'; name: string; parent_id: string }) =>
     request<Scope>('/v1/admin/scopes', { method: 'POST', body: JSON.stringify(body) }, true),
   renameScope: (id: string, name: string) =>
-    request<Scope>(`/v1/admin/scopes/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) }, true),
+    request<Scope>(
+      `/v1/admin/scopes/${id}`,
+      { method: 'PATCH', body: JSON.stringify({ name }) },
+      true,
+    ),
   archiveScope: (id: string) =>
     request<Scope>(`/v1/admin/scopes/${id}/archive`, { method: 'POST', body: '{}' }, true),
   restoreScope: (id: string) =>
@@ -59,30 +66,51 @@ export const calendarApi = {
   createEvent: (body: EventPayload) =>
     request<EventSeries>('/v1/admin/events', { method: 'POST', body: JSON.stringify(body) }, true),
   updateEvent: (id: string, body: EventPayload) =>
-    request<EventSeries>(`/v1/admin/events/${id}`, { method: 'PATCH', body: JSON.stringify(body) }, true),
+    request<EventSeries>(
+      `/v1/admin/events/${id}`,
+      { method: 'PATCH', body: JSON.stringify(body) },
+      true,
+    ),
   publishEvent: (id: string, expectedSequence: number) =>
-    request<EventSeries>(`/v1/admin/events/${id}/publish`, {
-      method: 'POST', body: JSON.stringify({ expected_sequence: expectedSequence }),
-    }, true),
+    request<EventSeries>(
+      `/v1/admin/events/${id}/publish`,
+      { method: 'POST', body: JSON.stringify({ expected_sequence: expectedSequence }) },
+      true,
+    ),
   cancelEvent: (id: string, expectedSequence: number) =>
-    request<EventSeries>(`/v1/admin/events/${id}/cancel`, {
-      method: 'POST', body: JSON.stringify({ expected_sequence: expectedSequence }),
-    }, true),
+    request<EventSeries>(
+      `/v1/admin/events/${id}/cancel`,
+      { method: 'POST', body: JSON.stringify({ expected_sequence: expectedSequence }) },
+      true,
+    ),
   deleteEvent: (id: string) => request<void>(`/v1/admin/events/${id}`, { method: 'DELETE' }, true),
   updateOccurrence: (
     id: string,
-    body: { recurrence_id_local: string; state: 'MODIFIED' | 'CANCELLED'; patch: Record<string, string | null>; expected_sequence: number },
-  ) => request<EventOverride>(`/v1/admin/events/${id}/occurrences`, {
-    method: 'PUT', body: JSON.stringify(body),
-  }, true),
+    body: {
+      recurrence_id_local: string;
+      state: 'MODIFIED' | 'CANCELLED';
+      patch: Record<string, string | null>;
+      expected_sequence: number;
+    },
+  ) =>
+    request<EventOverride>(
+      `/v1/admin/events/${id}/occurrences`,
+      { method: 'PUT', body: JSON.stringify(body) },
+      true,
+    ),
   resetOccurrence: (id: string, recurrenceId: string, expectedSequence: number) => {
-    const query = new URLSearchParams({ recurrence_id_local: recurrenceId, expected_sequence: String(expectedSequence) });
+    const query = new URLSearchParams({
+      recurrence_id_local: recurrenceId,
+      expected_sequence: String(expectedSequence),
+    });
     return request<void>(`/v1/admin/events/${id}/occurrences?${query}`, { method: 'DELETE' }, true);
   },
 };
 
 export function feedURL(scopeId?: string) {
-  const path = scopeId ? `${API_URL}/v1/feeds/scopes/${scopeId}.ics` : `${API_URL}/v1/feeds/all.ics`;
+  const path = scopeId
+    ? `${API_URL}/v1/feeds/scopes/${scopeId}.ics`
+    : `${API_URL}/v1/feeds/all.ics`;
   // Deployed API bases can be relative ("/api"), but a subscription address
   // must work outside this page, in the clipboard and in calendar apps.
   return new URL(path, window.location.origin).href;

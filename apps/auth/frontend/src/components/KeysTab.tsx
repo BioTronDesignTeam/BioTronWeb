@@ -54,10 +54,10 @@ export default function KeysTab({
       <div className={panelHeader}>
         <h2 className={panelHeading}>Daily guest keys</h2>
         <p className={`mt-1 ${mutedText}`}>
-          Each tool that admits guests has its own daily guest key, which rotates at Eastern midnight.
-          A guest who signs in with a tool&apos;s key gets that tool&apos;s Live and
-          Historical permissions until the key rotates, and nothing else. Rotate a key early to
-          sign out every guest who used it.
+          Each tool that admits guests has its own daily guest key, which rotates at Eastern
+          midnight. A guest who signs in with a tool&apos;s key gets that tool&apos;s Live and
+          Historical permissions until the key rotates, and nothing else. Rotate a key early to sign
+          out every guest who used it.
         </p>
       </div>
       {dailyKeys.length === 0 ? (
@@ -81,14 +81,20 @@ export default function KeysTab({
                     // 375px column once the tracking and size come down.
                     className="mt-3 font-mono text-base tracking-[0.12em] break-all text-slate-900 sm:text-lg sm:tracking-[0.16em] dark:text-white"
                     aria-label={
-                      revealed ? `${key.app_name} daily guest key ${key.key}` : `${key.app_name} daily guest key hidden`
+                      revealed
+                        ? `${key.app_name} daily guest key ${key.key}`
+                        : `${key.app_name} daily guest key hidden`
                     }
                   >
                     {revealed ? key.key : hiddenKey}
                   </p>
                 </div>
                 <div className="grid grid-cols-2 gap-2 sm:flex">
-                  <button type="button" onClick={() => onToggle(key.app_id)} className={secondaryButton}>
+                  <button
+                    type="button"
+                    onClick={() => onToggle(key.app_id)}
+                    className={secondaryButton}
+                  >
                     {revealed ? 'Hide' : 'Reveal'}
                   </button>
                   <button type="button" onClick={() => onCopy(key)} className={primaryButton}>
@@ -116,18 +122,26 @@ export default function KeysTab({
       >
         {pending && (
           <>
-            <p id="rotate-key-title" className="text-sm font-semibold text-slate-900 dark:text-white">
+            <p
+              id="rotate-key-title"
+              className="text-sm font-semibold text-slate-900 dark:text-white"
+            >
               Rotate today&apos;s {pending.app_name} daily guest key?
             </p>
             <p id="rotate-key-detail" className={`mt-1 ${mutedText}`}>
               Every guest signed in with the current key is signed out at their next request, and
-              the current key stops working. Share the new key with the guests who should keep using {pending.app_name}.
+              the current key stops working. Share the new key with the guests who should keep using{' '}
+              {pending.app_name}.
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               <button type="button" onClick={rotate} className={dangerButton}>
                 Rotate
               </button>
-              <button type="button" onClick={() => setPending(null)} className={compactSecondaryButton}>
+              <button
+                type="button"
+                onClick={() => setPending(null)}
+                className={compactSecondaryButton}
+              >
                 Cancel
               </button>
             </div>

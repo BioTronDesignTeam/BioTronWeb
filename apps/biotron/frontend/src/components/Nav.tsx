@@ -36,7 +36,9 @@ export default function Nav() {
   useEffect(() => {
     if (!open) return;
     const narrow = window.matchMedia('(max-width: 860px)');
-    const onChange = () => { if (!narrow.matches) setOpen(false); };
+    const onChange = () => {
+      if (!narrow.matches) setOpen(false);
+    };
     narrow.addEventListener('change', onChange);
     return () => narrow.removeEventListener('change', onChange);
   }, [open]);
@@ -62,7 +64,12 @@ export default function Nav() {
   return (
     <header className={`nav ${scrolled ? 'nav--scrolled' : ''}`}>
       <div className="nav__inner container-wide">
-        <Link to="/" className="nav__brand" aria-label="Biotron home" onClick={() => setOpen(false)}>
+        <Link
+          to="/"
+          className="nav__brand"
+          aria-label="Biotron home"
+          onClick={() => setOpen(false)}
+        >
           <Brand label="" className="nav__logo" aria-hidden="true" />
         </Link>
 

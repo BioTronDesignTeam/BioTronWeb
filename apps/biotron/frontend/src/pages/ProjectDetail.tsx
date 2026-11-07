@@ -25,7 +25,7 @@ export default function ProjectDetail() {
   return (
     <main id="main" className="detail" style={{ ['--card-accent' as string]: project.accentHex }}>
       <PageMeta path={`/projects/${project.slug}`} />
-      <div className="container detail__top">
+      <div className="detail__top container">
         <Link to="/projects" className="detail__back">
           <ArrowLeft size={16} /> All projects
         </Link>
@@ -35,9 +35,7 @@ export default function ProjectDetail() {
         <div className="detail__intro">
           <span className="mono-label">{project.status}</span>
           <SplitText as="h1" className="detail__title" text={project.name} by="char" />
-          <p className="detail__tagline">
-            {project.tagline}
-          </p>
+          <p className="detail__tagline">{project.tagline}</p>
           <p className="detail__blurb">{project.blurb}</p>
           <div className="detail__specs">
             {project.specs.map((sp) => (

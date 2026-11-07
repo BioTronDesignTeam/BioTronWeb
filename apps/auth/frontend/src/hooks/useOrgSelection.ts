@@ -7,11 +7,7 @@ import { type Grant, memberGrants } from '../api';
  * Keeping the three in a reducer means that cascade is described once instead
  * of being re-implemented at every call site that changes part of it.
  */
-export type OrgSelection = {
-  memberId: number | null;
-  appId: string;
-  permissionKey: string;
-};
+export type OrgSelection = { memberId: number | null; appId: string; permissionKey: string };
 
 type Action =
   | { type: 'select-member'; memberId: number }
@@ -39,7 +35,10 @@ export function useOrgSelection() {
 
   return {
     selection,
-    selectMember: useCallback((memberId: number) => dispatch({ type: 'select-member', memberId }), []),
+    selectMember: useCallback(
+      (memberId: number) => dispatch({ type: 'select-member', memberId }),
+      [],
+    ),
     selectApp: useCallback((appId: string) => dispatch({ type: 'select-app', appId }), []),
     selectPermission: useCallback(
       (permissionKey: string) => dispatch({ type: 'select-permission', permissionKey }),

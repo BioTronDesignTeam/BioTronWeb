@@ -21,7 +21,8 @@ export const ROUTES: [RouteMeta, ...RouteMeta[]] = [
   {
     path: '/',
     title: 'UW Biomechatronics Design Team | BioTron',
-    description: 'We are a University of Waterloo student team building exoskeletons, EMG wearables, and assistive devices.',
+    description:
+      'We are a University of Waterloo student team building exoskeletons, EMG wearables, and assistive devices.',
   },
   {
     path: '/projects',
@@ -36,7 +37,8 @@ export const ROUTES: [RouteMeta, ...RouteMeta[]] = [
   {
     path: '/join',
     title: 'Join | BioTron',
-    description: 'Join the Biotron Discord, come to any meeting, then finish your sub-team onboarding in Notion.',
+    description:
+      'Join the Biotron Discord, come to any meeting, then finish your sub-team onboarding in Notion.',
   },
   {
     path: '/sponsors',
@@ -46,7 +48,8 @@ export const ROUTES: [RouteMeta, ...RouteMeta[]] = [
   {
     path: '/calendar',
     title: 'Calendar | BioTron',
-    description: 'See upcoming Biotron meetings and subscribe to team, project, or subteam calendars.',
+    description:
+      'See upcoming Biotron meetings and subscribe to team, project, or subteam calendars.',
   },
 ];
 

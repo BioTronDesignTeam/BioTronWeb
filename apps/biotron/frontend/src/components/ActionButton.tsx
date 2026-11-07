@@ -22,7 +22,7 @@ export default function ActionButton({
   accent,
 }: ActionButtonProps) {
   const cls = `actionbtn actionbtn--${variant} ${className}`;
-  const style = accent ? ({ ['--btn-accent' as string]: accent }) : undefined;
+  const style = accent ? { ['--btn-accent' as string]: accent } : undefined;
   const inner = <span className="actionbtn__inner">{children}</span>;
   const shared = { className: cls, style, onClick };
 

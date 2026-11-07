@@ -17,7 +17,7 @@ export default function OrgMemberList({
   onSelect: (memberId: number) => void;
 }) {
   return (
-    <div className="border-b border-slate-200 lg:border-b-0 lg:border-r dark:border-white/10">
+    <div className="border-b border-slate-200 lg:border-r lg:border-b-0 dark:border-white/10">
       <div className="border-b border-slate-200 px-4 py-4 dark:border-white/10">
         <h2 className={panelHeading}>Members</h2>
       </div>
@@ -32,7 +32,7 @@ export default function OrgMemberList({
               <button
                 type="button"
                 onClick={() => onSelect(member.github_id)}
-                className={`flex w-full min-h-11 items-center gap-3 px-4 py-3 text-left transition ${
+                className={`flex min-h-11 w-full items-center gap-3 px-4 py-3 text-left transition ${
                   selectedMemberId === member.github_id
                     ? 'bg-slate-100 dark:bg-surface-2'
                     : 'hover:bg-slate-50 dark:hover:bg-surface-2/50'

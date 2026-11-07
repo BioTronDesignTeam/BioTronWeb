@@ -16,8 +16,14 @@ interface CalendarOccurrence {
   all_day: boolean;
 }
 
-const CALENDAR_API_URL = (import.meta.env.VITE_CALENDAR_API_URL || 'http://localhost:8083').replace(/\/$/, '');
-const CALENDAR_URL = (import.meta.env.VITE_CALENDAR_URL || 'http://localhost:5176').replace(/\/$/, '');
+const CALENDAR_API_URL = (import.meta.env.VITE_CALENDAR_API_URL || 'http://localhost:8083').replace(
+  /\/$/,
+  '',
+);
+const CALENDAR_URL = (import.meta.env.VITE_CALENDAR_URL || 'http://localhost:5176').replace(
+  /\/$/,
+  '',
+);
 const TORONTO_TIMEZONE = 'America/Toronto';
 
 /** How many upcoming occurrences to show, and how far ahead to look. */
@@ -39,7 +45,12 @@ const TIME_FORMAT = new Intl.DateTimeFormat('en-CA', {
 
 /** The weekday, the day of the month, and the month, as the card's date block stacks them. */
 function eventDay(occurrence: CalendarOccurrence) {
-  const parts = Object.fromEntries(DATE_FORMAT.formatToParts(new Date(occurrence.starts_at)).map((part) => [part.type, part.value]));
+  const parts = Object.fromEntries(
+    DATE_FORMAT.formatToParts(new Date(occurrence.starts_at)).map((part) => [
+      part.type,
+      part.value,
+    ]),
+  );
   return { weekday: parts.weekday, day: parts.day, month: parts.month };
 }
 
@@ -119,7 +130,7 @@ export default function CalendarPage() {
   return (
     <main id="main" className="calendarpage">
       <PageMeta path="/calendar" />
-      <div className="container calendarpage__inner">
+      <div className="calendarpage__inner container">
         <section className="calendarpage__intro">
           <div className="calendarpage__icon" aria-hidden="true">
             <CalendarDays size={28} />
@@ -158,7 +169,10 @@ export default function CalendarPage() {
                 const day = eventDay(event);
                 return (
                   // A row carries four things: the day, the title, the start time, and the place.
-                  <li key={`${event.series_id}-${event.recurrence_id_local}`} className="calendarpage__event">
+                  <li
+                    key={`${event.series_id}-${event.recurrence_id_local}`}
+                    className="calendarpage__event"
+                  >
                     <time dateTime={event.starts_at} className="calendarpage__date">
                       <span className="calendarpage__weekday">{day.weekday}</span>
                       <span className="calendarpage__day tabular">{day.day}</span>

@@ -67,12 +67,18 @@ describe('torontoLocalInput and torontoClock', () => {
   it('read an instant on the Toronto wall clock in both seasons', () => {
     expect(torontoLocalInput(new Date('2026-07-01T16:05:00Z'))).toBe('2026-07-01T12:05');
     expect(torontoLocalInput(new Date('2026-01-15T17:30:00Z'))).toBe('2026-01-15T12:30');
-    expect(torontoClock(new Date('2026-07-01T16:05:00Z'))).toEqual({ key: '2026-07-01', minutes: 12 * 60 + 5 });
+    expect(torontoClock(new Date('2026-07-01T16:05:00Z'))).toEqual({
+      key: '2026-07-01',
+      minutes: 12 * 60 + 5,
+    });
   });
 
   it('use the 24-hour clock at midnight', () => {
     expect(torontoLocalInput(new Date('2026-01-16T05:00:00Z'))).toBe('2026-01-16T00:00');
-    expect(torontoClock(new Date('2026-01-16T05:00:00Z'))).toEqual({ key: '2026-01-16', minutes: 0 });
+    expect(torontoClock(new Date('2026-01-16T05:00:00Z'))).toEqual({
+      key: '2026-01-16',
+      minutes: 0,
+    });
   });
 });
 
@@ -113,7 +119,13 @@ describe('viewDays and viewRange', () => {
   it('draw one day, a Sunday-to-Saturday week, or the month grid', () => {
     expect(keys(viewDays('day', day('2026-11-04')))).toEqual(['2026-11-04']);
     expect(keys(viewDays('week', day('2026-11-04')))).toEqual([
-      '2026-11-01', '2026-11-02', '2026-11-03', '2026-11-04', '2026-11-05', '2026-11-06', '2026-11-07',
+      '2026-11-01',
+      '2026-11-02',
+      '2026-11-03',
+      '2026-11-04',
+      '2026-11-05',
+      '2026-11-06',
+      '2026-11-07',
     ]);
   });
 

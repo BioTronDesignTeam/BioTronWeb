@@ -53,7 +53,9 @@ export default function Footer() {
       </div>
 
       <div className="container-wide footer__base">
-        <span>© {new Date().getFullYear()} {CONTACT.org}</span>
+        <span>
+          © {new Date().getFullYear()} {CONTACT.org}
+        </span>
         <span className="mono-label">Waterloo, ON · Canada</span>
       </div>
     </footer>

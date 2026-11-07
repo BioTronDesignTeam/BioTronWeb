@@ -20,9 +20,15 @@ import { NOT_FOUND_META, ROUTES, SITE_NAME, absoluteUrl, type RouteMeta } from '
 const START = '<!--seo:start-->';
 const END = '<!--seo:end-->';
 /** public/og.png. Rebuild it from og-image.html beside this file. */
-const OG_IMAGE = { path: '/og.png', width: 1200, height: 630, alt: 'BioTron, the University of Waterloo biomechatronics design team' };
+const OG_IMAGE = {
+  path: '/og.png',
+  width: 1200,
+  height: 630,
+  alt: 'BioTron, the University of Waterloo biomechatronics design team',
+};
 
-const escape = (value: string) => value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const escape = (value: string) =>
+  value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 interface HeadOptions {
   siteUrl: string;
@@ -38,7 +44,9 @@ function headBlock({ siteUrl, title, description, path, googleVerification }: He
   const lines = [
     `<title>${escape(title)}</title>`,
     `<meta name="description" content="${escape(description)}" />`,
-    url ? `<link rel="canonical" href="${escape(url)}" />` : '<meta name="robots" content="noindex" />',
+    url
+      ? `<link rel="canonical" href="${escape(url)}" />`
+      : '<meta name="robots" content="noindex" />',
     `<meta property="og:site_name" content="${SITE_NAME}" />`,
     '<meta property="og:type" content="website" />',
     url && `<meta property="og:url" content="${escape(url)}" />`,
@@ -49,13 +57,17 @@ function headBlock({ siteUrl, title, description, path, googleVerification }: He
     `<meta property="og:image:height" content="${OG_IMAGE.height}" />`,
     `<meta property="og:image:alt" content="${escape(OG_IMAGE.alt)}" />`,
     '<meta name="twitter:card" content="summary_large_image" />',
-    googleVerification && path === '/' && `<meta name="google-site-verification" content="${escape(googleVerification)}" />`,
+    googleVerification &&
+      path === '/' &&
+      `<meta name="google-site-verification" content="${escape(googleVerification)}" />`,
   ];
   return [START, ...lines.filter(Boolean), END].join('\n    ');
 }
 
 function sitemap(siteUrl: string, routes: RouteMeta[]) {
-  const urls = routes.map((route) => `  <url><loc>${escape(absoluteUrl(siteUrl, route.path))}</loc></url>`);
+  const urls = routes.map(
+    (route) => `  <url><loc>${escape(absoluteUrl(siteUrl, route.path))}</loc></url>`,
+  );
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join('\n')}\n</urlset>\n`;
 }
 
@@ -68,7 +80,10 @@ function llms(siteUrl: string, routes: RouteMeta[]) {
   const home = routes.find((route) => route.path === '/');
   const pages = routes
     .filter((route) => route.path !== '/')
-    .map((route) => `- [${route.title.replace(/ \| BioTron$/, '')}](${absoluteUrl(siteUrl, route.path)}): ${route.description}`);
+    .map(
+      (route) =>
+        `- [${route.title.replace(/ \| BioTron$/, '')}](${absoluteUrl(siteUrl, route.path)}): ${route.description}`,
+    );
   return [
     `# ${SITE_NAME}`,
     '',
@@ -112,7 +127,10 @@ export function seoPages(): Plugin {
       const outDir = join(config.root, config.build.outDir);
       const template = await readFile(join(outDir, 'index.html'), 'utf8');
       const block = new RegExp(`${START}[\\s\\S]*?${END}`);
-      if (!block.test(template)) throw new Error('index.html lost its <!--seo--> marker, so no page would get its own tags.');
+      if (!block.test(template))
+        throw new Error(
+          'index.html lost its <!--seo--> marker, so no page would get its own tags.',
+        );
       const page = (options: Omit<HeadOptions, 'siteUrl' | 'googleVerification'>) =>
         template.replace(block, () => headBlock({ siteUrl, googleVerification, ...options }));
 
@@ -120,7 +138,8 @@ export function seoPages(): Plugin {
         await mkdir(dirname(join(outDir, file)), { recursive: true });
         await writeFile(join(outDir, file), contents);
       };
-      for (const route of ROUTES.slice(1)) await write(`${route.path.slice(1)}/index.html`, page(route));
+      for (const route of ROUTES.slice(1))
+        await write(`${route.path.slice(1)}/index.html`, page(route));
       await write('404.html', page(NOT_FOUND_META));
       await write('sitemap.xml', sitemap(siteUrl, ROUTES));
       await write('robots.txt', robots(siteUrl));

@@ -43,11 +43,7 @@ export const authStrings = {
 
 export type Role = 'Superuser' | 'Manager' | 'Member' | 'Guest';
 
-type RoleFlags = {
-  is_superuser?: boolean;
-  is_manager?: boolean;
-  is_guest?: boolean;
-};
+type RoleFlags = { is_superuser?: boolean; is_manager?: boolean; is_guest?: boolean };
 
 /** The one role a person holds, highest first. "Staff" is a code word only. */
 export function roleOf(person: RoleFlags): Role {
@@ -75,8 +71,8 @@ export function friendlyError(status: number, message?: string): string {
     return authStrings.expired;
   }
   if (
-    status === 403
-    && ['', 'http 403', 'permission required', 'x-requested-with header required'].includes(lowered)
+    status === 403 &&
+    ['', 'http 403', 'permission required', 'x-requested-with header required'].includes(lowered)
   ) {
     return authStrings.forbidden;
   }

@@ -26,7 +26,8 @@ function addWallClockMs(local: string, milliseconds: number) {
 // change and must stay out of the patch, or the occurrence silently stops
 // following later series-wide edits.
 function seriesBaseline(occurrence: Occurrence, series: EventSeries) {
-  const duration = wallClock(series.ends_at_local).getTime() - wallClock(series.starts_at_local).getTime();
+  const duration =
+    wallClock(series.ends_at_local).getTime() - wallClock(series.starts_at_local).getTime();
   const start = `${occurrence.recurrence_id_local.slice(0, 19)}`;
   return {
     title: series.title,
@@ -40,9 +41,16 @@ function seriesBaseline(occurrence: Occurrence, series: EventSeries) {
 
 type PatchFields = ReturnType<typeof seriesBaseline>;
 
-const inputClass = 'mt-1 min-h-11 w-full rounded-xl border border-ink/15 bg-transparent px-3 py-2 text-sm outline-none focus:border-brand dark:border-line-strong dark:bg-surface-deep dark:focus:border-link';
+const inputClass =
+  'mt-1 min-h-11 w-full rounded-xl border border-ink/15 bg-transparent px-3 py-2 text-sm outline-none focus:border-brand dark:border-line-strong dark:bg-surface-deep dark:focus:border-link';
 
-export function OccurrenceEditor({ occurrence, series, onClose, onSave, onReset }: OccurrenceEditorProps) {
+export function OccurrenceEditor({
+  occurrence,
+  series,
+  onClose,
+  onSave,
+  onReset,
+}: OccurrenceEditorProps) {
   const [title, setTitle] = useState(occurrence.title);
   const [description, setDescription] = useState(occurrence.description);
   const [location, setLocation] = useState(occurrence.location);
@@ -109,23 +117,110 @@ export function OccurrenceEditor({ occurrence, series, onClose, onSave, onReset 
   return (
     <Modal title="Edit this occurrence" onClose={onClose} wide>
       <p className="mb-5 text-sm leading-6 text-ink/65 dark:text-muted">
-        This changes only the selected meeting. The rest of the weekly series keeps its normal schedule, and any field you leave matching the series keeps following later series-wide edits.
+        This changes only the selected meeting. The rest of the weekly series keeps its normal
+        schedule, and any field you leave matching the series keeps following later series-wide
+        edits.
       </p>
       <form onSubmit={(formEvent) => void submit(formEvent)}>
         <div className="grid gap-4 sm:grid-cols-2">
-          <label className="sm:col-span-2"><span className="text-sm font-semibold">Title</span><input required value={title} onChange={(e) => setTitle(e.target.value)} className={inputClass} /></label>
-          <label><span className="text-sm font-semibold">Starts</span><input required type={occurrence.all_day ? 'date' : 'datetime-local'} value={occurrence.all_day ? startsAt.slice(0, 10) : startsAt} onChange={(e) => setStartsAt(occurrence.all_day ? `${e.target.value}T00:00` : e.target.value)} className={inputClass} /></label>
-          <label><span className="text-sm font-semibold">{occurrence.all_day ? 'Ends (inclusive)' : 'Ends'}</span><input required type={occurrence.all_day ? 'date' : 'datetime-local'} min={occurrence.all_day ? startsAt.slice(0, 10) : undefined} value={occurrence.all_day ? addLocalDays(endsAt.slice(0, 10), -1) : endsAt} onChange={(e) => setEndsAt(occurrence.all_day ? `${addLocalDays(e.target.value, 1)}T00:00` : e.target.value)} className={inputClass} /></label>
-          <label><span className="text-sm font-semibold">Location</span><input value={location} onChange={(e) => setLocation(e.target.value)} className={inputClass} /></label>
-          <label><span className="text-sm font-semibold">Event link</span><input type="url" value={url} onChange={(e) => setURL(e.target.value)} className={inputClass} /></label>
-          <label className="sm:col-span-2"><span className="text-sm font-semibold">Description</span><textarea rows={4} value={description} onChange={(e) => setDescription(e.target.value)} className={`${inputClass} resize-y`} /></label>
+          <label className="sm:col-span-2">
+            <span className="text-sm font-semibold">Title</span>
+            <input
+              required
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className={inputClass}
+            />
+          </label>
+          <label>
+            <span className="text-sm font-semibold">Starts</span>
+            <input
+              required
+              type={occurrence.all_day ? 'date' : 'datetime-local'}
+              value={occurrence.all_day ? startsAt.slice(0, 10) : startsAt}
+              onChange={(e) =>
+                setStartsAt(occurrence.all_day ? `${e.target.value}T00:00` : e.target.value)
+              }
+              className={inputClass}
+            />
+          </label>
+          <label>
+            <span className="text-sm font-semibold">
+              {occurrence.all_day ? 'Ends (inclusive)' : 'Ends'}
+            </span>
+            <input
+              required
+              type={occurrence.all_day ? 'date' : 'datetime-local'}
+              min={occurrence.all_day ? startsAt.slice(0, 10) : undefined}
+              value={occurrence.all_day ? addLocalDays(endsAt.slice(0, 10), -1) : endsAt}
+              onChange={(e) =>
+                setEndsAt(
+                  occurrence.all_day ? `${addLocalDays(e.target.value, 1)}T00:00` : e.target.value,
+                )
+              }
+              className={inputClass}
+            />
+          </label>
+          <label>
+            <span className="text-sm font-semibold">Location</span>
+            <input
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              className={inputClass}
+            />
+          </label>
+          <label>
+            <span className="text-sm font-semibold">Event link</span>
+            <input
+              type="url"
+              value={url}
+              onChange={(e) => setURL(e.target.value)}
+              className={inputClass}
+            />
+          </label>
+          <label className="sm:col-span-2">
+            <span className="text-sm font-semibold">Description</span>
+            <textarea
+              rows={4}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className={`${inputClass} resize-y`}
+            />
+          </label>
         </div>
-        {error && <p className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800 dark:bg-red-950/30 dark:text-red-200">{error}</p>}
+        {error && (
+          <p className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800 dark:bg-red-950/30 dark:text-red-200">
+            {error}
+          </p>
+        )}
         <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-between">
-          <div>{occurrence.modified && <button type="button" disabled={saving} onClick={() => void reset()} className="min-h-11 rounded-full px-4 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50 dark:text-red-300 dark:hover:bg-red-950/30">Reset to series</button>}</div>
+          <div>
+            {occurrence.modified && (
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => void reset()}
+                className="min-h-11 rounded-full px-4 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50 dark:text-red-300 dark:hover:bg-red-950/30"
+              >
+                Reset to series
+              </button>
+            )}
+          </div>
           <div className="flex flex-col-reverse gap-2 sm:flex-row">
-            <button type="button" onClick={onClose} className="min-h-11 rounded-full px-5 text-sm font-semibold hover:bg-soft/25 dark:hover:bg-white/10">Cancel</button>
-            <button type="submit" disabled={saving} className="min-h-11 rounded-full bg-deep px-5 text-sm font-semibold text-white hover:bg-brand dark:bg-brand dark:hover:brightness-110 disabled:opacity-50">Save occurrence</button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="min-h-11 rounded-full px-5 text-sm font-semibold hover:bg-soft/25 dark:hover:bg-white/10"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="min-h-11 rounded-full bg-deep px-5 text-sm font-semibold text-white hover:bg-brand disabled:opacity-50 dark:bg-brand dark:hover:brightness-110"
+            >
+              Save occurrence
+            </button>
           </div>
         </div>
       </form>

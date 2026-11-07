@@ -23,25 +23,31 @@ type PendingAction = 'ban' | 'make-manager' | 'remove-manager';
  * that say what will happen, before it runs. Unban only restores what a ban
  * took away and stays a single click.
  */
-function consequence(action: PendingAction, member: OrgMember): { title: string; detail: string; confirm: string } {
+function consequence(
+  action: PendingAction,
+  member: OrgMember,
+): { title: string; detail: string; confirm: string } {
   const who = `@${member.login}`;
   switch (action) {
     case 'ban':
       return {
         title: `Ban ${who}?`,
-        detail: 'They are signed out everywhere now and cannot sign in to any BioTron tool until a manager unbans them.',
+        detail:
+          'They are signed out everywhere now and cannot sign in to any BioTron tool until a manager unbans them.',
         confirm: 'Ban',
       };
     case 'make-manager':
       return {
         title: `Make ${who} a manager?`,
-        detail: 'They get every permission in every tool, can grant and revoke permissions, and see the Keys and Org tabs. The change applies on their next request.',
+        detail:
+          'They get every permission in every tool, can grant and revoke permissions, and see the Keys and Org tabs. The change applies on their next request.',
         confirm: 'Make manager',
       };
     case 'remove-manager':
       return {
         title: `Remove ${who} as manager?`,
-        detail: 'They keep only the permissions listed below. The change applies on their next request.',
+        detail:
+          'They keep only the permissions listed below. The change applies on their next request.',
         confirm: 'Remove manager',
       };
   }
@@ -114,7 +120,10 @@ function MemberActions({
       >
         {text && (
           <>
-            <p id={`confirm-${member.github_id}-title`} className="text-sm font-semibold text-slate-900 dark:text-white">
+            <p
+              id={`confirm-${member.github_id}-title`}
+              className="text-sm font-semibold text-slate-900 dark:text-white"
+            >
               {text.title}
             </p>
             <p id={`confirm-${member.github_id}-detail`} className={`mt-1 ${mutedText}`}>
@@ -128,7 +137,11 @@ function MemberActions({
               >
                 {text.confirm}
               </button>
-              <button type="button" onClick={() => setPending(null)} className={compactSecondaryButton}>
+              <button
+                type="button"
+                onClick={() => setPending(null)}
+                className={compactSecondaryButton}
+              >
                 Cancel
               </button>
             </div>
@@ -311,7 +324,9 @@ export default function OrgMemberDetail({
         </div>
       </div>
 
-      <div className={`px-4 py-4 sm:px-6 ${staff ? '' : 'border-b border-slate-200 dark:border-white/10'}`}>
+      <div
+        className={`px-4 py-4 sm:px-6 ${staff ? '' : 'border-b border-slate-200 dark:border-white/10'}`}
+      >
         <h4 className={sectionHeading}>Grants</h4>
         {staff ? (
           <p className="mt-2 text-sm text-emerald-600 dark:text-emerald-400">

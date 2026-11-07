@@ -50,11 +50,7 @@ export type ComponentHistory = {
   buckets: HistoryBucket[];
 };
 
-export type ApplicationHistory = {
-  id: string;
-  name: string;
-  buckets: HistoryBucket[];
-};
+export type ApplicationHistory = { id: string; name: string; buckets: HistoryBucket[] };
 
 export type StatusHistoryResponse = {
   days: number;
@@ -95,4 +91,3 @@ async function publicAPI<T>(path: string): Promise<T> {
 export const getStatus = () => publicAPI<StatusResponse>('/v1/status');
 export const getStatusHistory = (days = 90) =>
   publicAPI<StatusHistoryResponse>(`/v1/status/history?days=${days}`);
-

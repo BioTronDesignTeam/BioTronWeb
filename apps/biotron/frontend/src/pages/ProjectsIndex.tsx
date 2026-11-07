@@ -33,7 +33,7 @@ export default function ProjectsIndex() {
   return (
     <main id="main" className="pindex">
       <PageMeta path="/projects" />
-      <section className="container pindex__head" id="current">
+      <section className="pindex__head container" id="current">
         <span className="eyebrow mono-label">Active projects</span>
         <SplitText
           as="h1"
@@ -46,7 +46,7 @@ export default function ProjectsIndex() {
         </p>
       </section>
 
-      <section className="container pindex__list">
+      <section className="pindex__list container">
         {PROJECTS.map((p, i) => (
           <Reveal key={p.slug} delay={i * 0.05}>
             <Link
@@ -60,9 +60,7 @@ export default function ProjectsIndex() {
               <div className="pindex__info">
                 <span className="mono-label">{p.status}</span>
                 <h2 className="pindex__name">{p.name}</h2>
-                <p className="pindex__tag">
-                  {p.tagline}
-                </p>
+                <p className="pindex__tag">{p.tagline}</p>
                 <p className="pindex__blurb">{p.blurb}</p>
               </div>
               <span className="pindex__cta">
@@ -74,7 +72,7 @@ export default function ProjectsIndex() {
       </section>
 
       <section className="pindex__archive" id="past">
-        <div className="container past__head">
+        <div className="past__head container">
           <span className="eyebrow mono-label">Past projects</span>
           <SplitText as="h2" className="past__title" text="Work that shaped our team." by="word" />
           <p className="past__lead">
@@ -82,7 +80,7 @@ export default function ProjectsIndex() {
           </p>
         </div>
 
-        <div className="container past__grid">
+        <div className="past__grid container">
           {PAST_PROJECTS.map((p, i) => (
             <Reveal key={p.name} delay={i * 0.05}>
               <article className="past__card glass">

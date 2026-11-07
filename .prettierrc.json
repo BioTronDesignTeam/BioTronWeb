@@ -4,14 +4,8 @@
   "objectWrap": "collapse",
   "plugins": ["prettier-plugin-tailwindcss"],
   "overrides": [
-    {
-      "files": "*.css",
-      "options": { "singleQuote": false }
-    },
-    {
-      "files": "apps/biotron/frontend/**/*.css",
-      "options": { "singleQuote": true }
-    },
+    { "files": "*.css", "options": { "singleQuote": false } },
+    { "files": "apps/biotron/frontend/**/*.css", "options": { "singleQuote": true } },
     {
       "files": "apps/auth/frontend/**",
       "options": { "tailwindStylesheet": "./apps/auth/frontend/src/index.css" }

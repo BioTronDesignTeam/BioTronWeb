@@ -25,7 +25,12 @@ function lockPage() {
     const root = document.documentElement.style;
     const body = document.body.style;
     const appRoot = document.getElementById('root');
-    const previous = { overflow: root.overflow, position: body.position, top: body.top, width: body.width };
+    const previous = {
+      overflow: root.overflow,
+      position: body.position,
+      top: body.top,
+      width: body.width,
+    };
     // overflow:hidden alone does not hold on iOS Safari, which keeps scrolling
     // the page behind the sheet. Pinning the body at its current offset does,
     // as long as that offset is restored on the way out.
@@ -67,16 +72,19 @@ export function Modal({ title, children, onClose, wide = false }: ModalProps) {
   });
 
   useEffect(() => {
-    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previousFocus =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const handleKeys = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         onCloseRef.current();
         return;
       }
       if (event.key !== 'Tab' || !dialogRef.current) return;
-      const focusable = [...dialogRef.current.querySelectorAll<HTMLElement>(
-        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-      )].filter((element) => !element.hasAttribute('hidden'));
+      const focusable = [
+        ...dialogRef.current.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      ].filter((element) => !element.hasAttribute('hidden'));
       const first = focusable[0];
       const last = focusable.at(-1);
       if (!first || !last) return;
@@ -116,11 +124,19 @@ export function Modal({ title, children, onClose, wide = false }: ModalProps) {
         open
         aria-modal="true"
         aria-labelledby="modal-title"
-        className={`relative m-0 max-h-[92dvh] sm:max-h-[calc(100dvh-3rem)] w-full overflow-y-auto overscroll-contain rounded-t-3xl border border-soft/40 bg-white p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] text-ink sm:rounded-3xl sm:p-7 sm:pb-7 dark:border-line-strong dark:bg-surface dark:text-white ${wide ? 'sm:max-w-4xl' : 'sm:max-w-xl'}`}
+        className={`relative m-0 max-h-[92dvh] w-full overflow-y-auto overscroll-contain rounded-t-3xl border border-soft/40 bg-white p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] text-ink sm:max-h-[calc(100dvh-3rem)] sm:rounded-3xl sm:p-7 sm:pb-7 dark:border-line-strong dark:bg-surface dark:text-white ${wide ? 'sm:max-w-4xl' : 'sm:max-w-xl'}`}
       >
         <header className="mb-5 flex items-center justify-between gap-4">
-          <h2 id="modal-title" className="min-w-0 break-words text-xl font-semibold tracking-tight">{title}</h2>
-          <button ref={closeRef} type="button" onClick={onClose} className="grid size-11 shrink-0 place-items-center rounded-full border border-ink/15 text-xl hover:bg-soft/30 dark:border-line-strong dark:hover:bg-white/10" aria-label="Close">
+          <h2 id="modal-title" className="min-w-0 text-xl font-semibold tracking-tight break-words">
+            {title}
+          </h2>
+          <button
+            ref={closeRef}
+            type="button"
+            onClick={onClose}
+            className="grid size-11 shrink-0 place-items-center rounded-full border border-ink/15 text-xl hover:bg-soft/30 dark:border-line-strong dark:hover:bg-white/10"
+            aria-label="Close"
+          >
             ×
           </button>
         </header>

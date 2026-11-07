@@ -9,10 +9,7 @@ const GitHubMark = () => (
   </svg>
 );
 
-export type AuthNotice = {
-  content: ReactNode;
-  tone?: 'info' | 'error';
-};
+export type AuthNotice = { content: ReactNode; tone?: 'info' | 'error' };
 
 export type AuthAction = {
   label: string;
@@ -51,9 +48,10 @@ export type AuthScreenProps = {
 function noticeKeys(notices: readonly AuthNotice[]): string[] {
   const seen = new Map<string, number>();
   return notices.map((notice) => {
-    const text = typeof notice.content === 'string' || typeof notice.content === 'number'
-      ? String(notice.content)
-      : 'node';
+    const text =
+      typeof notice.content === 'string' || typeof notice.content === 'number'
+        ? String(notice.content)
+        : 'node';
     const base = `${notice.tone ?? 'info'}:${text}`;
     const occurrence = seen.get(base) ?? 0;
     seen.set(base, occurrence + 1);
@@ -87,10 +85,16 @@ function AuthActionControl({ action }: { action: AuthAction }) {
   );
 
   if (action.href) {
-    return <a className="biotron-auth-action" href={action.href}>{contents}</a>;
+    return (
+      <a className="biotron-auth-action" href={action.href}>
+        {contents}
+      </a>
+    );
   }
   return (
-    <button className="biotron-auth-action" type="button" onClick={action.onClick}>{contents}</button>
+    <button className="biotron-auth-action" type="button" onClick={action.onClick}>
+      {contents}
+    </button>
   );
 }
 
@@ -181,7 +185,11 @@ export function AuthScreen({
         {loading && <div className="biotron-auth-loading" aria-label="Loading" />}
         {guestAccess && (
           <>
-            <div className="biotron-auth-divider"><span />or<span /></div>
+            <div className="biotron-auth-divider">
+              <span />
+              or
+              <span />
+            </div>
             <GuestAccessForm guestAccess={guestAccess} />
           </>
         )}

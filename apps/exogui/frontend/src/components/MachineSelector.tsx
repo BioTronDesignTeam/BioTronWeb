@@ -1,7 +1,7 @@
 interface MachineSelectorProps {
-  machines: string[]
-  selected: string
-  onSelect: (id: string) => void
+  machines: string[];
+  selected: string;
+  onSelect: (id: string) => void;
 }
 
 export default function MachineSelector({ machines, selected, onSelect }: MachineSelectorProps) {
@@ -12,7 +12,7 @@ export default function MachineSelector({ machines, selected, onSelect }: Machin
       <select
         value={selected}
         onChange={(e) => onSelect(e.target.value)}
-        className="appearance-none rounded-lg bg-white py-2 pl-7 pr-8 text-sm font-medium text-slate-900 ring-1 ring-slate-300 transition hover:bg-slate-100 dark:bg-surface-2/80 dark:text-white dark:ring-white/10 dark:hover:bg-surface-2"
+        className="appearance-none rounded-lg bg-white py-2 pr-8 pl-7 text-sm font-medium text-slate-900 ring-1 ring-slate-300 transition hover:bg-slate-100 dark:bg-surface-2/80 dark:text-white dark:ring-white/10 dark:hover:bg-surface-2"
       >
         {machines.map((id) => (
           <option key={id} value={id}>
@@ -21,5 +21,5 @@ export default function MachineSelector({ machines, selected, onSelect }: Machin
         ))}
       </select>
     </label>
-  )
+  );
 }

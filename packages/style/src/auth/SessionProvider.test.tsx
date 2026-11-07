@@ -16,7 +16,9 @@ function fakeAuth(route: Route) {
   const fetchMock = vi.fn(async (input: string, init?: RequestInit) => {
     const reply = route(new URL(input), init);
     if (reply === 'network') throw new TypeError('Failed to fetch');
-    return new Response(reply.body === undefined ? null : JSON.stringify(reply.body), { status: reply.status });
+    return new Response(reply.body === undefined ? null : JSON.stringify(reply.body), {
+      status: reply.status,
+    });
   });
   vi.stubGlobal('fetch', fetchMock);
   return fetchMock;
@@ -83,7 +85,9 @@ describe('SessionProvider', () => {
   });
 
   it('is signed out when a permission check answers 401', async () => {
-    fakeAuth((url) => (url.pathname === '/auth/me' ? { status: 200, body: octocat } : { status: 401 }));
+    fakeAuth((url) =>
+      url.pathname === '/auth/me' ? { status: 200, body: octocat } : { status: 401 },
+    );
     const { result } = renderSession({ appId: 'calendar', permissions: ['write'] });
     await settle();
     expect(result.current.status).toBe('anon');
@@ -153,13 +157,17 @@ describe('SessionProvider', () => {
     fakeAuth(() => ({ status: 401 }));
     const { result } = renderSession();
     expect(result.current.notice).toBe('denied');
-    expect(`${window.location.pathname}${window.location.search}${window.location.hash}`).toBe('/page?tab=2#top');
+    expect(`${window.location.pathname}${window.location.search}${window.location.hash}`).toBe(
+      '/page?tab=2#top',
+    );
     await settle();
     expect(result.current.notice).toBe('denied');
   });
 
   it('signs out through a POST that carries the CSRF header', async () => {
-    const fetchMock = fakeAuth((url) => (url.pathname === '/auth/logout' ? { status: 204 } : { status: 200, body: octocat }));
+    const fetchMock = fakeAuth((url) =>
+      url.pathname === '/auth/logout' ? { status: 204 } : { status: 200, body: octocat },
+    );
     const { result } = renderSession();
     await settle();
 
@@ -168,11 +176,17 @@ describe('SessionProvider', () => {
     });
     expect(result.current.status).toBe('anon');
     const logout = fetchMock.mock.calls.find(([input]) => input.endsWith('/auth/logout'));
-    expect(logout?.[1]).toMatchObject({ method: 'POST', credentials: 'include', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+    expect(logout?.[1]).toMatchObject({
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    });
   });
 
   it('counts a 401 on sign-out as signed out', async () => {
-    fakeAuth((url) => (url.pathname === '/auth/logout' ? { status: 401 } : { status: 200, body: octocat }));
+    fakeAuth((url) =>
+      url.pathname === '/auth/logout' ? { status: 401 } : { status: 200, body: octocat },
+    );
     const { result } = renderSession();
     await settle();
     await act(async () => {
@@ -182,7 +196,9 @@ describe('SessionProvider', () => {
   });
 
   it('keeps the session when sign-out fails', async () => {
-    fakeAuth((url) => (url.pathname === '/auth/logout' ? { status: 500 } : { status: 200, body: octocat }));
+    fakeAuth((url) =>
+      url.pathname === '/auth/logout' ? { status: 500 } : { status: 200, body: octocat },
+    );
     const { result } = renderSession();
     await settle();
     await act(async () => {
@@ -215,7 +231,10 @@ describe('SessionProvider', () => {
     expect(result.current.status).toBe('authed');
     expect(result.current.operator?.is_guest).toBe(true);
     const post = fetchMock.mock.calls.find(([input]) => input.endsWith('/auth/guest'));
-    expect(JSON.parse(post?.[1]?.body as string)).toEqual({ app_id: 'exo-gui', key: 'ABCD-EFGH-IJKL' });
+    expect(JSON.parse(post?.[1]?.body as string)).toEqual({
+      app_id: 'exo-gui',
+      key: 'ABCD-EFGH-IJKL',
+    });
   });
 
   it('refuses a wrong guest key', async () => {

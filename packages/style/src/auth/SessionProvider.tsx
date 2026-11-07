@@ -46,7 +46,11 @@ type Check =
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-async function checkSession(authUrl: string, appId: string | undefined, permissions: readonly string[]): Promise<Check> {
+async function checkSession(
+  authUrl: string,
+  appId: string | undefined,
+  permissions: readonly string[],
+): Promise<Check> {
   try {
     const query = appId ? `?app=${encodeURIComponent(appId)}` : '';
     // credentials: 'include' so the cross-origin session cookie is sent.
@@ -59,15 +63,17 @@ async function checkSession(authUrl: string, appId: string | undefined, permissi
 
     const granted: Record<string, boolean> = {};
     if (appId) {
-      const answers = await Promise.all(permissions.map(async (permission) => {
-        const query = new URLSearchParams({ app: appId, permission });
-        const res = await fetch(`${authUrl}/v1/check?${query}`, { credentials: 'include' });
-        if (res.status === 401) return 'anon' as const;
-        if (!res.ok) return 'error' as const;
-        const body = (await res.json()) as { allowed?: boolean };
-        granted[permission] = body.allowed === true;
-        return 'ok' as const;
-      }));
+      const answers = await Promise.all(
+        permissions.map(async (permission) => {
+          const query = new URLSearchParams({ app: appId, permission });
+          const res = await fetch(`${authUrl}/v1/check?${query}`, { credentials: 'include' });
+          if (res.status === 401) return 'anon' as const;
+          if (!res.ok) return 'error' as const;
+          const body = (await res.json()) as { allowed?: boolean };
+          granted[permission] = body.allowed === true;
+          return 'ok' as const;
+        }),
+      );
       if (answers.includes('anon')) return { kind: 'anon' };
       if (answers.includes('error')) return { kind: 'error' };
     }
@@ -84,7 +90,12 @@ async function checkSession(authUrl: string, appId: string | undefined, permissi
  * on focus and every ten minutes, and tells an Auth outage (`unavailable`)
  * apart from being signed out.
  */
-export function SessionProvider({ authUrl, appId, permissions = [], children }: SessionProviderProps) {
+export function SessionProvider({
+  authUrl,
+  appId,
+  permissions = [],
+  children,
+}: SessionProviderProps) {
   const base = authUrl.replace(/\/$/, '');
   const permissionKey = permissions.join(',');
   const [state, setState] = useState<State>(() => ({
@@ -166,22 +177,25 @@ export function SessionProvider({ authUrl, appId, permissions = [], children }: 
     window.location.href = `${base}/auth/github/login?redirect=${encodeURIComponent(window.location.origin)}`;
   }, [base]);
 
-  const loginGuest = useCallback(async (key: string) => {
-    if (!appId) return false;
-    try {
-      const res = await fetch(`${base}/auth/guest`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ app_id: appId, key }),
-      });
-      if (!res.ok) return false;
-      await refresh();
-      return true;
-    } catch {
-      return false;
-    }
-  }, [appId, base, refresh]);
+  const loginGuest = useCallback(
+    async (key: string) => {
+      if (!appId) return false;
+      try {
+        const res = await fetch(`${base}/auth/guest`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ app_id: appId, key }),
+        });
+        if (!res.ok) return false;
+        await refresh();
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    [appId, base, refresh],
+  );
 
   const logout = useCallback(async () => {
     let res: Response;

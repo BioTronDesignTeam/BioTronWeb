@@ -36,12 +36,7 @@ export const KEYFRAMES: [Keyframe, ...Keyframe[]] = [
 ];
 
 /** Progress value at which each stop's dwell is centered. */
-export const STOP_AT: Record<Stop, number> = {
-  about: 0.14,
-  exo: 0.4,
-  emg: 0.64,
-  enable: 0.875,
-};
+export const STOP_AT: Record<Stop, number> = { about: 0.14, exo: 0.4, emg: 0.64, enable: 0.875 };
 
 /** Half-width of the progress window in which a stop's popup is shown. */
 export const STOP_WINDOW = 0.11;

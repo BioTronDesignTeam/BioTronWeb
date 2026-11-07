@@ -7,7 +7,8 @@ import { useReducedMotion } from '../lib/hooks';
  * such as `<br>`, whose props declare `children?: never`; React 19's types
  * intersect the whole union and leave nothing a child can satisfy.
  */
-type ContainerTag = 'div' | 'section' | 'article' | 'aside' | 'li' | 'p' | 'span' | 'h1' | 'h2' | 'h3';
+type ContainerTag =
+  'div' | 'section' | 'article' | 'aside' | 'li' | 'p' | 'span' | 'h1' | 'h2' | 'h3';
 
 interface RevealProps {
   children: ReactNode;
@@ -49,11 +50,7 @@ export default function Reveal({
         ease: 'power3.out',
         scrollTrigger: onScreenNow
           ? undefined
-          : {
-              trigger: ref.current,
-              start: 'top 85%',
-              toggleActions: 'play none none none',
-            },
+          : { trigger: ref.current, start: 'top 85%', toggleActions: 'play none none none' },
       });
     },
     { scope: ref, dependencies: [reduced] },

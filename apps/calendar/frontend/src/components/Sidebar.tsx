@@ -34,14 +34,27 @@ function useIsDrawer() {
   );
 }
 
-const focusableSelector = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+const focusableSelector =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 /**
  * The month, the calendar filter, Subscribe, and Manage. From lg up it sits beside the grid and
  * pushes it over. Below lg there is no room, so it slides over the page as a
  * drawer with a backdrop, and Escape or a tap outside closes it.
  */
-export function Sidebar({ open, view, anchor, onStep, viewSwitch, onManage, scopes, selectedScopes, onScopeChange, onSubscribe, onClose }: SidebarProps) {
+export function Sidebar({
+  open,
+  view,
+  anchor,
+  onStep,
+  viewSwitch,
+  onManage,
+  scopes,
+  selectedScopes,
+  onScopeChange,
+  onSubscribe,
+  onClose,
+}: SidebarProps) {
   const drawer = useIsDrawer();
   const dialog = useRef<HTMLDivElement>(null);
   const panel = useRef<HTMLElement>(null);
@@ -59,7 +72,8 @@ export function Sidebar({ open, view, anchor, onStep, viewSwitch, onManage, scop
   // does none of this.
   useEffect(() => {
     if (!open || !drawer) return;
-    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previousFocus =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         onCloseRef.current();
@@ -73,7 +87,10 @@ export function Sidebar({ open, view, anchor, onStep, viewSwitch, onManage, scop
       const last = focusable.at(-1);
       if (!first || !last) return;
       const inside = dialog.current.contains(document.activeElement);
-      if (event.shiftKey && (!inside || document.activeElement === first || document.activeElement === panel.current)) {
+      if (
+        event.shiftKey &&
+        (!inside || document.activeElement === first || document.activeElement === panel.current)
+      ) {
         event.preventDefault();
         last.focus();
       } else if (!event.shiftKey && (!inside || document.activeElement === last)) {
@@ -94,13 +111,19 @@ export function Sidebar({ open, view, anchor, onStep, viewSwitch, onManage, scop
     // The dialog wraps the backdrop too, so a screen reader that stays inside
     // the dialog can still reach "Close sidebar". From lg up the wrapper has no
     // box of its own and the sidebar sits in the page's row as before.
-    <div ref={dialog} role={drawer ? 'dialog' : undefined} aria-modal={drawer ? true : undefined} aria-label={drawer ? 'Calendars' : undefined} className="lg:contents">
+    <div
+      ref={dialog}
+      role={drawer ? 'dialog' : undefined}
+      aria-modal={drawer ? true : undefined}
+      aria-label={drawer ? 'Calendars' : undefined}
+      className="lg:contents"
+    >
       <aside
         ref={panel}
         id="calendar-sidebar"
         aria-label="Calendars"
         tabIndex={-1}
-        className="fixed inset-y-0 left-0 z-50 flex w-72 outline-none max-w-[85vw] flex-col gap-4 overflow-hidden border-r border-ink/10 bg-white p-4 pt-[calc(1rem+env(safe-area-inset-top,0px))] shadow-xl dark:border-line dark:bg-surface lg:static lg:z-auto lg:w-64 lg:max-w-none lg:shrink-0 lg:pt-4 lg:shadow-none pb-[calc(1rem+env(safe-area-inset-bottom,0px))]"
+        className="fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col gap-4 overflow-hidden border-r border-ink/10 bg-white p-4 pt-[calc(1rem+env(safe-area-inset-top,0px))] pb-[calc(1rem+env(safe-area-inset-bottom,0px))] shadow-xl outline-none lg:static lg:z-auto lg:w-64 lg:max-w-none lg:shrink-0 lg:pt-4 lg:shadow-none dark:border-line dark:bg-surface"
       >
         {/* As a drawer it hides the grid, and the header keeps the month in view, so the month shows here only when docked. */}
         <div className="hidden lg:block">
@@ -112,18 +135,31 @@ export function Sidebar({ open, view, anchor, onStep, viewSwitch, onManage, scop
           <ScopeFilter scopes={scopes} selected={selectedScopes} onChange={onScopeChange} />
         </div>
         <div className="flex max-h-full shrink-0 flex-col gap-2 overflow-y-auto">
-          <button type="button" onClick={onSubscribe} className="min-h-11 shrink-0 whitespace-nowrap rounded-full bg-deep px-5 text-sm font-semibold text-white hover:bg-brand dark:bg-brand dark:hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:focus-visible:outline-link">
+          <button
+            type="button"
+            onClick={onSubscribe}
+            className="min-h-11 shrink-0 rounded-full bg-deep px-5 text-sm font-semibold whitespace-nowrap text-white hover:bg-brand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:bg-brand dark:hover:brightness-110 dark:focus-visible:outline-link"
+          >
             Subscribe to a calendar
           </button>
           {onManage && (
-            <button type="button" onClick={onManage} className="min-h-11 shrink-0 whitespace-nowrap rounded-full border border-ink/15 px-5 text-sm font-semibold text-brand hover:bg-soft/30 dark:border-line-strong dark:text-link dark:hover:bg-white/10">
+            <button
+              type="button"
+              onClick={onManage}
+              className="min-h-11 shrink-0 rounded-full border border-ink/15 px-5 text-sm font-semibold whitespace-nowrap text-brand hover:bg-soft/30 dark:border-line-strong dark:text-link dark:hover:bg-white/10"
+            >
               Manage
             </button>
           )}
         </div>
       </aside>
       {/* After the panel in the markup, so Tab reaches the controls first. It is drawn under the panel all the same. */}
-      <button type="button" aria-label="Close sidebar" onClick={onClose} className="fixed inset-0 z-40 cursor-default bg-ink/40 lg:hidden dark:bg-black/60" />
+      <button
+        type="button"
+        aria-label="Close sidebar"
+        onClick={onClose}
+        className="fixed inset-0 z-40 cursor-default bg-ink/40 lg:hidden dark:bg-black/60"
+      />
     </div>
   );
 }

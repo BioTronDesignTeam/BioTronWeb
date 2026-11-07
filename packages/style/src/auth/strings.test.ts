@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { authStrings, friendlyError, identityLine, isSessionExpired, noticeMessage, roleOf } from './strings';
+import {
+  authStrings,
+  friendlyError,
+  identityLine,
+  isSessionExpired,
+  noticeMessage,
+  roleOf,
+} from './strings';
 
 describe('roleOf', () => {
   it('names one role, highest first', () => {
@@ -27,7 +34,14 @@ describe('friendlyError', () => {
   });
 
   it('replaces the terse 403 reasons backends send', () => {
-    for (const reason of [undefined, '', 'HTTP 403', 'permission required', ' Permission Required ', 'X-Requested-With header required']) {
+    for (const reason of [
+      undefined,
+      '',
+      'HTTP 403',
+      'permission required',
+      ' Permission Required ',
+      'X-Requested-With header required',
+    ]) {
       expect(friendlyError(403, reason)).toBe(authStrings.forbidden);
     }
   });
@@ -44,7 +58,9 @@ describe('friendlyError', () => {
     expect(friendlyError(500)).toBe('Something went wrong (500). Try again.');
     expect(friendlyError(502, '  ')).toBe('Something went wrong (502). Try again.');
     expect(friendlyError(500, 'HTTP 500')).toBe('Something went wrong (500). Try again.');
-    expect(friendlyError(404, 'Request failed (404)')).toBe('Something went wrong (404). Try again.');
+    expect(friendlyError(404, 'Request failed (404)')).toBe(
+      'Something went wrong (404). Try again.',
+    );
   });
 
   it('keeps any other message the server sent, trimmed', () => {

@@ -53,7 +53,10 @@ function applyWave(material: Material, uniforms: WaveUniform, lit: boolean) {
     shader.uniforms.uWaveTime = uniforms.uWaveTime;
     shader.vertexShader = WAVE_FUNCTION + shader.vertexShader;
     if (lit) {
-      shader.vertexShader = shader.vertexShader.replace('#include <beginnormal_vertex>', WAVE_NORMAL);
+      shader.vertexShader = shader.vertexShader.replace(
+        '#include <beginnormal_vertex>',
+        WAVE_NORMAL,
+      );
     }
     shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', WAVE_POSITION);
   };
@@ -132,7 +135,7 @@ export default function EmgFabricModel({ color, animate = true }: ModelProps) {
     if (time) time.value = t;
 
     if (pulse.current && animate) {
-      pulse.current.position.x = ((Math.sin(t * 0.8) * 0.5 + 0.5) * 1.6 - 0.8);
+      pulse.current.position.x = (Math.sin(t * 0.8) * 0.5 + 0.5) * 1.6 - 0.8;
     }
     if (root.current && animate) root.current.rotation.y = Math.sin(t * 0.35) * 0.18;
   });
@@ -155,7 +158,12 @@ export default function EmgFabricModel({ color, animate = true }: ModelProps) {
       {nodes.map(([x, y]) => (
         <mesh key={`${x}:${y}`} position={[x, y, 0.06]}>
           <sphereGeometry args={[0.05, 16, 16]} />
-          <meshStandardMaterial color={color} emissive={color} emissiveIntensity={2.4} toneMapped={false} />
+          <meshStandardMaterial
+            color={color}
+            emissive={color}
+            emissiveIntensity={2.4}
+            toneMapped={false}
+          />
         </mesh>
       ))}
 

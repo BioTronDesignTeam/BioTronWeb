@@ -21,7 +21,12 @@ export type AccountControlsProps = {
  * failure and, on a page that stays public, the denied, banned, or expired
  * notice as a dismissible toast.
  */
-export function AccountControls({ detail, onSignedOut, showThemeToggle = true, className = '' }: AccountControlsProps) {
+export function AccountControls({
+  detail,
+  onSignedOut,
+  showThemeToggle = true,
+  className = '',
+}: AccountControlsProps) {
   const { status, operator, login, logout, refresh, notice, dismissNotice } = useSession();
   const [error, setError] = useState('');
 
@@ -47,7 +52,14 @@ export function AccountControls({ detail, onSignedOut, showThemeToggle = true, c
       {toast && (
         <div className="biotron-toast" role="alert">
           <span>{toast}</span>
-          <button type="button" className="biotron-toast__close" onClick={closeToast} aria-label={authStrings.dismiss}>×</button>
+          <button
+            type="button"
+            className="biotron-toast__close"
+            onClick={closeToast}
+            aria-label={authStrings.dismiss}
+          >
+            ×
+          </button>
         </div>
       )}
       {status === 'authed' && operator ? (
@@ -61,11 +73,18 @@ export function AccountControls({ detail, onSignedOut, showThemeToggle = true, c
           onLogout={signOut}
         />
       ) : status === 'unavailable' ? (
-        <Button tone="neutral" onClick={() => void refresh()} className="biotron-account-controls__button" title={authStrings.unavailable}>
+        <Button
+          tone="neutral"
+          onClick={() => void refresh()}
+          className="biotron-account-controls__button"
+          title={authStrings.unavailable}
+        >
           {authStrings.unavailableShort}
         </Button>
       ) : status === 'anon' ? (
-        <Button onClick={login} className="biotron-account-controls__button">{authStrings.signIn}</Button>
+        <Button onClick={login} className="biotron-account-controls__button">
+          {authStrings.signIn}
+        </Button>
       ) : null}
     </div>
   );

@@ -17,7 +17,7 @@ export function cookieDomain(hostname: string) {
 export function storedTheme(): Theme | null {
   if (typeof document === 'undefined') return null;
   const cookie = document.cookie.match(/(?:^|;\s*)biotron-theme=(dark|light)(?:;|$)/);
-  return cookie ? cookie[1] as Theme : null;
+  return cookie ? (cookie[1] as Theme) : null;
 }
 
 function persistTheme(theme: Theme) {

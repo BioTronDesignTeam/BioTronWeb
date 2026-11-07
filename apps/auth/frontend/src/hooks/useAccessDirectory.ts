@@ -94,7 +94,10 @@ export function useAccessDirectory(me: Me) {
     try {
       dispatch({ type: 'loaded', snapshot: await loadSnapshot(isStaff) });
     } catch (e) {
-      dispatch({ type: 'failed', error: e instanceof Error ? e.message : 'Could not load your permissions.' });
+      dispatch({
+        type: 'failed',
+        error: e instanceof Error ? e.message : 'Could not load your permissions.',
+      });
     }
   }, [isStaff]);
 

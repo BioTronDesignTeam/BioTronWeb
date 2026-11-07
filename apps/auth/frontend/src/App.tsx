@@ -41,7 +41,8 @@ function Console({ me }: { me: Me }) {
   const { directory, refresh } = useAccessDirectory(me);
   const reportError = useCallback((message: string) => setError(message), []);
   const keyReveal = useDailyKeyReveal(reportError);
-  const { selection, selectMember, selectApp, selectPermission, clearPermission } = useOrgSelection();
+  const { selection, selectMember, selectApp, selectPermission, clearPermission } =
+    useOrgSelection();
   const { grants: memberGrantList, reload: reloadMemberGrants } = useMemberGrants(
     selection.memberId,
     reportError,
@@ -109,10 +110,10 @@ function Console({ me }: { me: Me }) {
   if (directory.loading) return <SessionLoading />;
 
   return (
-    <div className="min-h-screen pb-safe">
+    <div className="pb-safe min-h-screen">
       <AppHeader />
 
-      <main className="mx-auto w-full max-w-6xl px-page py-6 sm:py-8 lg:py-10">
+      <main className="px-page mx-auto w-full max-w-6xl py-6 sm:py-8 lg:py-10">
         <TabBar tab={tab} onSelect={setTab} isStaff={me.is_staff === true} />
 
         {(error ?? directory.error) && (

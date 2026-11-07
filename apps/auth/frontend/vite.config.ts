@@ -6,8 +6,5 @@ import { biotronFavicon } from '@biotron/style/vite';
 export default defineConfig({
   plugins: [react(), tailwindcss(), biotronFavicon()],
   envDir: '..',
-  server: {
-    host: true,
-    port: 5173,
-  },
+  server: { host: true, port: 5173 },
 });

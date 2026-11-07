@@ -16,7 +16,10 @@ function idsToText(ids: string[]) {
 }
 
 function textToIds(text: string) {
-  return text.split(',').map((part) => part.trim()).filter(Boolean);
+  return text
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean);
 }
 
 function allDigits(ids: string[]) {
@@ -25,7 +28,10 @@ function allDigits(ids: string[]) {
 
 interface GuardsPanelProps {
   guards: Guard[];
-  onSave: (subject: GuardSubject, body: { guild_id: string; role_ids: string[]; channel_ids: string[] }) => Promise<void>;
+  onSave: (
+    subject: GuardSubject,
+    body: { guild_id: string; role_ids: string[]; channel_ids: string[] },
+  ) => Promise<void>;
   onClear: (subject: GuardSubject) => Promise<void>;
 }
 
@@ -35,7 +41,8 @@ export function GuardsPanel({ guards, onSave, onClear }: GuardsPanelProps) {
       <div className="border-b border-ink/10 px-5 py-4 dark:border-line">
         <h2 className="font-semibold">Guards</h2>
         <p className="mt-1 text-sm text-ink/60 dark:text-muted">
-          An empty channel ids list means any channel. A guard needs at least one role; to turn a feature off, clear the guard.
+          An empty channel ids list means any channel. A guard needs at least one role; to turn a
+          feature off, clear the guard.
         </p>
       </div>
       <div className="divide-y divide-ink/10 dark:divide-line">
@@ -53,7 +60,12 @@ export function GuardsPanel({ guards, onSave, onClear }: GuardsPanelProps) {
   );
 }
 
-function GuardRow({ subject, guard, onSave, onClear }: {
+function GuardRow({
+  subject,
+  guard,
+  onSave,
+  onClear,
+}: {
   subject: GuardSubject;
   guard?: Guard;
   onSave: GuardsPanelProps['onSave'];
@@ -120,22 +132,57 @@ function GuardRow({ subject, guard, onSave, onClear }: {
     <div className="grid gap-3 p-5 sm:grid-cols-[8rem_1fr_1fr_1fr_auto] sm:items-center">
       <p className="font-semibold">{SUBJECT_LABELS[subject]}</p>
       <label className="block">
-        <span className="mb-1 block text-xs font-semibold text-ink/60 dark:text-muted sm:hidden">Guild id</span>
-        <input value={guildId} onChange={(event) => setGuildId(event.target.value)} placeholder="Guild id" className={fieldClass} />
+        <span className="mb-1 block text-xs font-semibold text-ink/60 sm:hidden dark:text-muted">
+          Guild id
+        </span>
+        <input
+          value={guildId}
+          onChange={(event) => setGuildId(event.target.value)}
+          placeholder="Guild id"
+          className={fieldClass}
+        />
       </label>
       <label className="block">
-        <span className="mb-1 block text-xs font-semibold text-ink/60 dark:text-muted sm:hidden">Role ids</span>
-        <input value={roleIds} onChange={(event) => setRoleIds(event.target.value)} placeholder="Role ids, comma-separated" className={fieldClass} />
+        <span className="mb-1 block text-xs font-semibold text-ink/60 sm:hidden dark:text-muted">
+          Role ids
+        </span>
+        <input
+          value={roleIds}
+          onChange={(event) => setRoleIds(event.target.value)}
+          placeholder="Role ids, comma-separated"
+          className={fieldClass}
+        />
       </label>
       <label className="block">
-        <span className="mb-1 block text-xs font-semibold text-ink/60 dark:text-muted sm:hidden">Channel ids</span>
-        <input value={channelIds} onChange={(event) => setChannelIds(event.target.value)} placeholder="Channel ids, comma-separated" className={fieldClass} />
+        <span className="mb-1 block text-xs font-semibold text-ink/60 sm:hidden dark:text-muted">
+          Channel ids
+        </span>
+        <input
+          value={channelIds}
+          onChange={(event) => setChannelIds(event.target.value)}
+          placeholder="Channel ids, comma-separated"
+          className={fieldClass}
+        />
       </label>
       <div className="flex gap-2">
-        <button type="button" disabled={saving} onClick={() => void save()} className={primaryClass}>Save</button>
-        <button type="button" disabled={saving} onClick={() => void clear()} className={cancelClass}>Clear</button>
+        <button
+          type="button"
+          disabled={saving}
+          onClick={() => void save()}
+          className={primaryClass}
+        >
+          Save
+        </button>
+        <button
+          type="button"
+          disabled={saving}
+          onClick={() => void clear()}
+          className={cancelClass}
+        >
+          Clear
+        </button>
       </div>
-      {error && <p className="text-sm text-red-700 dark:text-red-300 sm:col-span-5">{error}</p>}
+      {error && <p className="text-sm text-red-700 sm:col-span-5 dark:text-red-300">{error}</p>}
     </div>
   );
 }

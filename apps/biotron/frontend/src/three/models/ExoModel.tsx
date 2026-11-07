@@ -41,7 +41,12 @@ export default function ExoModel({ color, animate = true }: ModelProps) {
       {/* Hip joint (glowing) */}
       <mesh position={[0, 0.9, 0]} rotation={[Math.PI / 2, 0, 0]}>
         <torusGeometry args={[0.16, 0.07, 16, 32]} />
-        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={2.2} toneMapped={false} />
+        <meshStandardMaterial
+          color={color}
+          emissive={color}
+          emissiveIntensity={2.2}
+          toneMapped={false}
+        />
       </mesh>
 
       {/* Thigh strut */}
@@ -59,7 +64,12 @@ export default function ExoModel({ color, animate = true }: ModelProps) {
         {/* Knee joint */}
         <mesh rotation={[Math.PI / 2, 0, 0]}>
           <torusGeometry args={[0.14, 0.06, 16, 32]} />
-          <meshStandardMaterial color={color} emissive={color} emissiveIntensity={2.2} toneMapped={false} />
+          <meshStandardMaterial
+            color={color}
+            emissive={color}
+            emissiveIntensity={2.2}
+            toneMapped={false}
+          />
         </mesh>
         {/* Shank strut */}
         <mesh position={[0, -0.4, 0.05]} castShadow>

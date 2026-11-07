@@ -1,8 +1,5 @@
 {
   "extends": "../../../tsconfig.base.json",
-  "compilerOptions": {
-    "erasableSyntaxOnly": true,
-    "verbatimModuleSyntax": true
-  },
+  "compilerOptions": { "erasableSyntaxOnly": true, "verbatimModuleSyntax": true },
   "include": ["src", "vite.config.ts"]
 }

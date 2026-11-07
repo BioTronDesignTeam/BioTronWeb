@@ -11,28 +11,45 @@ const dateParts = new Intl.DateTimeFormat('en-CA', {
   day: '2-digit',
 });
 
-const monthFormat = new Intl.DateTimeFormat('en-CA', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+const monthFormat = new Intl.DateTimeFormat('en-CA', {
+  month: 'long',
+  year: 'numeric',
+  timeZone: 'UTC',
+});
 
 const shortDayFormat = new Intl.DateTimeFormat('en-CA', {
-  weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC',
+  weekday: 'short',
+  month: 'short',
+  day: 'numeric',
+  timeZone: 'UTC',
 });
 
 const longDayFormat = new Intl.DateTimeFormat('en-CA', {
-  weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC',
+  weekday: 'long',
+  month: 'long',
+  day: 'numeric',
+  timeZone: 'UTC',
 });
 
 const torontoTimeFormat = new Intl.DateTimeFormat('en-CA', {
-  hour: 'numeric', minute: '2-digit', timeZone: TORONTO_TIMEZONE,
+  hour: 'numeric',
+  minute: '2-digit',
+  timeZone: TORONTO_TIMEZONE,
 });
 
 const torontoLongDayFormat = new Intl.DateTimeFormat('en-CA', {
-  weekday: 'long', month: 'long', day: 'numeric', timeZone: TORONTO_TIMEZONE,
+  weekday: 'long',
+  month: 'long',
+  day: 'numeric',
+  timeZone: TORONTO_TIMEZONE,
 });
 
 // A wall-clock string carries no offset, so it is read in a UTC frame and
 // formatted there; anything else would re-apply a Toronto offset twice.
 const wallClockTimeFormat = new Intl.DateTimeFormat('en-CA', {
-  hour: 'numeric', minute: '2-digit', timeZone: 'UTC',
+  hour: 'numeric',
+  minute: '2-digit',
+  timeZone: 'UTC',
 });
 
 export function occurrenceDateKey(occurrence: Occurrence) {
@@ -106,13 +123,27 @@ export function localDate(value?: string) {
 export type CalendarView = 'day' | 'week' | 'month';
 
 const shortMonthFormat = new Intl.DateTimeFormat('en-CA', { month: 'short', timeZone: 'UTC' });
-const shortMonthYearFormat = new Intl.DateTimeFormat('en-CA', { month: 'short', year: 'numeric', timeZone: 'UTC' });
-const dayAnchorFormat = new Intl.DateTimeFormat('en-CA', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+const shortMonthYearFormat = new Intl.DateTimeFormat('en-CA', {
+  month: 'short',
+  year: 'numeric',
+  timeZone: 'UTC',
+});
+const dayAnchorFormat = new Intl.DateTimeFormat('en-CA', {
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+  timeZone: 'UTC',
+});
 const weekdayFormat = new Intl.DateTimeFormat('en-CA', { weekday: 'short', timeZone: 'UTC' });
 
 const torontoClockFormat = new Intl.DateTimeFormat('en-CA', {
-  timeZone: TORONTO_TIMEZONE, hourCycle: 'h23',
-  year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
+  timeZone: TORONTO_TIMEZONE,
+  hourCycle: 'h23',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
 });
 
 /**
@@ -120,7 +151,9 @@ const torontoClockFormat = new Intl.DateTimeFormat('en-CA', {
  * is one of these: midnight UTC standing for a calendar day, never an instant.
  */
 export function todayAnchor(now = new Date()) {
-  const values = Object.fromEntries(dateParts.formatToParts(now).map((part) => [part.type, part.value]));
+  const values = Object.fromEntries(
+    dateParts.formatToParts(now).map((part) => [part.type, part.value]),
+  );
   return new Date(Date.UTC(Number(values.year), Number(values.month) - 1, Number(values.day)));
 }
 
@@ -161,7 +194,8 @@ export function viewLabel(view: CalendarView, anchor: Date) {
   const first = startOfWeek(anchor);
   const last = addDays(first, 6);
   if (first.getUTCMonth() === last.getUTCMonth()) return monthFormat.format(first);
-  if (first.getUTCFullYear() === last.getUTCFullYear()) return `${shortMonthFormat.format(first)} – ${shortMonthYearFormat.format(last)}`;
+  if (first.getUTCFullYear() === last.getUTCFullYear())
+    return `${shortMonthFormat.format(first)} – ${shortMonthYearFormat.format(last)}`;
   return `${shortMonthYearFormat.format(first)} – ${shortMonthYearFormat.format(last)}`;
 }
 
@@ -171,14 +205,20 @@ export function weekdayLabel(date: Date) {
 
 /** Where an instant falls on the Toronto wall clock: its calendar day and the minutes since that day's midnight. */
 export function torontoClock(instant: Date) {
-  const values = Object.fromEntries(torontoClockFormat.formatToParts(instant).map((part) => [part.type, part.value]));
-  return { key: `${values.year}-${values.month}-${values.day}`, minutes: Number(values.hour) * 60 + Number(values.minute) };
+  const values = Object.fromEntries(
+    torontoClockFormat.formatToParts(instant).map((part) => [part.type, part.value]),
+  );
+  return {
+    key: `${values.year}-${values.month}-${values.day}`,
+    minutes: Number(values.hour) * 60 + Number(values.minute),
+  };
 }
-
 
 /** An instant as a `datetime-local` value on the Toronto wall clock. */
 export function torontoLocalInput(instant: Date) {
-  const values = Object.fromEntries(torontoClockFormat.formatToParts(instant).map((part) => [part.type, part.value]));
+  const values = Object.fromEntries(
+    torontoClockFormat.formatToParts(instant).map((part) => [part.type, part.value]),
+  );
   return `${values.year}-${values.month}-${values.day}T${values.hour}:${values.minute}`;
 }
 

@@ -33,10 +33,7 @@ interface FingerProps {
  */
 function Finger({ x, len = 0.5, color, ref }: FingerProps) {
   return (
-    <group
-      position={[x, 0.35, 0]}
-      ref={ref}
-    >
+    <group position={[x, 0.35, 0]} ref={ref}>
       {/* proximal */}
       <mesh position={[0, len / 2, 0]} castShadow>
         <capsuleGeometry args={[0.05, len, 6, 12]} />

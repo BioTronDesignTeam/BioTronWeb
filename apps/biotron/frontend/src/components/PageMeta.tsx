@@ -13,7 +13,12 @@ function setMeta(selector: string, content: string) {
 }
 
 /** Adds the tag when `value` is set and removes it when it is not. */
-function setHeadTag(selector: string, create: () => HTMLElement, attribute: string, value?: string) {
+function setHeadTag(
+  selector: string,
+  create: () => HTMLElement,
+  attribute: string,
+  value?: string,
+) {
   const existing = document.head.querySelector<HTMLElement>(selector);
   if (!value) {
     existing?.remove();
@@ -39,13 +44,28 @@ export default function PageMeta({ path }: PageMetaProps) {
     setMeta('meta[name="description"]', description);
     setMeta('meta[property="og:title"]', title);
     setMeta('meta[property="og:description"]', description);
-    setHeadTag('link[rel="canonical"]', () => Object.assign(document.createElement('link'), { rel: 'canonical' }), 'href', url);
-    setHeadTag('meta[property="og:url"]', () => {
-      const tag = document.createElement('meta');
-      tag.setAttribute('property', 'og:url');
-      return tag;
-    }, 'content', url);
-    setHeadTag('meta[name="robots"]', () => Object.assign(document.createElement('meta'), { name: 'robots' }), 'content', route ? undefined : 'noindex');
+    setHeadTag(
+      'link[rel="canonical"]',
+      () => Object.assign(document.createElement('link'), { rel: 'canonical' }),
+      'href',
+      url,
+    );
+    setHeadTag(
+      'meta[property="og:url"]',
+      () => {
+        const tag = document.createElement('meta');
+        tag.setAttribute('property', 'og:url');
+        return tag;
+      },
+      'content',
+      url,
+    );
+    setHeadTag(
+      'meta[name="robots"]',
+      () => Object.assign(document.createElement('meta'), { name: 'robots' }),
+      'content',
+      route ? undefined : 'noindex',
+    );
   }, [path]);
 
   return null;

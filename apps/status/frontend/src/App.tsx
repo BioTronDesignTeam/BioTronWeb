@@ -26,9 +26,16 @@ const HISTORY_DAYS = 90;
 // rather than being rebuilt inside a function that runs on every render.
 const relativeFormatter = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
 const longDateFormatter = new Intl.DateTimeFormat(undefined, {
-  weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
+  weekday: 'short',
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
 });
-const rangeFormatter = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+const rangeFormatter = new Intl.DateTimeFormat(undefined, {
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+});
 const monthFormatter = new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric' });
 const weekdayFormatter = new Intl.DateTimeFormat(undefined, { weekday: 'short' });
 
@@ -46,7 +53,8 @@ const statusMeta: Record<StatusState, { label: string; headline: string; descrip
   degraded: {
     label: 'Degraded',
     headline: 'Some systems are degraded',
-    description: 'One or more components are unavailable or not being observed. Expand an application below for detail.',
+    description:
+      'One or more components are unavailable or not being observed. Expand an application below for detail.',
   },
   down: {
     label: 'Down',
@@ -91,7 +99,14 @@ const glyphs: Record<StatusState, ReactNode> = {
   operational: (
     <>
       <circle cx="8" cy="8" r="8" fill="currentColor" />
-      <path d="M4.6 8.3l2.2 2.2 4.6-4.8" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M4.6 8.3l2.2 2.2 4.6-4.8"
+        fill="none"
+        stroke="#fff"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </>
   ),
   degraded: (
@@ -104,13 +119,33 @@ const glyphs: Record<StatusState, ReactNode> = {
   down: (
     <>
       <rect x="0.5" y="0.5" width="15" height="15" rx="3.5" fill="currentColor" />
-      <path d="M5.4 5.4l5.2 5.2M10.6 5.4l-5.2 5.2" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" />
+      <path
+        d="M5.4 5.4l5.2 5.2M10.6 5.4l-5.2 5.2"
+        fill="none"
+        stroke="#fff"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
     </>
   ),
   unknown: (
     <>
-      <circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" strokeWidth="1.5" strokeDasharray="2.6 2.1" />
-      <path d="M6.2 6.4a1.8 1.8 0 1 1 2.6 1.6c-.6.3-.8.6-.8 1.2" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <circle
+        cx="8"
+        cy="8"
+        r="7"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeDasharray="2.6 2.1"
+      />
+      <path
+        d="M6.2 6.4a1.8 1.8 0 1 1 2.6 1.6c-.6.3-.8.6-.8 1.2"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
       <circle cx="8" cy="11.5" r=".9" fill="currentColor" />
     </>
   ),
@@ -119,7 +154,9 @@ const glyphs: Record<StatusState, ReactNode> = {
 function StatusIcon({ state, label }: { state: StatusState; label?: string }) {
   return (
     <span className={`status-icon status-icon--${state}`}>
-      <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">{glyphs[state]}</svg>
+      <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+        {glyphs[state]}
+      </svg>
       <span className="visually-hidden">{label ?? statusMeta[state].label}</span>
     </span>
   );
@@ -127,24 +164,64 @@ function StatusIcon({ state, label }: { state: StatusState; label?: string }) {
 
 function Chevron({ open }: { open: boolean }) {
   return (
-    <svg className={`chevron ${open ? 'chevron--open' : ''}`} width="10" height="6" viewBox="0 0 10 6" aria-hidden="true" focusable="false">
-      <path d="M1.5 1l3.75 4L9 1" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    <svg
+      className={`chevron ${open ? 'chevron--open' : ''}`}
+      width="10"
+      height="6"
+      viewBox="0 0 10 6"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path
+        d="M1.5 1l3.75 4L9 1"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
 
 function InfoIcon() {
   return (
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true" focusable="false">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
+    <svg
+      viewBox="0 0 24 24"
+      width="16"
+      height="16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z"
+      />
     </svg>
   );
 }
 
 function CalendarIcon() {
   return (
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true" focusable="false">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+    <svg
+      viewBox="0 0 24 24"
+      width="16"
+      height="16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5"
+      />
     </svg>
   );
 }
@@ -157,10 +234,17 @@ function CalendarIcon() {
 function InfoTip({ id, name, text }: { id: string; name: string; text: string }) {
   return (
     <span className="info-tip">
-      <button type="button" className="info-tip__trigger" aria-label={`About ${name}`} aria-describedby={id}>
+      <button
+        type="button"
+        className="info-tip__trigger"
+        aria-label={`About ${name}`}
+        aria-describedby={id}
+      >
         <InfoIcon />
       </button>
-      <span role="tooltip" id={id} className="popover info-tip__bubble">{text}</span>
+      <span role="tooltip" id={id} className="popover info-tip__bubble">
+        {text}
+      </span>
     </span>
   );
 }
@@ -217,11 +301,20 @@ function dayDetail(bucket: HistoryBucket) {
  * bar is more than a decorative stripe. Enter and Space do nothing on
  * purpose: the strip is explored, not activated.
  */
-function UptimeBar({ buckets, days, label }: { buckets: HistoryBucket[]; days: number; label: string }) {
+function UptimeBar({
+  buckets,
+  days,
+  label,
+}: {
+  buckets: HistoryBucket[];
+  days: number;
+  label: string;
+}) {
   const shown = buckets.slice(-days);
   const [active, setActive] = useState<number | null>(null);
   const trackRef = useRef<HTMLButtonElement>(null);
-  const summary = `${label}, ${shown.length}-day history: ` +
+  const summary =
+    `${label}, ${shown.length}-day history: ` +
     `${shown.filter((bucket) => bucket.state === 'operational').length} fully operational days, ` +
     `${shown.filter((bucket) => bucket.state === 'degraded' || bucket.state === 'down').length} with incidents, ` +
     `${shown.filter((bucket) => bucket.state === 'unknown').length} without data. Use the arrow keys to read each day.`;
@@ -285,7 +378,9 @@ function UptimeBar({ buckets, days, label }: { buckets: HistoryBucket[]; days: n
             className="popover day-popover"
             style={{ '--x': `${((active + 0.5) / shown.length) * 100}%` } as CSSProperties}
           >
-            <div className="day-popover__date">{longDateFormatter.format(localNoon(bucket.date))}</div>
+            <div className="day-popover__date">
+              {longDateFormatter.format(localNoon(bucket.date))}
+            </div>
             <div className={`day-popover__line day-popover__line--${bucket.state}`}>
               <StatusIcon state={bucket.state} label="" />
               <span>{dayDetail(bucket)}</span>
@@ -338,7 +433,8 @@ function usePlatformStatus(poll: boolean) {
             setHistory(past);
             setError('');
           },
-          (reason: unknown) => setError(reason instanceof Error ? reason.message : 'Status is unavailable'),
+          (reason: unknown) =>
+            setError(reason instanceof Error ? reason.message : 'Status is unavailable'),
         )
         .finally(() => setLoading(false)),
     [],
@@ -365,7 +461,13 @@ function rangeLabel(history?: StatusHistoryResponse) {
 
 /* Status page ------------------------------------------------------------ */
 
-function StatusBanner({ overall, loading }: { overall?: StatusResponse['overall']; loading: boolean }) {
+function StatusBanner({
+  overall,
+  loading,
+}: {
+  overall?: StatusResponse['overall'];
+  loading: boolean;
+}) {
   const state = overall?.state ?? 'unknown';
   const meta = statusMeta[state];
   return (
@@ -375,10 +477,15 @@ function StatusBanner({ overall, loading }: { overall?: StatusResponse['overall'
         <h1>{loading && !overall ? 'Checking platform status…' : meta.headline}</h1>
       </div>
       <div className="box__body">
-        <p>{overall ? meta.description : 'Health is checked from inside the BioTron service network.'}</p>
+        <p>
+          {overall
+            ? meta.description
+            : 'Health is checked from inside the BioTron service network.'}
+        </p>
         {overall && (
           <p className="box__meta">
-            Updated {relativeTime(overall.updated_at)} · {uptimeText(overall.uptime_90d)} over {HISTORY_DAYS} days
+            Updated {relativeTime(overall.updated_at)} · {uptimeText(overall.uptime_90d)} over{' '}
+            {HISTORY_DAYS} days
           </p>
         )}
       </div>
@@ -433,7 +540,11 @@ function ApplicationGroup({
       <div className="group__row">
         <StatusIcon state={application.state} />
         <h3 className="group__name">{application.name}</h3>
-        <InfoTip id={`about-${application.id}`} name={application.name} text={application.description} />
+        <InfoTip
+          id={`about-${application.id}`}
+          name={application.name}
+          text={application.description}
+        />
         <button
           type="button"
           className="group__toggle"
@@ -441,7 +552,9 @@ function ApplicationGroup({
           aria-controls={panelID}
           onClick={() => setOpen((current) => !current)}
         >
-          <span className="group__count">{count} {count === 1 ? 'component' : 'components'}</span>
+          <span className="group__count">
+            {count} {count === 1 ? 'component' : 'components'}
+          </span>
           <Chevron open={open} />
         </button>
         <span className="row__uptime">{uptimeText(application.uptime_90d)}</span>
@@ -518,8 +631,8 @@ function StatusPage() {
 
         <p className="column__footnote">
           Health is checked every 15 seconds from inside the BioTron service network. Uptime is
-          time-weighted across every component's observed time; days nobody was watching are
-          hatched and left out of the figures.
+          time-weighted across every component's observed time; days nobody was watching are hatched
+          and left out of the figures.
         </p>
       </main>
     </Shell>
@@ -545,12 +658,17 @@ type IncidentMonth = { key: string; label: string; days: IncidentDay[] };
  * when a component spent part of it degraded or down. A day with no data is not
  * an incident: nobody was watching, which is a different claim.
  */
-function incidentMonths(history: StatusHistoryResponse | undefined, applications: StatusApplication[]): IncidentMonth[] {
+function incidentMonths(
+  history: StatusHistoryResponse | undefined,
+  applications: StatusApplication[],
+): IncidentMonth[] {
   if (!history) return [];
   // Component names repeat across applications: several are called "Web" and
   // several "API". An incident line has to name the application too, or it
   // says nothing about what was down.
-  const applicationNames = new Map(applications.map((application) => [application.id, application.name]));
+  const applicationNames = new Map(
+    applications.map((application) => [application.id, application.name]),
+  );
   const byDate = new Map<string, Incident[]>();
   for (const component of history.components) {
     const application = applicationNames.get(component.application_id) ?? component.application_id;
@@ -584,7 +702,10 @@ function incidentMonths(history: StatusHistoryResponse | undefined, applications
 
 function HistoryPage() {
   const { status, history, error, loading } = usePlatformStatus(false);
-  const months = useMemo(() => incidentMonths(history, status?.applications ?? []), [history, status]);
+  const months = useMemo(
+    () => incidentMonths(history, status?.applications ?? []),
+    [history, status],
+  );
 
   return (
     <main className="column">
@@ -607,7 +728,9 @@ function HistoryPage() {
 
       {months.map((month) => (
         <section className="month" key={month.key} aria-labelledby={`month-${month.key}`}>
-          <h2 className="month__name" id={`month-${month.key}`}>{month.label}</h2>
+          <h2 className="month__name" id={`month-${month.key}`}>
+            {month.label}
+          </h2>
           {month.days.map((day) => (
             <div className="day" key={day.date}>
               <div className="day__date">
@@ -620,7 +743,9 @@ function HistoryPage() {
                     <span className="incident__rail" aria-hidden="true" />
                     <div className="incident__body">
                       <div className="incident__title">
-                        <span>{incident.application} · {incident.component}</span>
+                        <span>
+                          {incident.application} · {incident.component}
+                        </span>
                         <span className="incident__uptime">{uptimeText(incident.uptime)}</span>
                       </div>
                       <p className="incident__detail">

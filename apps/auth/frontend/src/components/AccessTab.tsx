@@ -84,7 +84,9 @@ export default function AccessTab({
                 <div className={`mt-1 break-words ${mutedText}`}>{app.description || app.id}</div>
               </div>
               {perms.length === 0 ? (
-                <p className="mt-3 text-sm text-slate-400 dark:text-faint">No permissions defined.</p>
+                <p className="mt-3 text-sm text-slate-400 dark:text-faint">
+                  No permissions defined.
+                </p>
               ) : (
                 <div className="mt-4 flex flex-wrap gap-2">
                   {perms.map((perm) => (

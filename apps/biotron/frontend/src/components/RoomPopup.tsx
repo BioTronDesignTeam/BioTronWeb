@@ -52,7 +52,7 @@ export default function RoomPopup() {
 
   return (
     <div
-      className={`room-popup${activeStop === 'about' ? ' room-popup--about' : ''}`}
+      className={`room-popup${activeStop === 'about' ? 'room-popup--about' : ''}`}
       ref={wrap}
       // A live region rather than <output>, which may hold only phrasing
       // content, not these cards. aria-atomic keeps the reading of role=status.
@@ -60,7 +60,11 @@ export default function RoomPopup() {
       aria-atomic="true"
     >
       {activeStop === 'about' ? (
-        <article className="glass popup-card" ref={card} data-lenis-prevent={overflowing ? '' : undefined}>
+        <article
+          className="glass popup-card"
+          ref={card}
+          data-lenis-prevent={overflowing ? '' : undefined}
+        >
           <span className="mono-label">00 / About</span>
           <h2 className="popup-title">Solving biomedical problems with mechatronic solutions.</h2>
           <p className="popup-body">
@@ -79,12 +83,14 @@ export default function RoomPopup() {
           </div>
         </article>
       ) : project ? (
-        <article className="glass popup-card" ref={card} data-lenis-prevent={overflowing ? '' : undefined}>
+        <article
+          className="glass popup-card"
+          ref={card}
+          data-lenis-prevent={overflowing ? '' : undefined}
+        >
           <span className="mono-label">{project.status}</span>
           <h2 className="popup-title">{project.name}</h2>
-          <p className="popup-tagline">
-            {project.tagline}
-          </p>
+          <p className="popup-tagline">{project.tagline}</p>
           <p className="popup-body">{project.blurb}</p>
           <div className="popup-specs">
             {project.specs.map((sp) => (

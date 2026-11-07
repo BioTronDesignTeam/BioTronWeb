@@ -136,7 +136,10 @@ export const SUBTEAMS: SubTeam[] = [
     name: 'Software',
     blurb: 'Firmware, controls, signal processing, machine learning, and team tooling.',
   },
-  { name: 'Outreach & Operations', blurb: 'Community partnerships, recruitment, sponsorship, and events.' },
+  {
+    name: 'Outreach & Operations',
+    blurb: 'Community partnerships, recruitment, sponsorship, and events.',
+  },
 ];
 
 export const TEAM_STATS = [

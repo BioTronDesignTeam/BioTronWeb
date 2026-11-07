@@ -1,9 +1,12 @@
 import { useState, type FormEvent } from 'react';
 import { Modal } from './Modal';
 
-const cancelClass = 'min-h-11 rounded-full px-5 text-sm font-semibold hover:bg-soft/25 dark:hover:bg-white/10';
-const primaryClass = 'min-h-11 rounded-full bg-deep px-5 text-sm font-semibold text-white hover:bg-brand dark:bg-brand dark:hover:brightness-110 disabled:opacity-50';
-const destructiveClass = 'min-h-11 rounded-full bg-red-700 px-5 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-50';
+const cancelClass =
+  'min-h-11 rounded-full px-5 text-sm font-semibold hover:bg-soft/25 dark:hover:bg-white/10';
+const primaryClass =
+  'min-h-11 rounded-full bg-deep px-5 text-sm font-semibold text-white hover:bg-brand dark:bg-brand dark:hover:brightness-110 disabled:opacity-50';
+const destructiveClass =
+  'min-h-11 rounded-full bg-red-700 px-5 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-50';
 
 interface ConfirmDialogProps {
   title: string;
@@ -20,7 +23,14 @@ interface ConfirmDialogProps {
  * browser chrome that no theme, no keyboard trap, and no wording of ours
  * reaches.
  */
-export function ConfirmDialog({ title, message, confirmLabel, destructive = false, onCancel, onConfirm }: ConfirmDialogProps) {
+export function ConfirmDialog({
+  title,
+  message,
+  confirmLabel,
+  destructive = false,
+  onCancel,
+  onConfirm,
+}: ConfirmDialogProps) {
   const [busy, setBusy] = useState(false);
 
   async function confirm() {
@@ -36,8 +46,17 @@ export function ConfirmDialog({ title, message, confirmLabel, destructive = fals
     <Modal title={title} onClose={onCancel}>
       <p className="text-sm leading-6 text-ink/70 dark:text-muted">{message}</p>
       <div className="mt-7 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-        <button type="button" onClick={onCancel} className={cancelClass}>Keep as is</button>
-        <button type="button" disabled={busy} onClick={() => void confirm()} className={destructive ? destructiveClass : primaryClass}>{confirmLabel}</button>
+        <button type="button" onClick={onCancel} className={cancelClass}>
+          Keep as is
+        </button>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void confirm()}
+          className={destructive ? destructiveClass : primaryClass}
+        >
+          {confirmLabel}
+        </button>
       </div>
     </Modal>
   );
@@ -60,7 +79,17 @@ interface PromptDialogProps {
  * only discovered after the round trip, as a red banner somewhere else on the
  * page. The same limits the API enforces are applied here, before sending.
  */
-export function PromptDialog({ title, message, label, initialValue, confirmLabel, minLength, maxLength, onCancel, onConfirm }: PromptDialogProps) {
+export function PromptDialog({
+  title,
+  message,
+  label,
+  initialValue,
+  confirmLabel,
+  minLength,
+  maxLength,
+  onCancel,
+  onConfirm,
+}: PromptDialogProps) {
   const [value, setValue] = useState(initialValue);
   const [busy, setBusy] = useState(false);
   const trimmed = value.trim();
@@ -93,11 +122,21 @@ export function PromptDialog({ title, message, label, initialValue, confirmLabel
           />
         </label>
         <p className="mt-2 text-xs text-ink/50 dark:text-muted">
-          {invalid ? `Use between ${minLength} and ${maxLength} characters.` : `${trimmed.length} of ${maxLength} characters.`}
+          {invalid
+            ? `Use between ${minLength} and ${maxLength} characters.`
+            : `${trimmed.length} of ${maxLength} characters.`}
         </p>
         <div className="mt-7 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <button type="button" onClick={onCancel} className={cancelClass}>Cancel</button>
-          <button type="submit" disabled={busy || invalid || trimmed === initialValue} className={primaryClass}>{confirmLabel}</button>
+          <button type="button" onClick={onCancel} className={cancelClass}>
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={busy || invalid || trimmed === initialValue}
+            className={primaryClass}
+          >
+            {confirmLabel}
+          </button>
         </div>
       </form>
     </Modal>

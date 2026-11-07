@@ -12,7 +12,7 @@ export default function SponsorsPage() {
     <main id="main" className="sponsorspage">
       <PageMeta path="/sponsors" />
 
-      <section className="container sponsorspage__hero">
+      <section className="sponsorspage__hero container">
         <span className="eyebrow mono-label">Partner with Biotron</span>
         <SplitText
           as="h1"
@@ -29,7 +29,7 @@ export default function SponsorsPage() {
         </a>
       </section>
 
-      <section className="container sponsorspage__supporters" aria-labelledby="supporters-title">
+      <section className="sponsorspage__supporters container" aria-labelledby="supporters-title">
         <Reveal>
           <span className="eyebrow mono-label">Backed by</span>
           <h2 id="supporters-title">Our current sponsors.</h2>
@@ -52,7 +52,7 @@ export default function SponsorsPage() {
         </div>
       </section>
 
-      <section className="container sponsorspage__areas" aria-labelledby="partnership-title">
+      <section className="sponsorspage__areas container" aria-labelledby="partnership-title">
         <Reveal>
           <span className="eyebrow mono-label">What your support enables</span>
           <h2 id="partnership-title">Your support reaches the workbench.</h2>
@@ -70,13 +70,16 @@ export default function SponsorsPage() {
         </div>
       </section>
 
-      <section className="container sponsorspage__contact">
+      <section className="sponsorspage__contact container">
         <Reveal>
           <div className="sponsorspage__contactcard glass">
             <div>
               <span className="eyebrow mono-label">Work with us</span>
               <h2>Build a partnership that fits.</h2>
-              <p>Tell us what your organization wants to support. We will shape a partnership around it.</p>
+              <p>
+                Tell us what your organization wants to support. We will shape a partnership around
+                it.
+              </p>
             </div>
             <a className="sponsorspage__primary" href={sponsorshipEmail}>
               Contact the team <ArrowUpRight size={18} />

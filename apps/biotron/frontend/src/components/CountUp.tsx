@@ -38,5 +38,9 @@ export default function CountUp({ value, suffix = '', plain = false }: CountUpPr
     { scope: ref, dependencies: [reduced] },
   );
 
-  return <span ref={ref} className="tabular">0{suffix}</span>;
+  return (
+    <span ref={ref} className="tabular">
+      0{suffix}
+    </span>
+  );
 }
