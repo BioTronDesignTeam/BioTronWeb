@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/auth/backend/internal/cache"
 	"github.com/BioTronDesignTeam/BioTronWeb/apps/auth/backend/internal/store"
 )
 
@@ -27,7 +28,9 @@ func TestCheckAnswersUnauthorizedWithoutSession(t *testing.T) {
 }
 
 func TestCheckAnswersOKWithVerdictForValidSessions(t *testing.T) {
-	h := &Handler{Store: &store.Store{}}
+	// grantStore holds member 9 with calendar/write, so a member's verdict
+	// comes from the grant lookup.
+	h := &Handler{Store: &store.Store{}, Cache: cache.New(grantStore{})}
 
 	for _, tc := range []struct {
 		name       string
@@ -42,6 +45,20 @@ func TestCheckAnswersOKWithVerdictForValidSessions(t *testing.T) {
 			query:      "app=calendar&permission=write",
 			wantStatus: http.StatusOK,
 			wantAllow:  true,
+		},
+		{
+			name:       "a member holds a permission they were granted",
+			operator:   &store.SessionOperator{GitHubID: 9, Login: "ada"},
+			query:      "app=calendar&permission=write",
+			wantStatus: http.StatusOK,
+			wantAllow:  true,
+		},
+		{
+			name:       "a member holds nothing of a tool they were not granted",
+			operator:   &store.SessionOperator{GitHubID: 9, Login: "ada"},
+			query:      "app=exo-gui&permission=live",
+			wantStatus: http.StatusOK,
+			wantAllow:  false,
 		},
 		{
 			name:       "exo guests are authenticated but never hold calendar write",
