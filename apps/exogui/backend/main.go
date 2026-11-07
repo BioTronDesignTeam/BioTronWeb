@@ -25,6 +25,13 @@ import (
 const shutdownTimeout = 10 * time.Second
 
 func main() {
+	// Set once, before any goroutine reads the clock.
+	loc, err := time.LoadLocation("America/Toronto")
+	if err != nil {
+		log.Fatalf("load America/Toronto timezone: %v", err)
+	}
+	time.Local = loc
+
 	if err := run(); err != nil {
 		log.Fatal(err)
 	}
@@ -33,12 +40,6 @@ func main() {
 // run serves until SIGINT or SIGTERM. It returns instead of exiting, so its
 // deferred calls run on every path.
 func run() error {
-	loc, err := time.LoadLocation("America/Toronto")
-	if err != nil {
-		return fmt.Errorf("load America/Toronto timezone: %w", err)
-	}
-	time.Local = loc
-
 	_ = godotenv.Load("../.env")
 
 	cfg := config.Load()
@@ -46,6 +47,14 @@ func run() error {
 	if !events.Enabled() {
 		log.Println("warning: neither Grafana nor PostHog is configured — structured events go nowhere")
 	}
+	// Flushed last, on every path, so a listen failure reaches Grafana too.
+	defer func() {
+		closeCtx, cancelClose := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancelClose()
+		if err := events.Close(closeCtx); err != nil {
+			log.Printf("log export flush: %v", err)
+		}
+	}()
 	// OAUTH_MANAGER_URL defaults to Auth on the instance network, so the client
 	// always has a URL. An unreachable Auth fails every gated route closed with
 	// 503.
@@ -57,6 +66,7 @@ func run() error {
 	defer stop()
 	listener, err := new(net.ListenConfig).Listen(ctx, "tcp", addr)
 	if err != nil {
+		events.LogAsync(logclient.Error, "Exo API failed", map[string]any{"error": err.Error()})
 		return fmt.Errorf("listen: %w", err)
 	}
 	events.LogAsync(logclient.Info, "Exo API started", map[string]any{"port": cfg.Port})
@@ -66,13 +76,8 @@ func run() error {
 		log.Println("shutting down")
 		events.LogAsync(logclient.Info, "Exo API stopping", nil)
 	})
-	// After the server has stopped, so the last request events are queued.
-	closeCtx, cancelClose := context.WithTimeout(context.Background(), 5*time.Second)
-	if closeErr := events.Close(closeCtx); closeErr != nil {
-		log.Printf("log export flush: %v", closeErr)
-	}
-	cancelClose()
 	if err != nil {
+		events.LogAsync(logclient.Error, "Exo API failed", map[string]any{"error": err.Error()})
 		return fmt.Errorf("serve: %w", err)
 	}
 	return nil
