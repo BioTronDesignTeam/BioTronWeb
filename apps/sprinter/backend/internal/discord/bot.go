@@ -74,6 +74,7 @@ type Bot struct {
 	events  *logclient.Client
 	options Options
 	limits  *limiter
+	threads *threadLocks
 	// connected is read by /health from another goroutine, and the gateway
 	// drops and resumes while the process stays up.
 	connected atomic.Bool
@@ -104,7 +105,7 @@ func New(token string, sprinterStore Store, events *logclient.Client, options Op
 	bot := &Bot{
 		session: session, api: sessionAPI{session: session},
 		store: sprinterStore, events: events,
-		options: options, limits: newLimiter(maxConcurrent),
+		options: options, limits: newLimiter(maxConcurrent), threads: newThreadLocks(),
 	}
 
 	// Handlers are registered before Open so the gateway's first Ready cannot
@@ -334,6 +335,21 @@ func (b *Bot) handleThreadMessage(message *discordgo.MessageCreate) {
 	}
 	defer release()
 
+	// One follow-up at a time per thread, and the thread re-read once it is
+	// this one's turn: the follow-up before it may have used the last turn.
+	unlock := b.threads.lock(thread.ThreadID)
+	defer unlock()
+	thread, err = b.reloadThread(thread.ThreadID)
+	if err != nil {
+		log.Printf("read thread %q: %v", message.ChannelID, err)
+		return
+	}
+	if thread.TurnCount >= b.options.MaxThreadTurns {
+		b.say(message.ChannelID,
+			"This thread has reached its limit. Start a new one with /agent-thread.")
+		return
+	}
+
 	// A thread answer has no deferred reply to stand in for it, so the typing
 	// indicator is the only sign the bot is working.
 	stopTyping := b.typing(message.ChannelID)
@@ -393,6 +409,12 @@ func (b *Bot) handleThreadMessage(message *discordgo.MessageCreate) {
 	}
 	addCost(payload, reply)
 	b.events.LogAsync(logclient.Info, "Question answered", payload)
+}
+
+func (b *Bot) reloadThread(threadID string) (store.Thread, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), store.Timeout)
+	defer cancel()
+	return b.store.GetThread(ctx, threadID)
 }
 
 // threadAllowed re-runs the `agent-thread` guard for a follow-up. The guard

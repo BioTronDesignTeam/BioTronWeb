@@ -167,6 +167,7 @@ func testBot(api *fakeAPI, sprinterStore Store, runner Runner) *Bot {
 		api: api, store: sprinterStore,
 		options: Options{Runner: runner, Model: "fake", MaxThreadTurns: DefaultMaxThreadTurns},
 		limits:  newLimiter(maxConcurrent),
+		threads: newThreadLocks(),
 	}
 }
 
