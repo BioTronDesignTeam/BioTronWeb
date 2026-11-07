@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { authStrings } from './auth/strings';
 
 const UserIcon = () => (
@@ -21,6 +21,12 @@ export type UserMenuProps = {
   className?: string;
 };
 
+/**
+ * The account button and the panel it opens. It is a disclosure, not an ARIA
+ * menu: a button that shows a panel of ordinary buttons, reached with Tab.
+ * Escape, or Tab out of the panel, closes it; Escape puts focus back on the
+ * button.
+ */
 export function UserMenu({
   user,
   onLogout,
@@ -29,6 +35,8 @@ export function UserMenu({
 }: UserMenuProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const panelId = useId();
 
   useEffect(() => {
     if (!open) return;
@@ -36,47 +44,51 @@ export function UserMenu({
       if (ref.current && !ref.current.contains(event.target as Node)) setOpen(false);
     };
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false);
+      if (event.key !== 'Escape') return;
+      setOpen(false);
+      trigger.current?.focus();
+    };
+    const onFocusIn = (event: FocusEvent) => {
+      if (ref.current && !ref.current.contains(event.target as Node)) setOpen(false);
     };
     document.addEventListener('pointerdown', onPointerDown);
     document.addEventListener('keydown', onKeyDown);
+    document.addEventListener('focusin', onFocusIn);
     return () => {
       document.removeEventListener('pointerdown', onPointerDown);
       document.removeEventListener('keydown', onKeyDown);
+      document.removeEventListener('focusin', onFocusIn);
     };
   }, [open]);
 
   const displayName = user?.name || user?.login || authStrings.fallbackName;
   const detail = user?.detail || (user?.login ? `@${user.login}` : authStrings.fallbackDetail);
+  const run = (action: () => void | Promise<void>) => () => {
+    setOpen(false);
+    void action();
+  };
 
   return (
     <div ref={ref} className={`biotron-user-menu ${className}`.trim()}>
       <button
+        ref={trigger}
         type="button"
         className="biotron-user-menu__trigger"
         onClick={() => setOpen((value) => !value)}
-        aria-haspopup="menu"
         aria-expanded={open}
+        aria-controls={open ? panelId : undefined}
         aria-label={authStrings.userMenu}
       >
         {user?.avatarUrl ? <img src={user.avatarUrl} alt="" /> : <UserIcon />}
       </button>
       {open && (
-        <div className="biotron-user-menu__popover" role="menu">
+        <div id={panelId} className="biotron-user-menu__popover">
           <div className="biotron-user-menu__identity">
             {/* Both lines are cut with an ellipsis in a fixed-width popover, so the full text goes in a tooltip. */}
             <strong title={displayName}>{displayName}</strong>
             <span title={detail}>{detail}</span>
           </div>
-          <button
-            type="button"
-            role="menuitem"
-            className="biotron-user-menu__logout"
-            onClick={() => {
-              setOpen(false);
-              void onLogout();
-            }}
-          >
+          <button type="button" className="biotron-user-menu__logout" onClick={run(onLogout)}>
             {logoutLabel}
           </button>
         </div>

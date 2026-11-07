@@ -46,6 +46,9 @@ Status and Site are public and must not mount it.
   `unavailable` when Auth cannot be reached), `operator`, `can(permission)`,
   `login`, `loginGuest`, `logout`, `refresh`, and `expire` (call it when an
   API answers 401).
+- Each check gives up after 8 seconds (`AbortSignal.timeout`), so a hung Auth
+  reaches the outage screen in under half a minute instead of waiting on the
+  proxy three times over.
 - The provider reads Auth's `?auth=denied` and `?auth=banned` notices, strips
   them from the address, and says when a live session expires.
 - `RequireAuth` shows loading, sign-in, the outage screen, or `AccessDenied`
@@ -53,6 +56,9 @@ Status and Site are public and must not mount it.
   on `can()`.
 - `AccountControls` is the right end of a header: theme switch, then the
   account menu or a Sign in button.
+- `UserMenu` is a disclosure, not an ARIA menu: its button opens a panel of
+  ordinary buttons reached with Tab. Escape closes it and returns focus to
+  the button; moving focus out of it also closes it.
 - `authStrings` holds every user-facing word about signing in, roles, and
   permissions. `friendlyError` turns raw server refusals into those words.
 
