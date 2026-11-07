@@ -39,7 +39,7 @@ model CalendarScope {
   children   CalendarScope[]     @relation("ScopeTree")
   archivedAt DateTime?           @map("archived_at") @db.Timestamptz(6)
   createdAt  DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt  DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedAt  DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   events     EventSeries[]
 
   @@unique([parentId, slug])
@@ -69,7 +69,7 @@ model EventSeries {
   publishedAt     DateTime?       @map("published_at") @db.Timestamptz(6)
   cancelledAt     DateTime?       @map("cancelled_at") @db.Timestamptz(6)
   createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedAt       DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   overrides       EventOverride[]
 
   @@index([scopeId, state])
@@ -89,7 +89,7 @@ model EventOverride {
   patch             Json               @default("{}")
   sequence          Int                @default(0)
   createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt         DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedAt         DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@unique([seriesId, recurrenceIdLocal])
   @@index([seriesId])
