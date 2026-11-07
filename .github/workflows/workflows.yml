@@ -1,7 +1,9 @@
 # Lints every workflow in .github/workflows with actionlint, which also runs
-# ShellCheck on each run: step. It runs on every pull request, not only on
-# those that touch .github, because it takes seconds and a new actionlint
-# release can find something in a workflow that did not change.
+# ShellCheck on each run: step, then checks their security, and that of
+# dependabot.yml, with zizmor (.github/zizmor.yml). It runs on every pull
+# request, not only on those that touch .github, because it takes seconds and
+# a new release of either tool can find something in a workflow that did not
+# change. The job keeps the name actionlint, which the main ruleset requires.
 name: workflows
 
 on:
@@ -35,4 +37,15 @@ jobs:
             echo "::error::No pinned actionlint image in .devcontainer/Dockerfile"
             exit 1
           fi
-          docker run --rm -v "$PWD:/repo" -w /repo "$image" -color
+          docker run --rm -v "$PWD:/repo:ro" -w /repo "$image" -color
+      # The zizmor image of .devcontainer/Dockerfile, the same way. Offline:
+      # it gets no token, so the audits that need the GitHub API, such as
+      # known vulnerable actions, are left to Dependabot.
+      - name: check the security of the workflows (zizmor)
+        run: |
+          image=$(sed -nE 's|^FROM (ghcr\.io/zizmorcore/zizmor:[0-9.]+@sha256:[0-9a-f]{64}) AS zizmor$|\1|p' .devcontainer/Dockerfile)
+          if [[ -z $image ]]; then
+            echo "::error::No pinned zizmor image in .devcontainer/Dockerfile"
+            exit 1
+          fi
+          docker run --rm -v "$PWD:/repo:ro" -w /repo "$image" --offline --config .github/zizmor.yml --format github .github

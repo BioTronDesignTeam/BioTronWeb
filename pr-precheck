@@ -16,7 +16,7 @@ Includes committed, staged, unstaged, and untracked nonignored changes.
   --help      Show this help
 
 Use the devcontainer for Node, Go, golangci-lint, sqlc, actionlint, ShellCheck,
-TruffleHog, Trivy, and jq.
+zizmor, TruffleHog, Trivy, and jq.
 Security scans always run and require network access for live verification.
 No fetching, commits, pushes, migrations, or services are started.
 USAGE
@@ -79,12 +79,12 @@ done
 shared=no
 if $all_backends; then shared=yes; fi
 printf 'Base: %s (merge base %.12s)\nFrontends: %s\nBackends: %s\nShared Go modules: %s\n' "$base" "$merge_base" "${frontends:-none}" "${backends:-none}" "$shared"
-echo 'Workflows: actionlint on every workflow'
+echo 'Workflows: actionlint and zizmor on every workflow'
 echo 'Shell scripts: ShellCheck on every one (scripts/list-shell-scripts)'
 echo 'Security: commit history, staged and working files, vulnerabilities and misconfigurations'
 if $plan; then exit 0; fi
 
-required='trufflehog trivy jq actionlint shellcheck'
+required='trufflehog trivy jq actionlint shellcheck zizmor'
 if [[ -n $frontends ]]; then required="$required npm"; fi
 if [[ -n $backends || $shared == yes ]]; then required="$required go golangci-lint sqlc"; fi
 missing=''
@@ -196,7 +196,8 @@ for module in $modules; do
 done
 
 run 'workflows' actionlint
-# Same as the shellcheck job of ci.yml.
+# Same as the workflows.yml job and the shellcheck job of ci.yml.
+run 'workflow security' zizmor --offline --config .github/zizmor.yml .github
 shell_scripts=()
 while IFS= read -r -d '' file; do shell_scripts+=("$file"); done < <(scripts/list-shell-scripts)
 run 'shell scripts' shellcheck -x "${shell_scripts[@]}"
