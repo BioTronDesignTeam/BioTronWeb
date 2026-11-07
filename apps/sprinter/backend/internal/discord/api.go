@@ -25,6 +25,8 @@ type api interface {
 	StartThread(channelID, messageID, name string) (string, error)
 	// Send posts a plain message to a channel or a thread.
 	Send(channelID, content string) error
+	// DirectMessage sends content to one user in their direct messages.
+	DirectMessage(userID, content string) error
 	// Typing shows the typing indicator once.
 	Typing(channelID string)
 	// ParentChannelID is the channel a thread hangs off, or "" when the id
@@ -158,4 +160,15 @@ func followupParams(content string) *discordgo.WebhookParams {
 
 func messageSend(content string) *discordgo.MessageSend {
 	return &discordgo.MessageSend{Content: content, AllowedMentions: noMentions(), Flags: noEmbeds}
+}
+
+func (s sessionAPI) DirectMessage(userID, content string) error {
+	option, cancel := s.with()
+	defer cancel()
+	channel, err := s.session.UserChannelCreate(userID, option)
+	if err != nil {
+		return err
+	}
+	_, err = s.session.ChannelMessageSendComplex(channel.ID, messageSend(content), option)
+	return err
 }

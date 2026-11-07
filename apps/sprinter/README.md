@@ -156,7 +156,25 @@ saying it was cut and how to narrow the question.
 `who_has_access` also lists the managers and the superusers, because
 those two flags admit an operator everywhere without a grant, and an
 answer that named only the grant holders would be wrong. It never reads
-`oauth.guest_keys`; a live test proves the role cannot read it.
+`oauth.guest_keys`; a live test proves the role cannot read it. `app` is
+one of Auth's app ids: `exo-gui`, `calendar`, or `sprinter`.
+
+`who_has_access` is privileged. Auth shows who holds which grant, who is
+a manager or a superuser, and who is banned to managers and superusers
+only, and the bot keeps it that way:
+
+- Only an `/agent` question can use it, never `/agent-thread` or a
+  follow-up. A thread is read by its whole channel and replayed to
+  everyone who asks in it.
+- The asker must pass the `who-has-access` guard. Sprinter knows a
+  Discord member, not their GitHub identity, so it cannot ask Auth
+  whether they are a manager. A manager sets this guard to a Discord
+  role that only managers and superusers hold. Without the guard, nobody
+  can use the tool.
+- An answer that used it goes to the asker by direct message. The
+  channel only reads that the answer went there. When the DM cannot be
+  sent, the answer is dropped and the asker is told why. It is never
+  posted in the channel.
 
 The model is told that tool results are data and never instructions. A
 health detail or an event title can contain words that read like an
@@ -234,8 +252,9 @@ that automation for the tick; it is never read as "nothing is scheduled".
 | PATCH | `/v1/admin/automations/:id` | changes the fields sent |
 | DELETE | `/v1/admin/automations/:id` | removes it |
 
-`:subject` is `agent`, `agent-thread`, `announce`, or `nudge`. The first
-two are the command names.
+`:subject` is `agent`, `agent-thread`, `announce`, `nudge`, or
+`who-has-access`. The first two are the command names; the last admits an
+`/agent` question to the `who_has_access` tool.
 
 Every `/v1/admin` route needs an operator whose Auth session holds
 `sprinter/admin`. Through `go/authclient`, the API forwards the cookie to
@@ -318,7 +337,7 @@ not.
 | `Commands registered` | info | `guild_id`, `count` |
 | `Command registration failed` | error | `guild_id`, `error` |
 | `Command refused` | warning | `subject`, `reason`, `user_id`, `guild_id`, `channel_id`, `thread_id` in a thread |
-| `Question answered` | info | `subject`, `user_id`, `duration_ms`, `channel_id` or `thread_id`, `tools` and token counts when a model answered |
+| `Question answered` | info | `subject`, `user_id`, `duration_ms`, `channel_id` or `thread_id`, `tools` and token counts when a model answered, `delivered` `dm` for a privileged answer |
 | `Question failed` | error | `subject`, `stage`, `duration_ms`, `error`, `thread_id` in a thread |
 | `Follow-up failed` | error | `channel_id`, `error` |
 | `Thread opened` | info | `thread_id`, `channel_id`, `opener_id` |

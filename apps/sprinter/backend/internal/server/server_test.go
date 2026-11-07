@@ -500,3 +500,15 @@ func TestAuthStatusBody(t *testing.T) {
 		t.Fatalf("Auth down: %d %s", status, body)
 	}
 }
+
+// The who-has-access guard is stored like the command guards. It is the one
+// that admits a question to the access roster.
+func TestPutGuardAcceptsWhoHasAccess(t *testing.T) {
+	sprinterStore := &fakeStore{}
+	app := newTestApp(t, adminAuth(t), sprinterStore)
+	body := `{"guild_id":"123456789012345678","role_ids":["223456789012345678"]}`
+	status, response := app.do(http.MethodPut, "/v1/admin/guards/who-has-access", body, withCookie(xhr))
+	if status != http.StatusOK || sprinterStore.upserted == nil || sprinterStore.upserted.Subject != store.SubjectWhoHasAccess {
+		t.Fatalf("status = %d (%s), stored = %+v", status, response, sprinterStore.upserted)
+	}
+}
