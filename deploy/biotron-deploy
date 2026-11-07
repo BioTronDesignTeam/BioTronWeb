@@ -24,30 +24,38 @@ repo=BioTronDesignTeam/BioTronWeb
 registry=ghcr.io/biotrondesignteam/
 base=/opt/biotron
 etc=/etc/biotron
-export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+rundir=/run/biotron-deploy
+logdir=/var/log/biotron-deploy
+# How long a deploy waits for its containers, and how long a container
+# without a health check must stay up, with no restart, to count as ready.
+ready_timeout=180 stable_seconds=20
 
 die() { echo "biotron-deploy: $*" >&2; exit 1; }
 log() { echo "biotron-deploy: $*" >&2; }
 
-[[ $# -eq 2 ]] || die 'usage: biotron-deploy <instance|edge|secrets> <40-character commit>'
-target=$1 revision=$2
-[[ $target =~ ^[a-z][a-z0-9]{0,15}$ ]] || die "invalid target '$target'"
-[[ $target != local && $target != infrastructure ]] || die "'$target' is not a deployable instance"
-[[ $revision =~ ^[0-9a-f]{40}$ ]] || die 'the commit must be a full 40-character SHA'
-[[ $EUID -eq 0 ]] || die 'run as root, through sudo'
-for tool in docker curl jq tar flock; do
-  command -v "$tool" >/dev/null 2>&1 || die "$tool is not installed"
-done
+# Checks the arguments before anything else, so they hold for whatever a
+# sudoers wildcard lets through, then takes this target's lock.
+start() {
+  [[ $# -eq 2 ]] || die 'usage: biotron-deploy <instance|edge|secrets> <40-character commit>'
+  target=$1 revision=$2
+  [[ $target =~ ^[a-z][a-z0-9]{0,15}$ ]] || die "invalid target '$target'"
+  [[ $target != local && $target != infrastructure ]] || die "'$target' is not a deployable instance"
+  [[ $revision =~ ^[0-9a-f]{40}$ ]] || die 'the commit must be a full 40-character SHA'
+  [[ $EUID -eq 0 ]] || die 'run as root, through sudo'
+  export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+  for tool in docker curl jq tar flock; do
+    command -v "$tool" >/dev/null 2>&1 || die "$tool is not installed"
+  done
 
-# One deploy per target at a time; staging, prod, and the edge never wait on
-# each other. The locks live in a directory only root can enter, not the
-# world-writable /run/lock, where another account could create or hold the
-# lock file first.
-rundir=/run/biotron-deploy
-install -d -o root -g root -m 0700 "$rundir"
-[[ ! -L $rundir && $(stat -c '%u %a' "$rundir") == '0 700' ]] || die "$rundir must be a directory owned by root with mode 0700"
-exec 9>"$rundir/$target.lock"
-flock -w 600 9 || die "another deploy of $target is still running"
+  # One deploy per target at a time; staging, prod, and the edge never wait
+  # on each other. The locks live in a directory only root can enter, not the
+  # world-writable /run/lock, where another account could create or hold the
+  # lock file first.
+  install -d -o root -g root -m 0700 "$rundir"
+  [[ ! -L $rundir && $(stat -c '%u %a' "$rundir") == '0 700' ]] || die "$rundir must be a directory owned by root with mode 0700"
+  exec 9>"$rundir/$target.lock"
+  flock -w 600 9 || die "another deploy of $target is still running"
+}
 
 # A bootstrap file holds credentials, so it must be root's alone.
 require_private() {
@@ -118,51 +126,99 @@ fetch_release() {
   cd "$dest"
 }
 
-# Waits until every container of a project is running, healthy where it has a
-# health check, and every one-shot migration has exited 0. It asks Docker, not
-# Compose, so no Compose file in the working directory can narrow the answer.
+# Readiness of a project's containers, asked of Docker rather than Compose, so
+# no Compose file in the working directory can narrow the answer. It fills
+# `pending` and `failed` with service=container=state entries:
 #
+#   - A one-shot (restart policy "no"), such as a migration or postgres-roles,
+#     is ready once it has exited 0, and has failed when it exited otherwise.
+#   - Any other container is ready when it is running, healthy if it has a
+#     health check, and has stayed up for stable_seconds. One that restarted
+#     since this deploy first saw it is crash looping, and has failed.
+#
+# restarts[id] remembers each container's restart count from the first look.
+declare -A restarts=()
+check_containers() {
+  local project=$1 ids id service state health code policy count started age
+  pending=() failed=()
+  mapfile -t ids < <(docker ps -aq --filter "label=com.docker.compose.project=$project" --filter label=com.docker.compose.oneoff=False)
+  [[ ${#ids[@]} -gt 0 ]] || pending=(no-containers)
+  for id in "${ids[@]}"; do
+    IFS=$'\t' read -r service state health code policy count started < <(docker inspect --format \
+      '{{index .Config.Labels "com.docker.compose.service"}}{{"\t"}}{{.State.Status}}{{"\t"}}{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}{{"\t"}}{{.State.ExitCode}}{{"\t"}}{{.HostConfig.RestartPolicy.Name}}{{"\t"}}{{.RestartCount}}{{"\t"}}{{.State.StartedAt}}' "$id")
+    if [[ $policy == no || -z $policy ]]; then
+      if [[ $state == exited && $code == 0 ]]; then continue; fi
+      if [[ $state == exited || $state == dead ]]; then failed+=("$service=$id=exited $code"); else pending+=("$service=$id=$state"); fi
+      continue
+    fi
+    : "${restarts[$id]:=$count}"
+    if (( count > restarts[$id] )) || [[ $state == restarting ]]; then
+      failed+=("$service=$id=restarting, crash loop")
+    elif [[ $state != running ]]; then
+      pending+=("$service=$id=$state")
+    elif [[ $health != none && $health != healthy ]]; then
+      if [[ $health == unhealthy ]]; then failed+=("$service=$id=unhealthy"); else pending+=("$service=$id=$health"); fi
+    else
+      age=$(( $(date +%s) - $(date -d "$started" +%s) ))
+      (( age >= stable_seconds )) || pending+=("$service=$id=up ${age}s")
+    fi
+  done
+}
+
 # The repository is public, and so are its Actions logs, where this output
 # lands. A container's logs can hold anything, so they go to a root-only file
-# under /var/log/biotron-deploy, and the output names only each service, its
-# state, and that file.
-wait_healthy() {
-  local project=$1 deadline=$((SECONDS + 180)) bad ids id service state health code logfile entry
-  while :; do
-    bad=()
-    mapfile -t ids < <(docker ps -aq --filter "label=com.docker.compose.project=$project" --filter label=com.docker.compose.oneoff=False)
-    [[ ${#ids[@]} -gt 0 ]] || bad=(no-containers)
-    for id in "${ids[@]}"; do
-      IFS=$'\t' read -r service state health code < <(docker inspect --format \
-        '{{index .Config.Labels "com.docker.compose.service"}}{{"\t"}}{{.State.Status}}{{"\t"}}{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}{{"\t"}}{{.State.ExitCode}}' "$id")
-      case $service in
-        *-migrate|postgres-roles) [[ $state == exited && $code == 0 ]] || bad+=("$service=$id=$state, exit $code") ;;
-        *) [[ $state == running && ( $health == none || $health == healthy ) ]] || bad+=("$service=$id=$state, $health") ;;
-      esac
-    done
-    [[ ${#bad[@]} -eq 0 ]] && return 0
-    if (( SECONDS > deadline )); then
-      install -d -o root -g root -m 0700 /var/log/biotron-deploy
-      logfile=/var/log/biotron-deploy/$target-$revision-$(date -u +%Y%m%dT%H%M%SZ).log
-      (
-        umask 077
-        {
-          docker ps -a --filter "label=com.docker.compose.project=$project"
-          for entry in "${bad[@]}"; do
-            [[ $entry == *=*=* ]] || continue
-            id=${entry#*=} id=${id%%=*}
-            echo "--- ${entry%%=*}"
-            docker logs --tail 200 "$id" 2>&1 || true
-          done
-        } > "$logfile"
-      )
-      for entry in "${bad[@]}"; do
-        if [[ $entry == *=*=* ]]; then log "not ready: ${entry%%=*} (${entry##*=})"; else log "not ready: $entry"; fi
+# under $logdir, and the output names only each service, its state, and that
+# file. Ends the deploy.
+report_unready() {
+  local project=$1 why=$2 entry id logfile
+  shift 2
+  install -d -o root -g root -m 0700 "$logdir"
+  logfile=$logdir/$target-$revision-$(date -u +%Y%m%dT%H%M%SZ).log
+  (
+    umask 077
+    {
+      docker ps -a --filter "label=com.docker.compose.project=$project"
+      for entry in "$@"; do
+        [[ $entry == *=*=* ]] || continue
+        id=${entry#*=} id=${id%%=*}
+        echo "--- ${entry%%=*}"
+        docker logs --tail 200 "$id" 2>&1 || true
       done
-      die "$project is not healthy after 3 minutes; its logs are in $logfile on the host, readable by root only"
+    } > "$logfile"
+  )
+  for entry in "$@"; do
+    if [[ $entry == *=*=* ]]; then log "not ready: ${entry%%=*} (${entry##*=})"; else log "not ready: $entry"; fi
+  done
+  die "$project $why; its logs are in $logfile on the host, readable by root only"
+}
+
+# Waits until every container of a project is ready (check_containers), and
+# stays so for stable_seconds more, which catches a container that crashes
+# soon after it first looks ready. A failed migration or a crash loop ends
+# the wait at once.
+wait_healthy() {
+  local project=$1 deadline=$((SECONDS + ready_timeout)) ready_since=''
+  while :; do
+    check_containers "$project"
+    (( ${#failed[@]} == 0 )) || report_unready "$project" 'failed to start' "${failed[@]}" "${pending[@]}"
+    if (( ${#pending[@]} > 0 )); then
+      ready_since=''
+    else
+      : "${ready_since:=$SECONDS}"
+      (( SECONDS - ready_since < stable_seconds )) || return 0
     fi
+    (( SECONDS <= deadline )) || report_unready "$project" "is not ready after ${ready_timeout}s" "${pending[@]}"
     sleep 3
   done
+}
+
+# After `./launch` itself failed, as when a migration exits non-zero and
+# Compose refuses to start the API that depends on it: records what each
+# container did, then ends the deploy.
+report_launch_failure() {
+  local project=$1
+  check_containers "$project"
+  report_unready "$project" 'did not start' "${failed[@]}" "${pending[@]}"
 }
 
 # Removes this registry's images that no container uses any more. Every
@@ -216,7 +272,8 @@ deploy_instance() {
   clean_env HOME="$infisical_home" INFISICAL_API_URL="$api" INFISICAL_DISABLE_UPDATE_CHECK=true INFISICAL_TOKEN="$token" \
     infisical run --projectId="$project_id" --env="$environment" --path="$path" --silent -- \
     env -u INFISICAL_TOKEN -u INFISICAL_API_URL HOME=/root \
-    bash deploy/instance-defaults.sh ./launch all --instance "$target" --runtime --pull
+    bash deploy/instance-defaults.sh ./launch all --instance "$target" --runtime --pull ||
+    report_launch_failure "biotron-$target"
   wait_healthy "biotron-$target"
 }
 
@@ -225,7 +282,7 @@ deploy_edge() {
   check_on_main
   fetch_release
   log "deploying the edge at $revision"
-  clean_env EDGE_ENV_FILE="$etc/edge.env" ./launch edge --runtime --pull
+  clean_env EDGE_ENV_FILE="$etc/edge.env" ./launch edge --runtime --pull || report_launch_failure biotron-edge
   wait_healthy biotron-edge
 }
 
@@ -234,14 +291,20 @@ deploy_secrets() {
   check_on_main
   fetch_release
   log "deploying Infisical from $revision"
-  clean_env INFISICAL_BOOTSTRAP_FILE="$etc/infisical.env" ./launch secrets
+  clean_env INFISICAL_BOOTSTRAP_FILE="$etc/infisical.env" ./launch secrets || report_launch_failure biotron-secrets
   wait_healthy biotron-secrets
 }
 
-case $target in
-  edge) deploy_edge ;;
-  secrets) deploy_secrets ;;
-  *) deploy_instance ;;
-esac
-prune_images
-log "$target is at $revision"
+main() {
+  start "$@"
+  case $target in
+    edge) deploy_edge ;;
+    secrets) deploy_secrets ;;
+    *) deploy_instance ;;
+  esac
+  prune_images
+  log "$target is at $revision"
+}
+
+# infra/tests sources this file to test its functions one by one.
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then main "$@"; fi

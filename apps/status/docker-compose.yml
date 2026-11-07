@@ -57,6 +57,14 @@ services:
   status-web:
     environment:
       BASE_DOMAIN: ${BASE_DOMAIN:-localhost}
+    # A deploy waits for it (deploy/biotron-deploy). The Go APIs run from
+    # images with no shell or client to probe with, so a deploy instead
+    # requires them to stay up, unrestarted, for a while.
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
     image: ${IMAGE_REGISTRY:-biotron-}status-web:${IMAGE_TAG:-local}
     build:
       context: ../..

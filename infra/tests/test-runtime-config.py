@@ -82,6 +82,14 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertEqual(services['auth-web']['ports'][0]['published'], '15173')
         self.assertEqual(services['sprinter-web']['ports'][0]['published'], '15178')
 
+    def test_every_frontend_and_postgres_has_a_health_check(self):
+        # A deploy waits for health checks; the Go APIs, whose images have no
+        # shell to probe with, must instead stay up unrestarted.
+        services = self.config()['services']
+        for name, service in services.items():
+            if name.endswith('-web') or name == 'postgres':
+                self.assertIn('healthcheck', service, name)
+
     def test_calendar_lets_local_sprinter_read_its_scopes(self):
         origins = self.config()['services']['calendar-api']['environment']['CORS_ORIGINS']
         for origin in ('http://localhost:5178', 'http://127.0.0.1:5178'):
@@ -399,6 +407,121 @@ class DeployTests(unittest.TestCase):
             result = subprocess.run(['jq', '-e', '--arg', 'commit', commit, jq_filter],
                                     input=json.dumps(tags), capture_output=True, text=True)
             self.assertEqual(result.returncode == 0, tagged, commit)
+
+
+class DeployScriptTests(unittest.TestCase):
+    """deploy/biotron-deploy's functions, sourced one by one, with Docker and
+    GitHub replaced by shell functions."""
+
+    SHA = '0123456789abcdef0123456789abcdef01234567'
+    OLD = '2026-01-01T00:00:00.000000000Z'
+    # A fake `docker` for wait_healthy: each container is a line of
+    # id, service, state, health, exit code, restart policy, restart count, and
+    # start time in $FAKE/containers. A restart count of `+` grows on every look.
+    DOCKER = r'''
+docker() {
+  case $1 in
+    ps) if [[ $2 == -aq ]]; then cut -f1 "$FAKE/containers"; else echo 'the container table'; fi ;;
+    inspect)
+      local id=${*: -1} line
+      line=$(grep "^$id"$'\t' "$FAKE/containers")
+      if [[ $(cut -f7 <<<"$line") == + ]]; then
+        echo x >> "$FAKE/looks.$id"
+        line=$(awk -F'\t' -v n="$(wc -l < "$FAKE/looks.$id")" 'BEGIN{OFS="\t"} {$7=n; print}' <<<"$line")
+      fi
+      cut -f2- <<<"$line" ;;
+    logs) echo "SECRET log line of ${*: -1}" ;;
+  esac
+}
+install() { mkdir -p "${@: -1}"; }
+sleep() { :; }
+'''
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.fake = Path(self.temp.name)
+
+    def bash(self, script):
+        """Sources the deploy script, then runs `script` in the same shell."""
+        prelude = (f'source {ROOT}/deploy/biotron-deploy\n{self.DOCKER}\n'
+                   f'logdir={self.fake}/log target=staging revision={self.SHA}\n')
+        return subprocess.run(['bash', '-c', prelude + script], capture_output=True, text=True,
+                              env={**os.environ, 'FAKE': str(self.fake)})
+
+    def containers(self, *rows):
+        self.fake.joinpath('containers').write_text(
+            ''.join('\t'.join(row) + '\n' for row in rows))
+
+    def logs(self):
+        return ''.join(path.read_text() for path in (self.fake / 'log').glob('*.log'))
+
+    def test_read_env_file_reads_values_without_running_them(self):
+        env = self.fake / 'identity.env'
+        env.write_bytes(b'# a comment\n\nA="x=y"\r\nB=\'z\'\nC=$(touch pwned)\n')
+        result = self.bash(f'read_env_file {env}; printf "%s|" "$file_A" "$file_B" "$file_C"')
+        self.assertEqual(result.stdout, 'x=y|z|$(touch pwned)|', result.stderr)
+        self.assertFalse((ROOT / 'pwned').exists())
+        env.write_text('export A=1\n')
+        result = self.bash(f'read_env_file {env}')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('unexpected line', result.stderr)
+
+    def test_only_a_commit_on_main_deploys(self):
+        for status, deploys in (('ahead', True), ('identical', True), ('behind', False),
+                                ('diverged', False)):
+            result = self.bash(f"curl() {{ echo '{{\"status\":\"{status}\"}}'; }}; check_on_main")
+            self.assertEqual(result.returncode == 0, deploys, (status, result.stderr))
+            if not deploys:
+                self.assertIn('is not a commit on main', result.stderr)
+        result = self.bash('curl() { return 22; }; check_on_main')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('cannot ask GitHub', result.stderr)
+
+    def test_wait_healthy_accepts_ready_containers(self):
+        self.containers(
+            ('a1', 'auth-migrate', 'exited', 'none', '0', 'no', '0', self.OLD),
+            ('a2', 'auth-api', 'running', 'none', '0', 'unless-stopped', '3', self.OLD),
+            ('a3', 'auth-web', 'running', 'healthy', '0', 'unless-stopped', '0', self.OLD))
+        result = self.bash('stable_seconds=0; wait_healthy biotron-staging')
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_a_failed_migration_ends_the_wait_and_keeps_its_logs_private(self):
+        self.containers(
+            ('a1', 'auth-migrate', 'exited', 'none', '1', 'no', '0', self.OLD),
+            ('a2', 'auth-api', 'created', 'none', '0', 'unless-stopped', '0', self.OLD))
+        result = self.bash('ready_timeout=3600; wait_healthy biotron-staging')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('not ready: auth-migrate (exited 1)', result.stderr)
+        self.assertIn('failed to start', result.stderr)
+        self.assertNotIn('SECRET', result.stderr + result.stdout)
+        self.assertIn('SECRET log line of a1', self.logs())
+
+    def test_a_crash_loop_is_not_ready(self):
+        self.containers(
+            ('a2', 'auth-api', 'running', 'none', '0', 'unless-stopped', '+', self.OLD))
+        result = self.bash('ready_timeout=3600; wait_healthy biotron-staging')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('auth-api (restarting, crash loop)', result.stderr)
+
+    def test_a_container_must_stay_up_for_a_while(self):
+        just_now = subprocess.run(['date', '-u', '+%Y-%m-%dT%H:%M:%S.000000000Z'],
+                                  capture_output=True, text=True, check=True).stdout.strip()
+        self.containers(
+            ('a2', 'auth-api', 'running', 'none', '0', 'unless-stopped', '0', just_now))
+        result = self.bash('ready_timeout=0; wait_healthy biotron-staging')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('is not ready after 0s', result.stderr)
+        result = self.bash('stable_seconds=0; wait_healthy biotron-staging')
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_a_failed_launch_still_records_why(self):
+        self.containers(
+            ('a1', 'calendar-migrate', 'exited', 'none', '1', 'no', '0', self.OLD))
+        result = self.bash('report_launch_failure biotron-staging')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('not ready: calendar-migrate (exited 1)', result.stderr)
+        self.assertIn('SECRET log line of a1', self.logs())
 
 
 class LineEndingTests(unittest.TestCase):
