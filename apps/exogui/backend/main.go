@@ -46,13 +46,10 @@ func run() error {
 	if !events.Enabled() {
 		log.Println("warning: neither Grafana nor PostHog is configured — structured events go nowhere")
 	}
+	// OAUTH_MANAGER_URL defaults to Auth on the instance network, so the client
+	// always has a URL. An unreachable Auth fails every gated route closed with
+	// 503.
 	authz := authclient.New(cfg.OAuthManagerURL, auth.AppID, authclient.WithEvents(events))
-	if !authz.Configured() {
-		// Not fatal: /health and the frontend still work. Gated routes fail
-		// closed with 503 rather than opening up.
-		log.Println("warning: OAUTH_MANAGER_URL unset — every permission-gated route will refuse")
-		events.LogAsync(logclient.Warning, "Authorization not configured", nil)
-	}
 	handler := server.New(cfg.FrontendURL, events, authz)
 	addr := ":" + cfg.Port
 

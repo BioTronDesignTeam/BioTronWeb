@@ -17,8 +17,9 @@ func Load() Config {
 	return Config{
 		Port:        getenv("PORT", "8080"),
 		FrontendURL: getenv("FRONTEND_URL", "http://localhost:5174"),
-		// The authorization service every gated route consults. Docker Compose
-		// already passed this in; until now nothing read it.
+		// The authorization service every gated route consults. Unset or empty
+		// means Auth on the instance network; an unreachable Auth fails every
+		// gated route closed with 503.
 		OAuthManagerURL: getenv("OAUTH_MANAGER_URL", "http://oauth-manager:8080"),
 	}
 }
