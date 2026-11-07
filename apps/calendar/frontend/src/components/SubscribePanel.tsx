@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { feedURL, webcalURL } from '../api';
 import type { Scope } from '../types';
 import { Modal } from './Modal';
@@ -12,6 +12,10 @@ type CopyResult = { key: string; copied: boolean };
 
 export function SubscribePanel({ scopes, onClose }: SubscribePanelProps) {
   const [result, setResult] = useState<CopyResult>();
+  // One timer for the one message: each copy restarts it, so an earlier
+  // copy's timer cannot clear a later row's confirmation early.
+  const clearTimer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(clearTimer.current), []);
   const sorted = useMemo(() => {
     const projects: Scope[] = [];
     const subteamsByProject = new Map<string, Scope[]>();
@@ -40,7 +44,8 @@ export function SubscribePanel({ scopes, onClose }: SubscribePanelProps) {
     } catch {
       setResult({ key, copied: false });
     }
-    window.setTimeout(() => setResult(undefined), 5000);
+    window.clearTimeout(clearTimer.current);
+    clearTimer.current = window.setTimeout(() => setResult(undefined), 5000);
   }
 
   const row = (label: string, detail: string, id?: string) => {
