@@ -21,6 +21,19 @@ FROM rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fe
 FROM ghcr.io/zizmorcore/zizmor:1.31.1@sha256:42d409dbb851d4c5d35a058cf042b828bea1e3f2884378c526eb0974780e18d9 AS zizmor
 FROM sqlc/sqlc:1.31.1@sha256:70f53171d27b2424e9358869975455a6e955a5aa8e58a998a270a6e34e525537 AS sqlc
 
+# govulncheck has no release image, so it is built from its module with the
+# Go above. Go checks every module it downloads against the checksum
+# database, and the build then checks govulncheck's own module against the
+# hash pinned here (sum.golang.org/lookup/golang.org/x/vuln@<version>).
+# Dependabot does not read ARG lines: move both together by hand. CI reads
+# the version from this line (ci.yml).
+FROM go AS govulncheck
+ARG GOVULNCHECK_VERSION=v1.9.0
+ARG GOVULNCHECK_SUM=h1:12VaqnI9kJfqwRoPptxoqsUhQtdfrSbdksT7X/KY/sc=
+RUN go mod download -json "golang.org/x/vuln@${GOVULNCHECK_VERSION}" \
+        | grep -qF "\"Sum\": \"${GOVULNCHECK_SUM}\"" \
+    && CGO_ENABLED=0 GOBIN=/out go install "golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION}"
+
 FROM node:24-bookworm-slim
 
 COPY --from=go /usr/local/go /usr/local/go
@@ -32,6 +45,7 @@ COPY --from=actionlint /usr/local/bin/actionlint /usr/local/bin/actionlint
 COPY --from=actionlint /usr/local/bin/shellcheck /usr/local/bin/shellcheck
 COPY --from=zizmor /usr/bin/zizmor /usr/local/bin/zizmor
 COPY --from=sqlc /workspace/sqlc /usr/local/bin/sqlc
+COPY --from=govulncheck /out/govulncheck /usr/local/bin/govulncheck
 
 ENV PATH="/usr/local/go/bin:${PATH}"
 
@@ -39,6 +53,7 @@ RUN ln -s /usr/local/go/bin/go /usr/local/bin/go \
     && ln -s /usr/local/go/bin/gofmt /usr/local/bin/gofmt
 
 # Match TruffleHog's archive helpers (ar, cpio, rpm2cpio) as well as Git.
+# gcc and libc6-dev let `go test -race` build: the race detector needs cgo.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         bash \
@@ -46,8 +61,10 @@ RUN apt-get update \
         ca-certificates \
         cpio \
         curl \
+        gcc \
         git \
         jq \
+        libc6-dev \
         openssh-client \
         openssl \
         postgresql-client \
@@ -73,4 +90,5 @@ RUN go version \
     && actionlint --version \
     && shellcheck --version \
     && zizmor --version \
+    && govulncheck -version \
     && sqlc version
