@@ -512,3 +512,19 @@ func TestPutGuardAcceptsWhoHasAccess(t *testing.T) {
 		t.Fatalf("status = %d (%s), stored = %+v", status, response, sprinterStore.upserted)
 	}
 }
+
+// An empty role list, or none at all, is refused with a sentence that says
+// what to do instead, not a server error.
+func TestPutGuardWithNoRolesSaysWhy(t *testing.T) {
+	app := newTestApp(t, adminAuth(t), &fakeStore{})
+	for _, body := range []string{
+		`{"guild_id":"123456789012345678","role_ids":[]}`,
+		`{"guild_id":"123456789012345678"}`,
+	} {
+		status, response := app.do(http.MethodPut, "/v1/admin/guards/agent", body, withCookie(xhr))
+		want := `{"error":"` + emptyRolesMessage + `"}`
+		if status != http.StatusBadRequest || response != want {
+			t.Fatalf("%s: %d %s, want 400 %s", body, status, response, want)
+		}
+	}
+}

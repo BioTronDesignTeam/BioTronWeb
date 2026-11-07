@@ -59,7 +59,7 @@ func (h *Handler) putGuard(w http.ResponseWriter, r *http.Request) error {
 	// An empty role list would let nobody use the feature, which is a guard
 	// nobody meant to write. Deleting the guard is how a feature is turned off.
 	if len(body.RoleIDs) == 0 {
-		return badRequest("role_ids must name at least one role")
+		return badRequest(emptyRolesMessage)
 	}
 	guard, err := h.store.UpsertGuard(r.Context(), store.Guard{
 		Subject:    subject,
@@ -92,6 +92,10 @@ func (h *Handler) deleteGuard(w http.ResponseWriter, r *http.Request) error {
 	w.WriteHeader(http.StatusNoContent)
 	return nil
 }
+
+// emptyRolesMessage is what the admin page shows for a guard with no role.
+// It says what to do instead, since "no roles" usually means "turn it off".
+const emptyRolesMessage = "role_ids must name at least one role; to turn the feature off, delete its guard"
 
 func guardSubject(r *http.Request) (string, error) {
 	subject := r.PathValue("subject")
