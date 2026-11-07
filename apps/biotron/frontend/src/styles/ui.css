@@ -1572,6 +1572,7 @@
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
+  min-height: 44px;
   color: var(--accent-readable);
   font-weight: 600;
   width: fit-content;
