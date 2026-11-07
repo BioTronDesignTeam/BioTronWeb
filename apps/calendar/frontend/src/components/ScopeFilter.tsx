@@ -123,13 +123,15 @@ function ScopeBranch({ node, depth, chosen, onToggle }: ScopeBranchProps) {
               ones for everybody in it rather than for one subteam. "General"
               is that row, so Exo's all-hands meetings can be chosen without
               its subteams coming along. */}
-          <ScopeRow
-            label="General"
-            depth={depth + 1}
-            checked={chosen.has(node.scope.id)}
-            partial={false}
-            onChange={(next) => onToggle([node.scope.id], next)}
-          />
+          <li>
+            <ScopeRow
+              label="General"
+              depth={depth + 1}
+              checked={chosen.has(node.scope.id)}
+              partial={false}
+              onChange={(next) => onToggle([node.scope.id], next)}
+            />
+          </li>
           {node.children.map((child) => (
             <ScopeBranch
               key={child.scope.id}
