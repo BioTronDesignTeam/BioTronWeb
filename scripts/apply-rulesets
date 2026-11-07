@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# Makes the rulesets of this repository on GitHub match .github/rulesets/*.json.
+# A ruleset of the same name, made in this repository, is updated; any other
+# file makes a new one. A ruleset that already matches its file is left alone,
+# so running it twice changes nothing. Rulesets of the organization, and
+# repository rulesets with no file here, are not touched.
+#
+#   scripts/apply-rulesets          # show each difference, then apply it
+#   scripts/apply-rulesets --check  # show each difference; exit 1 if any
+#
+# It needs gh, signed in as an admin of the repository, and jq.
+set -euo pipefail
+
+check=false
+case ${1:-} in
+  '') ;;
+  --check) check=true ;;
+  -h|--help) sed -n '2,11s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"; exit 0 ;;
+  *) echo "Unknown option: $1" >&2; exit 1 ;;
+esac
+
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+repo=$(gh repo view --json nameWithOwner --jq .nameWithOwner)
+scratch=$(mktemp -d)
+trap 'rm -rf "$scratch"' EXIT
+# The fields the API accepts on create and update; the rest are read-only.
+fields='{name, target, enforcement, bypass_actors, conditions, rules}'
+
+differs=false
+for file in .github/rulesets/*.json; do
+  name=$(jq -r .name "$file")
+  jq -S "$fields" "$file" > "$scratch/want.json"
+  id=$(gh api "repos/$repo/rulesets?includes_parents=false" --paginate \
+    --jq ".[] | select(.name == \"$name\" and .source_type == \"Repository\") | .id")
+  if [[ -z $id ]]; then
+    differs=true
+    echo "The ruleset $name of $repo does not exist yet"
+    if ! $check; then
+      gh api --method POST "repos/$repo/rulesets" --input "$scratch/want.json" > /dev/null
+      echo "Made the ruleset $name of $repo"
+    fi
+    continue
+  fi
+  gh api "repos/$repo/rulesets/$id" | jq -S "$fields" > "$scratch/have.json"
+  if diff -u --label "$name ($id) on GitHub" --label "$file" "$scratch/have.json" "$scratch/want.json"; then
+    echo "The ruleset $name ($id) of $repo already matches $file"
+    continue
+  fi
+  differs=true
+  if ! $check; then
+    gh api --method PUT "repos/$repo/rulesets/$id" --input "$scratch/want.json" > /dev/null
+    echo "Updated the ruleset $name ($id) of $repo"
+  fi
+done
+if $check && $differs; then exit 1; fi
