@@ -52,7 +52,8 @@ export default function RoomPopup() {
 
   return (
     <div
-      className={`room-popup${activeStop === 'about' ? 'room-popup--about' : ''}`}
+      // The space sits before the expression, where the class sorter keeps it.
+      className={`room-popup ${activeStop === 'about' ? 'room-popup--about' : ''}`}
       ref={wrap}
       // A live region rather than <output>, which may hold only phrasing
       // content, not these cards. aria-atomic keeps the reading of role=status.
