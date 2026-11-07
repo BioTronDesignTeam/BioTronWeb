@@ -31,9 +31,9 @@ func (t WhoHasAccess) Spec() model.ToolSpec {
 		Name: "who_has_access",
 		Description: "Who may use one BioTron app: every operator holding a " +
 			"permission on it, plus the managers and superusers, who are " +
-			"admitted everywhere without a grant. app is an app id such as " +
-			"sprinter, logger, exo or calendar. A banned operator is marked and " +
-			"is refused whatever the grants say. Returns at most " +
+			"admitted everywhere without a grant. app is one of the app ids " +
+			"in Auth's catalog: exo-gui (Exo GUI), calendar or sprinter. A banned " +
+			"operator is marked and is refused whatever the grants say. Returns at most " +
 			fmt.Sprint(accessCap) + " characters. It cannot see who is signed " +
 			"in, and it cannot see guest keys.",
 		Schema: json.RawMessage(`{
