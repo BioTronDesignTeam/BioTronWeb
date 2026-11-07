@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 
 	calendarlogic "github.com/BioTronDesignTeam/BioTronWeb/apps/calendar/backend/internal/calendar"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/calendar/backend/internal/common"
 	"github.com/BioTronDesignTeam/BioTronWeb/apps/calendar/backend/internal/model"
 	"github.com/BioTronDesignTeam/BioTronWeb/apps/calendar/backend/internal/store"
 )
@@ -244,7 +245,7 @@ func (h *Handler) updateEvent(w http.ResponseWriter, r *http.Request) error {
 		}
 		if updated.RecurrenceUntil != nil {
 			for _, override := range occurrenceChanges {
-				if localDateAfter(override.RecurrenceIDLocal, *updated.RecurrenceUntil) {
+				if common.DateAfter(override.RecurrenceIDLocal, *updated.RecurrenceUntil) {
 					return writeJSON(w, http.StatusConflict, map[string]any{
 						"error": "the new series end date would discard an occurrence change",
 					})
@@ -496,10 +497,4 @@ func expectedSequence(r *http.Request) (int, error) {
 		return 0, errBadRequest
 	}
 	return *body.ExpectedSequence, nil
-}
-
-func localDateAfter(value, date time.Time) bool {
-	valueDate := time.Date(value.Year(), value.Month(), value.Day(), 0, 0, 0, 0, time.UTC)
-	dateOnly := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, time.UTC)
-	return valueDate.After(dateOnly)
 }

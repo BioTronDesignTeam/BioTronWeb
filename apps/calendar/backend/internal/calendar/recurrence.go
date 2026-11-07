@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/calendar/backend/internal/common"
 	"github.com/BioTronDesignTeam/BioTronWeb/apps/calendar/backend/internal/model"
 )
 
@@ -265,10 +266,10 @@ func GeneratedStarts(series model.EventSeries) ([]time.Time, error) {
 		return starts, nil
 	}
 	until := *series.RecurrenceUntil
-	if dateAfter(series.StartsAtLocal, until) {
+	if common.DateAfter(series.StartsAtLocal, until) {
 		return nil, errors.New("recurrence end is before the first occurrence")
 	}
-	for next := series.StartsAtLocal.AddDate(0, 0, 7); !dateAfter(next, until); next = next.AddDate(0, 0, 7) {
+	for next := series.StartsAtLocal.AddDate(0, 0, 7); !common.DateAfter(next, until); next = next.AddDate(0, 0, 7) {
 		if len(starts) >= maxOccurrences {
 			return nil, errors.New("recurrence exceeds 1000 occurrences")
 		}
@@ -401,10 +402,4 @@ func applyOverride(occurrence *model.Occurrence, override model.EventOverride, s
 	occurrence.Modified = !PatchIsEmpty(override.Patch)
 	occurrence.OverrideSequence = override.Sequence
 	return start, end, nil
-}
-
-func dateAfter(value, date time.Time) bool {
-	valueDate := time.Date(value.Year(), value.Month(), value.Day(), 0, 0, 0, 0, time.UTC)
-	dateOnly := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, time.UTC)
-	return valueDate.After(dateOnly)
 }
