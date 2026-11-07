@@ -435,8 +435,9 @@ against `guest_keys` fails to generate as it would fail to run.
 
 One admin page behind the shared GitHub sign-in. Signed out, it shows the
 sign-in screen. Signed in without `sprinter/admin`, it shows Access denied
-and "Ask a manager." With the permission it shows two panels: the
-guards, and the automations with a form to add or edit one. Calendar scopes
+and "Ask a manager." With the permission it shows two panels: the five
+guards (Agent, Agent thread, Announce, Nudge, and Who has access), and the
+automations with a form to add or edit one. Calendar scopes
 for the form come from Calendar's public `/v1/scopes`. The page uses
 `@biotron/style` for the session, wordmark, theme toggle, and account menu,
 and keeps the theme bootstrap in `index.html` like every other frontend.

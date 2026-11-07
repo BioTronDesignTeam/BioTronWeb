@@ -31,8 +31,10 @@ describe('readGuardForm', () => {
 });
 
 describe('guard subjects', () => {
-  it('have a label for every subject', () => {
+  it('include the who-has-access roster guard, with a label for every subject', () => {
+    expect(SUBJECTS).toContain('who-has-access');
     for (const subject of SUBJECTS) expect(SUBJECT_LABELS[subject]).toBeTruthy();
+    expect(SUBJECT_LABELS['who-has-access']).toBe('Who has access (managers only)');
   });
 
   it('splits a comma list and drops empty parts', () => {

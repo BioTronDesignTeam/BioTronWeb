@@ -16,7 +16,8 @@ export function GuardsPanel({ guards, onSave, onClear }: GuardsPanelProps) {
         <h2 className="font-semibold">Guards</h2>
         <p className="mt-1 text-sm text-ink/60 dark:text-muted">
           An empty channel ids list means any channel. A guard needs at least one role; to turn a
-          feature off, clear the guard.
+          feature off, clear the guard. Who has access answers by direct message with who holds
+          which permission, so give it a role that only managers and superusers hold.
         </p>
       </div>
       <div className="divide-y divide-ink/10 dark:divide-line">

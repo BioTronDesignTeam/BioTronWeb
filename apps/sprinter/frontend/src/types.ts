@@ -1,4 +1,4 @@
-export type GuardSubject = 'agent' | 'agent-thread' | 'announce' | 'nudge';
+export type GuardSubject = 'agent' | 'agent-thread' | 'announce' | 'nudge' | 'who-has-access';
 
 export interface Guard {
   subject: GuardSubject;

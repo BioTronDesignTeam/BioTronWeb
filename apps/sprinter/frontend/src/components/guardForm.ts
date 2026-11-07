@@ -1,12 +1,21 @@
 import type { GuardSubject } from '../types';
 
-export const SUBJECTS: GuardSubject[] = ['agent', 'agent-thread', 'announce', 'nudge'];
+export const SUBJECTS: GuardSubject[] = [
+  'agent',
+  'agent-thread',
+  'announce',
+  'nudge',
+  'who-has-access',
+];
 
 export const SUBJECT_LABELS: Record<GuardSubject, string> = {
   agent: 'Agent',
   'agent-thread': 'Agent thread',
   announce: 'Announce',
   nudge: 'Nudge',
+  // The roster tool. Its answers go by direct message, so this role should be
+  // one that only managers and superusers hold.
+  'who-has-access': 'Who has access (managers only)',
 };
 
 export function idsToText(ids: string[]) {
