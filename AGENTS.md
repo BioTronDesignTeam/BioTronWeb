@@ -43,6 +43,10 @@ names, such as `OAuthManager` and `exo-gui`. They mean the paths above.
   public browser bundle; never put a secret there.
 - Prisma owns every Postgres schema and migration. Go code queries with `pgx`.
   Do not use a Prisma client from Go.
+- Frontend code passes `npm run typecheck`, `npm run lint`,
+  `npm run format:check`, and `npm test` from the root. Every Oxlint rule is
+  an error, and a warning fails lint too: fix a finding rather than disable
+  it. A test sits beside its code as `*.test.ts` or `*.test.tsx`.
 - Run `./pr-precheck` inside the devcontainer before you open a pull request.
 
 ## Go code
