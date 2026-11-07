@@ -6,7 +6,7 @@ usage() {
   cat <<'USAGE'
 Usage: ./pr-precheck [--base REF] [--all] [--plan]
 
-Run CI's build, lint, test, sqlc, Prisma, workflow, secret, and
+Run CI's build, lint, test, sqlc, image, Prisma, workflow, secret, and
 vulnerability checks locally.
 Includes committed, staged, unstaged, and untracked nonignored changes.
 
@@ -85,6 +85,7 @@ shared=no
 if $all_backends; then shared=yes; fi
 printf 'Base: %s (merge base %.12s)\nFrontends: %s\nBackends: %s\nShared Go modules: %s\n' "$base" "$merge_base" "${frontends:-none}" "${backends:-none}" "$shared"
 echo "Prisma: $(if $prisma; then echo 'format and migrations of every apps/*/prisma (scripts/check-prisma)'; else echo none; fi)"
+echo 'Images: pins and tool versions (scripts/check-images)'
 echo 'Workflows: actionlint and zizmor on every workflow'
 echo 'Shell scripts: ShellCheck on every one (scripts/list-shell-scripts)'
 echo 'Security: commit history, staged and working files, vulnerabilities and misconfigurations'
@@ -211,6 +212,7 @@ if $prisma; then
   else echo 'SKIP the Prisma checks because their dependencies did not install'
   fi
 fi
+run 'images' scripts/check-images
 
 run 'workflows' actionlint
 # Same as the workflows.yml job and the shellcheck job of ci.yml.
