@@ -1,8 +1,9 @@
 // Package calendar reads occurrences from Calendar's public API. Sprinter
-// never writes to Calendar and never sees a draft or a cancelled occurrence's
-// note — /v1/events drops a cancelled occurrence outright, which is why the
-// scheduler package treats "an occurrence Sprinter used to see is now absent"
-// as the cancellation signal.
+// never writes to Calendar and never sees a draft. /v1/events drops a
+// cancelled occurrence outright, and also one in an archived scope, so an
+// occurrence Sprinter used to see and no longer does is only a question.
+// The All Events feed answers it: it keeps cancelled occurrences, marked
+// STATUS:CANCELLED, and loses only what was deleted.
 package calendar
 
 import (

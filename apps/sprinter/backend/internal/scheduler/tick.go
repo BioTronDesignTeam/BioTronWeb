@@ -23,11 +23,11 @@ type occurrenceKey struct {
 // automation's lead_hours says. It is the largest lead an automation may
 // carry — 168 hours, checked in the admin API — plus an hour of slack.
 //
-// The window is fixed on purpose. Cancellation is inferred by comparing what
-// the automation last saw against what Calendar now returns, so the two have
-// to cover the same span. A window that moved with lead_hours would read
-// "somebody lowered lead_hours" as "everything was cancelled", and so would
-// a scope_id edit or an occurrence drifting past the window's edge.
+// The window is fixed on purpose. A vanished occurrence is noticed by
+// comparing what the automation last saw against what Calendar now returns,
+// so the two have to cover the same span. A window that moved with
+// lead_hours would make every lowering of lead_hours look like a week of
+// vanished occurrences, each one costing a feed lookup.
 const fetchWindow = 169 * time.Hour
 
 // errCalendarFetch ends one automation's pass early without failing it. The
@@ -43,13 +43,16 @@ func (s *Scheduler) Tick(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("list enabled automations: %w", err)
 	}
+	// One feed read serves every automation in this tick, and only a tick
+	// in which something vanished pays for it.
+	feed := &feedLookup{calendar: s.calendar}
 	for _, automation := range automations {
-		s.runAutomation(ctx, automation)
+		s.runAutomation(ctx, automation, feed)
 	}
 	return nil
 }
 
-func (s *Scheduler) runAutomation(ctx context.Context, automation store.Automation) {
+func (s *Scheduler) runAutomation(ctx context.Context, automation store.Automation, feed *feedLookup) {
 	defer func() {
 		if r := recover(); r != nil {
 			s.emit(logclient.Error, "Automation failed", map[string]any{
@@ -57,14 +60,14 @@ func (s *Scheduler) runAutomation(ctx context.Context, automation store.Automati
 			})
 		}
 	}()
-	if err := s.processAutomation(ctx, automation); err != nil && !errors.Is(err, errCalendarFetch) {
+	if err := s.processAutomation(ctx, automation, feed); err != nil && !errors.Is(err, errCalendarFetch) {
 		s.emit(logclient.Error, "Automation failed", map[string]any{
 			"automation_id": automation.ID, "error": err.Error(),
 		})
 	}
 }
 
-func (s *Scheduler) processAutomation(ctx context.Context, automation store.Automation) error {
+func (s *Scheduler) processAutomation(ctx context.Context, automation store.Automation, feed *feedLookup) error {
 	now := s.now()
 	// One fetch over the fixed window serves both jobs. Announcing and
 	// nudging then filter it by lead_hours in Go, which they already do.
@@ -85,7 +88,7 @@ func (s *Scheduler) processAutomation(ctx context.Context, automation store.Auto
 		fetched[occurrenceKey{uid: occ.UID, recurrenceIDLocal: occ.RecurrenceID}] = occ
 	}
 
-	if err := s.detectCancellations(ctx, automation, now, windowEnd, fetched); err != nil {
+	if err := s.detectCancellations(ctx, automation, now, windowEnd, fetched, feed); err != nil {
 		return err
 	}
 
@@ -110,14 +113,21 @@ func (s *Scheduler) processAutomation(ctx context.Context, automation store.Auto
 }
 
 // detectCancellations finds every occurrence this automation last saw with a
-// still-future start that the fresh fetch no longer contains. Calendar's
-// public JSON drops a cancelled occurrence rather than flagging it, so
-// "expected to still be coming, and is not" is the only signal there is.
+// still-future start that the fresh fetch no longer contains, and asks
+// Calendar's feed why.
+//
+// Vanishing from /v1/events is not a cancellation by itself. That view
+// drops a cancelled occurrence, but it also drops one that moved past the
+// window's end, one whose scope (or an ancestor) was archived, and one that
+// moved to another scope. Only an occurrence the feed marks cancelled, or
+// no longer has at all, is announced as cancelled. Any other is forgotten
+// quietly: its announcement stays as it was, and if it comes back into view
+// it is seen again, and its post edited when its sequence has risen.
 //
 // windowEnd is where the fetch stopped. A seen occurrence starting past it
 // was never in this fetch to begin with, so its absence says nothing about
 // whether it still exists, and it is left alone.
-func (s *Scheduler) detectCancellations(ctx context.Context, automation store.Automation, now, windowEnd time.Time, fetched map[occurrenceKey]calendar.Occurrence) error {
+func (s *Scheduler) detectCancellations(ctx context.Context, automation store.Automation, now, windowEnd time.Time, fetched map[occurrenceKey]calendar.Occurrence, feed *feedLookup) error {
 	seenFuture, err := s.store.ListSeenFuture(ctx, automation.ID, now)
 	if err != nil {
 		return fmt.Errorf("list seen future occurrences: %w", err)
@@ -129,18 +139,23 @@ func (s *Scheduler) detectCancellations(ctx context.Context, automation store.Au
 		if seen.StartsAt.After(windowEnd) {
 			continue
 		}
+		index, err := feed.get(ctx)
+		if err != nil {
+			// The feed is the only thing that can say "cancelled". Without
+			// it nothing is decided, and the seen rows wait for a tick that
+			// can read it.
+			s.emit(logclient.Error, "Calendar fetch failed", map[string]any{
+				"automation_id": automation.ID, "error": err.Error(), "source": "feed",
+			})
+			return errCalendarFetch
+		}
+		status := index.Status(seen.UID, seen.RecurrenceIDLocal)
 		s.emit(logclient.Info, "Occurrence vanished", map[string]any{
 			"automation_id": automation.ID, "uid": seen.UID,
-			"recurrence_id_local": seen.RecurrenceIDLocal,
+			"recurrence_id_local": seen.RecurrenceIDLocal, "status": status.String(),
 		})
-		switch automation.Kind {
-		case store.KindNudge:
-			if err := s.runNudge(ctx, automation, seen.UID, seen.RecurrenceIDLocal, seen.Sequence,
-				store.TriggerCancelled, seen.Title, seen.StartsAt); err != nil {
-				return err
-			}
-		case store.KindAnnounce:
-			if err := s.editCancelledAnnouncement(ctx, automation, seen); err != nil {
+		if status != calendar.StatusExists {
+			if err := s.announceCancellation(ctx, automation, seen); err != nil {
 				return err
 			}
 		}
@@ -148,6 +163,17 @@ func (s *Scheduler) detectCancellations(ctx context.Context, automation store.Au
 			!errors.Is(err, store.ErrNotFound) {
 			return fmt.Errorf("delete seen occurrence %s: %w", seen.UID, err)
 		}
+	}
+	return nil
+}
+
+func (s *Scheduler) announceCancellation(ctx context.Context, automation store.Automation, seen store.SeenOccurrence) error {
+	switch automation.Kind {
+	case store.KindNudge:
+		return s.runNudge(ctx, automation, seen.UID, seen.RecurrenceIDLocal, seen.Sequence,
+			store.TriggerCancelled, seen.Title, seen.StartsAt)
+	case store.KindAnnounce:
+		return s.editCancelledAnnouncement(ctx, automation, seen)
 	}
 	return nil
 }
@@ -167,4 +193,23 @@ func (s *Scheduler) editCancelledAnnouncement(ctx context.Context, automation st
 		return fmt.Errorf("edit cancelled announcement %s: %w", posted.MessageID, err)
 	}
 	return nil
+}
+
+// feedLookup reads Calendar's whole feed at most once per tick, the first
+// time an automation needs to know why an occurrence vanished. A failed read
+// is remembered for the rest of the tick too, so one Calendar outage is one
+// failed request, not one per automation.
+type feedLookup struct {
+	calendar Calendar
+	feed     *calendar.Feed
+	err      error
+	done     bool
+}
+
+func (l *feedLookup) get(ctx context.Context) (*calendar.Feed, error) {
+	if !l.done {
+		l.feed, l.err = l.calendar.Feed(ctx)
+		l.done = true
+	}
+	return l.feed, l.err
 }
