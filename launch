@@ -77,8 +77,13 @@ while [[ $# -gt 0 ]]; do
       excluded="$excluded $app" ;;
     -*) die "unknown option $1. Try ./launch --help" ;;
     infra|web|all|edge|status|secrets)
-      [[ -z $target ]] || { [[ $target == stop ]] && stop_target=$1 || die "one target at a time: got '$target' and '$1'"; }
-      [[ -n $target ]] || target=$1 ;;
+      if [[ -z $target ]]; then
+        target=$1
+      elif [[ $target == stop ]]; then
+        stop_target=$1
+      else
+        die "one target at a time: got '$target' and '$1'"
+      fi ;;
     stop)
       [[ -z $target ]] || die "one target at a time: got '$target' and 'stop'"
       target=stop ;;
