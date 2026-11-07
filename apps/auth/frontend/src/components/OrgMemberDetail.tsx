@@ -15,7 +15,7 @@ import {
 const sectionHeading = 'text-sm font-semibold text-slate-900 dark:text-white';
 const fieldLabel = 'text-xs font-medium text-slate-500 dark:text-muted';
 
-type PendingAction = 'ban' | 'make-manager' | 'remove-manager';
+type PendingAction = 'ban' | 'sign-out' | 'make-manager' | 'remove-manager';
 
 /**
  * A ban ends the person's sessions, and the manager flag changes what they
@@ -35,6 +35,12 @@ function consequence(
         detail:
           'They are signed out everywhere now and cannot sign in to any BioTron tool until a manager unbans them.',
         confirm: 'Ban',
+      };
+    case 'sign-out':
+      return {
+        title: authStrings.signOutMemberTitle(who),
+        detail: authStrings.signOutMemberDetail,
+        confirm: authStrings.signOutMember,
       };
     case 'make-manager':
       return {
@@ -56,14 +62,18 @@ function consequence(
 function MemberActions({
   member,
   canManage,
+  canSignOut,
   onBan,
   onUnban,
+  onSignOut,
   onSetManager,
 }: {
   member: OrgMember;
   canManage: boolean;
+  canSignOut: boolean;
   onBan: (id: number) => void;
   onUnban: (id: number) => void;
+  onSignOut: (member: OrgMember) => void;
   onSetManager: (id: number, manager: boolean) => void;
 }) {
   const [pending, setPending] = useState<PendingAction | null>(null);
@@ -84,6 +94,7 @@ function MemberActions({
     const action = pending;
     setPending(null);
     if (action === 'ban') onBan(member.github_id);
+    else if (action === 'sign-out') onSignOut(member);
     else onSetManager(member.github_id, action === 'make-manager');
   };
 
@@ -100,6 +111,15 @@ function MemberActions({
       ) : (
         <button type="button" onClick={() => setPending('ban')} className={dangerButton}>
           Ban…
+        </button>
+      )}
+      {canSignOut && (
+        <button
+          type="button"
+          onClick={() => setPending('sign-out')}
+          className={compactSecondaryButton}
+        >
+          {authStrings.signOutMember}…
         </button>
       )}
       {canManage && (
@@ -264,11 +284,14 @@ export default function OrgMemberDetail({
   onSelectPermission,
   onCreateGrant,
   onRevokeGrant,
+  meId,
   onBan,
   onUnban,
+  onSignOut,
   onSetManager,
 }: {
   member: OrgMember;
+  meId: number;
   apps: AppInfo[];
   permissions: Permission[];
   grants: Grant[];
@@ -280,6 +303,7 @@ export default function OrgMemberDetail({
   onRevokeGrant: (grant: Grant) => void;
   onBan: (id: number) => void;
   onUnban: (id: number) => void;
+  onSignOut: (member: OrgMember) => void;
   onSetManager: (id: number, manager: boolean) => void;
 }) {
   const appNameById = useMemo(() => new Map(apps.map((app) => [app.id, app.name])), [apps]);
@@ -297,6 +321,9 @@ export default function OrgMemberDetail({
   // moment the manager flag is removed.
   const staff = member.is_superuser || member.is_manager;
   const role = roleOf(member).toLowerCase();
+  // Auth refuses a sign-out of yourself (Sign out everywhere is in the account
+  // menu) and, unless you are a superuser, of a superuser.
+  const canSignOut = member.github_id !== meId && (canManage || !member.is_superuser);
 
   return (
     <div className="flex flex-col">
@@ -317,8 +344,10 @@ export default function OrgMemberDetail({
             key={member.github_id}
             member={member}
             canManage={canManage}
+            canSignOut={canSignOut}
             onBan={onBan}
             onUnban={onUnban}
+            onSignOut={onSignOut}
             onSetManager={onSetManager}
           />
         </div>

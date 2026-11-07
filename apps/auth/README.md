@@ -309,7 +309,9 @@ hides on phones. Each operator sees:
   revoke their permissions. Ban and the manager flag open a confirmation
   dialog that says what will happen; a manager change applies on the
   person's next request. The manager flag is superuser-only. A manager or
-  superuser holds every permission and shows no grant form.
+  superuser holds every permission and shows no grant form. "Sign out of all
+  devices" ends every session of that member after a confirmation; it is not
+  offered for yourself, nor for a superuser unless you are one.
 
 The session, sign-in screen, and account menu are the shared ones from
 `@biotron/style` (`SessionProvider` without an app id, so guests stay out).

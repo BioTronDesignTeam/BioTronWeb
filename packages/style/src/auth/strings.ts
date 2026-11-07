@@ -12,6 +12,12 @@ export const authStrings = {
   signOutFailed: 'Sign out failed. Try again.',
   signOutEverywhere: 'Sign out everywhere',
   signOutEverywhereFailed: 'Sign out everywhere failed. Try again.',
+  signOutMember: 'Sign out of all devices',
+  signOutMemberTitle: (who: string) => `Sign ${who} out of all devices?`,
+  signOutMemberDetail:
+    'Every session they hold ends at their next request, on every device. They stay a member and can sign in again.',
+  signOutMemberDone: (name: string) => `${name} is signed out of every device.`,
+  signOutMemberFailed: 'Sign out of all devices failed. Try again.',
   lastSignIn: 'Last sign-in',
   loading: 'Loading…',
   askAManager: 'Ask a manager.',

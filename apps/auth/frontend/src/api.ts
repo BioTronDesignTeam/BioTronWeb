@@ -91,3 +91,6 @@ export const deleteGrant = (operator_id: number, app_id: string, permission_key:
     method: 'DELETE',
     body: JSON.stringify({ operator_id, app_id, permission_key }),
   });
+/** Ends every session the member holds, on every device. Staff only. */
+export const signOutMember = (id: number) =>
+  api<void>(`/org/members/${id}/sign-out`, { method: 'POST' });

@@ -20,7 +20,9 @@ export default function OrgTab({
   onRevokeGrant,
   onBan,
   onUnban,
+  onSignOut,
   onSetManager,
+  meId,
 }: {
   members: OrgMember[];
   selectedMember: OrgMember | null;
@@ -36,7 +38,9 @@ export default function OrgTab({
   onRevokeGrant: (grant: Grant) => void;
   onBan: (id: number) => void;
   onUnban: (id: number) => void;
+  onSignOut: (member: OrgMember) => void;
   onSetManager: (id: number, manager: boolean) => void;
+  meId: number;
 }) {
   // Below the lg breakpoint the detail stacks under the member list, so a tap
   // on a member would otherwise change something off screen. Scroll it up
@@ -81,7 +85,9 @@ export default function OrgTab({
               onRevokeGrant={onRevokeGrant}
               onBan={onBan}
               onUnban={onUnban}
+              onSignOut={onSignOut}
               onSetManager={onSetManager}
+              meId={meId}
             />
           )}
         </div>

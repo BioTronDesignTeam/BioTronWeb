@@ -1,14 +1,22 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { SessionLoading, SessionUnavailable, SignInScreen, useSession } from '@biotron/style';
+import {
+  SessionLoading,
+  SessionUnavailable,
+  SignInScreen,
+  authStrings,
+  useSession,
+} from '@biotron/style';
 import {
   type Grant,
   type Me,
+  type OrgMember,
   banMember,
   createGrant,
   deleteGrant,
   rotateProductDailyKey,
   setManager,
   setUnauthorizedHandler,
+  signOutMember,
   unbanMember,
 } from './api';
 import AccessTab from './components/AccessTab';
@@ -36,6 +44,7 @@ export default function App() {
 
 function Console({ me }: { me: Me }) {
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('access');
 
   const { directory, refresh } = useAccessDirectory(me);
@@ -58,6 +67,7 @@ function Console({ me }: { me: Me }) {
   // single readable line each.
   const runAction = useCallback(async (fallback: string, action: () => Promise<void>) => {
     setError(null);
+    setNotice(null);
     try {
       await action();
     } catch (e) {
@@ -77,6 +87,12 @@ function Console({ me }: { me: Me }) {
       await unbanMember(id);
       await refresh();
       await reloadMemberGrants();
+    });
+
+  const onSignOutMember = (member: OrgMember) =>
+    void runAction(authStrings.signOutMemberFailed, async () => {
+      await signOutMember(member.github_id);
+      setNotice(authStrings.signOutMemberDone(`@${member.login}`));
     });
 
   const onSetManager = (id: number, manager: boolean) =>
@@ -121,6 +137,11 @@ function Console({ me }: { me: Me }) {
             {error ?? directory.error}
           </p>
         )}
+        {notice && (
+          <output className="mb-6 block rounded-lg bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">
+            {notice}
+          </output>
+        )}
 
         {tab === 'access' && (
           <AccessTab
@@ -159,7 +180,9 @@ function Console({ me }: { me: Me }) {
             onRevokeGrant={onRevokeGrant}
             onBan={onBan}
             onUnban={onUnban}
+            onSignOut={onSignOutMember}
             onSetManager={onSetManager}
+            meId={me.github_id}
           />
         )}
       </main>
