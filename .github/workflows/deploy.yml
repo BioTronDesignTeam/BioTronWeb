@@ -22,11 +22,12 @@ concurrency:
 
 jobs:
   images:
+    name: image ${{ matrix.image.name }}
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
-      contents: read
-      packages: write
+      contents: read # check out the Dockerfiles and sources
+      packages: write # push the images to GHCR
     strategy:
       fail-fast: false
       matrix:
@@ -77,10 +78,11 @@ jobs:
           exit-code: '1'
 
   candidate:
+    name: candidate commit
     runs-on: ubuntu-latest
     permissions:
-      contents: read
-      actions: read
+      contents: read # check out main to test the tag is on it
+      actions: read # find the successful staging run of the commit
     outputs:
       revision: ${{ steps.resolve.outputs.revision }}
     steps:
@@ -109,13 +111,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
 
   deploy:
+    name: deploy ${{ startsWith(github.ref, 'refs/tags/') && 'prod' || 'staging' }}
     needs: [candidate, images]
     if: always() && needs.candidate.result == 'success' && (needs.images.result == 'success' || (startsWith(github.ref, 'refs/tags/') && needs.images.result == 'skipped'))
     runs-on: ubuntu-latest
     environment: ${{ startsWith(github.ref, 'refs/tags/') && 'production' || 'staging' }}
+    # It checks out nothing: the host downloads the commit's files itself.
     permissions:
-      contents: read
-      id-token: write
+      id-token: write # sign in to Tailscale with OIDC, no long-lived key
     env:
       DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
       INSTANCE: ${{ startsWith(github.ref, 'refs/tags/') && 'prod' || 'staging' }}
