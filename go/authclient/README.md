@@ -46,8 +46,12 @@ request, and a cache here would weaken that to "within the TTL".
 | Mutating method without `X-Requested-With: XMLHttpRequest` | 403, Auth not asked |
 | No cookie, or Auth refuses the session (401, or 403 for a guest of another tool) | 401 |
 | Signed in without the permission | 403 |
-| Auth unreachable, `OAUTH_MANAGER_URL` unset, or an answer it cannot read | 503, logged and sent as an Error event |
+| Auth unreachable, a client built with no Auth URL, or an answer it cannot read | 503, logged and sent as an Error event |
 | Signed in with the permission | passes, with the session on the request and the login as the request event's actor |
+
+Every backend defaults `OAUTH_MANAGER_URL` to `http://oauth-manager:8080`, so an
+unset value is never "not configured": it dials that address, and an Auth
+that is not there answers as unreachable, with 503.
 
 It never fails open. Wrap a whole route prefix, not single handlers, so a
 route added under it later cannot forget the check.
@@ -59,7 +63,8 @@ added to a missing-permission 403.
 
 Serves `/v1/auth/status`: the operator (left out when no one is signed in),
 one boolean field per permission, `permissions` by name, and the tool's own
-`extra` keys, which never replace those. An anonymous caller gets 200 with
+`extra` keys, which never replace those: `operator` stays out for an
+anonymous caller even if `extra` names it. An anonymous caller gets 200 with
 every permission false; only an Auth that cannot answer is 503.
 
 ## Tests
