@@ -21,7 +21,13 @@ export default function Nav() {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
-  useEffect(() => setOpen(false), [location.pathname]);
+  // Every navigation closes the menu: adjusted during render, as React
+  // suggests for state that follows a changing value.
+  const [path, setPath] = useState(location.pathname);
+  if (path !== location.pathname) {
+    setPath(location.pathname);
+    setOpen(false);
+  }
 
   // The drawer and its close button exist only up to 860px (see ui.css). If the
   // window grows past that while the menu is open, such as a tablet turned to
