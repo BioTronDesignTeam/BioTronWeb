@@ -1,7 +1,11 @@
-# Go files stay LF in every checkout, Windows with core.autocrlf included:
-# the gofmt and goimports formatters of go/.golangci.yml, and sqlc diff, read a
-# CRLF file as unformatted or changed.
+# Files that Linux tools read byte for byte stay LF in every checkout, Windows
+# with core.autocrlf included. infra/tests checks that every file starting
+# with #! is covered.
+#
+# Go: the gofmt and goimports formatters of go/.golangci.yml, and sqlc diff,
+# read a CRLF file as unformatted or changed.
 *.go text eol=lf
+*.sql text eol=lf
 
 # The files Prettier checks stay LF too: its endOfLine default reads a CRLF
 # checkout as unformatted.
@@ -12,4 +16,25 @@
 *.cjs text eol=lf
 *.json text eol=lf
 *.css text eol=lf
+
+# Shell scripts run inside Linux containers and on the deploy host, where a
+# CR ends up in the interpreter name (`env: can't execute 'bash\r'`).
+*.sh text eol=lf
+launch text eol=lf
+pr-precheck text eol=lf
+deploy/biotron-deploy text eol=lf
+deploy/biotron-deploy-shell text eol=lf
+infra/migrate/migrate text eol=lf
+scripts/* text eol=lf
+infra/tests/* text eol=lf
+
+# Nginx configuration and templates are copied into the edge and frontend
+# images as they are.
+*.conf text eol=lf
+*.template text eol=lf
+
+# Each index.html carries the inline theme bootstrap, whose SHA-256 the edge's
+# Content-Security-Policy names (infra/nginx/sites/csp.template). A CRLF copy
+# hashes differently, so a local build would break its own script. Prettier
+# checks HTML too.
 *.html text eol=lf

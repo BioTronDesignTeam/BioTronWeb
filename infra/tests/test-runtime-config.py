@@ -352,5 +352,39 @@ class DeployTests(unittest.TestCase):
             self.assertEqual(result.returncode == 0, tagged, commit)
 
 
+class LineEndingTests(unittest.TestCase):
+    """Scripts and the files hashed or copied into images stay LF."""
+
+    def tracked(self):
+        result = subprocess.run(['git', 'ls-files', '-z'], cwd=ROOT, capture_output=True,
+                                check=True)
+        return [name for name in result.stdout.decode().split('\0') if name]
+
+    def eol(self, paths):
+        result = subprocess.run(['git', 'check-attr', '-z', 'eol', '--stdin'], cwd=ROOT,
+                                input='\0'.join(paths).encode(), capture_output=True,
+                                check=True)
+        fields = result.stdout.decode().split('\0')
+        return {fields[i]: fields[i + 2] for i in range(0, len(fields) - 2, 3)}
+
+    @unittest.skipUnless(shutil.which('git') and (ROOT / '.git').exists(), 'not a git checkout')
+    def test_every_script_and_html_file_is_lf(self):
+        wanted = []
+        for name in self.tracked():
+            path = ROOT / name
+            if path.is_symlink() or not path.is_file():
+                continue
+            if name.endswith(('.sh', '.html', '.conf', '.template')):
+                wanted.append(name)
+                continue
+            with path.open('rb') as handle:
+                if handle.read(2) == b'#!':
+                    wanted.append(name)
+        self.assertIn('launch', wanted)
+        self.assertIn('deploy/biotron-deploy', wanted)
+        eol = self.eol(wanted)
+        self.assertEqual([name for name in wanted if eol.get(name) != 'lf'], [])
+
+
 if __name__ == '__main__':
     unittest.main()
