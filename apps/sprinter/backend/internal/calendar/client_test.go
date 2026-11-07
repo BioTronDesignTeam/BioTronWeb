@@ -45,7 +45,7 @@ func TestOccurrencesRequestsExpectedWindow(t *testing.T) {
 		t.Fatalf("len = %d", len(occurrences))
 	}
 	occ := occurrences[0]
-	if occ.UID != "abc" || occ.Sequence() != 3 || !occ.Modified {
+	if occ.UID != "abc" || occ.Sequence() != 5 || !occ.Modified {
 		t.Fatalf("occurrence = %+v", occ)
 	}
 
@@ -70,8 +70,18 @@ func TestOccurrencesSequenceFallsBackToSeries(t *testing.T) {
 		t.Fatalf("Sequence() = %d, want 4", occ.Sequence())
 	}
 	occ.OverrideSequence = 7
-	if occ.Sequence() != 7 {
-		t.Fatalf("Sequence() = %d, want 7", occ.Sequence())
+	if occ.Sequence() != 11 {
+		t.Fatalf("Sequence() = %d, want 11, the ICS feed's SEQUENCE", occ.Sequence())
+	}
+}
+
+// Calendar bumps the series on an override write and starts the override at
+// 1. The first edit to one occurrence must still read as a higher sequence.
+func TestSequenceRisesOnTheFirstOccurrenceEdit(t *testing.T) {
+	before := Occurrence{SeriesSequence: 5}
+	after := Occurrence{SeriesSequence: 6, OverrideSequence: 1}
+	if after.Sequence() <= before.Sequence() {
+		t.Fatalf("sequence went from %d to %d on an edit", before.Sequence(), after.Sequence())
 	}
 }
 
