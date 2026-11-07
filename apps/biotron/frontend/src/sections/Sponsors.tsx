@@ -7,8 +7,11 @@ import { SPONSORS } from '../data/sponsors';
  * repeats the list so it stays wider than the widest screen; a shorter half
  * leaves a blank stretch at the end of every loop.
  */
-const MARQUEE_HALF = Array.from({ length: 4 }, () => SPONSORS).flat();
-const MARQUEE_ROW = [...MARQUEE_HALF, ...MARQUEE_HALF];
+// Two halves of four copies each.
+const MARQUEE_COPIES = 8;
+const MARQUEE_ROW = Array.from({ length: MARQUEE_COPIES }, (_, copy) =>
+  SPONSORS.map((sponsor) => ({ key: `${copy}:${sponsor.name}`, name: sponsor.name })),
+).flat();
 
 /** Pixels per second. The loop time follows the track width, so the speed holds when sponsors change. */
 const MARQUEE_SPEED = 40;
@@ -38,10 +41,10 @@ export default function Sponsors() {
       </div>
       <div className="sponsors__marquee" aria-hidden="true">
         <div className="sponsors__track" ref={trackRef}>
-          {MARQUEE_ROW.map((s, i) => (
+          {MARQUEE_ROW.map((item) => (
             // Names only. The logos are made for light backgrounds and this strip is dark.
-            <span key={i} className="sponsors__item">
-              {s.name}
+            <span key={item.key} className="sponsors__item">
+              {item.name}
             </span>
           ))}
         </div>

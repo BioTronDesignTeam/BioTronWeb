@@ -35,7 +35,8 @@ export default function SplitText({
   const ref = useRef<HTMLElement>(null);
   const reduced = useReducedMotion();
 
-  const tokens = by === 'word' ? text.split(' ') : Array.from(text);
+  // A token is identified by its place in the text, which never reorders.
+  const tokens = (by === 'word' ? text.split(' ') : Array.from(text)).map((value, at) => ({ value, key: `${at}:${value}` }));
 
   useGSAP(
     () => {
@@ -68,14 +69,14 @@ export default function SplitText({
 
   return (
     <Tag ref={ref as never} className={className} aria-label={text}>
-      {tokens.map((tok, i) => (
+      {tokens.map((token, i) => (
         <span
-          key={i}
+          key={token.key}
           aria-hidden="true"
           style={{ display: 'inline-block', overflow: 'hidden', verticalAlign: 'top' }}
         >
           <span data-split style={{ display: 'inline-block' }}>
-            {tok}
+            {token.value}
             {by === 'word' && i < tokens.length - 1 ? ' ' : ''}
           </span>
         </span>
