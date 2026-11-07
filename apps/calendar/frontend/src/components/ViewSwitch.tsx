@@ -22,7 +22,7 @@ export function ViewSwitch({ view, onChange }: ViewSwitchProps) {
           type="button"
           aria-pressed={view === value}
           onClick={() => onChange(value)}
-          className={`min-h-9 flex-1 rounded-full px-3.5 text-sm font-semibold ${view === value ? 'bg-deep text-white dark:bg-brand' : 'hover:bg-soft/30 dark:hover:bg-white/10'}`}
+          className={`min-h-9 flex-1 rounded-full px-3.5 text-sm font-semibold pointer-coarse:min-h-11 ${view === value ? 'bg-deep text-white dark:bg-brand' : 'hover:bg-soft/30 dark:hover:bg-white/10'}`}
         >
           {label}
         </button>

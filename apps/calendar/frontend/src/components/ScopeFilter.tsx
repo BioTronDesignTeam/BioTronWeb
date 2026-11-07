@@ -67,7 +67,7 @@ export function ScopeFilter({ scopes, selected, onChange }: ScopeFilterProps) {
           type="button"
           onClick={() => onChange([])}
           disabled={selected.length === 0}
-          className="rounded-full px-2 py-1 text-xs font-semibold text-brand hover:bg-soft/30 disabled:opacity-40 dark:text-link dark:hover:bg-white/10"
+          className="min-h-8 rounded-full px-2 py-1 text-xs font-semibold text-brand hover:bg-soft/30 disabled:opacity-40 dark:text-link dark:hover:bg-white/10 pointer-coarse:min-h-11 pointer-coarse:px-3"
         >
           Clear
         </button>
@@ -176,7 +176,7 @@ function ScopeRow({
   return (
     <div className="flex items-center" style={{ paddingLeft: `${depth * 1.1}rem` }}>
       {expanded === undefined ? (
-        <span className="size-7 shrink-0" aria-hidden="true" />
+        <span className="size-7 shrink-0 pointer-coarse:size-11" aria-hidden="true" />
       ) : (
         <button
           type="button"
@@ -201,7 +201,7 @@ function ScopeRow({
           </svg>
         </button>
       )}
-      <label className="flex min-h-10 min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-xl px-1.5 text-sm hover:bg-soft/25 dark:hover:bg-white/10">
+      <label className="flex min-h-10 min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-xl px-1.5 text-sm hover:bg-soft/25 dark:hover:bg-white/10 pointer-coarse:min-h-11">
         <input
           ref={box}
           type="checkbox"
