@@ -588,6 +588,27 @@ sleep() { :; }
         self.assertIn('SECRET log line of a1', self.logs())
 
 
+class DatabaseGrantTests(unittest.TestCase):
+    """The role scripts and the grants the migrate image makes agree."""
+
+    def test_reader_tables_are_the_same_in_the_init_script_and_after_migrations(self):
+        script = (ROOT / 'infra/postgres/init/10-sprinter-reader.sh').read_text()
+        in_script = set(re.findall(r'GRANT SELECT ON ([a-z_]+\.[a-z_]+) TO sprinter_reader', script))
+        after = set()
+        for app in DATABASE_APPS:
+            sql = (ROOT / f'infra/migrate/grants/{app}.sql').read_text()
+            for tables in re.findall(r'GRANT SELECT ON ([a-z_., ]+) TO sprinter_reader', sql):
+                after.update(t.strip() for t in tables.split(','))
+        self.assertEqual(in_script, after)
+        self.assertEqual(in_script, {'logger.health_checks', 'oauth.operators', 'oauth.apps',
+                                     'oauth.permissions', 'oauth.grants'})
+
+    def test_every_app_with_a_schema_has_its_grants_file(self):
+        for app in DATABASE_APPS:
+            sql = (ROOT / f'infra/migrate/grants/{app}.sql').read_text()
+            self.assertIn(f"rolname = '{app}_app'", sql)
+
+
 class DeployShellTests(unittest.TestCase):
     """deploy/biotron-deploy-shell, the CI accounts' login shell, runs a deploy
     and nothing else."""
