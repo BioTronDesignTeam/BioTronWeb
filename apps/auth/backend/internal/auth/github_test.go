@@ -38,6 +38,14 @@ type stubGitHub struct {
 	// tokenGate, when set, holds every installation token answer until it
 	// is closed.
 	tokenGate chan struct{}
+	// logins is the current login of each account GET /user/{id} knows;
+	// account 42 is octo unless set otherwise.
+	logins map[int64]string
+	// memberLogin, when set, is the only login the membership check
+	// answers membership for; every other login gets 404.
+	memberLogin string
+	// askedLogin is the login of the last membership check.
+	askedLogin string
 }
 
 func newStubGitHub(t *testing.T, membership int) *stubGitHub {
@@ -98,13 +106,21 @@ func (s *stubGitHub) serve(w http.ResponseWriter, r *http.Request) {
 		s.mu.Unlock()
 		expires := time.Now().Add(time.Hour).UTC().Format(time.RFC3339)
 		_, _ = w.Write([]byte(`{"token":"` + token + `","expires_at":"` + expires + `"}`))
+	case strings.HasPrefix(r.URL.Path, "/user/"):
+		s.serveAccount(w, r)
 	case strings.HasPrefix(r.URL.Path, "/orgs/BioTronDesignTeam/members/"):
 		s.mu.Lock()
 		s.memberAuth = r.Header.Get("Authorization")
+		s.askedLogin = strings.TrimPrefix(r.URL.Path, "/orgs/BioTronDesignTeam/members/")
 		rejected := s.rejectAll || (s.rejected != "" && s.memberAuth == "Bearer "+s.rejected)
+		other := s.memberLogin != "" && s.askedLogin != s.memberLogin
 		s.mu.Unlock()
 		if rejected {
 			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		if other {
+			w.WriteHeader(http.StatusNotFound)
 			return
 		}
 		if s.membership == http.StatusFound {
@@ -113,6 +129,27 @@ func (s *stubGitHub) serve(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(s.membership)
 	default:
 		w.WriteHeader(http.StatusNotFound)
+	}
+}
+
+// serveAccount answers GET /user/{id} with the account's current login, for
+// the installation token only.
+func (s *stubGitHub) serveAccount(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(strings.TrimPrefix(r.URL.Path, "/user/"), 10, 64)
+	s.mu.Lock()
+	rejected := s.rejectAll || r.Header.Get("Authorization") == "Bearer "+s.rejected
+	login, known := s.logins[id]
+	if s.logins == nil && id == 42 {
+		login, known = "octo", true
+	}
+	s.mu.Unlock()
+	switch {
+	case !strings.HasPrefix(r.Header.Get("Authorization"), "Bearer installation-token") || rejected:
+		w.WriteHeader(http.StatusUnauthorized)
+	case err != nil || !known:
+		w.WriteHeader(http.StatusNotFound)
+	default:
+		_, _ = w.Write([]byte(`{"id":` + strconv.FormatInt(id, 10) + `,"login":"` + login + `"}`))
 	}
 }
 
@@ -286,5 +323,43 @@ func TestInstallationTokenIsFetchedOnceForConcurrentChecks(t *testing.T) {
 func TestPKCEChallengeIsS256(t *testing.T) {
 	if got := pkceChallenge("dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"); got != "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM" {
 		t.Fatalf("challenge = %q", got)
+	}
+}
+
+// The membership re-check goes by GitHub id: a renamed member keeps access,
+// and an old login that a member later claims does not let its former owner
+// back in.
+func TestMembershipByIDFollowsTheAccountNotTheLogin(t *testing.T) {
+	ctx := context.Background()
+	for _, tc := range []struct {
+		name        string
+		logins      map[int64]string
+		memberLogin string
+		want        bool
+	}{
+		{"a renamed member keeps access", map[int64]string{42: "octo-renamed"}, "octo-renamed", true},
+		{"a reclaimed login does not count", map[int64]string{42: "someone-else", 99: "octo"}, "octo", false},
+		{"a deleted account is no member", map[int64]string{}, "octo", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			stub := newStubGitHub(t, http.StatusNoContent)
+			stub.logins, stub.memberLogin = tc.logins, tc.memberLogin
+			member, err := stub.client().IsOrgMemberByID(ctx, 42)
+			if err != nil || member != tc.want {
+				t.Fatalf("member = %v, err = %v, want %v", member, err, tc.want)
+			}
+			if login := tc.logins[42]; login != "" && stub.askedLogin != login {
+				t.Fatalf("membership asked for %q, want the current login %q", stub.askedLogin, login)
+			}
+		})
+	}
+}
+
+// An account lookup GitHub cannot answer is an error, never a "no".
+func TestMembershipByIDFailsWhenGitHubCannotAnswer(t *testing.T) {
+	stub := newStubGitHub(t, http.StatusNoContent)
+	stub.rejectAll = true
+	if _, err := stub.client().IsOrgMemberByID(context.Background(), 42); err == nil {
+		t.Fatal("a refused account lookup was not an error")
 	}
 }

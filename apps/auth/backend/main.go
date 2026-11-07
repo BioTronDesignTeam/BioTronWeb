@@ -94,7 +94,7 @@ func run() error {
 		Store:   st,
 		Cache:   cache.New(st),
 		GitHub:  gh,
-		Members: auth.NewMembership(gh.IsOrgMember),
+		Members: auth.NewMembership(gh.IsOrgMemberByID),
 		Signer:  auth.NewSigner([]byte(cfg.SessionSigningKey)),
 		Events:  events,
 		Cfg: auth.Config{

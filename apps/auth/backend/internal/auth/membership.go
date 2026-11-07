@@ -21,7 +21,7 @@ const MembershipTTL = 15 * time.Minute
 // with 503. A kept answer is never used past its TTL, so an outage of GitHub
 // cannot stretch a removed member's access.
 type Membership struct {
-	check func(ctx context.Context, login string) (bool, error)
+	check func(ctx context.Context, githubID int64) (bool, error)
 	ttl   time.Duration
 	now   func() time.Time
 
@@ -42,8 +42,9 @@ type membershipCheck struct {
 }
 
 // NewMembership returns an empty cache that asks check, such as
-// GitHubClient.IsOrgMember.
-func NewMembership(check func(ctx context.Context, login string) (bool, error)) *Membership {
+// GitHubClient.IsOrgMemberByID. The check goes by GitHub id, never by a
+// stored login, which its owner can rename and someone else then claim.
+func NewMembership(check func(ctx context.Context, githubID int64) (bool, error)) *Membership {
 	return &Membership{
 		check:    check,
 		ttl:      MembershipTTL,
@@ -53,9 +54,9 @@ func NewMembership(check func(ctx context.Context, login string) (bool, error)) 
 	}
 }
 
-// Member reports whether the operator with githubID and login is a member,
+// Member reports whether the operator with githubID is a member,
 // from an answer of the last MembershipTTL or from a new check.
-func (m *Membership) Member(ctx context.Context, githubID int64, login string) (bool, error) {
+func (m *Membership) Member(ctx context.Context, githubID int64) (bool, error) {
 	m.mu.Lock()
 	if answer, ok := m.kept[githubID]; ok && m.fresh(answer, m.now()) {
 		m.mu.Unlock()
@@ -67,7 +68,7 @@ func (m *Membership) Member(ctx context.Context, githubID int64, login string) (
 		m.checking[githubID] = check
 		// The check serves every waiting request of the operator, so the
 		// first one's cancellation must not fail the others.
-		go m.run(context.WithoutCancel(ctx), githubID, login, check)
+		go m.run(context.WithoutCancel(ctx), githubID, check)
 	}
 	m.mu.Unlock()
 	select {
@@ -78,8 +79,8 @@ func (m *Membership) Member(ctx context.Context, githubID int64, login string) (
 	}
 }
 
-func (m *Membership) run(ctx context.Context, githubID int64, login string, check *membershipCheck) {
-	member, err := m.check(ctx, login)
+func (m *Membership) run(ctx context.Context, githubID int64, check *membershipCheck) {
+	member, err := m.check(ctx, githubID)
 	m.mu.Lock()
 	delete(m.checking, githubID)
 	if err == nil {

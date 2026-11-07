@@ -192,8 +192,10 @@ What that means in practice:
   installation token, at most every 15 minutes per operator. Someone removed
   from `BioTronDesignTeam` is refused with `401` within 15 minutes, on
   `/v1/check` too. When GitHub cannot answer and the last answer is older
-  than that, the request fails closed with `503`. The check goes by login, so
-  an operator who renames their GitHub account signs in again. A sign-in
+  than that, the request fails closed with `503`. The check goes by GitHub id:
+  it asks GitHub for the account's current login (`GET /user/{id}`) and
+  then that login's membership, so a renamed account keeps its access and
+  an old login that someone else claims never passes for its former owner. A sign-in
   records its own answer. Guests have no GitHub identity and are not checked.
 
 Sessions from before signed cookies were opaque tokens in a `sessions`
