@@ -6,8 +6,8 @@ usage() {
   cat <<'USAGE'
 Usage: ./pr-precheck [--base REF] [--all] [--plan]
 
-Run CI's build, lint, test, sqlc, workflow, secret, and vulnerability checks
-locally.
+Run CI's build, lint, test, sqlc, Prisma, workflow, secret, and
+vulnerability checks locally.
 Includes committed, staged, unstaged, and untracked nonignored changes.
 
   --base REF  Compare with this local ref (default: origin/main, then main)
@@ -16,7 +16,9 @@ Includes committed, staged, unstaged, and untracked nonignored changes.
   --help      Show this help
 
 Use the devcontainer for Node, Go, golangci-lint, govulncheck, sqlc, actionlint,
-ShellCheck, zizmor, TruffleHog, Trivy, and jq.
+ShellCheck, zizmor, TruffleHog, Trivy, jq, and psql. The Prisma checks make and
+drop shadow databases in the Postgres of PRISMA_CHECK_DATABASE_URL (default:
+the devcontainer's).
 Security scans always run and require network access for live verification.
 No fetching, commits, pushes, migrations, or services are started.
 USAGE
@@ -63,13 +65,16 @@ trap 'exit 143' TERM
 } > "$scratch/changed"
 
 apps='biotron calendar status auth exogui sprinter'
-frontends='' backends='' touched='' all_frontends=$all all_backends=$all
+frontends='' backends='' touched='' all_frontends=$all all_backends=$all prisma=$all
 while IFS= read -r -d '' file; do
   case "$file" in
-    pr-precheck|.devcontainer/*|.github/workflows/ci.yml) all_frontends=true; all_backends=true ;;
+    pr-precheck|.devcontainer/*|.github/workflows/ci.yml) all_frontends=true; all_backends=true; prisma=true ;;
     packages/style/*|package.json|package-lock.json|tsconfig.base.json|.oxlintrc.json) all_frontends=true ;;
     go/*|go.work|go.work.sum) all_backends=true ;;
-    apps/*) app=${file#apps/}; touched="$touched ${app%%/*}" ;;
+    infra/migrate/*|scripts/check-prisma) prisma=true ;;
+    apps/*)
+      app=${file#apps/}; touched="$touched ${app%%/*}"
+      case "$file" in apps/*/prisma/*|apps/*/.env.example) prisma=true ;; esac ;;
   esac
 done < "$scratch/changed"
 for app in $apps; do
@@ -79,6 +84,7 @@ done
 shared=no
 if $all_backends; then shared=yes; fi
 printf 'Base: %s (merge base %.12s)\nFrontends: %s\nBackends: %s\nShared Go modules: %s\n' "$base" "$merge_base" "${frontends:-none}" "${backends:-none}" "$shared"
+echo "Prisma: $(if $prisma; then echo 'format and migrations of every apps/*/prisma (scripts/check-prisma)'; else echo none; fi)"
 echo 'Workflows: actionlint and zizmor on every workflow'
 echo 'Shell scripts: ShellCheck on every one (scripts/list-shell-scripts)'
 echo 'Security: commit history, staged and working files, vulnerabilities and misconfigurations'
@@ -86,6 +92,7 @@ if $plan; then exit 0; fi
 
 required='trufflehog trivy jq actionlint shellcheck zizmor'
 if [[ -n $frontends ]]; then required="$required npm"; fi
+if $prisma; then required="$required npm psql"; fi
 if [[ -n $backends || $shared == yes ]]; then required="$required go golangci-lint govulncheck sqlc"; fi
 missing=''
 for tool in $required; do
@@ -196,6 +203,14 @@ for module in $modules; do
     fi
   done
 done
+
+if $prisma; then
+  run 'prisma dependencies' npm ci --prefix infra/migrate --no-audit --no-fund
+  if $last_passed; then
+    run 'prisma format and migrations' scripts/check-prisma
+  else echo 'SKIP the Prisma checks because their dependencies did not install'
+  fi
+fi
 
 run 'workflows' actionlint
 # Same as the workflows.yml job and the shellcheck job of ci.yml.
