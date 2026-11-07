@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM nginx:1.31.5-alpine
+FROM nginx:1.30.6-alpine@sha256:583b7f2fce1cdb8da5ad5c39ebd3c33b98b87d493190e548bdee1fa8c619c311
 
 COPY nginx.conf /etc/nginx/nginx.conf
 COPY snippets /etc/nginx/snippets
