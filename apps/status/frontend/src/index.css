@@ -8,7 +8,7 @@
   --logger-text: #16033c;
   --logger-text-soft: #160b6c;
   --logger-muted: color-mix(in srgb, #16033c 62%, #ffffff);
-  --logger-muted-soft: color-mix(in srgb, #16033c 44%, #ffffff);
+  --logger-muted-soft: color-mix(in srgb, #16033c 60%, #ffffff);
   --logger-accent: #3050b0;
   --logger-accent-soft: #aedbfc;
   --logger-on-accent: #ffffff;
@@ -58,7 +58,7 @@
   --logger-text: #ffffff;
   --logger-text-soft: #9fb0ba;
   --logger-muted: #9fb0ba;
-  --logger-muted-soft: #6b7d87;
+  --logger-muted-soft: #7b8d97;
   /* Accent text and focus rings use the lifted blue; the site's #3050b0 is too
      dark to read as small type on graphite. The purple stays a fill. */
   --logger-accent: #7f9cf5;
