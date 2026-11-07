@@ -281,6 +281,19 @@ jobs:
           go install "golang.org/x/vuln/cmd/govulncheck@$GOVULNCHECK"
           govulncheck ./...
 
+  # Every base image and third-party compose image is pinned by version and
+  # digest, and the devcontainer's Go, Node, and Prisma are production's
+  # (scripts/check-images). Cheap, so it runs on every change.
+  images:
+    name: images
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: scripts/check-images
+
   # Each app's schema.prisma is formatted, and its migrations build exactly
   # that schema (scripts/check-prisma), in shadow databases on a throwaway
   # Postgres: the image of infra/docker-compose.yml, which check-images keeps
@@ -397,7 +410,7 @@ jobs:
   passed:
     name: ci passed
     if: always()
-    needs: [compose-config, changes, frontend, frontend-shared, backend, shared, prisma, secrets, vulnerabilities, shellcheck]
+    needs: [compose-config, changes, frontend, frontend-shared, backend, shared, images, prisma, secrets, vulnerabilities, shellcheck]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
