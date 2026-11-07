@@ -64,7 +64,9 @@ model Grant {
   operator      Operator   @relation(fields: [operatorId], references: [githubId], onDelete: Cascade)
   appId         String     @map("app_id")
   permissionKey String     @map("permission_key")
-  permission    Permission @relation(fields: [appId, permissionKey], references: [appId, key], onDelete: Cascade)
+  // map: keeps the name that 20260729240000_managers_permission_catalog gave
+  // the constraint in every database, rather than renaming it in a migration.
+  permission    Permission @relation(fields: [appId, permissionKey], references: [appId, key], onDelete: Cascade, map: "grants_permission_fkey")
   createdAt     DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
 
   @@id([operatorId, appId, permissionKey])
