@@ -328,18 +328,21 @@ function usePlatformStatus(poll: boolean) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
-  const refresh = useCallback(async () => {
-    try {
-      const [current, past] = await Promise.all([getStatus(), getStatusHistory(HISTORY_DAYS)]);
-      setStatus(current);
-      setHistory(past);
-      setError('');
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Status is unavailable');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // State changes only once the responses land, never synchronously.
+  const refresh = useCallback(
+    () =>
+      Promise.all([getStatus(), getStatusHistory(HISTORY_DAYS)])
+        .then(
+          ([current, past]) => {
+            setStatus(current);
+            setHistory(past);
+            setError('');
+          },
+          (reason: unknown) => setError(reason instanceof Error ? reason.message : 'Status is unavailable'),
+        )
+        .finally(() => setLoading(false)),
+    [],
+  );
 
   useEffect(() => {
     void refresh();
