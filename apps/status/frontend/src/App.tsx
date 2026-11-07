@@ -244,9 +244,10 @@ function UptimeBar({ buckets, days, label }: { buckets: HistoryBucket[]; days: n
       Home: 0,
       End: shown.length - 1,
     };
-    if (event.key in moves) {
+    const move = moves[event.key];
+    if (move !== undefined) {
       event.preventDefault();
-      setActive(moves[event.key]);
+      setActive(move);
     } else if (event.key === 'Escape') {
       setActive(null);
     }
@@ -353,8 +354,10 @@ function usePlatformStatus(poll: boolean) {
 /** "Jun 8 – Sep 5, 2026": the days the bars actually cover. */
 function rangeLabel(history?: StatusHistoryResponse) {
   const buckets = history?.applications[0]?.buckets ?? history?.components[0]?.buckets;
-  if (!buckets || buckets.length === 0) return '';
-  return rangeFormatter.formatRange(localNoon(buckets[0].date), localNoon(buckets[buckets.length - 1].date));
+  const first = buckets?.[0];
+  const last = buckets?.at(-1);
+  if (!first || !last) return '';
+  return rangeFormatter.formatRange(localNoon(first.date), localNoon(last.date));
 }
 
 /* Status page ------------------------------------------------------------ */
