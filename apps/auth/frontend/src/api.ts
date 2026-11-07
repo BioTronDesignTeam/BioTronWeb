@@ -1,6 +1,11 @@
 import { friendlyError, type SessionOperator } from '@biotron/style';
 
-export const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8080';
+// Trimmed like every other app's base, so a configured trailing slash does
+// not double up in front of each path.
+export const API_BASE = (import.meta.env.VITE_API_BASE || 'http://localhost:8080').replace(
+  /\/$/,
+  '',
+);
 
 // Told when a request answers 401, so the session is re-checked and the page
 // says it expired instead of showing the raw refusal.
