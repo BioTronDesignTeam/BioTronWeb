@@ -136,9 +136,14 @@ type fakeCalendar struct {
 	feedBody  string
 	feedErr   error
 	feedCalls int
+	// panicScope makes Occurrences panic for that one scope.
+	panicScope string
 }
 
-func (f *fakeCalendar) Occurrences(_ context.Context, _ string, from, to time.Time) ([]calendar.Occurrence, error) {
+func (f *fakeCalendar) Occurrences(_ context.Context, scopeID string, from, to time.Time) ([]calendar.Occurrence, error) {
+	if f.panicScope != "" && scopeID == f.panicScope {
+		panic("calendar fake exploded")
+	}
 	f.calls++
 	f.from, f.to = from, to
 	if f.err != nil {
