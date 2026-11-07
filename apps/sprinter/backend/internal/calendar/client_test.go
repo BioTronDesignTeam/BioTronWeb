@@ -36,7 +36,7 @@ func TestOccurrencesRequestsExpectedWindow(t *testing.T) {
 
 	client := NewClient(server.URL, toronto)
 	from := time.Date(2026, 9, 10, 8, 0, 0, 0, time.UTC)
-	to := from.Add(2 * time.Hour)
+	to := from.Add(8 * time.Hour)
 	occurrences, err := client.Occurrences(context.Background(), "s1", from, to)
 	if err != nil {
 		t.Fatalf("Occurrences: %v", err)
@@ -64,7 +64,55 @@ func TestOccurrencesRequestsExpectedWindow(t *testing.T) {
 	}
 }
 
-func TestOccurrencesSequenceFallsBackToSeries(t *testing.T) {
+// Calendar reads to as the midnight that starts its date. Sending to's own
+// date would stop the window up to a day short; the next date covers it, and
+// the client trims the answer back to the instants it was asked for.
+func TestOccurrencesCoverTheExactWindow(t *testing.T) {
+	toronto, err := time.LoadLocation("America/Toronto")
+	if err != nil {
+		t.Fatalf("load location: %v", err)
+	}
+	from := time.Date(2026, 9, 10, 13, 0, 0, 0, toronto)
+	to := from.Add(169 * time.Hour) // 2026-09-17 14:00 local
+	occurrence := func(uid string, starts time.Time) map[string]any {
+		return map[string]any{
+			"uid": uid, "recurrence_id_local": starts.Format("2006-01-02T15:04:05"),
+			"series_sequence": 1, "title": uid,
+			"starts_at": starts, "ends_at": starts.Add(time.Hour),
+		}
+	}
+	var gotQuery url.Values
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotQuery = r.URL.Query()
+		_ = json.NewEncoder(w).Encode([]map[string]any{
+			occurrence("ended-before-from", from.Add(-3*time.Hour)),
+			occurrence("running-at-from", from.Add(-30*time.Minute)),
+			occurrence("last-hour", to.Add(-time.Hour)),
+			occurrence("after-to", to.Add(time.Hour)),
+		})
+	}))
+	defer server.Close()
+
+	occurrences, err := NewClient(server.URL, toronto).Occurrences(context.Background(), "", from, to)
+	if err != nil {
+		t.Fatalf("Occurrences: %v", err)
+	}
+	if got := gotQuery.Get("from"); got != "2026-09-10" {
+		t.Fatalf("from = %q", got)
+	}
+	if got := gotQuery.Get("to"); got != "2026-09-18" {
+		t.Fatalf("to = %q, want 2026-09-18 so the window reaches 14:00 on the 17th", got)
+	}
+	var uids []string
+	for _, occ := range occurrences {
+		uids = append(uids, occ.UID)
+	}
+	if len(uids) != 2 || uids[0] != "running-at-from" || uids[1] != "last-hour" {
+		t.Fatalf("kept %v, want only what overlaps [from, to]", uids)
+	}
+}
+
+func TestSequenceIsSeriesPlusOverride(t *testing.T) {
 	occ := Occurrence{SeriesSequence: 4}
 	if occ.Sequence() != 4 {
 		t.Fatalf("Sequence() = %d, want 4", occ.Sequence())

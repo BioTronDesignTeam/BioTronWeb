@@ -93,13 +93,13 @@ func (c *Client) Occurrences(ctx context.Context, scopeID string, from, to time.
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
+	// Calendar reads each date as the local midnight that starts it. from's
+	// own date starts at or before from, but to's would stop up to a day
+	// short of to, so to is sent as the next date. That also keeps to after
+	// from when both fall on one local day, which /v1/events requires. The
+	// extra hours are cut off again below.
 	fromDate := from.In(c.location)
-	toDate := to.In(c.location)
-	// /v1/events requires strict to > from; two instants inside the same
-	// local day would otherwise resolve to the same date and be refused.
-	if !dateAfter(toDate, fromDate) {
-		toDate = toDate.AddDate(0, 0, 1)
-	}
+	toDate := to.In(c.location).AddDate(0, 0, 1)
 
 	query := url.Values{
 		"from": {fromDate.Format(localDateLayout)},
@@ -132,17 +132,18 @@ func (c *Client) Occurrences(ctx context.Context, scopeID string, from, to time.
 	if err := json.Unmarshal(body, &occurrences); err != nil {
 		return nil, fmt.Errorf("decode occurrences: %w", err)
 	}
-	return occurrences, nil
+	return within(occurrences, from, to), nil
 }
 
-func dateAfter(a, b time.Time) bool {
-	ay, am, ad := a.Date()
-	by, bm, bd := b.Date()
-	if ay != by {
-		return ay > by
+// within keeps the occurrences that overlap [from, to] exactly. The dates on
+// the wire widen the window to whole local days on both sides; the caller
+// asked for instants.
+func within(occurrences []Occurrence, from, to time.Time) []Occurrence {
+	kept := occurrences[:0]
+	for _, occ := range occurrences {
+		if occ.EndsAt.After(from) && !occ.StartsAt.After(to) {
+			kept = append(kept, occ)
+		}
 	}
-	if am != bm {
-		return am > bm
-	}
-	return ad > bd
+	return kept
 }
