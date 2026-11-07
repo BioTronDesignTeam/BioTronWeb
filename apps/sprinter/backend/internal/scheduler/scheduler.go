@@ -21,8 +21,14 @@ import (
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
 )
 
+// DefaultModelTimeout bounds one nudge draft. A draft is a few sentences; a
+// model that has not written them in a minute is not going to, and the nudge
+// goes out without one.
+const DefaultModelTimeout = time.Minute
+
 // Deps is everything a Scheduler needs. Every field is required except
-// Location and Now, which default to UTC and time.Now.
+// Location, Now and ModelTimeout, which default to UTC, time.Now and
+// DefaultModelTimeout.
 type Deps struct {
 	Store    Store
 	Calendar Calendar
@@ -35,16 +41,19 @@ type Deps struct {
 	Location *time.Location
 	// Now is the clock. Tests pin it; production leaves it nil for time.Now.
 	Now func() time.Time
+	// ModelTimeout bounds one nudge draft. Zero means DefaultModelTimeout.
+	ModelTimeout time.Duration
 }
 
 type Scheduler struct {
-	store    Store
-	calendar Calendar
-	discord  DiscordAPI
-	model    model.Model
-	events   *logclient.Client
-	location *time.Location
-	now      func() time.Time
+	store        Store
+	calendar     Calendar
+	discord      DiscordAPI
+	model        model.Model
+	events       *logclient.Client
+	location     *time.Location
+	now          func() time.Time
+	modelTimeout time.Duration
 }
 
 func New(deps Deps) *Scheduler {
@@ -52,18 +61,23 @@ func New(deps Deps) *Scheduler {
 	if location == nil {
 		location = time.UTC
 	}
+	modelTimeout := deps.ModelTimeout
+	if modelTimeout <= 0 {
+		modelTimeout = DefaultModelTimeout
+	}
 	now := deps.Now
 	if now == nil {
 		now = time.Now
 	}
 	return &Scheduler{
-		store:    deps.Store,
-		calendar: deps.Calendar,
-		discord:  deps.Discord,
-		model:    deps.Model,
-		events:   deps.Events,
-		location: location,
-		now:      now,
+		store:        deps.Store,
+		calendar:     deps.Calendar,
+		discord:      deps.Discord,
+		model:        deps.Model,
+		events:       deps.Events,
+		location:     location,
+		now:          now,
+		modelTimeout: modelTimeout,
 	}
 }
 
