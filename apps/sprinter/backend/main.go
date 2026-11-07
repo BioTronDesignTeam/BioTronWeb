@@ -70,7 +70,7 @@ func run() error {
 	}
 	defer sprinterStore.Close()
 
-	// The read pool is optional. Without it the four SQL tools are left out and
+	// The read pool is optional. Without it the two SQL tools are left out and
 	// the bot answers from the two public endpoints, which is better than
 	// refusing to start over a tool nobody may have asked for yet.
 	var reader *readstore.Store
