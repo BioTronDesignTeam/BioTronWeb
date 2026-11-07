@@ -87,8 +87,9 @@ names, such as `OAuthManager` and `exo-gui`. They mean the paths above.
 - Do not start `cloudflared` for local work. It opens a public tunnel. The
   edge is its own target: `./launch edge --no-tunnel` starts Nginx alone.
 - Start the apps with `./launch web --build`, and leave one out with
-  `--no-<app>`. For a single app, name its services to compose directly, for
-  example `docker compose up -d --build calendar-migrate calendar-api calendar-web`.
+  `--no-<app>`, for example `./launch web --build --no-sprinter`. Always go
+  through `./launch`: plain `docker compose` from the repository root reads
+  no app `.env` file, and skips the network and the edge address it sets.
 - After a change: run the affected tests, rebuild only the affected
   containers, and check the real page in a browser. For a Three.js change on
   the site, check the exact scroll stop you changed.
@@ -239,9 +240,11 @@ writing the words again, and keep docs that quote the UI in step.
 - HSTS is sent only when `X-Forwarded-Proto` is `https`, because the edge
   listens on plain HTTP behind cloudflared. This was tested against a local
   stub, never against the real Cloudflare edge.
-- Do not tune, enable, or extend HSTS as side work. Browsers cache it for the
-  full `max-age`, so a mistake locks visitors out. When someone picks it up:
-  start with `max-age=300`, confirm with `curl -sI`, and never add `preload`.
+- HSTS is `max-age=300` for each hostname alone, with no `includeSubDomains`
+  and no `preload`. Do not raise it as side work. Browsers cache it for the
+  full `max-age`, so a mistake locks visitors out. Raise it only after both
+  domains have served it for a while, confirmed with `curl -sI`, and never
+  add `preload`.
 
 ## Deployment
 
@@ -254,9 +257,15 @@ writing the words again, and keep docs that quote the UI in step.
   `biotron-<instance>`, on its own network with its own Postgres,
   volumes, and Infisical environment. Never let two instances share a
   network or a database.
+- Each instance runs on a host of its own, with its own Infisical, edge, and
+  Cloudflare tunnel: production on the Oracle Cloud VM, staging on
+  `haimekena`. Nothing is shared between the hosts.
 - One edge per host: the `biotron-edge` project. Its Nginx joins every
   instance's network and reaches apps by instance-qualified aliases such as
   `prod-oauth-manager`. It is the only container on more than one network.
+- Each app connects to Postgres as its own role, `<app>_app`, with data rights
+  in its own schema only. Only migrations use the owner. Never give an app the
+  owner's URL in a deployment; see `infra/README.md`.
 - One app per hostname: `www`, `calendar`, `auth`, `exogui`, `status`,
   and `sprinter`. `infra/nginx` is the source of truth. Within a
   hostname, `/` goes to the frontend and `/api/` to the backend.
@@ -268,9 +277,10 @@ writing the words again, and keep docs that quote the UI in step.
 - Every push to `main` deploys to staging. A `v*` tag on a `main` commit that
   staging deployed sends the same images to production. There is no staging
   branch. See `deploy/README.md`.
-- Build `linux/amd64` and `linux/arm64` images once in CI and pin them by
-  digest. Test that digest in staging, then promote the same digest. Never
-  rebuild a candidate after staging approves it.
+- Build `linux/amd64` and `linux/arm64` images once in CI, tagged with the
+  commit SHA. Staging tests that tag, and production deploys the same tag.
+  The workflow never builds or pushes a tag that exists already, so a rerun
+  cannot replace what staging approved. Never rebuild a candidate by hand.
 
 ## Calendar
 
