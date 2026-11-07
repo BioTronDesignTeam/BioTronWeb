@@ -46,6 +46,7 @@ jobs:
       backends: ${{ steps.plan.outputs.backends }}
       shared: ${{ steps.plan.outputs.shared }}
       golangci-lint: ${{ steps.tools.outputs.golangci-lint }}
+      govulncheck: ${{ steps.tools.outputs.govulncheck }}
       trufflehog: ${{ steps.tools.outputs.trufflehog }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -107,7 +108,8 @@ jobs:
           echo "backends:  $backends"
           echo "shared:    $shared"
       # The tool releases of the devcontainer image, read from its FROM lines
-      # (which Dependabot updates), so CI and ./pr-precheck run the same ones.
+      # (which Dependabot updates) and its govulncheck ARG line, so CI and
+      # ./pr-precheck run the same ones.
       - name: read tool versions
         id: tools
         run: |
@@ -123,6 +125,13 @@ jobs:
           }
           tool golangci-lint golangci/golangci-lint
           tool trufflehog trufflesecurity/trufflehog
+          # govulncheck has no image, so its release is an ARG line.
+          version=$(sed -nE 's|^ARG GOVULNCHECK_VERSION=(v[0-9]+\.[0-9]+\.[0-9]+)$|\1|p' .devcontainer/Dockerfile)
+          if [[ ! $version =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::No single govulncheck version in .devcontainer/Dockerfile"
+            exit 1
+          fi
+          echo "govulncheck=$version" | tee -a "$GITHUB_OUTPUT"
 
   frontend:
     name: frontend ${{ matrix.app }}
@@ -184,7 +193,17 @@ jobs:
           working-directory: apps/${{ matrix.app }}/backend
           args: --config=${{ github.workspace }}/go/.golangci.yml
       - run: go vet ./...
-      - run: go test ./...
+      - run: go test -race ./...
+      # go.mod and go.sum already hold exactly what the code imports.
+      - run: go mod tidy -diff
+      # Known vulnerabilities in the code paths this module calls, with the
+      # govulncheck release of the devcontainer.
+      - name: govulncheck
+        env:
+          GOVULNCHECK: ${{ needs.changes.outputs.govulncheck }}
+        run: |
+          go install "golang.org/x/vuln/cmd/govulncheck@$GOVULNCHECK"
+          govulncheck ./...
 
   # The shared Go modules under go/, which every backend builds through
   # go.work.
@@ -217,7 +236,17 @@ jobs:
           working-directory: go/${{ matrix.module }}
           args: --config=${{ github.workspace }}/go/.golangci.yml
       - run: go vet ./...
-      - run: go test ./...
+      - run: go test -race ./...
+      # go.mod and go.sum already hold exactly what the code imports.
+      - run: go mod tidy -diff
+      # Known vulnerabilities in the code paths this module calls, with the
+      # govulncheck release of the devcontainer.
+      - name: govulncheck
+        env:
+          GOVULNCHECK: ${{ needs.changes.outputs.govulncheck }}
+        run: |
+          go install "golang.org/x/vuln/cmd/govulncheck@$GOVULNCHECK"
+          govulncheck ./...
 
   secrets:
     name: secrets (TruffleHog)

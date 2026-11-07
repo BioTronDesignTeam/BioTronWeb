@@ -15,8 +15,8 @@ Includes committed, staged, unstaged, and untracked nonignored changes.
   --plan      Show selected checks without running or installing anything
   --help      Show this help
 
-Use the devcontainer for Node, Go, golangci-lint, sqlc, actionlint, ShellCheck,
-zizmor, TruffleHog, Trivy, and jq.
+Use the devcontainer for Node, Go, golangci-lint, govulncheck, sqlc, actionlint,
+ShellCheck, zizmor, TruffleHog, Trivy, and jq.
 Security scans always run and require network access for live verification.
 No fetching, commits, pushes, migrations, or services are started.
 USAGE
@@ -86,7 +86,7 @@ if $plan; then exit 0; fi
 
 required='trufflehog trivy jq actionlint shellcheck zizmor'
 if [[ -n $frontends ]]; then required="$required npm"; fi
-if [[ -n $backends || $shared == yes ]]; then required="$required go golangci-lint sqlc"; fi
+if [[ -n $backends || $shared == yes ]]; then required="$required go golangci-lint govulncheck sqlc"; fi
 missing=''
 for tool in $required; do
   if ! command -v "$tool" >/dev/null 2>&1; then missing="$missing $tool"; fi
@@ -186,7 +186,9 @@ if [[ $shared == yes ]]; then modules="$modules go/authclient go/logclient"; fi
 for module in $modules; do
   run "$module lint" in_directory "$root/$module" golangci-lint run --config "$root/go/.golangci.yml" ./...
   run "$module vet" in_directory "$root/$module" go vet ./...
-  run "$module tests" in_directory "$root/$module" go test ./...
+  run "$module tests" in_directory "$root/$module" go test -race ./...
+  run "$module tidy" in_directory "$root/$module" go mod tidy -diff
+  run "$module vulnerabilities" in_directory "$root/$module" govulncheck ./...
   # Same as .github/workflows/sqlc.yml: generated code matches its queries.
   for config in sqlc.yaml sqlc.yml sqlc.json; do
     if [[ -f $root/$module/$config ]]; then

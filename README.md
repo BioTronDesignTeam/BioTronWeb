@@ -60,6 +60,7 @@ in exactly one place so it cannot drift:
 | Prisma | 6.19.3 | `infra/migrate/package.json`, exact |
 | Go | 1.27.3 | every `go.mod`, `go.work`, every backend Dockerfile |
 | golangci-lint, sqlc, actionlint, zizmor, TruffleHog | 2.15.0, 1.31.1, 1.7.12, 1.31.1, 3.97.4 | `.devcontainer/Dockerfile` `FROM` lines; CI reads them there |
+| govulncheck | 1.9.0 | `.devcontainer/Dockerfile` `ARG` line, with its module hash; CI reads it there |
 
 An app's own `package.json` lists only what that app alone needs, such as
 `three` for the site. Build and lint tooling never goes there.
@@ -123,9 +124,10 @@ the shared modules under `go/`; each app's compose file already sets
 
 Run `./pr-precheck` inside the devcontainer. It mirrors
 `.github/workflows/ci.yml`, `sqlc.yml`, and `workflows.yml`: build and lint
-affected frontends, then run golangci-lint, `go vet`, `go test`, and (where
-the backend has a `sqlc.yaml`) `sqlc diff` for affected backends, lint
-every workflow with actionlint and zizmor, and run ShellCheck on every shell
+affected frontends, then run golangci-lint, `go vet`, `go test -race`,
+`go mod tidy -diff`, govulncheck, and (where the backend has a `sqlc.yaml`)
+`sqlc diff` for affected backends and the shared Go modules, lint every
+workflow with actionlint and zizmor, and run ShellCheck on every shell
 script. Shared tooling changes expand the checks to their consumers. Changes
 to the precheck, devcontainer, CI workflow, or anything under `go/`, such as
 `go/.golangci.yml`, check every app.
