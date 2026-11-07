@@ -32,6 +32,7 @@ export default function OrgMemberList({
               <button
                 type="button"
                 onClick={() => onSelect(member.github_id)}
+                aria-pressed={selectedMemberId === member.github_id}
                 className={`flex min-h-11 w-full items-center gap-3 px-4 py-3 text-left transition ${
                   selectedMemberId === member.github_id
                     ? 'bg-slate-100 dark:bg-surface-2'

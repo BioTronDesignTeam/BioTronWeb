@@ -15,6 +15,7 @@ function TabButton({
     <button
       type="button"
       onClick={onClick}
+      aria-pressed={active}
       className={`inline-flex min-h-11 items-center justify-center rounded-lg px-3 py-2.5 text-sm font-medium transition sm:min-h-0 sm:px-4 ${
         active
           ? 'bg-white text-slate-900 shadow dark:bg-highlight dark:text-white'
