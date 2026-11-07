@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/BioTronDesignTeam/BioTronWeb/apps/status/backend/internal/catalog"
 	"github.com/BioTronDesignTeam/BioTronWeb/apps/status/backend/internal/model"
@@ -120,5 +121,43 @@ func TestTrustedPeerWithoutHeaderIsKeyedByPeer(t *testing.T) {
 		if got := trust.clientIP(request); got != "192.0.2.1" {
 			t.Fatalf("Cf-Connecting-Ip %q: key = %q, want the peer", header, got)
 		}
+	}
+}
+
+// An outage must not be cached. Before, the 503 carried the same public,
+// max-age=30 as a success, so the edge and every browser kept showing it for
+// thirty seconds after the database came back.
+type outageStore struct{ failingStore }
+
+func (outageStore) HealthHistory(context.Context, []string, time.Time, time.Time, time.Duration) (map[string][]model.HealthPoint, error) {
+	return nil, errors.New("database is down")
+}
+
+func TestErrorResponsesAreNeverCached(t *testing.T) {
+	serviceCatalog, err := catalog.Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	app := New(&outageStore{}, serviceCatalog, Options{})
+	for _, path := range []string{"/v1/status", "/v1/status/history"} {
+		response := serve(app, httptest.NewRequest(http.MethodGet, path, nil))
+		if response.Code != http.StatusServiceUnavailable {
+			t.Fatalf("GET %s with the store down = %d, want 503", path, response.Code)
+		}
+		if got := response.Header().Get("Cache-Control"); got != "no-store" {
+			t.Fatalf("GET %s 503 Cache-Control = %q, want no-store", path, got)
+		}
+	}
+
+	// A throttled request is refused outside the cache wrapper, so it carries
+	// no public cache header either.
+	limited := New(&fakeStore{}, serviceCatalog, Options{StatusRateLimit: 1})
+	serve(limited, httptest.NewRequest(http.MethodGet, "/v1/status", nil))
+	response := serve(limited, httptest.NewRequest(http.MethodGet, "/v1/status", nil))
+	if response.Code != http.StatusTooManyRequests {
+		t.Fatalf("second request = %d, want 429", response.Code)
+	}
+	if got := response.Header().Get("Cache-Control"); got != "" {
+		t.Fatalf("429 Cache-Control = %q, want none", got)
 	}
 }

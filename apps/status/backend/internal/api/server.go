@@ -124,14 +124,52 @@ func New(store Store, serviceCatalog *catalog.Catalog, options Options) http.Han
 }
 
 // cacheFor lets shared caches hold the public status responses briefly. They are
-// world-readable by design and change no faster than the health poll.
+// world-readable by design and change no faster than the health poll. Only a
+// success is cacheable: an error, the 503 of a database outage among them, is
+// sent with no-store, so the edge and the browser ask again on the next load
+// instead of showing the outage for the whole TTL.
 func cacheFor(ttl time.Duration, next handlerFunc) handlerFunc {
 	value := "public, max-age=" + strconv.Itoa(int(ttl.Seconds()))
 	return func(w http.ResponseWriter, r *http.Request) error {
-		w.Header().Set("Cache-Control", value)
-		return next(w, r)
+		cw := &cacheOnSuccess{ResponseWriter: w, value: value}
+		err := next(cw, r)
+		if err != nil && !cw.wroteHeader {
+			// handle writes the error after this returns, on w itself.
+			w.Header().Set("Cache-Control", "no-store")
+		}
+		return err
 	}
 }
+
+// cacheOnSuccess picks the Cache-Control header when the status is written,
+// because only then is it known.
+type cacheOnSuccess struct {
+	http.ResponseWriter
+	value       string
+	wroteHeader bool
+}
+
+func (w *cacheOnSuccess) WriteHeader(code int) {
+	if !w.wroteHeader {
+		w.wroteHeader = true
+		if code >= 200 && code < 300 {
+			w.Header().Set("Cache-Control", w.value)
+		} else {
+			w.Header().Set("Cache-Control", "no-store")
+		}
+	}
+	w.ResponseWriter.WriteHeader(code)
+}
+
+func (w *cacheOnSuccess) Write(b []byte) (int, error) {
+	if !w.wroteHeader {
+		w.WriteHeader(http.StatusOK)
+	}
+	return w.ResponseWriter.Write(b)
+}
+
+// Unwrap lets http.ResponseController reach the connection underneath.
+func (w *cacheOnSuccess) Unwrap() http.ResponseWriter { return w.ResponseWriter }
 
 func (s *Server) health(w http.ResponseWriter, r *http.Request) error {
 	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
