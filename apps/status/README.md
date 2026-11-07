@@ -23,13 +23,17 @@ keeps the component ids its history is stored under.
 
 ## Run
 
-Start the shared Postgres once, from the monorepo root, then Status:
+From the monorepo root, with `./launch`, which reads each app's `.env`:
 
 ```bash
-docker compose -f infra/docker-compose.yml --env-file infra/.env up -d
 cp apps/status/.env.example apps/status/.env
-docker compose up -d --build status-migrate status-api status-web
+./launch infra
+./launch web --build    # every app; --no-<app> leaves one out
 ```
+
+Plain `docker compose` from the root does not read `apps/status/.env`. To
+restart Status alone, run it from this folder: `cd apps/status && docker
+compose up -d --build`.
 
 The status page is at http://localhost:5175. It has no sign-in.
 The API listens on http://127.0.0.1:8082; the Nginx inside `status-web`
@@ -60,7 +64,10 @@ Prisma. Do not add environment files below it.
   one probe. A reading older than three intervals shows as `unknown`.
   `HEALTH_HISTORY_INTERVAL` (5m) is the heartbeat: Postgres takes a row on
   a state change or when a heartbeat is due, and a gap longer than three
-  heartbeats counts as time nobody was watching.
+  heartbeats counts as time nobody was watching. Status refuses to start
+  when `HEALTH_INTERVAL` exceeds `HEALTH_HISTORY_INTERVAL`, because a poll
+  slower than the heartbeat stretches every gap and can turn all uptime
+  unknown.
 - `STATUS_CACHE_TTL` (30s) and `STATUS_RATE_LIMIT` (60 per minute per
   address) guard the public routes, which query ninety days for anyone.
 - `TRUSTED_PROXIES` must include the edge Nginx network
@@ -79,8 +86,10 @@ Prisma. Do not add environment files below it.
 | GET | `/v1/status` | anyone | overall, per-application, and per-component state with 24h, 7d, and 90d uptime |
 | GET | `/v1/status/history?days=90` | anyone | one bucket per `America/Toronto` day, per application and per component; `days` is clamped to 1..90 |
 
-`/v1/status` and `/v1/status/history` send `Cache-Control: public,
-max-age=30` and share one rate limit. A health detail string holds the
+`/v1/status` and `/v1/status/history` share one rate limit. A success
+sends `Cache-Control: public, max-age=30`; an error, such as the `503` of a
+database outage, sends `no-store`, so the edge and the browser never keep
+an outage after it ends. A health detail string holds the
 hostname, the port, and the raw dial error of a probe. Together those map
 the internal network, so the public routes drop it.
 
@@ -115,7 +124,12 @@ lists the ids, so an id never follows a service rename: `logger-api`,
 services as they are now.
 
 The catalog ends with an **Infrastructure** application: the database and
-the edge proxy at `http://edge-proxy:8080/_edge/health`. When
+the edge proxy at `http://edge-proxy:8080/_edge/health`. The edge is its
+own Compose project, `biotron-edge`; `./launch edge` joins its Nginx to the
+network of every instance in `EDGE_SITES` under the alias `edge-proxy`, so
+each instance's Status reaches it by that name. `catalog/hosts_test.go`
+checks that every `health_url` host is an alias the compose files or the
+edge give the instance network. When
 several applications go red at once, that row says whether the cause is
 shared. The database is pinged, not fetched, because a URL for it would
 carry credentials. The devcontainer runs no edge, so there that
@@ -151,12 +165,20 @@ Status reports to Grafana and PostHog as `status-api`, through
 | `Component down` | warning | `component`, and `detail` from the probe |
 | `Component recovered` | info | `component`, `detail`, `down_for_s` |
 | `Status API stopping` | info | — |
+| `Status API failed` | error | `error`: the listener could not open or stopped serving |
 
 The request log is quiet on the two routes the status page polls, which
 still speak when they fail. A `429` records nothing: the routes face the
 internet, and one event per throttled request would let anyone write into
 the log stream at the rate limit. The monitor speaks only when a
-component's state flips.
+component's state flips. A poll that a shutdown cuts short records and
+reports nothing, since its cancelled probes say nothing about the
+components.
+
+When the listener fails, Status flushes its events and exits non-zero, so
+Docker restarts it rather than leave it running with no API. On SIGTERM it
+lets in-flight requests finish, stops the monitor and waits for it, then
+closes the database pool.
 
 ## Storage
 
@@ -186,5 +208,6 @@ root and commit the result:
 docker run --rm -v "$PWD:/src" -w /src/apps/status/backend sqlc/sqlc:1.31.1 generate
 ```
 
-`store_live_test.go` runs the store against a real Postgres when
-`STATUS_TEST_DATABASE_URL` is set.
+`store_live_test.go` runs the store, and `main_test.go` the whole process,
+against a real Postgres when `STATUS_TEST_DATABASE_URL` is set. Without it
+they skip.
