@@ -18,6 +18,9 @@ const UNAVAILABLE_RETRY_MS = 15 * 1000;
 // Focus and visibility events come in bursts; one check covers them all.
 const FOCUS_THROTTLE_MS = 30 * 1000;
 const ATTEMPTS = 3;
+// A hung Auth (the tunnel up, the backend stuck) must not hold "Loading…" until
+// the proxy gives up, three times over. A check that takes this long failed.
+const CHECK_TIMEOUT_MS = 8000;
 
 export type SessionProviderProps = {
   /** Auth's base URL, such as `https://auth.example.org`. */
@@ -54,7 +57,10 @@ async function checkSession(
   try {
     const query = appId ? `?app=${encodeURIComponent(appId)}` : '';
     // credentials: 'include' so the cross-origin session cookie is sent.
-    const me = await fetch(`${authUrl}/auth/me${query}`, { credentials: 'include' });
+    const me = await fetch(`${authUrl}/auth/me${query}`, {
+      credentials: 'include',
+      signal: AbortSignal.timeout(CHECK_TIMEOUT_MS),
+    });
     // Only an explicit 401 or 403 means "not signed in" (403 is a guest of
     // another app). Anything else is an outage, not a sign-out.
     if (me.status === 401 || me.status === 403) return { kind: 'anon' };
@@ -66,7 +72,10 @@ async function checkSession(
       const answers = await Promise.all(
         permissions.map(async (permission) => {
           const query = new URLSearchParams({ app: appId, permission });
-          const res = await fetch(`${authUrl}/v1/check?${query}`, { credentials: 'include' });
+          const res = await fetch(`${authUrl}/v1/check?${query}`, {
+            credentials: 'include',
+            signal: AbortSignal.timeout(CHECK_TIMEOUT_MS),
+          });
           if (res.status === 401) return 'anon' as const;
           if (!res.ok) return 'error' as const;
           const body = (await res.json()) as { allowed?: boolean };
