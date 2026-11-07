@@ -34,7 +34,7 @@ RUN go mod download -json "golang.org/x/vuln@${GOVULNCHECK_VERSION}" \
         | grep -qF "\"Sum\": \"${GOVULNCHECK_SUM}\"" \
     && CGO_ENABLED=0 GOBIN=/out go install "golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION}"
 
-FROM node:24-bookworm-slim
+FROM node:24.22.2-bookworm-slim@sha256:01d566e8d94d8c619591d78652babfccd3c6992a3dffa9ed5ab39e11cf6c70e9
 
 COPY --from=go /usr/local/go /usr/local/go
 COPY --from=golangci /usr/bin/golangci-lint /usr/local/bin/golangci-lint

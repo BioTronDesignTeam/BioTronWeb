@@ -6,7 +6,7 @@
 # with scripts off, because the library's prepare step would try to build
 # before its sources are copied in; the explicit build below runs once the
 # sources are present, library first, then the app that imports it.
-FROM node:24-bookworm-slim AS build
+FROM node:24.22.2-bookworm-slim@sha256:01d566e8d94d8c619591d78652babfccd3c6992a3dffa9ed5ab39e11cf6c70e9 AS build
 
 WORKDIR /repo
 
