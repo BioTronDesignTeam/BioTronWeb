@@ -13,6 +13,7 @@ import {
 import { scrollToElement } from '../lib/scroll';
 import type { Stop } from '../lib/store';
 import PageMeta from '../components/PageMeta';
+import SceneBoundary from '../components/SceneBoundary';
 
 export default function Home() {
   const reduced = useReducedMotion();
@@ -39,7 +40,14 @@ export default function Home() {
   return (
     <main id="main">
       <PageMeta path="/" />
-      {immersive ? <Flythrough /> : <StackedExperience />}
+      {immersive ? (
+        // A tour that fails to load falls back to the same content, stacked.
+        <SceneBoundary fallback={<StackedExperience />}>
+          <Flythrough />
+        </SceneBoundary>
+      ) : (
+        <StackedExperience />
+      )}
       <div className="post-room">
         <Sponsors />
         <Join />

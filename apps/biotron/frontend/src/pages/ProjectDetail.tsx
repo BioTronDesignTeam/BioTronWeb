@@ -5,6 +5,7 @@ import { getProject, PROJECTS } from '../data/projects';
 import Reveal from '../components/Reveal';
 import SplitText from '../components/SplitText';
 import ModelFallback from '../components/ModelFallback';
+import SceneBoundary from '../components/SceneBoundary';
 import { useReducedMotion, useWebGLSupported } from '../lib/hooks';
 import NotFound from './NotFound';
 import PageMeta from '../components/PageMeta';
@@ -49,9 +50,11 @@ export default function ProjectDetail() {
 
         <div className="detail__viewer glass">
           {showLive ? (
-            <Suspense fallback={<div className="detail__viewerloading" />}>
-              <ProjectViewer id={project.modelId} color={project.accentHex} />
-            </Suspense>
+            <SceneBoundary fallback={<ModelFallback project={project} />}>
+              <Suspense fallback={<div className="detail__viewerloading" />}>
+                <ProjectViewer id={project.modelId} color={project.accentHex} />
+              </Suspense>
+            </SceneBoundary>
           ) : (
             <ModelFallback project={project} />
           )}

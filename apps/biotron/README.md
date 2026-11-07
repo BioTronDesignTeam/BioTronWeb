@@ -17,7 +17,8 @@ a stacked page instead. Both heroes read the same two lines, `Welcome to`
 then `Biotron.` The 3D models are procedural placeholders;
 `frontend/public/models/README.md` says how to replace them with GLB files.
 The scenes' lighting files are self-hosted in `frontend/public/hdri`
-(CC0, from Poly Haven).
+(CC0, from Poly Haven), and a failed scene falls back to the stacked page
+rather than a blank one.
 
 This app was the `Biotron-Site` repository, then `apps/site`. Its Compose project is
 `biotron-biotron` when it runs alone. The edge Nginx in `infra/` proxies to the
