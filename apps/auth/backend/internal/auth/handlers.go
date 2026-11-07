@@ -382,6 +382,10 @@ func (h *Handler) CreateGrant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.Store.CreateGrant(r.Context(), *body.OperatorID, body.AppID, body.PermissionKey); err != nil {
+		if errors.Is(err, store.ErrNoOperator) {
+			httpx.JSON(w, http.StatusNotFound, map[string]any{"error": "That member has never signed in."})
+			return
+		}
 		if errors.Is(err, store.ErrNotFound) {
 			httpx.JSON(w, http.StatusNotFound, map[string]any{"error": "That permission doesn't exist for this tool."})
 			return

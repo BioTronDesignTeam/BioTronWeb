@@ -310,3 +310,13 @@ func TestLiveRotateAndGetGuestKey(t *testing.T) {
 		t.Fatalf("GetGuestKey with daily keys off: err = %v, want ErrNotFound", err)
 	}
 }
+
+// A grant for a GitHub id that has never signed in is ErrNoOperator, which the
+// handler answers with 404, not the foreign key's 500.
+func TestLiveGrantForAnUnknownOperatorIsNotFound(t *testing.T) {
+	st, ctx := liveStore(t)
+	err := st.CreateGrant(ctx, liveMember, "calendar", "write")
+	if !errors.Is(err, ErrNoOperator) || !errors.Is(err, ErrNotFound) {
+		t.Fatalf("err = %v, want ErrNoOperator", err)
+	}
+}
