@@ -26,6 +26,16 @@ type Sink interface {
 	LogAsync(level logclient.Level, message string, payload any)
 }
 
+// SheddingSink is a Sink that can queue an event as the first to drop under
+// load. *logclient.Client satisfies it. The request line of an anonymous
+// request that succeeded goes through LogSheddable, so a flood of them, such
+// as a loop over a public route, cannot crowd out failures or the audit
+// trail.
+type SheddingSink interface {
+	Sink
+	LogSheddable(level logclient.Level, message string, payload any)
+}
+
 type Options struct {
 	// Quiet paths are logged only when they fail. Use it for routes a page
 	// polls on every load, such as a session check.
@@ -160,7 +170,12 @@ func complete(sink Sink, options Options, quiet map[string]bool, r *http.Request
 	if s.err != "" {
 		payload["error"] = s.err
 	}
+	anonymousSuccess := s.actor == "" && s.err == "" && status < 400
 	s.mu.Unlock()
+	if shedding, ok := sink.(SheddingSink); ok && anonymousSuccess {
+		shedding.LogSheddable(level, "HTTP request completed", payload)
+		return
+	}
 	sink.LogAsync(level, "HTTP request completed", payload)
 }
 

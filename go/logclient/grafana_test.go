@@ -22,11 +22,19 @@ type otlpServer struct {
 	bodies   []otlpLogsRequest
 	paths    []string
 	failWith int
+	// hold, when set, keeps every request waiting until it is closed.
+	hold chan struct{}
 }
 
 func newOTLPServer(t *testing.T) *otlpServer {
 	s := &otlpServer{}
 	s.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		s.mu.Lock()
+		hold := s.hold
+		s.mu.Unlock()
+		if hold != nil {
+			<-hold
+		}
 		user, token, ok := r.BasicAuth()
 		if !ok || user != "123456" || token != "glc_secret" {
 			t.Error("missing basic auth")
@@ -172,5 +180,41 @@ func TestGrafanaFromEnvNeedsAllThreeVariables(t *testing.T) {
 	if g == nil || g.endpoint != "https://otlp-gateway.example/otlp/v1/logs" {
 		t.Fatalf("grafana = %+v", g)
 	}
-	_ = g.batch.close(context.Background())
+	_ = g.close(context.Background())
+}
+
+// A flood of request lines fills Grafana's queue, but the audit trail has its
+// own and still arrives.
+func TestGrafanaKeepsAuditEventsThroughAFlood(t *testing.T) {
+	log.SetOutput(io.Discard)
+	defer log.SetOutput(os.Stderr)
+	server := newOTLPServer(t)
+	release := make(chan struct{})
+	server.mu.Lock()
+	server.hold = release
+	server.mu.Unlock()
+	options := batchOptions{queue: 8, maxBatch: 1, interval: time.Hour, timeout: 5 * time.Second}
+	client := &Client{minimum: 1, grafana: newGrafana(server.URL, "123456", "glc_secret", "auth-api", "", options)}
+	for range 200 {
+		client.LogSheddable(Info, "HTTP request completed", map[string]any{"path": "/x", "status": 200})
+		client.LogAsync(Warning, "HTTP request completed", map[string]any{"path": "/x", "status": 404})
+	}
+	client.LogAsync(Info, "Operator banned", map[string]any{"actor_login": "octocat", "target_id": 7})
+	client.LogAsync(Info, "Operator signed out", map[string]any{"operator_login": "monalisa"})
+	if client.grafana.batch.shed.Load() == 0 || client.grafana.batch.dropped.Load() == 0 {
+		t.Fatal("the flood never filled the ordinary queue")
+	}
+	close(release)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := client.Close(ctx); err != nil {
+		t.Fatal(err)
+	}
+	found := map[string]bool{}
+	for _, record := range server.records() {
+		found[*record.Body.StringValue] = true
+	}
+	if !found["Operator banned"] || !found["Operator signed out"] {
+		t.Fatalf("audit events lost in the flood; got %v", found)
+	}
 }

@@ -114,6 +114,13 @@ func auditActor(level Level, payload any) (string, map[string]any, bool) {
 	if level != Info {
 		return "", nil, false
 	}
+	return actorOf(payload)
+}
+
+// actorOf returns who acted in an audit event: the non-empty actor_login or
+// operator_login of a map payload. Grafana keeps such events, at any level,
+// in a queue of their own.
+func actorOf(payload any) (string, map[string]any, bool) {
 	fields, ok := payload.(map[string]any)
 	if !ok {
 		return "", nil, false

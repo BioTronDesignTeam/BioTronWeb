@@ -93,3 +93,45 @@ func TestBatcherCloseGivesUpAtTheDeadline(t *testing.T) {
 		t.Fatalf("close = %v, want the deadline", err)
 	}
 }
+
+// A sheddable item is queued only while the queue is less than half full, so
+// a flood of them leaves the other half for ordinary items.
+func TestBatcherShedsLowPriorityItemsFirst(t *testing.T) {
+	log.SetOutput(io.Discard)
+	defer log.SetOutput(os.Stderr)
+	sending := make(chan struct{}, 1)
+	release := make(chan struct{})
+	b := newBatcher("test", batchOptions{queue: 4, maxBatch: 1, interval: time.Hour, timeout: time.Second},
+		func(ctx context.Context, batch []int) error {
+			select {
+			case sending <- struct{}{}:
+			default:
+			}
+			<-release
+			return nil
+		})
+	// The first item is taken off the queue and held by the blocked send.
+	b.add(0)
+	<-sending
+	for i := range 5 {
+		b.addSheddable(10 + i)
+	}
+	if got := len(b.queue); got != 2 {
+		t.Fatalf("queue holds %d sheddable items, want 2 (half of 4)", got)
+	}
+	if got := b.shed.Load(); got != 3 {
+		t.Fatalf("shed = %d, want 3", got)
+	}
+	// Ordinary items still fit in the other half.
+	b.add(1)
+	b.add(2)
+	if b.dropped.Load() != 0 || len(b.queue) != 4 {
+		t.Fatalf("dropped = %d, queue = %d: ordinary items must use the room left", b.dropped.Load(), len(b.queue))
+	}
+	close(release)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if err := b.close(ctx); err != nil {
+		t.Fatal(err)
+	}
+}

@@ -197,3 +197,37 @@ func TestFlushIsPassedThrough(t *testing.T) {
 		t.Fatalf("got %+v", sink.events)
 	}
 }
+
+// sheddingRecorder records which events came as sheddable.
+type sheddingRecorder struct {
+	recorder
+	shed []event
+}
+
+func (r *sheddingRecorder) LogSheddable(level logclient.Level, message string, payload any) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	fields, _ := payload.(map[string]any)
+	r.shed = append(r.shed, event{level, message, fields})
+}
+
+// Only an anonymous request that succeeded is sheddable: a named actor or a
+// failure always goes through LogAsync.
+func TestOnlyAnonymousSuccessesAreSheddable(t *testing.T) {
+	sink := &sheddingRecorder{}
+	handler := newHandler(sink, Options{})
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /anonymous", func(w http.ResponseWriter, r *http.Request) { _, _ = io.WriteString(w, "ok") })
+	logged := New(sink, Options{})(mux)
+	get(t, logged, http.MethodGet, "/anonymous")
+	get(t, handler, http.MethodGet, "/ok")
+	get(t, handler, http.MethodGet, "/missing")
+	sink.mu.Lock()
+	defer sink.mu.Unlock()
+	if len(sink.shed) != 1 || sink.shed[0].payload["path"] != "/anonymous" {
+		t.Fatalf("shed = %+v, want only the anonymous 200", sink.shed)
+	}
+	if len(sink.events) != 2 {
+		t.Fatalf("events = %+v, want the actor's 200 and the 404", sink.events)
+	}
+}

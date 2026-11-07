@@ -56,7 +56,23 @@ func (c *Client) Enabled() bool {
 // Events below LOG_LEVEL are dropped before they are queued, except audit
 // events, which PostHog gets whatever the level. Each queue is bounded, so a
 // slow or unreachable destination can never stall the service.
+//
+// An audit event, one whose map payload names actor_login or operator_login,
+// has a Grafana queue of its own, so no flood of other events can push it
+// out.
 func (c *Client) LogAsync(level Level, message string, payload any) {
+	c.log(level, message, payload, ordinaryEvent)
+}
+
+// LogSheddable is LogAsync for an event that matters least, such as the
+// request line of an anonymous request that succeeded. Grafana queues it only
+// while its queue is less than half full, so under a flood these are the
+// events dropped first, and warnings and errors still find room.
+func (c *Client) LogSheddable(level Level, message string, payload any) {
+	c.log(level, message, payload, sheddableEvent)
+}
+
+func (c *Client) log(level Level, message string, payload any, class eventClass) {
 	if !c.Enabled() {
 		return
 	}
@@ -70,7 +86,7 @@ func (c *Client) LogAsync(level Level, message string, payload any) {
 		return
 	}
 	if c.grafana != nil {
-		c.grafana.add(level, message, payload)
+		c.grafana.add(level, message, payload, class)
 	}
 }
 
@@ -83,7 +99,7 @@ func (c *Client) Close(ctx context.Context) error {
 	}
 	var errs []error
 	if c.grafana != nil {
-		errs = append(errs, c.grafana.batch.close(ctx))
+		errs = append(errs, c.grafana.close(ctx))
 	}
 	if c.posthog != nil {
 		errs = append(errs, c.posthog.batch.close(ctx))
