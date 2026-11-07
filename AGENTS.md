@@ -47,6 +47,16 @@ names, such as `OAuthManager` and `exo-gui`. They mean the paths above.
   `npm run format:check`, and `npm test` from the root. Every Oxlint rule is
   an error, and a warning fails lint too: fix a finding rather than disable
   it. A test sits beside its code as `*.test.ts` or `*.test.tsx`.
+- `schema.prisma` and the migrations must describe the same database:
+  `scripts/check-prisma` fails when they differ. Change both in one commit,
+  and write the migration with `infra/migrate/migrate <app> dev`. Go
+  writes rows without Prisma, so a column Go leaves out of an `INSERT`
+  needs its database default in the schema too (`@default(now())
+  @updatedAt`, not `@updatedAt` alone).
+- Pin every base image and third-party compose image by version and digest
+  (`name:1.2.3@sha256:...`); `scripts/check-images` fails otherwise.
+  Dependabot moves both. The devcontainer's Go and Node equal the app
+  Dockerfiles'.
 - Run `./pr-precheck` inside the devcontainer before you open a pull request.
 
 ## Go code
@@ -199,6 +209,13 @@ writing the words again, and keep docs that quote the UI in step.
   datasource block. Adopting it needs a `prisma.config.ts` and a driver adapter
   for all four schema-owning apps. The one Prisma CLI lives in
   `infra/migrate`. Treat it as a planned migration, not a bump.
+- **Nginx is the stable line, `1.30.x`, everywhere**: the six frontends and
+  the edge run one version, and an odd (mainline) minor is not used.
+  `scripts/check-images` fails on two versions.
+- **The Go APIs run on distroless static**, which has no shell and no
+  package manager: `docker exec` into one gives no shell. Debug with logs or
+  a debug sidecar instead. Its tag names the variant, so its digest is its
+  version.
 - **`@types/node` stays on the 24.x line.** It matches the Node 24 runtime.
   Newer types would declare APIs that do not exist at runtime.
 - **The Instagram icon is drawn locally** in

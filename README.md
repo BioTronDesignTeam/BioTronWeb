@@ -61,6 +61,7 @@ in exactly one place so it cannot drift:
 | Type packages | React 19.2, Node 24 | root `package.json` |
 | Prisma | 6.19.3 | `infra/migrate/package.json`, exact |
 | Go | 1.27.3 | every `go.mod`, `go.work`, every backend Dockerfile |
+| Base images | Node 24.22.2, Nginx 1.30.6 (stable), distroless static for the Go APIs | each Dockerfile's `FROM` line, by version and digest; `scripts/check-images` keeps the devcontainer's Go and Node equal to production's |
 | golangci-lint, sqlc, actionlint, zizmor, TruffleHog | 2.15.0, 1.31.1, 1.7.12, 1.31.1, 3.97.4 | `.devcontainer/Dockerfile` `FROM` lines; CI reads them there |
 | govulncheck | 1.9.0 | `.devcontainer/Dockerfile` `ARG` line, with its module hash; CI reads it there |
 
@@ -154,6 +155,16 @@ for all workspaces so the lockfile is checked and other apps retain their
 dependencies. Independent checks continue after failures, and any failure
 makes the command exit nonzero.
 
+Two more checks cover what the apps build from. `scripts/check-images`
+fails on any Dockerfile `FROM` or third-party compose `image:` not pinned
+by version and digest, and when the devcontainer's Go, Node, or Postgres,
+or the Prisma that the docs name, differs from production's.
+`scripts/check-prisma` runs `prisma format --check` on every
+`apps/*/prisma/schema.prisma`, then `prisma migrate diff` to prove that the
+migrations build exactly that schema. It makes and drops shadow databases in
+the Postgres of `PRISMA_CHECK_DATABASE_URL`, by default the devcontainer's;
+it runs when a change touches a schema, a migration, or `infra/migrate`.
+
 Security scans always run. TruffleHog checks new commits and separate
 snapshots of staged and working changes, reporting verified findings and
 verification errors without printing credentials. Trivy checks a snapshot
@@ -166,14 +177,15 @@ scanned as text without following them.
 Rebuild an existing devcontainer to install the native scanner and linter
 binaries. The checks need network access for dependencies, vulnerability
 databases, and credential verification, but no Docker daemon. They do not
-start services or run migrations. Database integration tests remain opt-in
+start services or run migrations; the Prisma check builds the migrations
+only in shadow databases that it drops. Database integration tests remain opt-in
 through their existing test-database environment variables.
 
 ### Code quality checks in GitHub
 
 | Workflow or file | What it does |
 |---|---|
-| `.github/workflows/ci.yml` | Builds, lints, and tests what a change touches; TruffleHog, Trivy, and ShellCheck on every change |
+| `.github/workflows/ci.yml` | Builds, lints, and tests what a change touches; image pins (`scripts/check-images`) and Prisma format and drift (`scripts/check-prisma`); TruffleHog, Trivy, and ShellCheck on every change |
 | `.github/workflows/sqlc.yml` | `sqlc diff` for every `apps/*/backend/sqlc.yaml`; passes when none exist |
 | `.github/workflows/workflows.yml` | actionlint, with ShellCheck, and zizmor on every workflow and on `dependabot.yml` |
 | `.github/zizmor.yml`, `.github/actionlint.yaml` | zizmor requires every action pinned by commit; actionlint knows the `vars.*` the workflows may read |

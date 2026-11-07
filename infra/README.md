@@ -153,6 +153,15 @@ cold boot with the settings they were deployed with. Enable Docker and
 Tailscale on the host; cloudflared is not installed as a native systemd
 service.
 
+Every image here is pinned by version and digest, and `scripts/check-images`
+fails on one that is not; Dependabot moves the tag and the digest together.
+The edge and the six frontends run the same stable Nginx, and each image's
+final stage upgrades its OS packages, so the Trivy gate of
+`.github/workflows/deploy.yml` passes between base image updates. The
+migrate image keeps Node but drops npm, npx, and Corepack from its runtime
+stage: Prisma needs none of them. Infisical moves only by hand (see
+`infisical/README.md`), so Dependabot skips it.
+
 The local edge image is `biotron-edge-nginx:local`. See `deploy/README.md`
 for the deployment workflow and GHCR image tags.
 
