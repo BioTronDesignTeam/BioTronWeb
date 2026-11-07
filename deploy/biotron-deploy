@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # Deploys one commit of BioTronWeb on this host. Installed root-owned at
-# /usr/local/sbin/biotron-deploy. Each CI account may run it through sudo for
-# its own targets only: `deploy-staging` for staging, `deploy-prod` for prod
-# and the edge. Infisical itself (`secrets`) is deployed by an administrator
-# by hand. See deploy/README.md.
+# /usr/local/sbin/biotron-deploy. The CI account of a host may run it through
+# sudo for that host's instance and edge only: `deploy-staging` on the staging
+# host, `deploy-prod` on the production host. Infisical itself (`secrets`) is
+# deployed by an administrator by hand. See deploy/README.md.
 #
 #   biotron-deploy <instance> <commit>   an instance, such as staging or prod
-#   biotron-deploy edge <commit>         the shared edge Nginx and tunnel
-#   biotron-deploy secrets <commit>      the shared Infisical stack
+#   biotron-deploy edge <commit>         the host's edge Nginx and tunnel
+#   biotron-deploy secrets <commit>      the host's Infisical stack
 #
 # There is no checkout on the host. The script downloads the commit's Compose
 # files from GitHub, after checking that the commit is on main (and, for

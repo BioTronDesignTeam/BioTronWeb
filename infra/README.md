@@ -1,28 +1,31 @@
-# Server
+# Infra
 
-Deployment and host operations for the BioTron platform. A host runs one or
-more instances of the platform, such as `staging` and `prod`, behind one edge:
+Deployment and host operations for the BioTron platform. Each host runs one
+instance of the platform, `staging` or `prod`, behind its own edge, with its
+own Infisical:
 
 ```text
-Cloudflare -> cloudflared -> Nginx -> an instance's apps -> that instance's Postgres
+Cloudflare -> cloudflared -> Nginx -> the instance's apps -> the instance's Postgres
 ```
 
 Tailscale SSH is the separate administrative path. None of the edge or
-application services require a publicly reachable host port. How a host is set
-up, deployed, migrated, and rotated is in `deploy/README.md`.
+application services require a publicly reachable host port. Which host runs
+what, and how a host is set up, deployed, migrated, and rotated, is in
+`deploy/README.md`.
 
 ## Layout
 
 | Path | What |
 |------|------|
-| `docker-compose.yml` | Postgres of one instance; the root `docker-compose.yml` includes it |
-| `edge/docker-compose.yml` | Nginx and cloudflared, the `biotron-edge` project shared by every instance |
-| `infisical/` | The `biotron-secrets` project: Infisical with its own Postgres and Redis |
+| `docker-compose.yml` | Postgres of one instance, and `postgres-roles`, which brings its roles up to date; the root `docker-compose.yml` includes it |
+| `postgres/init/` | The roles: one per app (`05-app-roles.sh`) and Sprinter's read-only one (`10-sprinter-reader.sh`) |
+| `edge/docker-compose.yml` | Nginx and cloudflared, the host's `biotron-edge` project |
+| `infisical/` | The `biotron-secrets` project: the host's Infisical with its own Postgres and Redis |
 | `no-host-ports.yml` | Drops every host port from a named instance |
 | `.env.example`, `edge/.env.example` | Local data-service settings; the edge's sites and tunnel token |
-| `migrate/` | The one migrate image: Prisma applies each app's `apps/<app>/prisma/migrations` to its own schema |
-| `nginx/` | The versioned edge image, per-instance hostname routing, proxy headers, and health endpoint |
-| `tests/` | Compose and launch regression checks; `python3 infra/tests/test-runtime-config.py` |
+| `migrate/` | The one migrate image: Prisma applies each app's `apps/<app>/prisma/migrations` to its own schema, then `migrate/grants/<app>.sql` |
+| `nginx/` | The versioned edge image, per-instance hostname routing, security headers, proxy headers, and health endpoint |
+| `tests/` | Compose, launch, deploy, edge, and database regression checks; see "Tests" below |
 
 ## Instances and networks
 
@@ -38,22 +41,27 @@ no host ports.
   these names, and cannot see any other instance.
 - Every web and API service also carries an instance-qualified alias, such as
   `staging-oauth-manager`, for the edge.
-- The edge project has a private network holding only cloudflared and Nginx.
-  `./launch edge` also attaches Nginx to the network of every instance named in
-  `EDGE_SITES`, where it answers to `edge-proxy`. Nginx is the only container
-  on more than one instance's network.
+- The edge project has a private network, `EDGE_SUBNET` (default
+  `10.213.255.0/29`), holding only cloudflared and Nginx. `./launch edge` also
+  attaches Nginx to the network of every instance named in `EDGE_SITES`,
+  where it answers to `edge-proxy`. Nginx is the only container on more than
+  one network.
 
 `./launch` creates the external networks when they are missing, so the edge
-and the instances can start in any order.
+and the instances can start in any order. Each gets a fixed subnet,
+`10.213.<n>.0/24`: `n` is 0 on a laptop, 1 for `staging`, 2 for `prod`, and
+derived from the name for any other instance. Nginx always holds `.2` on it;
+Docker hands the other containers addresses from the upper half. A network
+made before the subnets were fixed is refused with the command that replaces
+it: stop its containers and the edge, `docker network rm` it, and launch
+again.
 
 ## Hostname routing
 
 `EDGE_SITES` in `/etc/biotron/edge.env` lists the instances this edge serves,
-as `<instance>=<domain>[:noindex]` pairs:
-
-```text
-EDGE_SITES="staging=uwbiotron.dev:noindex prod=uwbiotron.ca"
-```
+as `<instance>=<domain>[:noindex]` pairs. On the staging host it is
+`staging=uwbiotron.dev:noindex`, on the production host `prod=uwbiotron.ca`;
+one edge can list several instances.
 
 When Nginx starts, `nginx/docker-entrypoint.d/40-biotron-sites.sh` renders
 `nginx/sites/site.conf.template` once per instance. For `prod=uwbiotron.ca`:
@@ -70,7 +78,8 @@ When Nginx starts, `nginx/docker-entrypoint.d/40-biotron-sites.sh` renders
 `www` redirects to the apex. Unknown hostnames return `404`. Upstreams are
 resolved per request, so an instance that is down answers `502` and the
 others are unaffected. `/api/` is removed before forwarding so an external
-request for `/api/health` reaches the Go service as `/health`.
+request for `/api/health` reaches the Go service as `/health`. Redirects stay
+relative (`absolute_redirect off`), so `/api` answers `Location: /api/`.
 
 `:noindex` marks an instance that search engines should leave alone, such as
 staging: every response from its hostnames, errors included, carries
@@ -79,16 +88,44 @@ An unmarked instance sends no such header and serves the site's own
 `robots.txt`. This hides nothing from people; see "Search engines and access"
 in `deploy/README.md`.
 
-Frontend production builds use relative API bases such as `/api`.
-OAuthManager's callback is therefore
-`https://auth.<domain>/api/auth/github/callback`, one GitHub OAuth app per
-instance.
+Frontend production builds use relative API bases such as `/api`. Auth's
+GitHub App callback is therefore
+`https://auth.<domain>/api/auth/github/callback`, one GitHub App per
+instance; see `apps/auth/README.md`.
+
+## Security headers
+
+Set once in `nginx/nginx.conf`, for every hostname:
+
+- A Content-Security-Policy, enforced, in two headers: a document-level one
+  (`frame-ancestors`, `base-uri`, `object-src`, `form-action`) and the
+  per-instance resource-loading one in `nginx/sites/csp.template`, whose
+  `script-src` allows the theme bootstrap of each `index.html` by its hash.
+  Browsers report violations to `/_edge/csp-report`, which Nginx logs as
+  `"type":"csp-report"` lines without query strings
+  (`nginx/snippets/csp-report.conf`).
+- `Strict-Transport-Security: max-age=300`, only when cloudflared says the
+  request arrived over HTTPS, with no `includeSubDomains` or preload.
+- `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options`, and
+  `Permissions-Policy`.
+
+## Client addresses
+
+cloudflared sends the visitor's address in `Cf-Connecting-Ip`. Nginx believes
+it only on a connection from the edge network (`set_real_ip_from
+EDGE_SUBNET`), so a container on an instance network that calls `edge-proxy`
+cannot choose its own. Nginx then sets `Cf-Connecting-Ip` itself on every
+request it forwards (`nginx/snippets/proxy-headers.conf`). Auth and Status
+read it only from a peer in `TRUSTED_PROXIES`, which defaults to loopback and
+the edge's address on the instance's network, `10.213.<n>.2`; `./launch`
+passes that address to Compose as `BIOTRON_EDGE_ADDRESS`. Any other caller,
+such as another container or the host, is keyed by its own address.
 
 ## Cloudflare Tunnel
 
-One remotely managed tunnel per host, not per instance: the edge is shared.
-Add every hostname of every instance in `EDGE_SITES`, plus each `www`, to it.
-Every public hostname uses the same origin service:
+One remotely managed tunnel per host, not per instance: the edge is the
+host's. Add every hostname of every instance in `EDGE_SITES`, plus each
+`www`, to it. Every public hostname uses the same origin service:
 
 ```text
 http://nginx:8080
@@ -98,12 +135,13 @@ Nginx selects the instance and application from the original HTTP `Host`
 header. The tunnel token lives in `/etc/biotron/edge.env` as
 `CLOUDFLARE_TUNNEL_TOKEN`; Compose hands it to cloudflared as the read-only
 secret file `/run/secrets/cloudflare_tunnel_token`. Rotating it requires
-recreating cloudflared.
+recreating cloudflared. Never run two edges with one tunnel's token: Cloudflare
+spreads requests across every connector of a tunnel.
 
 ## Local use
 
 ```bash
-./launch infra                       # Postgres, reading infra/.env
+./launch infra                       # Postgres and its roles, reading infra/.env
 ./launch web --build                 # the apps
 cp infra/edge/.env.example infra/edge/.env
 ./launch edge --no-tunnel --build    # Nginx alone, serving EDGE_SITES=local=localhost
@@ -135,23 +173,27 @@ A `502` means Nginx is reachable but that instance's application alias is not.
 - Permit Cloudflare Tunnel's required outbound traffic, including TCP/UDP
   `7844`; no inbound HTTP/HTTPS rule is needed.
 - Do not open public SSH. Install Tailscale on the host and authorize Tailscale
-  SSH using tailnet grants and SSH rules.
+  SSH using tailnet grants and SSH rules. The CI account's login shell runs a
+  deploy and nothing else (`deploy/biotron-deploy-shell`).
 - Nginx and cloudflared use read-only root filesystems and
   `no-new-privileges`. The tunnel token is a read-only Compose secret.
-- Nginx accepts only the configured instances' hostnames and forwards
-  `CF-Connecting-IP` as the client address. It does not expose Docker's socket.
+- Nginx accepts only the configured instances' hostnames, and takes the
+  client's address from cloudflared alone (see "Client addresses"). It does
+  not expose Docker's socket.
 - Each instance has its own Postgres on its own network. A named
   instance publishes no host ports; administer it with
   `docker compose -p biotron-<instance> exec`.
+- Each app connects to Postgres as its own role, with data rights in its own
+  schema only; no app is a superuser. See "Database roles".
 - Nginx is on every instance's network, so it could reach each instance's
   Postgres; nothing in its configuration does.
 
 ## Startup and updates
 
-All containers use `restart: unless-stopped`, so Docker restores them after a
-cold boot with the settings they were deployed with. Enable Docker and
-Tailscale on the host; cloudflared is not installed as a native systemd
-service.
+All long-running containers use `restart: unless-stopped`, so Docker restores
+them after a cold boot with the settings they were deployed with. Enable
+Docker and Tailscale on the host; cloudflared is not installed as a native
+systemd service.
 
 Every image here is pinned by version and digest, and `scripts/check-images`
 fails on one that is not; Dependabot moves the tag and the digest together.
@@ -165,150 +207,92 @@ stage: Prisma needs none of them. Infisical moves only by hand (see
 The local edge image is `biotron-edge-nginx:local`. See `deploy/README.md`
 for the deployment workflow and GHCR image tags.
 
-## Data service major upgrades: Postgres 16 to 18
+## Database roles
 
-The pinned image moved from `postgres:16-alpine` to `postgres:18.6-alpine`.
-That needs you: **a Postgres major upgrade cannot read an existing data
-directory from an older major**, so the existing
-`biotron-infrastructure_postgres-data` volume has to be dealt with deliberately
-before the stack will come up.
+The cluster owner, `POSTGRES_USER` (`biotron`), owns every schema and table
+and runs the migrations. Each app connects as a role of its own, which can
+read and write the rows of its own schema and nothing else:
 
-Nothing in this repository performs any of the steps below. They are commands
-for a human to run at a moment of their choosing.
+| Role | Schema | Password |
+|------|--------|----------|
+| `auth_app` | `oauth` | `AUTH_DB_PASSWORD` |
+| `calendar_app` | `calendar` | `CALENDAR_DB_PASSWORD` |
+| `status_app` | `logger` | `STATUS_DB_PASSWORD` |
+| `sprinter_app` | `sprinter` | `SPRINTER_DB_PASSWORD` |
 
-### What changes about the Postgres volume
+`postgres/init/05-app-roles.sh` makes them. The postgres image runs it once on
+a fresh cluster; the `postgres-roles` one-shot service runs it again, with
+`10-sprinter-reader.sh`, every time the instance starts, before any migration.
+So an existing cluster gets new roles, and a password changed in Infisical (or
+`infra/.env`) reaches the database on the next deploy (or `./launch infra`).
+Default privileges give each app every table its migrations add.
 
-Postgres 18 images store the cluster in a major-version-specific directory and
-expect the mount one level above it:
-
-| | 16 | 18 |
-|---|---|---|
-| `PGDATA` | `/var/lib/postgresql/data` | `/var/lib/postgresql/18/docker` |
-| Mount point | `/var/lib/postgresql/data` | `/var/lib/postgresql` |
-
-`docker-compose.yml` has been updated to mount `postgres-data` at
-`/var/lib/postgresql` to match. This is why the old volume cannot simply be
-carried across: its contents sit at the layout 16 used.
-
-The failure is loud, not silent. Starting 18.6 against a volume that still
-holds a 16 cluster aborts with a long explanatory error rather than quietly
-initialising an empty database:
-
-```text
-Error: in 18+, these Docker images are configured to store database data in a
-       format which is compatible with "pg_ctlcluster" ...
-       Counter to that, there appears to be PostgreSQL data in:
-         /var/lib/postgresql/data
-```
-
-### Recreating the volume (the normal procedure here)
-
-This volume holds local development data only, so the expected path is simply
-to discard it and rebuild the schemas from each repository's migrations.
-
-**This destroys every row in every schema.** It is the right thing to do in
-this workspace, and the wrong thing to do anywhere with data worth keeping.
-
-```bash
-# 1. Stop the stack.
-cd Server
-docker compose down
-
-# 2. Delete the old 16 volume.
-docker volume rm biotron-infrastructure_postgres-data
-
-# 3. Bring it back up. Postgres 18.6 initialises a fresh cluster.
-docker compose up -d
-docker compose ps
-docker compose exec postgres pg_isready -U biotron -d biotron
-
-# 4. Rebuild the five schemas.
-for repo in OAuthManager Logger exo-gui BiotronCalendar Sprinter; do
-  (cd "../$repo/prisma" && npm install && npm run deploy)
-done
-```
-
-The five repositories each own one schema inside the single shared `biotron`
-database — `oauth`, `logger`, `exo`, `calendar` and `sprinter` — so they do not
-contend and the order they run in does not matter. All five must run before the
-platform is fully functional. Sprinter currently defines no models and has no
-`prisma/migrations` directory, so its `migrate deploy` applies nothing; that is
-expected, not a failure.
-
-### If you ever need to preserve the data
-
-Dump from a temporary 16 container mounted the way 16 expects, then restore
-into the new 18 cluster. The old image must be used for the dump, because 18
-cannot read the 16 directory at all.
-
-```bash
-# Dump, with the stack down. Mount the existing volume at the OLD path.
-docker run --rm -d --name pg-dump-tmp \
-  -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
-  -v biotron-infrastructure_postgres-data:/var/lib/postgresql/data \
-  postgres:16-alpine
-until docker exec pg-dump-tmp pg_isready -U biotron -d biotron; do sleep 1; done
-docker exec pg-dump-tmp pg_dumpall -U biotron > biotron-16.sql
-docker rm -f pg-dump-tmp
-
-# Then delete the volume, start 18.6, and load the dump back in.
-docker volume rm biotron-infrastructure_postgres-data
-docker compose up -d postgres
-until docker compose exec -T postgres pg_isready -U biotron -d biotron; do sleep 1; done
-docker compose exec -T postgres psql -U biotron -d biotron < biotron-16.sql
-```
-
-Keep `biotron-16.sql` until the restore has been verified. `pg_dumpall` carries
-roles as well as data; the `biotron` role is recreated from `POSTGRES_USER` and
-`POSTGRES_PASSWORD` regardless, so role errors on restore are harmless.
-
-`pg_upgrade` is the other option and is why the mount now sits at
-`/var/lib/postgresql`: both clusters can live inside one mount point. It needs
-an image carrying both major versions' binaries, which neither official image
-provides, so dump and restore is the simpler path at this size.
-
-### Connection settings are unaffected
-
-Checked against both images before the bump: `password_encryption`,
-`listen_addresses` and `port` are identical in 16 and 18 (`scram-sha-256`, `*`,
-`5432`), the `biotron` role is stored as `scram-sha-256` in both, and the
-generated `pg_hba.conf` still ends in `host all all all scram-sha-256`. The
-`postgresql://biotron:...@postgres:5432/biotron?schema=<name>` URLs the five
-repositories use need no change, and `pgx` already speaks SCRAM.
+On a laptop, a role whose password `infra/.env` leaves empty is not made, and
+that app's `.env` must use the owner's URL instead. A deployment refuses to
+start without all four.
 
 ## Read-only role for Sprinter
 
-Sprinter's model tools read the `logger` and `oauth` schemas (today only
-`logger.health_checks` and four `oauth` tables), which Status and
-Auth own. The read-only guarantee lives in Postgres, not in Sprinter's Go
-code, through a dedicated role: `sprinter_reader`.
+Sprinter's model tools read `logger.health_checks` and four `oauth` tables,
+which Status and Auth own, through a dedicated role, `sprinter_reader`. What
+keeps it read-only is its grants: SELECT on those tables and nothing else, no
+other schema, and no temporary tables.
+`default_transaction_read_only` is set too, as a second guard that the role
+could turn off.
 
-A fresh cluster gets the role from
-`postgres/init/10-sprinter-reader.sh`, mounted into the container's
-`/docker-entrypoint-initdb.d/` and run once, automatically, the first time the
-volume is empty. An existing cluster needs the same script run by hand:
+`postgres/init/10-sprinter-reader.sh` makes the role, and `postgres-roles`
+runs it on every start. The table grants are made again after each Status and
+Auth migration, by `migrate/grants/status.sql` and `migrate/grants/auth.sql`,
+because on a fresh cluster the tables do not exist until then, and a migration
+that recreates a table drops its grant. Nothing is run by hand, after a
+restore included: the deploy that follows makes them.
+
+The grants name tables, with no default privileges: `logger.health_checks`,
+and in `oauth` `operators`, `apps`, `permissions`, and `grants`, never
+`guest_keys`, which holds the daily Exo guest key in plaintext and must never
+be readable outside Auth. A new table for the tools needs a line in both the
+script and the grants file; `tests/test-database-roles.py` checks what the
+role can read.
+
+## Postgres major upgrades
+
+The pinned image is `postgres:18.6-alpine`. Postgres 18 images keep the
+cluster in `/var/lib/postgresql/18/docker` and expect the volume one level
+above, at `/var/lib/postgresql`, which `docker-compose.yml` mounts. A new
+major cannot read the old major's data directory, so a major upgrade is a dump
+and restore, never an image bump alone; Dependabot is told not to propose one.
+
+On a laptop, whose data is disposable, the simplest path discards it. **This
+destroys every row in every schema.**
 
 ```bash
-docker compose exec -T postgres bash < infra/postgres/init/10-sprinter-reader.sh
+./launch stop
+docker volume rm biotron-infrastructure_postgres-data
+./launch infra     # a fresh cluster, with its roles
+./launch web       # each app's *-migrate service applies its schema
 ```
 
-The Postgres container already has `SPRINTER_READER_PASSWORD` in its
-environment. For a named instance on a host, add `-p biotron-<instance>` and
-use the copy in `/opt/biotron/<instance>/infra/postgres/init/`.
+The four schemas are `oauth` (Auth), `logger` (Status), `calendar`, and
+`sprinter`. Exo GUI has none.
 
-Rerun this command after Status's and Auth's first migrations on a fresh
-cluster. At init time neither schema has tables yet, so the script's grants
-have nothing to grant; rerunning it once the apps have created their tables
-picks them up. Rerun it on an existing cluster too after the script changes:
-it revokes the schema-wide `logger` grant that earlier versions gave.
+For an instance with data worth keeping, use "Copying an instance's data" in
+`deploy/README.md`: deploy a fresh instance on the new major, dump the old
+one with `pg_dump --format=custom --no-owner --no-privileges`, restore it,
+and deploy again, which makes every role and grant.
 
-Both schemas get explicit grants on named tables only, with no default
-privileges: `logger.health_checks`, and in `oauth` `operators`, `apps`,
-`permissions`, and `grants`, never `guest_keys`, which holds the daily Exo
-guest key in plaintext and must never be readable outside Auth.
+## Tests
+
+```bash
+python3 infra/tests/test-runtime-config.py   # Compose, launch, deploy scripts, workflows, CSP hash; no containers
+python3 infra/tests/test-edge.py             # builds the edge image and checks what it serves
+python3 infra/tests/test-database-roles.py   # Postgres, the role scripts, and the migrate image
+```
+
+The last two need a Docker daemon. CI runs all three in its `runtime
+configuration` job.
 
 ## Releases
 
 Pushes to `main` build commit-tagged images for staging, and release tags
-send those same images to production, each to its own instance. See
+send those same images to production, each to its own host. See
 `deploy/README.md`.

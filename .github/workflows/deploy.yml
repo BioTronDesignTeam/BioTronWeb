@@ -194,8 +194,9 @@ jobs:
     env:
       DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
       INSTANCE: ${{ startsWith(github.ref, 'refs/tags/') && 'prod' || 'staging' }}
-      # deploy-staging may deploy only staging, deploy-prod only prod and the
-      # edge (deploy/README.md), so a staging run cannot touch production.
+      # Each instance has a host of its own. deploy-staging may deploy only
+      # staging and its host's edge, deploy-prod only prod and its edge
+      # (deploy/README.md), and each logs in to its own host only.
       DEPLOY_USER: deploy-${{ startsWith(github.ref, 'refs/tags/') && 'prod' || 'staging' }}
       REVISION: ${{ needs.candidate.outputs.revision }}
     steps:
@@ -214,8 +215,9 @@ jobs:
         run: |
           [[ $DEPLOY_HOST =~ ^[a-zA-Z0-9.-]+$ && $REVISION =~ ^[0-9a-f]{40}$ ]] || exit 1
           tailscale ssh "$DEPLOY_USER@$DEPLOY_HOST" sudo /usr/local/sbin/biotron-deploy "$INSTANCE" "$REVISION"
-      # One edge serves every instance on a host, so only one environment per
-      # host updates it: production while staging and production share a host.
-      - name: Deploy the shared edge
+      # Each host runs its own edge, which this deploy updates from the same
+      # commit. DEPLOY_EDGE turns it off for a host whose edge serves more
+      # than one instance; then exactly one environment updates it.
+      - name: Deploy the host's edge
         if: vars.DEPLOY_EDGE == 'true'
         run: tailscale ssh "$DEPLOY_USER@$DEPLOY_HOST" sudo /usr/local/sbin/biotron-deploy edge "$REVISION"

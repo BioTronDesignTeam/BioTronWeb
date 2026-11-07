@@ -1,12 +1,12 @@
 # Infisical
 
-Infisical holds every deployed instance's settings and secrets. This stack is
+Infisical holds a deployed instance's settings and secrets. This stack is
 the `biotron-secrets` Compose project: Infisical with its own Postgres, Redis,
 network, and volumes. It shares nothing with the instances, and
-`./launch all` and `./launch stop` never touch it. One Infisical serves every
-instance on a host, with one environment and one machine identity per
-instance. What goes in it, and how a deploy reads it, is in
-`deploy/README.md`.
+`./launch all` and `./launch stop` never touch it. Each host runs its own
+Infisical for the one instance it runs, with one environment and one machine
+identity for it, so staging's Infisical holds nothing of production's. What
+goes in it, and how a deploy reads it, is in `deploy/README.md`.
 
 ## Bootstrap
 
@@ -45,12 +45,12 @@ There is no public route or Cloudflare Tunnel to it.
 
 ## Project layout
 
-Create a BioTronWeb project, environments `staging` and `prod`, and a folder
-`/deploy` in each. Create one machine identity per instance,
-`biotron-staging` and `biotron-prod`, with Universal Auth, and give each a
-project role that can only read secrets in its own environment. Each
-identity's client ID and secret go in `/etc/biotron/<instance>/identity.env`
-on the host that runs that instance, never in Git or Infisical.
+On each host, create a BioTronWeb project, the environment of that host's
+instance (`staging` or `prod`), and a folder `/deploy` in it. Create the
+instance's machine identity, `biotron-<instance>`, with Universal Auth, and
+give it a project role that can only read secrets in that environment. Its
+client ID and secret go in `/etc/biotron/<instance>/identity.env` on the same
+host, never in Git or Infisical.
 
 All app Compose inputs support `APP_VARIABLE`, such as `AUTH_FRONTEND_URL` or
 `STATUS_HEALTH_INTERVAL`. These names are translated to the existing variable
