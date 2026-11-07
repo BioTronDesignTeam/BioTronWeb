@@ -434,7 +434,7 @@ function AddScopeForm({
           Add {kind === 'PROJECT' ? 'project' : 'subteam'}
         </button>
       </form>
-      <p className="mt-5 text-xs leading-5 text-ink/50 dark:text-muted">
+      <p className="mt-5 text-xs leading-5 text-ink/65 dark:text-muted">
         Permanent deletion is available only for empty calendars. Archive anything with event
         history.
       </p>
@@ -514,7 +514,7 @@ function ScopeRow({
             </span>
           )}
         </div>
-        <p className="mt-1 text-xs text-ink/50 dark:text-muted">
+        <p className="mt-1 text-xs text-ink/65 dark:text-muted">
           {scope.event_count} events
           {scope.kind === 'PROJECT' ? ` · ${scope.child_count} subteams` : ''}
           {blocked ? ` · cannot be deleted: ${blocked}` : ''}

@@ -121,7 +121,7 @@ export function PromptDialog({
             className="mt-1 min-h-11 w-full rounded-xl border border-ink/15 bg-transparent px-3 py-2 text-sm outline-none focus:border-brand dark:border-line-strong dark:bg-surface-deep dark:focus:border-link"
           />
         </label>
-        <p className="mt-2 text-xs text-ink/50 dark:text-muted">
+        <p className="mt-2 text-xs text-ink/65 dark:text-muted">
           {invalid
             ? `Use between ${minLength} and ${maxLength} characters.`
             : `${trimmed.length} of ${maxLength} characters.`}

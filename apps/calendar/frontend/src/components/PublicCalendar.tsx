@@ -222,7 +222,7 @@ function CalendarViews(props: PublicCalendarProps) {
               {weekdayLabels.map((weekday) => (
                 <div
                   key={weekday}
-                  className="px-3 py-2 text-xs font-bold tracking-wider text-ink/45 uppercase dark:text-faint"
+                  className="px-3 py-2 text-xs font-bold tracking-wider text-ink/65 uppercase dark:text-faint"
                 >
                   {weekday}
                 </div>
@@ -241,7 +241,7 @@ function CalendarViews(props: PublicCalendarProps) {
                 return (
                   <div
                     key={key}
-                    className={`relative flex min-h-0 flex-col overflow-hidden border-r border-b border-ink/10 p-2 dark:border-line ${muted ? 'bg-ink/[0.018] text-ink/35 dark:bg-black/10 dark:text-faint' : ''}`}
+                    className={`relative flex min-h-0 flex-col overflow-hidden border-r border-b border-ink/10 p-2 dark:border-line ${muted ? 'bg-ink/[0.018] text-ink/60 dark:bg-black/10 dark:text-faint' : ''}`}
                   >
                     {/* The whole cell is the create target. It lies under the date
                       and the events, which sit above it and keep their own clicks. */}
@@ -309,7 +309,7 @@ function CalendarViews(props: PublicCalendarProps) {
                 return (
                   <div key={key}>
                     {showMonth && (
-                      <p className="bg-ink/[0.03] px-4 py-2 text-xs font-bold tracking-wider text-ink/50 uppercase dark:bg-surface-2 dark:text-muted">
+                      <p className="bg-ink/[0.03] px-4 py-2 text-xs font-bold tracking-wider text-ink/65 uppercase dark:bg-surface-2 dark:text-muted">
                         {agendaMonthFormat.format(new Date(`${key}T12:00:00Z`))}
                       </p>
                     )}

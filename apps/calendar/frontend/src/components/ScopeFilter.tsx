@@ -60,7 +60,7 @@ export function ScopeFilter({ scopes, selected, onChange }: ScopeFilterProps) {
   return (
     <div>
       <div className="flex items-center justify-between px-2 py-1">
-        <span className="text-xs font-bold tracking-[0.16em] text-ink/50 uppercase dark:text-muted">
+        <span className="text-xs font-bold tracking-[0.16em] text-ink/65 uppercase dark:text-muted">
           Calendars
         </span>
         <button
@@ -181,7 +181,7 @@ function ScopeRow({
           onClick={onExpand}
           aria-expanded={expanded}
           aria-label={`${expanded ? 'Collapse' : 'Expand'} ${label}`}
-          className="grid size-7 shrink-0 place-items-center rounded-full text-ink/55 hover:bg-soft/30 dark:text-muted dark:hover:bg-white/10"
+          className="grid size-7 shrink-0 place-items-center rounded-full text-ink/65 hover:bg-soft/30 dark:text-muted dark:hover:bg-white/10 pointer-coarse:size-11"
         >
           <svg
             width="12"

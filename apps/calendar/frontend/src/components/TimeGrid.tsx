@@ -189,7 +189,7 @@ export function TimeGrid({
               className="flex flex-col items-center gap-0.5 border-l border-ink/10 py-2 dark:border-line"
             >
               <span
-                className={`text-xs font-bold tracking-wider uppercase ${isToday ? 'text-brand dark:text-link' : 'text-ink/45 dark:text-faint'}`}
+                className={`text-xs font-bold tracking-wider uppercase ${isToday ? 'text-brand dark:text-link' : 'text-ink/65 dark:text-faint'}`}
               >
                 {weekdayLabel(day)}
               </span>
@@ -210,7 +210,7 @@ export function TimeGrid({
         })}
         {hasAllDay && (
           <>
-            <div className="border-t border-ink/10 px-1 py-2 text-right text-[11px] text-ink/45 dark:border-line dark:text-faint">
+            <div className="border-t border-ink/10 px-1 py-2 text-right text-[11px] text-ink/65 dark:border-line dark:text-faint">
               All day
             </div>
             {keys.map((key) => (
@@ -262,7 +262,7 @@ export function TimeGrid({
                 hour > 0 && (
                   <span
                     key={label}
-                    className="absolute right-2 -translate-y-1/2 text-[11px] text-ink/45 dark:text-faint"
+                    className="absolute right-2 -translate-y-1/2 text-[11px] text-ink/65 dark:text-faint"
                     style={{ top: hour * HOUR }}
                   >
                     {label}

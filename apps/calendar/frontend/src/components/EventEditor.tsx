@@ -112,7 +112,7 @@ function ScheduleFields({
             onChange={(e) => onChange({ recurrenceUntil: e.target.value })}
             className={inputClass}
           />
-          <span className="mt-1 block text-xs text-ink/50 dark:text-muted">
+          <span className="mt-1 block text-xs text-ink/65 dark:text-muted">
             The end date is inclusive. Schedule a new series when the next term’s meeting time is
             known.
           </span>

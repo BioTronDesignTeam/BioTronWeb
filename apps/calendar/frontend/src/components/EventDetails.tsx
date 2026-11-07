@@ -75,7 +75,7 @@ export function EventDetails({
       )}
       {canWrite && (
         <div className="mt-7 border-t border-ink/10 pt-5 dark:border-line">
-          <p className="mb-3 text-xs font-bold tracking-[0.16em] text-ink/45 uppercase dark:text-faint">
+          <p className="mb-3 text-xs font-bold tracking-[0.16em] text-ink/65 uppercase dark:text-faint">
             Calendar editor
           </p>
           <div className="flex flex-wrap gap-2">

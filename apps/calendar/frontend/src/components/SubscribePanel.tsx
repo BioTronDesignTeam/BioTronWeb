@@ -139,7 +139,7 @@ export function SubscribePanel({ scopes, onClose }: SubscribePanelProps) {
           </section>
         ))}
       </div>
-      <p className="mt-6 text-xs leading-5 text-ink/50 dark:text-muted">
+      <p className="mt-6 text-xs leading-5 text-ink/65 dark:text-muted">
         Subscribe opens your calendar app directly where the <code>webcal</code> scheme is handled.
         On Android and most Linux desktops it is not, so use the address instead. Calendar apps
         control how quickly subscription updates appear; event changes and cancellations remain in
