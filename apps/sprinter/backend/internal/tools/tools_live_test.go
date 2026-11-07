@@ -7,11 +7,13 @@ import (
 	"testing"
 
 	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/readstore"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/readstore/readstoretest"
 )
 
-// The four SQL tools run end to end against the read-only role here, because a
+// The two SQL tools run end to end against the read-only role here, because a
 // stub reader proves the argument checks and nothing about the SQL. Set
-// SPRINTER_TEST_READ_DATABASE_URL; without it these skip.
+// SPRINTER_TEST_READ_DATABASE_URL, and SPRINTER_TEST_OWNER_DATABASE_URL to
+// seed the rows they report; without them these skip.
 //
 //	SPRINTER_TEST_READ_DATABASE_URL='postgresql://sprinter_reader:change-me-reader@127.0.0.1:15433/biotron' \
 //	  go test ./internal/tools/ -run Live -v
@@ -32,22 +34,36 @@ func liveReader(t *testing.T) (Reader, context.Context) {
 
 func TestLiveSQLToolsAnswer(t *testing.T) {
 	reader, ctx := liveReader(t)
+	seeded := readstoretest.Seed(t)
 	cases := []struct {
-		tool Tool
-		args string
+		tool  Tool
+		args  string
+		lines []string
 	}{
-		{HealthHistory{Reader: reader}, `{"service": "logger-api", "hours": 24}`},
-		{WhoHasAccess{Reader: reader}, `{"app": "sprinter"}`},
+		{HealthHistory{Reader: reader}, `{"service": "` + seeded.Service + `", "hours": 24}`, []string{
+			seeded.Service + ": 2 checks in the last 24 hours, 1 failed. Newest first.",
+			stamp(seeded.DownAt) + " down | connection refused",
+			stamp(seeded.UpAt) + " up",
+		}},
+		{WhoHasAccess{Reader: reader}, `{"app": "sprinter"}`, []string{
+			"App sprinter (Sprinter).",
+			"- admin (",
+			"- " + seeded.Member + " (Live Member): admin, granted " + stamp(readstoretest.GrantedAt) +
+				" [BANNED, refused everywhere]",
+			"- " + seeded.Manager + " (Live Manager)",
+		}},
 	}
 	for _, testCase := range cases {
-		name := testCase.tool.Spec().Name + " " + testCase.args
+		name := testCase.tool.Spec().Name
 		t.Run(name, func(t *testing.T) {
 			out, err := testCase.tool.Run(ctx, []byte(testCase.args))
 			if err != nil {
 				t.Fatalf("run: %v", err)
 			}
-			if strings.TrimSpace(out) == "" {
-				t.Fatal("a tool must never answer with nothing")
+			for _, line := range testCase.lines {
+				if !strings.Contains(out, line) {
+					t.Errorf("output has no %q:\n%s", line, out)
+				}
 			}
 			// Every tool caps its own output, and the loosest cap is 6000
 			// characters. Nothing may come back longer than that plus its notice.

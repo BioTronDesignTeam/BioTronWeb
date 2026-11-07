@@ -60,11 +60,15 @@ npm run lint                                     # Oxlint, from the root
 `PORT` defaults to 8080, which Auth uses, so set it to match
 `VITE_API_URL`. `go test ./...` in `backend/` runs the tests. Tests named
 `Live*` need a database and skip without one:
-`SPRINTER_TEST_DATABASE_URL` for the `sprinter` schema, and
-`SPRINTER_TEST_READ_DATABASE_URL` for the read-only role the tools use.
+`SPRINTER_TEST_DATABASE_URL` for the `sprinter` schema,
+`SPRINTER_TEST_READ_DATABASE_URL` for the read-only role the tools use,
+and `SPRINTER_TEST_OWNER_DATABASE_URL` for the role that owns the `oauth`
+and `logger` tables. The read tests seed their rows through that last one,
+since the read role cannot, and remove them afterwards.
 
 ```bash
 SPRINTER_TEST_READ_DATABASE_URL='postgresql://sprinter_reader:change-me-reader@127.0.0.1:15433/biotron' \
+SPRINTER_TEST_OWNER_DATABASE_URL='postgresql://biotron:change-me@127.0.0.1:15433/biotron' \
   go test ./... -run Live
 ```
 
@@ -308,8 +312,9 @@ and Prisma. Do not add environment files below it. `go run .` reads
 - `LOG_LEVEL` and the optional Grafana and PostHog variables listed in
   `go/logclient/README.md`. Where events go.
 
-Tests read two more: `SPRINTER_TEST_DATABASE_URL` and
-`SPRINTER_TEST_READ_DATABASE_URL`. Neither belongs in `.env`.
+Tests read three more: `SPRINTER_TEST_DATABASE_URL`,
+`SPRINTER_TEST_READ_DATABASE_URL` and `SPRINTER_TEST_OWNER_DATABASE_URL`.
+None belongs in `.env`.
 
 ## Events
 
