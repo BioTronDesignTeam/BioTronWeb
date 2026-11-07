@@ -5,7 +5,7 @@ import { type ViewMode } from './components/ModeToggle'
 import { EXO_PERMISSIONS, PRODUCT_NAME } from './config'
 
 // Placeholder until the machine list is fetched from the backend.
-const MACHINES = ['TestDummyExo']
+const MACHINES: [string, ...string[]] = ['TestDummyExo']
 
 function Telemetry() {
   const [machine, setMachine] = useState(MACHINES[0])

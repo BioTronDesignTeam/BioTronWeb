@@ -30,12 +30,12 @@ export default function SegmentedToggle<T extends string>({
   ariaLabel,
   segmentRem,
 }: SegmentedToggleProps<T>) {
-  const activeIndex = Math.max(
-    0,
-    options.findIndex((o) => o.value === value),
-  )
+  const [first, second] = options
+  // The second segment is on only when it, and not the first, holds the value.
+  const activeIndex = value !== first.value && value === second.value ? 1 : 0
+  const active = activeIndex === 1 ? second : first
   // The whole pill is one control: a click toggles to the other option.
-  const nextValue = options[(activeIndex + 1) % options.length].value
+  const nextValue = (activeIndex === 1 ? first : second).value
 
   return (
     <button
@@ -44,7 +44,7 @@ export default function SegmentedToggle<T extends string>({
       aria-checked={activeIndex === 1}
       // Name announces the control AND the active option, so an icon-only toggle
       // still tells a screen-reader user which mode is currently selected.
-      aria-label={`${ariaLabel}: ${optionName(options[activeIndex])}`}
+      aria-label={`${ariaLabel}: ${optionName(active)}`}
       onClick={() => onChange(nextValue)}
       className="group relative inline-flex cursor-pointer items-center rounded-full bg-slate-200/80 p-1 ring-1 ring-slate-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:bg-surface-2/80 dark:ring-white/10 dark:focus-visible:ring-link"
     >
