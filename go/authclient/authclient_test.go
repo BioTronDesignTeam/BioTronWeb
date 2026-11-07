@@ -354,3 +354,24 @@ func TestStatusHandler(t *testing.T) {
 		t.Fatalf("broken Auth: %d %s", got.status, got.body)
 	}
 }
+
+// extra adds a tool's own keys, and never one of the reserved ones: not even
+// operator for an anonymous caller, where nothing else would overwrite it.
+func TestStatusHandlerExtraNeverOverridesReservedKeys(t *testing.T) {
+	auth := authclienttest.New(t)
+	handler := auth.Client("sprinter").StatusHandler(
+		[]authclient.StatusField{{Permission: "admin", Field: "can_admin"}},
+		func(*http.Request) map[string]any {
+			return map[string]any{"operator": "x", "can_admin": true, "permissions": 1}
+		},
+	)
+	got := serveStatus(t, handler, "")
+	if want := `{"can_admin":false,"permissions":{"admin":false}}`; got.status != http.StatusOK || got.body != want {
+		t.Fatalf("anonymous: %d %s, want %s", got.status, got.body, want)
+	}
+	auth.SignIn(authclient.Operator{GitHubID: 7, Login: "octocat"})
+	got = serveStatus(t, handler, cookie)
+	if !strings.Contains(got.body, `"operator":{"github_id":7`) || !strings.Contains(got.body, `"can_admin":false`) {
+		t.Fatalf("signed in: %s", got.body)
+	}
+}

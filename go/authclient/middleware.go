@@ -40,7 +40,7 @@ type sessionKey struct{}
 //	mutating method without X-Requested-With  -> 403, before Auth is asked
 //	no cookie, or Auth refuses the session    -> 401 (sign in)
 //	signed in without the permission          -> 403
-//	Auth unreachable, unset, or unreadable    -> 503 (fail closed, never open)
+//	Auth unreachable, no URL, or unreadable   -> 503 (fail closed, never open)
 //
 // A request let through carries the session (SessionFrom, OperatorFrom), and
 // its request event names the operator.
@@ -105,6 +105,9 @@ func (c *Client) StatusHandler(fields []StatusField, extra func(*http.Request) m
 				body[key] = value
 			}
 		}
+		// operator is reserved even when no one is signed in: an extra key
+		// must never make an anonymous caller look signed in.
+		delete(body, "operator")
 		if session.Operator != nil {
 			body["operator"] = session.Operator
 		}
