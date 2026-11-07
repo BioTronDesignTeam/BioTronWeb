@@ -21,7 +21,7 @@ type Config struct {
 	// DatabaseURL owns the sprinter schema and is the only pool that writes.
 	DatabaseURL string
 	// ReadDatabaseURL is a read-only role the agent's tools query. Empty leaves
-	// out the four SQL tools; the bot still answers from the public endpoints.
+	// out the two SQL tools; the bot still answers from the public endpoints.
 	ReadDatabaseURL string
 	// Discord turns the bot on. Off, the token and guild are never read and
 	// no gateway session opens: production cannot reach Discord, and the
