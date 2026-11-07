@@ -55,7 +55,7 @@ in exactly one place so it cannot drift:
 | Linter | Oxlint, type-aware, every rule an error | root `package.json` and `.oxlintrc.json` |
 | Formatter | Prettier 3.9 with the Tailwind plugin | root `package.json`, `.prettierrc.json`, `.prettierignore` |
 | Tests | Vitest 5.0.5, exact; jsdom for the library | root `package.json`; `test` in each workspace's `vite.config.ts` |
-| Vite, React plugin | 8.2, 6.1 | root `package.json` |
+| Vite, React plugin | 8.3, 6.1 | root `package.json` |
 | React, React DOM | 19.2 | each app's `package.json`, same range |
 | Tailwind | 4.3 | root `package.json`; an app opts in by importing it |
 | Type packages | React 19.2, Node 24 | root `package.json` |
