@@ -17,7 +17,7 @@ export default function Footer() {
         </div>
 
         <nav className="footer__col" aria-label="Projects">
-          <h3 className="footer__heading">Projects</h3>
+          <h2 className="footer__heading">Projects</h2>
           {PROJECTS.map((p) => (
             <Link key={p.slug} to={`/projects/${p.slug}`} className="footer__link">
               {p.name}
@@ -29,7 +29,7 @@ export default function Footer() {
         </nav>
 
         <nav className="footer__col" aria-label="Team">
-          <h3 className="footer__heading">Team</h3>
+          <h2 className="footer__heading">Team</h2>
           <Link to="/sponsors" className="footer__link">
             Sponsors
           </Link>
@@ -42,7 +42,7 @@ export default function Footer() {
         </nav>
 
         <div className="footer__col">
-          <h3 className="footer__heading">Contact</h3>
+          <h2 className="footer__heading">Contact</h2>
           <a href={`mailto:${CONTACT.email}`} className="footer__contact">
             <Mail size={16} /> {CONTACT.email}
           </a>
