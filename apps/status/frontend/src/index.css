@@ -734,8 +734,14 @@ p {
   .group {
     padding: 12px;
   }
+  /* Visually hidden, not display:none: it is the toggle's accessible name. */
   .group__count {
-    display: none;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
   .group__components {
     padding-left: 16px;
@@ -754,15 +760,34 @@ p {
    visibly stretch it. */
 @media (pointer: coarse) {
   .button,
-  .group__toggle {
+  .group__toggle,
+  .brand,
+  .crumbs a {
     min-height: 44px;
   }
-  .info-tip__trigger {
-    width: 32px;
-    height: 32px;
+  .group__toggle {
+    min-width: 44px;
+    justify-content: center;
   }
+  .crumbs a {
+    display: inline-flex;
+    align-items: center;
+    min-width: 44px;
+  }
+  /* 44px to the finger, but the negative margin keeps the row as tall as
+     the 24px icon draws it. */
+  .info-tip__trigger {
+    width: 44px;
+    height: 44px;
+    margin: -10px;
+  }
+  /* 20px of bars, inside a 44px target: the padding takes the finger and
+     the negative margin gives the space back to the layout. */
   .uptime-bar__track {
-    height: 20px;
+    box-sizing: border-box;
+    height: 44px;
+    margin-block: -12px;
+    padding-block: 12px;
   }
   .uptime-bar__track:hover .uptime-day:not(.uptime-day--active) {
     opacity: 1;

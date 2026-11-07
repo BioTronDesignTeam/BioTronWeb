@@ -557,6 +557,8 @@ function ApplicationGroup({
           aria-controls={panelID}
           onClick={() => setOpen((current) => !current)}
         >
+          {/* Phones hide this visually, not with display:none, because it is
+              the button's only name. */}
           <span className="group__count">
             {count} {count === 1 ? 'component' : 'components'}
           </span>
