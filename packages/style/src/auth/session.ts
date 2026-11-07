@@ -44,6 +44,8 @@ export type SessionValue = {
   loginGuest: (key: string) => Promise<boolean>;
   /** Throws with a shared message when Auth did not end the session. */
   logout: () => Promise<void>;
+  /** Ends every session this person holds, on every device. Members only, not guests. */
+  logoutEverywhere: () => Promise<void>;
   refresh: () => Promise<void>;
   /** Call when an API answered 401: re-checks, and says the session expired. */
   expire: () => void;

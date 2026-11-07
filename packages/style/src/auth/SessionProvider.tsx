@@ -207,25 +207,38 @@ export function SessionProvider({
     [appId, base, refresh],
   );
 
-  const logout = useCallback(async () => {
-    let res: Response;
-    try {
-      res = await fetch(`${base}/auth/logout`, {
-        method: 'POST',
-        credentials: 'include',
-        // The custom header forces a CORS preflight that a cross-site page
-        // cannot pass, and Auth requires it: together they block sign-out CSRF.
-        headers: { 'X-Requested-With': 'XMLHttpRequest' },
-      });
-    } catch {
-      throw new Error(authStrings.signOutFailed);
-    }
-    // 401 means the session had already ended, which is what was asked for.
-    // Anything else keeps the state: the cookie may still be live.
-    if (!res.ok && res.status !== 401) throw new Error(authStrings.signOutFailed);
-    generation.current++;
-    setState({ status: 'anon', operator: null, permissions: {}, notice: null });
-  }, [base]);
+  // Ends this session (`/auth/logout`) or every session of this person
+  // (`/auth/logout/everywhere`).
+  const endSession = useCallback(
+    async (path: string, failed: string) => {
+      let res: Response;
+      try {
+        res = await fetch(`${base}${path}`, {
+          method: 'POST',
+          credentials: 'include',
+          // The custom header forces a CORS preflight that a cross-site page
+          // cannot pass, and Auth requires it: together they block sign-out CSRF.
+          headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        });
+      } catch {
+        throw new Error(failed);
+      }
+      // 401 means the session had already ended, which is what was asked for.
+      // Anything else keeps the state: the cookie may still be live.
+      if (!res.ok && res.status !== 401) throw new Error(failed);
+      generation.current++;
+      setState({ status: 'anon', operator: null, permissions: {}, notice: null });
+    },
+    [base],
+  );
+  const logout = useCallback(
+    () => endSession('/auth/logout', authStrings.signOutFailed),
+    [endSession],
+  );
+  const logoutEverywhere = useCallback(
+    () => endSession('/auth/logout/everywhere', authStrings.signOutEverywhereFailed),
+    [endSession],
+  );
 
   const dismissNotice = useCallback(() => setState((prev) => ({ ...prev, notice: null })), []);
   const expire = useCallback(() => void refresh(), [refresh]);
@@ -245,10 +258,11 @@ export function SessionProvider({
       login,
       loginGuest,
       logout,
+      logoutEverywhere,
       refresh,
       expire,
     };
-  }, [state, dismissNotice, login, loginGuest, logout, refresh, expire]);
+  }, [state, dismissNotice, login, loginGuest, logout, logoutEverywhere, refresh, expire]);
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }

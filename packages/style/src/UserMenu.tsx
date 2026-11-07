@@ -18,6 +18,8 @@ export type UserMenuProps = {
   user?: UserMenuIdentity;
   onLogout: () => void | Promise<void>;
   logoutLabel?: string;
+  /** Adds a "Sign out everywhere" button, which ends every session of this person. */
+  onLogoutEverywhere?: () => void | Promise<void>;
   className?: string;
 };
 
@@ -31,6 +33,7 @@ export function UserMenu({
   user,
   onLogout,
   logoutLabel = authStrings.signOut,
+  onLogoutEverywhere,
   className = '',
 }: UserMenuProps) {
   const [open, setOpen] = useState(false);
@@ -91,6 +94,15 @@ export function UserMenu({
           <button type="button" className="biotron-user-menu__logout" onClick={run(onLogout)}>
             {logoutLabel}
           </button>
+          {onLogoutEverywhere && (
+            <button
+              type="button"
+              className="biotron-user-menu__logout"
+              onClick={run(onLogoutEverywhere)}
+            >
+              {authStrings.signOutEverywhere}
+            </button>
+          )}
         </div>
       )}
     </div>

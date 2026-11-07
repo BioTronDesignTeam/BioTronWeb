@@ -27,18 +27,21 @@ export function AccountControls({
   showThemeToggle = true,
   className = '',
 }: AccountControlsProps) {
-  const { status, operator, login, logout, refresh, notice, dismissNotice } = useSession();
+  const { status, operator, login, logout, logoutEverywhere, refresh, notice, dismissNotice } =
+    useSession();
   const [error, setError] = useState('');
 
-  const signOut = async () => {
+  const endWith = (end: () => Promise<void>, failed: string) => async () => {
     setError('');
     try {
-      await logout();
+      await end();
       onSignedOut?.();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : authStrings.signOutFailed);
+      setError(caught instanceof Error ? caught.message : failed);
     }
   };
+  const signOut = endWith(logout, authStrings.signOutFailed);
+  const signOutEverywhere = endWith(logoutEverywhere, authStrings.signOutEverywhereFailed);
 
   const toast = error || (notice && status !== 'authed' ? noticeMessage(notice) : '');
   const closeToast = () => {
@@ -71,6 +74,8 @@ export function AccountControls({
             detail: detail ? detail(operator) : undefined,
           }}
           onLogout={signOut}
+          // A guest has one session, for one tool, and nothing else to end.
+          onLogoutEverywhere={operator.is_guest ? undefined : signOutEverywhere}
         />
       ) : status === 'unavailable' ? (
         <Button

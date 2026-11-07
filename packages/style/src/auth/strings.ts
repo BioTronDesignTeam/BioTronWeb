@@ -10,6 +10,8 @@ export const authStrings = {
   signInWithGitHub: 'Sign in with GitHub',
   signOut: 'Sign out',
   signOutFailed: 'Sign out failed. Try again.',
+  signOutEverywhere: 'Sign out everywhere',
+  signOutEverywhereFailed: 'Sign out everywhere failed. Try again.',
   lastSignIn: 'Last sign-in',
   loading: 'Loading…',
   askAManager: 'Ask a manager.',
