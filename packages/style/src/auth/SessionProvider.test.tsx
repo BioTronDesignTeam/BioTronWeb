@@ -1,14 +1,15 @@
 import { act, cleanup, renderHook } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { useSession } from './session';
+import { signInUrl, useSession } from './session';
 import { SessionProvider } from './SessionProvider';
 import { authStrings } from './strings';
 
 const authUrl = 'https://auth.example.test';
 const octocat = { github_id: 1, login: 'octocat', name: 'Octocat', avatar_url: '' };
 
-type Reply = { status: number; body?: unknown } | 'network';
+// 'hang' never answers: the call ends only when its signal aborts.
+type Reply = { status: number; body?: unknown } | 'network' | 'hang';
 type Route = (url: URL, init?: RequestInit) => Reply;
 
 // A fake Auth: each call is answered by `route`, and every call is recorded.
@@ -16,6 +17,11 @@ function fakeAuth(route: Route) {
   const fetchMock = vi.fn(async (input: string, init?: RequestInit) => {
     const reply = route(new URL(input), init);
     if (reply === 'network') throw new TypeError('Failed to fetch');
+    if (reply === 'hang') {
+      return new Promise<Response>((_, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(init.signal?.reason));
+      });
+    }
     return new Response(reply.body === undefined ? null : JSON.stringify(reply.body), {
       status: reply.status,
     });
@@ -247,5 +253,154 @@ describe('SessionProvider', () => {
     });
     expect(accepted).toBe(false);
     expect(result.current.status).toBe('anon');
+  });
+
+  it('gives up on a hung Auth after the timeout instead of loading for minutes', async () => {
+    // jsdom times AbortSignal.timeout on a clock the fake timers do not
+    // reach, so the same signal is rebuilt on the faked setTimeout.
+    const timeout = vi.spyOn(AbortSignal, 'timeout').mockImplementation((ms) => {
+      const controller = new AbortController();
+      setTimeout(() => controller.abort(new DOMException('timed out', 'TimeoutError')), ms);
+      return controller.signal;
+    });
+    const fetchMock = fakeAuth(() => 'hang');
+    const { result } = renderSession();
+    await settle(7_000);
+    expect(result.current.status).toBe('loading');
+    // Three attempts of 8 seconds each, and the waits between them.
+    await settle(3 * 8_000);
+    expect(result.current.status).toBe('unavailable');
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(timeout).toHaveBeenCalledWith(8_000);
+    expect(fetchMock.mock.calls[0]?.[1]?.signal).toBeDefined();
+  });
+
+  it('grants only a permission Auth answered with allowed: true', async () => {
+    fakeAuth((url) => {
+      if (url.pathname === '/auth/me') return { status: 200, body: octocat };
+      // A string, not the boolean, is not a grant.
+      return { status: 200, body: { allowed: 'true' } };
+    });
+    const { result } = renderSession({ appId: 'calendar', permissions: ['write'] });
+    await settle();
+    expect(result.current.status).toBe('authed');
+    expect(result.current.can('write')).toBe(false);
+  });
+
+  it('sends the cookie on every check', async () => {
+    const fetchMock = fakeAuth((url) =>
+      url.pathname === '/auth/me'
+        ? { status: 200, body: octocat }
+        : { status: 200, body: { allowed: true } },
+    );
+    renderSession({ appId: 'exo-gui', permissions: ['live', 'historical', 'commands'] });
+    await settle();
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    for (const [, init] of fetchMock.mock.calls) {
+      expect(init).toMatchObject({ credentials: 'include' });
+    }
+  });
+
+  it('discards a refresh that resolves after a newer one', async () => {
+    let slow: (() => void) | undefined;
+    let calls = 0;
+    const fetchMock = vi.fn(async () => {
+      calls++;
+      if (calls === 2) {
+        // The first refresh after sign-in hangs, then lands with a 401.
+        await new Promise<void>((resolve) => (slow = resolve));
+        return new Response(null, { status: 401 });
+      }
+      return new Response(JSON.stringify(octocat), { status: 200 });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const { result } = renderSession();
+    await settle();
+    expect(result.current.status).toBe('authed');
+
+    act(() => void result.current.refresh());
+    act(() => void result.current.refresh());
+    await settle();
+    expect(result.current.status).toBe('authed');
+
+    slow?.();
+    await settle();
+    // The stale 401 came back last but belonged to an older check.
+    expect(result.current.status).toBe('authed');
+    expect(result.current.notice).toBeNull();
+  });
+
+  it('answers can() for any one of a list, and never for none or when signed out', async () => {
+    let signedIn = true;
+    fakeAuth((url) => {
+      if (url.pathname === '/auth/me') {
+        return signedIn ? { status: 200, body: octocat } : { status: 401 };
+      }
+      return { status: 200, body: { allowed: url.searchParams.get('permission') === 'live' } };
+    });
+    const { result } = renderSession({ appId: 'exo-gui', permissions: ['commands', 'live'] });
+    await settle();
+    expect(result.current.can(['commands', 'live'])).toBe(true);
+    expect(result.current.can(['commands'])).toBe(false);
+    expect(result.current.can([])).toBe(false);
+    expect(result.current.can('unknown')).toBe(false);
+
+    signedIn = false;
+    act(() => void result.current.refresh());
+    await settle();
+    expect(result.current.status).toBe('anon');
+    expect(result.current.can('live')).toBe(false);
+    expect(result.current.can(['commands', 'live'])).toBe(false);
+  });
+
+  it('sends sign-in to GitHub through Auth with only this origin to come back to', () => {
+    expect(signInUrl(authUrl, 'https://calendar.example.test')).toBe(
+      authUrl + '/auth/github/login?redirect=https%3A%2F%2Fcalendar.example.test',
+    );
+  });
+
+  it('does not even ask Auth about a guest key without an app', async () => {
+    const fetchMock = fakeAuth(() => ({ status: 401 }));
+    const { result } = renderSession();
+    await settle();
+    const before = fetchMock.mock.calls.length;
+    let accepted = true;
+    await act(async () => {
+      accepted = await result.current.loginGuest('KEY');
+    });
+    expect(accepted).toBe(false);
+    expect(fetchMock).toHaveBeenCalledTimes(before);
+  });
+
+  it('signs out everywhere through a POST that carries the CSRF header', async () => {
+    const fetchMock = fakeAuth((url) =>
+      url.pathname === '/auth/logout/everywhere' ? { status: 204 } : { status: 200, body: octocat },
+    );
+    const { result } = renderSession();
+    await settle();
+    await act(async () => {
+      await result.current.logoutEverywhere();
+    });
+    expect(result.current.status).toBe('anon');
+    const call = fetchMock.mock.calls.find(([input]) => input.endsWith('/auth/logout/everywhere'));
+    expect(call?.[1]).toMatchObject({
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    });
+  });
+
+  it('keeps the session when signing out everywhere fails', async () => {
+    fakeAuth((url) =>
+      url.pathname === '/auth/logout/everywhere' ? { status: 403 } : { status: 200, body: octocat },
+    );
+    const { result } = renderSession();
+    await settle();
+    await act(async () => {
+      await expect(result.current.logoutEverywhere()).rejects.toThrow(
+        authStrings.signOutEverywhereFailed,
+      );
+    });
+    expect(result.current.status).toBe('authed');
   });
 });
