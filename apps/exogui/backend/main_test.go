@@ -5,8 +5,12 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
+	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient/logclienttest"
 )
 
 // SIGTERM must let a request already in flight finish, then return cleanly.
@@ -78,5 +82,49 @@ func TestServeReportsAServeFailure(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("serve on a closed listener returned nil")
+	}
+}
+
+// A port that is taken ends run with an error, so the process exits non-zero
+// and Docker restarts it, and the failure reaches Grafana: before, the event
+// flush ran only after a served shutdown, so this path dropped every event.
+func TestRunFailsAndReportsWhenThePortIsTaken(t *testing.T) {
+	taken, err := new(net.ListenConfig).Listen(t.Context(), "tcp", ":0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = taken.Close() }()
+	_, port, err := net.SplitHostPort(taken.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PORT", port)
+	// The stand-in Grafana gateway receives what run's own client exports.
+	_, events := logclienttest.New(t, "exogui-api")
+
+	done := make(chan error, 1)
+	go func() { done <- run() }()
+	select {
+	case err := <-done:
+		if err == nil || !strings.Contains(err.Error(), "listen") {
+			t.Fatalf("run() = %v, want the listen error", err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("run kept going with its port taken")
+	}
+
+	timeout := time.After(5 * time.Second)
+	for {
+		select {
+		case event := <-events:
+			if event.Message == "Exo API failed" {
+				if cause, _ := event.Payload["error"].(string); event.Level != logclient.Error || cause == "" {
+					t.Fatalf("failure event = %#v, want an error with the cause", event)
+				}
+				return
+			}
+		case <-timeout:
+			t.Fatal("run returned without flushing the Exo API failed event")
+		}
 	}
 }
