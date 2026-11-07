@@ -112,54 +112,71 @@ func ValidatePatch(raw json.RawMessage) (json.RawMessage, error) {
 		return nil, errors.New("patch must be a JSON object")
 	}
 	for key, value := range values {
-		if !allowedPatchKeys[key] {
-			return nil, fmt.Errorf("patch field %q is not allowed", key)
-		}
-		if key == "starts_at_local" || key == "ends_at_local" {
-			if bytes.Equal(bytes.TrimSpace(value), []byte("null")) {
-				return nil, fmt.Errorf("%s cannot be cleared", key)
-			}
-			var text string
-			if err := json.Unmarshal(value, &text); err != nil {
-				return nil, fmt.Errorf("%s must be a local date-time string", key)
-			}
-			if _, err := ParseLocalDateTime(text); err != nil {
-				return nil, fmt.Errorf("%s: %w", key, err)
-			}
-			continue
-		}
-		if !bytes.Equal(bytes.TrimSpace(value), []byte("null")) {
-			var text string
-			if err := json.Unmarshal(value, &text); err != nil {
-				return nil, fmt.Errorf("%s must be a string or null", key)
-			}
-			switch key {
-			case "title":
-				if len(strings.TrimSpace(text)) < 2 || len(text) > 160 {
-					return nil, errors.New("title must be between 2 and 160 characters")
-				}
-			case "description":
-				if len(text) > 5000 {
-					return nil, errors.New("description must not exceed 5000 characters")
-				}
-			case "location":
-				if len(text) > 300 {
-					return nil, errors.New("location must not exceed 300 characters")
-				}
-			case "url":
-				if len(text) > 1000 {
-					return nil, errors.New("url must not exceed 1000 characters")
-				}
-			}
-			if key == "url" && text != "" {
-				parsed, err := url.ParseRequestURI(text)
-				if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") {
-					return nil, errors.New("url must be an http or https URL")
-				}
-			}
+		if err := validatePatchField(key, value); err != nil {
+			return nil, err
 		}
 	}
 	return json.Marshal(values)
+}
+
+// validatePatchField checks one field of an occurrence patch: its key is
+// allowed, and its value has the type and size that field takes.
+func validatePatchField(key string, value json.RawMessage) error {
+	if !allowedPatchKeys[key] {
+		return fmt.Errorf("patch field %q is not allowed", key)
+	}
+	isNull := bytes.Equal(bytes.TrimSpace(value), []byte("null"))
+	if key == "starts_at_local" || key == "ends_at_local" {
+		if isNull {
+			return fmt.Errorf("%s cannot be cleared", key)
+		}
+		var text string
+		if err := json.Unmarshal(value, &text); err != nil {
+			return fmt.Errorf("%s must be a local date-time string", key)
+		}
+		if _, err := ParseLocalDateTime(text); err != nil {
+			return fmt.Errorf("%s: %w", key, err)
+		}
+		return nil
+	}
+	if isNull {
+		return nil
+	}
+	var text string
+	if err := json.Unmarshal(value, &text); err != nil {
+		return fmt.Errorf("%s must be a string or null", key)
+	}
+	return validatePatchText(key, text)
+}
+
+// validatePatchText checks the length of a text field of a patch, and that
+// a URL is an http or https one.
+func validatePatchText(key, text string) error {
+	switch key {
+	case "title":
+		if len(strings.TrimSpace(text)) < 2 || len(text) > 160 {
+			return errors.New("title must be between 2 and 160 characters")
+		}
+	case "description":
+		if len(text) > 5000 {
+			return errors.New("description must not exceed 5000 characters")
+		}
+	case "location":
+		if len(text) > 300 {
+			return errors.New("location must not exceed 300 characters")
+		}
+	case "url":
+		if len(text) > 1000 {
+			return errors.New("url must not exceed 1000 characters")
+		}
+		if text != "" {
+			parsed, err := url.ParseRequestURI(text)
+			if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+				return errors.New("url must be an http or https URL")
+			}
+		}
+	}
+	return nil
 }
 
 func PatchIsEmpty(raw json.RawMessage) bool {
@@ -279,74 +296,11 @@ func Expand(series []model.EventSeries, from, to time.Time, location *time.Locat
 		if event.State != model.EventPublished {
 			continue
 		}
-		starts, err := GeneratedStarts(event)
+		expanded, err := expandSeries(event, from, to, location)
 		if err != nil {
-			return nil, fmt.Errorf("expand %s: %w", event.ID, err)
+			return nil, err
 		}
-		overrides := make(map[string]model.EventOverride, len(event.Overrides))
-		for _, override := range OccurrenceChanges(event.Overrides) {
-			overrides[FormatLocal(override.RecurrenceIDLocal)] = override
-		}
-		duration := event.EndsAtLocal.Sub(event.StartsAtLocal)
-		for _, generatedStart := range starts {
-			generatedEnd := generatedStart.Add(duration)
-			occurrence := model.Occurrence{
-				SeriesID:       event.ID,
-				UID:            event.UID,
-				ScopeID:        event.ScopeID,
-				ScopeName:      event.ScopeName,
-				ScopePath:      event.ScopePath,
-				ScopeKind:      event.ScopeKind,
-				Title:          event.Title,
-				Description:    event.Description,
-				Location:       event.Location,
-				URL:            event.URL,
-				AllDay:         event.AllDay,
-				Timezone:       event.Timezone,
-				RecurrenceID:   FormatLocal(generatedStart),
-				Recurring:      event.RecurrenceUntil != nil,
-				SeriesSequence: event.Sequence,
-			}
-			if override, ok := overrides[occurrence.RecurrenceID]; ok {
-				if override.State == model.OverrideCancelled {
-					continue
-				}
-				patch, err := DecodePatch(override.Patch)
-				if err != nil {
-					return nil, fmt.Errorf("decode override %s: %w", override.ID, err)
-				}
-				if patch.Title != nil {
-					occurrence.Title = *patch.Title
-				}
-				if patch.Description != nil {
-					occurrence.Description = *patch.Description
-				}
-				if patch.Location != nil {
-					occurrence.Location = *patch.Location
-				}
-				if patch.URL != nil {
-					occurrence.URL = *patch.URL
-				}
-				if patch.StartsAtLocal != nil {
-					generatedStart = *patch.StartsAtLocal
-				}
-				if patch.EndsAtLocal != nil {
-					generatedEnd = *patch.EndsAtLocal
-				} else if patch.StartsAtLocal != nil {
-					generatedEnd = generatedStart.Add(duration)
-				}
-				occurrence.Modified = !PatchIsEmpty(override.Patch)
-				occurrence.OverrideSequence = override.Sequence
-			}
-			if !generatedEnd.After(generatedStart) {
-				return nil, fmt.Errorf("event %s occurrence %s ends before it starts", event.ID, occurrence.RecurrenceID)
-			}
-			occurrence.StartsAt = InLocation(generatedStart, location)
-			occurrence.EndsAt = InLocation(generatedEnd, location)
-			if occurrence.EndsAt.After(from) && occurrence.StartsAt.Before(to) {
-				occurrences = append(occurrences, occurrence)
-			}
-		}
+		occurrences = append(occurrences, expanded...)
 	}
 	sort.Slice(occurrences, func(i, j int) bool {
 		if occurrences[i].StartsAt.Equal(occurrences[j].StartsAt) {
@@ -355,6 +309,98 @@ func Expand(series []model.EventSeries, from, to time.Time, location *time.Locat
 		return occurrences[i].StartsAt.Before(occurrences[j].StartsAt)
 	})
 	return occurrences, nil
+}
+
+// expandSeries lists the occurrences of one published series that overlap
+// [from, to), with its overrides applied and its cancelled ones left out.
+func expandSeries(event model.EventSeries, from, to time.Time, location *time.Location) ([]model.Occurrence, error) {
+	starts, err := GeneratedStarts(event)
+	if err != nil {
+		return nil, fmt.Errorf("expand %s: %w", event.ID, err)
+	}
+	overrides := make(map[string]model.EventOverride, len(event.Overrides))
+	for _, override := range OccurrenceChanges(event.Overrides) {
+		overrides[FormatLocal(override.RecurrenceIDLocal)] = override
+	}
+	duration := event.EndsAtLocal.Sub(event.StartsAtLocal)
+	var occurrences []model.Occurrence
+	for _, generatedStart := range starts {
+		start, end := generatedStart, generatedStart.Add(duration)
+		occurrence := newOccurrence(event, generatedStart)
+		if override, ok := overrides[occurrence.RecurrenceID]; ok {
+			if override.State == model.OverrideCancelled {
+				continue
+			}
+			start, end, err = applyOverride(&occurrence, override, start, end, duration)
+			if err != nil {
+				return nil, err
+			}
+		}
+		if !end.After(start) {
+			return nil, fmt.Errorf("event %s occurrence %s ends before it starts", event.ID, occurrence.RecurrenceID)
+		}
+		occurrence.StartsAt = InLocation(start, location)
+		occurrence.EndsAt = InLocation(end, location)
+		if occurrence.EndsAt.After(from) && occurrence.StartsAt.Before(to) {
+			occurrences = append(occurrences, occurrence)
+		}
+	}
+	return occurrences, nil
+}
+
+// newOccurrence is the occurrence of a series that starts at a generated
+// start, before any override.
+func newOccurrence(event model.EventSeries, generatedStart time.Time) model.Occurrence {
+	return model.Occurrence{
+		SeriesID:       event.ID,
+		UID:            event.UID,
+		ScopeID:        event.ScopeID,
+		ScopeName:      event.ScopeName,
+		ScopePath:      event.ScopePath,
+		ScopeKind:      event.ScopeKind,
+		Title:          event.Title,
+		Description:    event.Description,
+		Location:       event.Location,
+		URL:            event.URL,
+		AllDay:         event.AllDay,
+		Timezone:       event.Timezone,
+		RecurrenceID:   FormatLocal(generatedStart),
+		Recurring:      event.RecurrenceUntil != nil,
+		SeriesSequence: event.Sequence,
+	}
+}
+
+// applyOverride applies the patch of a modified occurrence to it, and
+// returns its local start and end after the patch. A patch that moves only
+// the start keeps the series' duration.
+func applyOverride(occurrence *model.Occurrence, override model.EventOverride, start, end time.Time, duration time.Duration) (time.Time, time.Time, error) {
+	patch, err := DecodePatch(override.Patch)
+	if err != nil {
+		return start, end, fmt.Errorf("decode override %s: %w", override.ID, err)
+	}
+	if patch.Title != nil {
+		occurrence.Title = *patch.Title
+	}
+	if patch.Description != nil {
+		occurrence.Description = *patch.Description
+	}
+	if patch.Location != nil {
+		occurrence.Location = *patch.Location
+	}
+	if patch.URL != nil {
+		occurrence.URL = *patch.URL
+	}
+	if patch.StartsAtLocal != nil {
+		start = *patch.StartsAtLocal
+	}
+	if patch.EndsAtLocal != nil {
+		end = *patch.EndsAtLocal
+	} else if patch.StartsAtLocal != nil {
+		end = start.Add(duration)
+	}
+	occurrence.Modified = !PatchIsEmpty(override.Patch)
+	occurrence.OverrideSequence = override.Sequence
+	return start, end, nil
 }
 
 func dateAfter(value, date time.Time) bool {
