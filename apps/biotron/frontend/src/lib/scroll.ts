@@ -28,3 +28,17 @@ export function scrollToElement(target: string | HTMLElement, offset = 0) {
     if (el) window.scrollTo({ top: (el as HTMLElement).offsetTop + offset, behavior: 'smooth' });
   }
 }
+
+/**
+ * Holds the page still while an overlay, such as the mobile menu, is open.
+ * `overflow: hidden` on the root does not stop Lenis: it keeps taking wheel
+ * input and calling `window.scrollTo`, which still moves a hidden-overflow
+ * page. Stopping Lenis does.
+ */
+export function pauseScroll() {
+  lenisInstance?.stop();
+}
+
+export function resumeScroll() {
+  lenisInstance?.start();
+}

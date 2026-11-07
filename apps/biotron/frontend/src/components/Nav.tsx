@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
 import { Brand } from '@biotron/style';
+import { pauseScroll, resumeScroll } from '../lib/scroll';
 
 const ITEMS = [
   { label: 'Projects', to: '/projects' },
@@ -53,10 +54,12 @@ export default function Nav() {
     };
 
     root.style.overflow = 'hidden';
+    pauseScroll();
     window.addEventListener('keydown', onKeyDown);
 
     return () => {
       root.style.overflow = previousOverflow;
+      resumeScroll();
       window.removeEventListener('keydown', onKeyDown);
     };
   }, [open]);
