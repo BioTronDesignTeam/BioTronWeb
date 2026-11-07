@@ -268,6 +268,7 @@
 }
 .biotron-user-menu__logout {
   width: 100%;
+  min-height: 2.75rem;
   border: 0;
   padding: 0.72rem 0.9rem;
   background: transparent;
@@ -449,7 +450,7 @@
 }
 .biotron-guest-form input {
   width: 100%;
-  min-height: 2.7rem;
+  min-height: 2.75rem;
   border: 1px solid var(--biotron-border);
   border-radius: 0.7rem;
   padding: 0.65rem 0.8rem;
@@ -673,4 +674,13 @@
 }
 .biotron-toast__close:hover {
   background: color-mix(in srgb, currentColor 12%, transparent);
+}
+/* After the base rule, so it wins: the 44px touch target of the hit-area
+   block above, with the negative margin keeping the toast as tall as before. */
+@media (pointer: coarse), (max-width: 34rem) {
+  .biotron-toast__close {
+    min-width: 44px;
+    min-height: 44px;
+    margin: -0.7rem -0.8rem -0.7rem 0;
+  }
 }
