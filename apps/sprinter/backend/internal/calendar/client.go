@@ -45,14 +45,18 @@ type Occurrence struct {
 	Modified         bool      `json:"modified"`
 }
 
-// Sequence is the occurrence's edit counter: the override's when it has one,
-// otherwise the series'. Calendar bumps it on every edit, which is what lets
-// the scheduler tell an already-posted occurrence from a changed one.
+// Sequence is the occurrence's edit counter, the same value Calendar's ICS
+// feed sends as SEQUENCE: the series' sequence plus the override's. Calendar
+// bumps the series on every edit, the override on every edit to this one
+// occurrence, and never lowers either, so the sum only ever rises. That is
+// what lets the scheduler tell an already-posted occurrence from a changed
+// one.
+//
+// The override's sequence alone would not do: it starts at 1 while the
+// series' is already higher, so the first edit to one occurrence would read
+// as the counter going down, and the edit would never reach Discord.
 func (o Occurrence) Sequence() int {
-	if o.OverrideSequence != 0 {
-		return o.OverrideSequence
-	}
-	return o.SeriesSequence
+	return o.SeriesSequence + o.OverrideSequence
 }
 
 // timeout bounds one call to Calendar. A stalled Calendar must never hold a
