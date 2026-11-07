@@ -5,7 +5,7 @@
 # DATABASE_URL. Build it from the repository root. Dockerfile.dockerignore
 # beside this file keeps the context to this folder and every
 # apps/*/prisma schema and migrations, so a new app's are picked up as is.
-FROM node:24-bookworm-slim
+FROM node:24.22.2-bookworm-slim@sha256:01d566e8d94d8c619591d78652babfccd3c6992a3dffa9ed5ab39e11cf6c70e9
 
 # Prisma reads the OpenSSL version to pick its engines.
 RUN apt-get update \
