@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import {
   SessionContext,
   readNotice,
+  signInUrl,
   stripNotice,
   type SessionNotice,
   type SessionOperator,
@@ -183,7 +184,7 @@ export function SessionProvider({
   }, [unavailable, refresh]);
 
   const login = useCallback(() => {
-    window.location.href = `${base}/auth/github/login?redirect=${encodeURIComponent(window.location.origin)}`;
+    window.location.href = signInUrl(base, window.location.origin);
   }, [base]);
 
   const loginGuest = useCallback(

@@ -72,3 +72,12 @@ export function stripNotice() {
   url.searchParams.delete(noticeParam);
   window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
 }
+
+/**
+ * Where Sign in sends the browser: GitHub, through Auth, coming back to this
+ * app's origin. Only the origin comes back: Auth accepts no path, so a deep
+ * link lands on the app's home page after sign-in.
+ */
+export function signInUrl(authBase: string, origin: string) {
+  return `${authBase}/auth/github/login?redirect=${encodeURIComponent(origin)}`;
+}
