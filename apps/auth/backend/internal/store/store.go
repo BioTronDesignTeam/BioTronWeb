@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/BioTronDesignTeam/BioTronWeb/apps/auth/backend/internal/store/queries"
@@ -16,10 +17,17 @@ import (
 
 var ErrNotFound = errors.New("not found")
 
+// ErrNoOperator is the ErrNotFound of a GitHub id with no operator row: someone
+// who has never signed in.
+var ErrNoOperator = fmt.Errorf("operator %w", ErrNotFound)
+
 // GuestGitHubID is the sentinel operator for daily-key guest sessions.
 // Real GitHub numeric ids are >= 1.
 const GuestGitHubID int64 = 0
 const GuestLogin = "guest"
+
+// foreignKeyViolation is the SQLSTATE of a row that names a missing parent.
+const foreignKeyViolation = "23503"
 
 // Store runs the queries that sqlc generates from queries/queries.sql and
 // turns their rows into the types the handlers use.
@@ -234,9 +242,15 @@ func (s *Store) CreateGrant(ctx context.Context, operatorID int64, appID, permis
 	if _, err := s.GetPermission(ctx, appID, permissionKey); err != nil {
 		return err
 	}
-	return s.q.CreateGrant(ctx, queries.CreateGrantParams{
+	err := s.q.CreateGrant(ctx, queries.CreateGrantParams{
 		OperatorID: operatorID, AppID: appID, PermissionKey: permissionKey,
 	})
+	// The permission exists, so a broken foreign key is the operator.
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == foreignKeyViolation {
+		return ErrNoOperator
+	}
+	return err
 }
 
 func (s *Store) DeleteGrant(ctx context.Context, operatorID int64, appID, permissionKey string) error {
