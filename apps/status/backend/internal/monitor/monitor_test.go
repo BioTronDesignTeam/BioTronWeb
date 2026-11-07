@@ -154,3 +154,40 @@ func TestPollReportsComponentDownAndRecovered(t *testing.T) {
 		t.Fatalf("recovered payload = %#v, want how long it was down", recovered.payload)
 	}
 }
+
+// A shutdown cancels the poll in flight. The probes it cut short say nothing
+// about the components, so nothing is cached, stored or reported: before, every
+// healthy component raised a false Component down at each SIGTERM.
+func TestPollCancelledByShutdownRecordsNothing(t *testing.T) {
+	entered := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		close(entered)
+		<-request.Context().Done()
+	}))
+	defer server.Close()
+
+	serviceCatalog, err := catalog.Load(`[
+      {"id":"test","name":"Test","components":[{"id":"test-api","name":"API","health_url":"` + server.URL + `"}]}
+    ]`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dataStore := &memoryStore{}
+	events := &collector{}
+	monitor := New(dataStore, serviceCatalog, events, time.Second, time.Hour, time.Minute)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		monitor.poll(ctx)
+		close(done)
+	}()
+	<-entered
+	cancel()
+	<-done
+
+	if len(events.events) != 0 || len(dataStore.latest) != 0 || len(dataStore.persisted) != 0 {
+		t.Fatalf("cancelled poll recorded events %#v, latest %#v, persisted %#v; want nothing",
+			events.events, dataStore.latest, dataStore.persisted)
+	}
+}
