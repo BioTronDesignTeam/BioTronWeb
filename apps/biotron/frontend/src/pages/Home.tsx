@@ -25,6 +25,8 @@ export default function Home() {
   // layout for reliability and battery, but tablets/desktop keep the room.
   const immersive = webgl && !reduced && !mobile && !landscapePhone;
 
+  // Every navigation is a new location object, so this runs again even when
+  // the same stop is asked for twice.
   useEffect(() => {
     const stop = (location.state as { stop?: Stop } | null)?.stop;
     if (immersive || !stop) return;
@@ -32,7 +34,7 @@ export default function Home() {
     const target = stop === 'about' ? '#about' : '#projects';
     const frame = window.requestAnimationFrame(() => scrollToElement(target, -72));
     return () => window.cancelAnimationFrame(frame);
-  }, [immersive, location.key, location.state]);
+  }, [immersive, location]);
 
   return (
     <main id="main">

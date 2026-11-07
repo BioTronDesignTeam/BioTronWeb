@@ -37,7 +37,19 @@ export default function SmoothScroll({ children }: { children: React.ReactNode }
     };
   }, [reduced]);
 
-  // Reset on route changes, or honor an in-page destination when provided.
+  // A new path mounts a new ScrollReset, so it runs once per route and again
+  // when only the hash moves. It sits after the page so it runs after the
+  // page's own effects.
+  return (
+    <>
+      {children}
+      <ScrollReset key={pathname} hash={hash} />
+    </>
+  );
+}
+
+/** Resets the scroll on a route change, or honors an in-page destination when provided. */
+function ScrollReset({ hash }: { hash: string }) {
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
       if (hash && document.querySelector(hash)) scrollToElement(hash, -96);
@@ -46,7 +58,7 @@ export default function SmoothScroll({ children }: { children: React.ReactNode }
     });
 
     return () => window.cancelAnimationFrame(frame);
-  }, [hash, pathname]);
+  }, [hash]);
 
-  return <>{children}</>;
+  return null;
 }
