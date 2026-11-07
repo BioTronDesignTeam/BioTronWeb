@@ -5,16 +5,16 @@ datasource db {
 
 // Operator = org member who can sign into Auth (GitHub org membership at login).
 model Operator {
-  githubId     BigInt          @id @map("github_id")
-  login        String
-  name         String?
-  avatarUrl    String?         @map("avatar_url")
-  isSuperuser  Boolean         @default(false) @map("is_superuser")
-  isManager    Boolean         @default(false) @map("is_manager")
-  isBanned     Boolean         @default(false) @map("is_banned")
-  createdAt    DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
-  lastLoginAt  DateTime        @default(now()) @map("last_login_at") @db.Timestamptz(6)
-  grants       Grant[]
+  githubId    BigInt   @id @map("github_id")
+  login       String
+  name        String?
+  avatarUrl   String?  @map("avatar_url")
+  isSuperuser Boolean  @default(false) @map("is_superuser")
+  isManager   Boolean  @default(false) @map("is_manager")
+  isBanned    Boolean  @default(false) @map("is_banned")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  lastLoginAt DateTime @default(now()) @map("last_login_at") @db.Timestamptz(6)
+  grants      Grant[]
 
   @@map("operators")
 }
@@ -34,11 +34,11 @@ model GuestKey {
 
 // Registered BioTron tool. New apps are rows, not schema migrations.
 model App {
-  id              String          @id
+  id              String       @id
   name            String
-  description     String          @default("")
-  dailyKeyEnabled Boolean         @default(false) @map("daily_key_enabled")
-  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  description     String       @default("")
+  dailyKeyEnabled Boolean      @default(false) @map("daily_key_enabled")
+  createdAt       DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
   permissions     Permission[]
   guestKeys       GuestKey[]
 
@@ -53,7 +53,7 @@ model Permission {
   label       String
   description String @default("")
 
-  grants   Grant[]
+  grants Grant[]
 
   @@id([appId, key])
   @@map("permissions")
