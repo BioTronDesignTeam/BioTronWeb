@@ -66,6 +66,17 @@ UPDATE automations SET
     enabled = sqlc.arg(enabled), updated_at = now()
 WHERE id = sqlc.arg(id)::uuid;
 
+-- name: ForgetSeenOnRetarget :execrows
+-- An automation whose scope or kind is about to change forgets what it has
+-- seen. The old scope's occurrences will never come back in the new scope's
+-- fetch, and must not be read as vanished.
+DELETE FROM seen_occurrences AS seen
+USING automations AS automation
+WHERE seen.automation_id = automation.id
+    AND automation.id = sqlc.arg(id)::uuid
+    AND (automation.scope_id <> sqlc.arg(scope_id)::uuid
+        OR automation.kind <> sqlc.arg(kind)::text::"AutomationKind");
+
 -- name: DeleteAutomation :execrows
 DELETE FROM automations WHERE id = sqlc.arg(id)::uuid;
 

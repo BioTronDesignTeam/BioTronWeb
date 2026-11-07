@@ -176,6 +176,32 @@ func (q *Queries) DeleteSeen(ctx context.Context, arg DeleteSeenParams) (int64, 
 	return result.RowsAffected(), nil
 }
 
+const forgetSeenOnRetarget = `-- name: ForgetSeenOnRetarget :execrows
+DELETE FROM seen_occurrences AS seen
+USING automations AS automation
+WHERE seen.automation_id = automation.id
+    AND automation.id = $1::uuid
+    AND (automation.scope_id <> $2::uuid
+        OR automation.kind <> $3::text::"AutomationKind")
+`
+
+type ForgetSeenOnRetargetParams struct {
+	ID      string
+	ScopeID string
+	Kind    string
+}
+
+// An automation whose scope or kind is about to change forgets what it has
+// seen. The old scope's occurrences will never come back in the new scope's
+// fetch, and must not be read as vanished.
+func (q *Queries) ForgetSeenOnRetarget(ctx context.Context, arg ForgetSeenOnRetargetParams) (int64, error) {
+	result, err := q.db.Exec(ctx, forgetSeenOnRetarget, arg.ID, arg.ScopeID, arg.Kind)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const getAutomation = `-- name: GetAutomation :one
 SELECT id, kind::text AS kind, name, scope_id, channel_id, lead_user_id,
     lead_hours, lookback_hours, any_author, post_hour, deliver::text AS deliver,
