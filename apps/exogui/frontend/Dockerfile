@@ -24,7 +24,7 @@ COPY packages/style packages/style
 COPY apps/exogui/frontend apps/exogui/frontend
 RUN npm run build -w packages/style && npm run build -w apps/exogui/frontend
 
-FROM nginx:1.27-alpine
+FROM nginx:1.30.6-alpine@sha256:583b7f2fce1cdb8da5ad5c39ebd3c33b98b87d493190e548bdee1fa8c619c311
 
 COPY deploy/40-domain.sh /docker-entrypoint.d/40-domain.sh
 RUN chmod +x /docker-entrypoint.d/40-domain.sh
