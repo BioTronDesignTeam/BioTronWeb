@@ -173,3 +173,35 @@ export function torontoClock(instant: Date) {
   return { key: `${values.year}-${values.month}-${values.day}`, minutes: Number(values.hour) * 60 + Number(values.minute) };
 }
 
+
+/** An instant as a `datetime-local` value on the Toronto wall clock. */
+export function torontoLocalInput(instant: Date) {
+  const values = Object.fromEntries(torontoClockFormat.formatToParts(instant).map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}T${values.hour}:${values.minute}`;
+}
+
+// A `YYYY-MM-DD` or `YYYY-MM-DDTHH:MM` wall-clock value, held in a UTC frame
+// so adding to it never crosses a daylight-saving change.
+function wallClock(value: string) {
+  const [year, month, day, hour, minute] = value.split(/[-T:]/).map(Number);
+  return new Date(Date.UTC(year ?? NaN, (month ?? NaN) - 1, day ?? NaN, hour ?? 0, minute ?? 0));
+}
+
+/** The wall-clock value an hour later, as a `datetime-local` value. */
+export function addWallClockHour(value: string) {
+  const next = wallClock(value);
+  next.setUTCHours(next.getUTCHours() + 1);
+  return next.toISOString().slice(0, 16);
+}
+
+/** A `YYYY-MM-DD` date moved by a number of days. */
+export function addLocalDays(value: string, days: number) {
+  const next = wallClock(value.slice(0, 10));
+  next.setUTCDate(next.getUTCDate() + days);
+  return dateKey(next);
+}
+
+/** The UTC calendar anchor of a `YYYY-MM-DD` key; the inverse of `dateKey`. */
+export function keyDate(key: string) {
+  return wallClock(key.slice(0, 10));
+}

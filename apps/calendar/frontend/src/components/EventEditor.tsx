@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState, type FormEvent } from 'react';
-import { localDate, localInput } from '../date';
+import { addLocalDays, addWallClockHour, localDate, localInput, torontoLocalInput } from '../date';
 import type { EventPayload, EventSeries, Scope } from '../types';
 import { Modal } from './Modal';
 
@@ -19,35 +19,11 @@ interface EventEditorProps {
   onSave: (payload: EventPayload, publish: boolean) => Promise<void>;
 }
 
-const torontoParts = new Intl.DateTimeFormat('en-CA', {
-  timeZone: 'America/Toronto', year: 'numeric', month: '2-digit', day: '2-digit',
-  hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
-});
-
-function torontoLocalInput(date: Date) {
-  const value = Object.fromEntries(torontoParts.formatToParts(date).map((part) => [part.type, part.value]));
-  return `${value.year}-${value.month}-${value.day}T${value.hour}:${value.minute}`;
-}
-
 function nextHour() {
   const date = new Date();
   date.setMinutes(0, 0, 0);
   date.setTime(date.getTime() + 60 * 60_000);
   return torontoLocalInput(date);
-}
-
-function addWallClockHour(value: string) {
-  const [datePart, timePart] = value.split('T');
-  const [year, month, day] = datePart.split('-').map(Number);
-  const [hour, minute] = timePart.split(':').map(Number);
-  const wallClock = new Date(Date.UTC(year, month - 1, day, hour, minute));
-  wallClock.setUTCHours(wallClock.getUTCHours() + 1);
-  return wallClock.toISOString().slice(0, 16);
-}
-
-function addLocalDays(value: string, days: number) {
-  const [year, month, day] = value.split('-').map(Number);
-  return new Date(Date.UTC(year, month - 1, day + days, 12)).toISOString().slice(0, 10);
 }
 
 const inputClass = 'mt-1 min-h-11 w-full rounded-xl border border-ink/15 bg-transparent px-3 py-2 text-sm outline-none focus:border-brand dark:border-line-strong dark:bg-surface-deep dark:focus:border-link';

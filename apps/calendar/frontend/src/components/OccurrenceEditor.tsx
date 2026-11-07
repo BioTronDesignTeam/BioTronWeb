@@ -1,4 +1,5 @@
 import { useMemo, useState, type FormEvent } from 'react';
+import { addLocalDays, torontoLocalInput } from '../date';
 import type { EventSeries, Occurrence } from '../types';
 import { Modal } from './Modal';
 
@@ -8,22 +9,6 @@ interface OccurrenceEditorProps {
   onClose: () => void;
   onSave: (patch: Record<string, string | null>) => Promise<void>;
   onReset: () => Promise<void>;
-}
-
-const torontoParts = new Intl.DateTimeFormat('en-CA', {
-  timeZone: 'America/Toronto', year: 'numeric', month: '2-digit', day: '2-digit',
-  hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
-});
-
-function torontoLocalInput(iso: string) {
-  const parts = torontoParts.formatToParts(new Date(iso));
-  const value = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-  return `${value.year}-${value.month}-${value.day}T${value.hour}:${value.minute}`;
-}
-
-function addLocalDays(value: string, days: number) {
-  const [year, month, day] = value.split('-').map(Number);
-  return new Date(Date.UTC(year, month - 1, day + days, 12)).toISOString().slice(0, 10);
 }
 
 // Wall-clock arithmetic, done in a UTC frame so no daylight-saving change can
@@ -62,8 +47,8 @@ export function OccurrenceEditor({ occurrence, series, onClose, onSave, onReset 
   const [description, setDescription] = useState(occurrence.description);
   const [location, setLocation] = useState(occurrence.location);
   const [url, setURL] = useState(occurrence.url);
-  const [startsAt, setStartsAt] = useState(() => torontoLocalInput(occurrence.starts_at));
-  const [endsAt, setEndsAt] = useState(() => torontoLocalInput(occurrence.ends_at));
+  const [startsAt, setStartsAt] = useState(() => torontoLocalInput(new Date(occurrence.starts_at)));
+  const [endsAt, setEndsAt] = useState(() => torontoLocalInput(new Date(occurrence.ends_at)));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 

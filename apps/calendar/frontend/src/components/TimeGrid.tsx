@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { addDays, dateKey, dayLabel, timeLabel, torontoClock, weekdayLabel } from '../date';
+import { addDays, addLocalDays, dateKey, dayLabel, keyDate, timeLabel, torontoClock, weekdayLabel } from '../date';
 import { eventTone } from '../eventTone';
 import type { Occurrence } from '../types';
 import type { EventDraft } from './EventEditor';
@@ -128,7 +128,7 @@ export function TimeGrid({ days, occurrences, today, onSelectEvent, onOpenDay, o
     return () => window.clearInterval(timer);
   }, []);
 
-  const createAllDay = (index: number) => onCreate?.({ startsAt: `${keys[index]}T00:00`, endsAt: `${dateKey(addDays(days[index], 1))}T00:00`, allDay: true });
+  const createAllDay = (key: string) => onCreate?.({ startsAt: `${key}T00:00`, endsAt: `${addLocalDays(key, 1)}T00:00`, allDay: true });
 
   // Editors always get the row, because it is where a click makes an all-day event.
   const hasAllDay = Boolean(onCreate) || [...allDay.values()].some((list) => list.length > 0);
@@ -155,13 +155,13 @@ export function TimeGrid({ days, occurrences, today, onSelectEvent, onOpenDay, o
         {hasAllDay && (
           <>
             <div className="border-t border-ink/10 px-1 py-2 text-right text-[11px] text-ink/45 dark:border-line dark:text-faint">All day</div>
-            {keys.map((key, index) => (
+            {keys.map((key) => (
               <div key={key} className="relative min-h-8 min-w-0 border-l border-t border-ink/10 dark:border-line">
                 {onCreate && (
                   <button
                     type="button"
                     aria-label={`Create an all-day event on ${dayLabel(key, true)}`}
-                    onClick={() => createAllDay(index)}
+                    onClick={() => createAllDay(key)}
                     className="absolute inset-0 hover:bg-soft/15 dark:hover:bg-white/[0.03]"
                   />
                 )}
@@ -171,7 +171,7 @@ export function TimeGrid({ days, occurrences, today, onSelectEvent, onOpenDay, o
                 {/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- the create button above is the keyboard path */}
                 <div
                   className="relative max-h-[min(6rem,18dvh)] min-h-8 space-y-1 overflow-y-auto p-1"
-                  onClick={(event) => { if (event.target === event.currentTarget) createAllDay(index); }}
+                  onClick={(event) => { if (event.target === event.currentTarget) createAllDay(key); }}
                 >
                   {(allDay.get(key) || []).map((occurrence) => (
                     <button key={`${occurrence.series_id}-${occurrence.recurrence_id_local}`} type="button" onClick={() => onSelectEvent(occurrence)} {...hover(occurrence)} className={`block w-full truncate rounded-md border-l-[3px] px-2 py-1 text-left text-xs font-semibold hover:brightness-95 dark:hover:brightness-110 ${eventTone(occurrence)}`}>
@@ -192,7 +192,7 @@ export function TimeGrid({ days, occurrences, today, onSelectEvent, onOpenDay, o
               <span key={label} className="absolute right-2 -translate-y-1/2 text-[11px] text-ink/45 dark:text-faint" style={{ top: hour * HOUR }}>{label}</span>
             ))}
           </div>
-          {keys.map((key, index) => (
+          {keys.map((key) => (
             <div
               key={key}
               className="relative border-l border-ink/10 dark:border-line"
@@ -205,7 +205,7 @@ export function TimeGrid({ days, occurrences, today, onSelectEvent, onOpenDay, o
                 <button
                   type="button"
                   aria-label={`Create an event on ${dayLabel(key, true)}`}
-                  onClick={(event) => onCreate(timedDraft(days[index], event.detail === 0 ? 9 * 60 : (event.nativeEvent.offsetY / HOUR) * 60))}
+                  onClick={(event) => onCreate(timedDraft(keyDate(key), event.detail === 0 ? 9 * 60 : (event.nativeEvent.offsetY / HOUR) * 60))}
                   className="absolute inset-0 cursor-cell"
                 />
               )}
