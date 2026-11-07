@@ -96,7 +96,9 @@ function GuardRow({
     <div className="grid gap-3 p-5 sm:grid-cols-[8rem_1fr_1fr_1fr_auto] sm:items-center">
       <p className="font-semibold">{SUBJECT_LABELS[subject]}</p>
       <label className="block">
-        <span className="mb-1 block text-xs font-semibold text-ink/60 sm:hidden dark:text-muted">
+        <span className="mb-1 block text-xs font-semibold text-ink/60 sm:sr-only dark:text-muted">
+          {/* The subject too, or every row of inputs shares one name. */}
+          <span className="sr-only">{SUBJECT_LABELS[subject]} </span>
           Guild id
         </span>
         <input
@@ -107,7 +109,9 @@ function GuardRow({
         />
       </label>
       <label className="block">
-        <span className="mb-1 block text-xs font-semibold text-ink/60 sm:hidden dark:text-muted">
+        <span className="mb-1 block text-xs font-semibold text-ink/60 sm:sr-only dark:text-muted">
+          {/* The subject too, or every row of inputs shares one name. */}
+          <span className="sr-only">{SUBJECT_LABELS[subject]} </span>
           Role ids
         </span>
         <input
@@ -118,7 +122,9 @@ function GuardRow({
         />
       </label>
       <label className="block">
-        <span className="mb-1 block text-xs font-semibold text-ink/60 sm:hidden dark:text-muted">
+        <span className="mb-1 block text-xs font-semibold text-ink/60 sm:sr-only dark:text-muted">
+          {/* The subject too, or every row of inputs shares one name. */}
+          <span className="sr-only">{SUBJECT_LABELS[subject]} </span>
           Channel ids
         </span>
         <input
