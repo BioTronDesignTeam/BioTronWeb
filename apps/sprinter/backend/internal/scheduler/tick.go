@@ -47,6 +47,11 @@ func (s *Scheduler) Tick(ctx context.Context) error {
 	// in which something vanished pays for it.
 	feed := &feedLookup{calendar: s.calendar}
 	for _, automation := range automations {
+		// A shutdown stops the tick between automations. Whatever this
+		// one did not reach, the next run does.
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		s.runAutomation(ctx, automation, feed)
 	}
 	return nil
@@ -60,7 +65,9 @@ func (s *Scheduler) runAutomation(ctx context.Context, automation store.Automati
 			})
 		}
 	}()
-	if err := s.processAutomation(ctx, automation, feed); err != nil && !errors.Is(err, errCalendarFetch) {
+	err := s.processAutomation(ctx, automation, feed)
+	// A shutdown that stopped the pass is not a failure of the automation.
+	if err != nil && !errors.Is(err, errCalendarFetch) && ctx.Err() == nil {
 		s.emit(logclient.Error, "Automation failed", map[string]any{
 			"automation_id": automation.ID, "error": err.Error(),
 		})
@@ -74,6 +81,9 @@ func (s *Scheduler) processAutomation(ctx context.Context, automation store.Auto
 	windowEnd := now.Add(fetchWindow)
 	occurrences, err := s.calendar.Occurrences(ctx, automation.ScopeID, now, windowEnd)
 	if err != nil {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 		// A fetch failure means "unknown", never "empty": skip this
 		// automation entirely rather than treat a Calendar outage as
 		// everything on it having been cancelled.
@@ -141,6 +151,9 @@ func (s *Scheduler) detectCancellations(ctx context.Context, automation store.Au
 		}
 		index, err := feed.get(ctx)
 		if err != nil {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
 			// The feed is the only thing that can say "cancelled". Without
 			// it nothing is decided, and the seen rows wait for a tick that
 			// can read it.
@@ -159,8 +172,12 @@ func (s *Scheduler) detectCancellations(ctx context.Context, automation store.Au
 				return err
 			}
 		}
-		if err := s.store.DeleteSeen(ctx, automation.ID, seen.UID, seen.RecurrenceIDLocal); err != nil &&
-			!errors.Is(err, store.ErrNotFound) {
+		// The cancellation may already be out, so the row is dropped even
+		// if a shutdown began meanwhile.
+		recordCtx, cancel := recordContext(ctx)
+		err = s.store.DeleteSeen(recordCtx, automation.ID, seen.UID, seen.RecurrenceIDLocal)
+		cancel()
+		if err != nil && !errors.Is(err, store.ErrNotFound) {
 			return fmt.Errorf("delete seen occurrence %s: %w", seen.UID, err)
 		}
 	}
@@ -170,6 +187,16 @@ func (s *Scheduler) detectCancellations(ctx context.Context, automation store.Au
 func (s *Scheduler) announceCancellation(ctx context.Context, automation store.Automation, seen store.SeenOccurrence) error {
 	switch automation.Kind {
 	case store.KindNudge:
+		// The seen row outlives a cancellation nudge whose row could not be
+		// dropped afterwards, so the next tick finds the same occurrence
+		// vanished again. The nudge record is what keeps it to one nudge.
+		has, err := s.store.HasNudge(ctx, automation.ID, seen.UID, seen.RecurrenceIDLocal, seen.Sequence, store.TriggerCancelled)
+		if err != nil {
+			return fmt.Errorf("check cancellation nudge %s: %w", seen.UID, err)
+		}
+		if has {
+			return nil
+		}
 		return s.runNudge(ctx, automation, seen.UID, seen.RecurrenceIDLocal, seen.Sequence,
 			store.TriggerCancelled, seen.Title, seen.StartsAt)
 	case store.KindAnnounce:
@@ -189,6 +216,9 @@ func (s *Scheduler) editCancelledAnnouncement(ctx context.Context, automation st
 	}
 	content := "Cancelled: " + seen.Title + "\n" +
 		"This was scheduled for " + seen.StartsAt.In(s.location).Format(announceTimeLayout) + " and has been cancelled."
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if err := s.discord.EditMessage(posted.ChannelID, posted.MessageID, content); err != nil {
 		return fmt.Errorf("edit cancelled announcement %s: %w", posted.MessageID, err)
 	}

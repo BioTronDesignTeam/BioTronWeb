@@ -27,6 +27,11 @@ import (
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
 )
 
+// schedulerStopTimeout bounds the wait for a tick in flight at shutdown. A
+// stopped tick sends nothing more, so all it has left is recording what it
+// already sent. Docker's default stop grace is ten seconds.
+const schedulerStopTimeout = 5 * time.Second
+
 func main() {
 	if err := run(); err != nil {
 		log.Fatal(err)
@@ -132,8 +137,23 @@ func run() error {
 			Location: location,
 		})
 		schedulerCtx, stopScheduler := context.WithCancel(context.Background())
-		defer stopScheduler()
-		go sched.Run(schedulerCtx, cfg.PollInterval)
+		schedulerDone := make(chan struct{})
+		go func() {
+			defer close(schedulerDone)
+			sched.Run(schedulerCtx, cfg.PollInterval)
+		}()
+		// Deferred after the bot's Close, so it runs before it: the tick in
+		// flight finishes recording what it sent while the session and the
+		// store are still open. A message left unrecorded is sent again
+		// after the restart.
+		defer func() {
+			stopScheduler()
+			select {
+			case <-schedulerDone:
+			case <-time.After(schedulerStopTimeout):
+				log.Printf("scheduler still running after %s; closing anyway", schedulerStopTimeout)
+			}
+		}()
 		events.LogAsync(logclient.Info, "Scheduler started", map[string]any{
 			"poll_interval": cfg.PollInterval.String(),
 		})
