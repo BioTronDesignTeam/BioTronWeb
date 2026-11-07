@@ -37,7 +37,7 @@ def docker_available():
 
 def postgres_image():
     compose = (ROOT / 'infra/docker-compose.yml').read_text()
-    return re.search(r'image: &postgres-image (\S+)', compose).group(1)
+    return re.search(r'image: (postgres:\S+)', compose).group(1)
 
 
 @unittest.skipUnless(docker_available(), 'needs a Docker daemon')

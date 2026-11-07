@@ -36,7 +36,7 @@ owner=${PGUSER:-biotron} owner_password=${PGPASSWORD:-}
 [[ -n $owner_password ]] || { echo 'test-database: set PGPASSWORD to the owner password' >&2; exit 2; }
 
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-image=$(sed -nE 's/^ *image: &postgres-image ([^[:space:]]+).*/\1/p' "$root/infra/docker-compose.yml")
+image=$(sed -nE 's/^ *image: (postgres:[^[:space:]]+).*/\1/p' "$root/infra/docker-compose.yml" | head -n 1)
 [[ -n $image ]] || { echo 'test-database: no postgres image in infra/docker-compose.yml' >&2; exit 1; }
 pg_host=${host%:*} pg_port=${host##*:}
 say() { echo "test-database: $*" >&2; }

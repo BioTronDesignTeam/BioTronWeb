@@ -140,7 +140,7 @@ class RuntimeConfigTests(unittest.TestCase):
 
     def test_ci_tests_against_the_postgres_that_instances_run(self):
         compose = (ROOT / 'infra/docker-compose.yml').read_text()
-        image = re.search(r'image: &postgres-image (\S+)', compose).group(1)
+        image = re.search(r'image: (postgres:\S+)', compose).group(1)
         ci = (ROOT / '.github/workflows/ci.yml').read_text()
         self.assertIn(f"image: ${{{{ matrix.app != 'exogui' && '{image}' || '' }}}}", ci)
         self.assertIn('scripts/test-database --network host --host 127.0.0.1:5432', ci)

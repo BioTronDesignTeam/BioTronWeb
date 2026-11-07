@@ -223,7 +223,7 @@ start_test_database() {
     return 1
   fi
   password=$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')
-  image=$(sed -nE 's/^ *image: &postgres-image ([^[:space:]]+).*/\1/p' infra/docker-compose.yml)
+  image=$(sed -nE 's/^ *image: (postgres:[^[:space:]]+).*/\1/p' infra/docker-compose.yml | head -n 1)
   test_pg=biotron-precheck-pg-$$
   docker run -d --rm --name "$test_pg" --network "container:$self" -e POSTGRES_USER=biotron \
     -e POSTGRES_PASSWORD="$password" -e POSTGRES_DB=biotron "$image" -p 54329 >/dev/null || return 1
