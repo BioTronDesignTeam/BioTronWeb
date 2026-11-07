@@ -36,3 +36,25 @@ func TestLoadTrustedProxiesDefaultsToLoopbackAndSplitsCSV(t *testing.T) {
 		t.Fatalf("TrustedProxies = %v, want %v", got, want)
 	}
 }
+
+// A poll slower than the heartbeat would stretch every history gap past the
+// three-heartbeat tolerance once it reached it, and all uptime would read
+// unknown. Validate refuses it rather than serve a page of grey bars.
+func TestConfigRefusesPollSlowerThanTheGapTolerance(t *testing.T) {
+	baseEnv(t)
+	for _, c := range []struct {
+		interval, history string
+		ok                bool
+	}{
+		{"15s", "5m", true},
+		{"5m", "5m", true},
+		{"6m", "5m", false},
+		{"16m", "5m", false},
+	} {
+		t.Setenv("HEALTH_INTERVAL", c.interval)
+		t.Setenv("HEALTH_HISTORY_INTERVAL", c.history)
+		if err := Load().Validate(); (err == nil) != c.ok {
+			t.Errorf("HEALTH_INTERVAL=%s HEALTH_HISTORY_INTERVAL=%s: Validate() = %v, want ok=%v", c.interval, c.history, err, c.ok)
+		}
+	}
+}

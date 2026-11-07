@@ -45,6 +45,13 @@ func (c Config) Validate() error {
 	if c.HealthInterval <= 0 || c.HealthHistoryInterval <= 0 || c.HealthTimeout <= 0 {
 		return errors.New("health durations must be positive")
 	}
+	// History keeps a row per heartbeat, and the status routes count a gap of
+	// more than three heartbeats as time nobody was watching. A poll slower than
+	// the heartbeat stretches every gap to the poll interval, and past three
+	// heartbeats all uptime would read unknown, so the poll must keep up.
+	if c.HealthInterval > c.HealthHistoryInterval {
+		return errors.New("HEALTH_INTERVAL must not exceed HEALTH_HISTORY_INTERVAL")
+	}
 	if c.StatusCacheTTL <= 0 || c.StatusRateLimit < 1 {
 		return errors.New("status cache TTL and rate limit must be positive")
 	}
