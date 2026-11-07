@@ -55,7 +55,8 @@ status="status_app:$STATUS_DB_PASSWORD" sprinter="sprinter_app:$SPRINTER_DB_PASS
 : "${CALENDAR_SITE_URL:=https://$d}"
 : "${CALENDAR_VITE_API_URL:=/api}"
 : "${CALENDAR_PUBLIC_BASE_URL:=https://calendar.$d/api}"
-: "${CALENDAR_CORS_ORIGINS:=https://calendar.$d,https://$d}"
+# Sprinter's admin page reads the scope list, a public route, from its own origin.
+: "${CALENDAR_CORS_ORIGINS:=https://calendar.$d,https://$d,https://sprinter.$d}"
 : "${CALENDAR_ADMIN_CORS_ORIGINS:=https://calendar.$d}"
 : "${EXOGUI_FRONTEND_URL:=https://exogui.$d}"
 : "${SPRINTER_FRONTEND_URL:=https://sprinter.$d}"

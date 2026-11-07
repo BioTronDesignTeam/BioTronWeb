@@ -82,6 +82,14 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertEqual(services['auth-web']['ports'][0]['published'], '15173')
         self.assertEqual(services['sprinter-web']['ports'][0]['published'], '15178')
 
+    def test_calendar_lets_local_sprinter_read_its_scopes(self):
+        origins = self.config()['services']['calendar-api']['environment']['CORS_ORIGINS']
+        for origin in ('http://localhost:5178', 'http://127.0.0.1:5178'):
+            self.assertIn(origin, origins.split(','))
+        example = (ROOT / 'apps/calendar/.env.example').read_text()
+        line = next(line for line in example.splitlines() if line.startswith('CORS_ORIGINS='))
+        self.assertEqual(line.split('=', 1)[1], origins)
+
     def test_launch_accepts_injected_values(self):
         self.secrets()
         result = self.run_command('./launch', 'web', '--runtime', '--dry-run')
@@ -324,6 +332,8 @@ class RuntimeConfigTests(unittest.TestCase):
                          'https://auth.example.test/api/auth/github/callback')
         self.assertEqual(env['AUTH_COOKIE_DOMAIN'], '.example.test')
         self.assertEqual(env['CALENDAR_SITE_URL'], 'https://example.test')
+        # Sprinter's admin page reads Calendar's scope list from its own origin.
+        self.assertIn('https://sprinter.example.test', env['CALENDAR_CORS_ORIGINS'].split(','))
         # A value Infisical sets wins over the derived one.
         env = self.instance_defaults(AUTH_FRONTEND_URL='https://login.example.test')
         self.assertEqual(env['AUTH_FRONTEND_URL'], 'https://login.example.test')
