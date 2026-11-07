@@ -6,7 +6,7 @@ usage() {
   cat <<'USAGE'
 Usage: ./pr-precheck [--base REF] [--all] [--plan]
 
-Run CI's build, lint, test, sqlc, workflow, secret, and vulnerability checks
+Run CI's build, type, lint, test, sqlc, workflow, secret, and vulnerability checks
 locally.
 Includes committed, staged, unstaged, and untracked nonignored changes.
 
@@ -170,6 +170,7 @@ scan_secrets() {
 if [[ -n $frontends ]]; then
   run 'npm dependencies' npm ci --ignore-scripts
   if $last_passed; then
+    run 'shared style types' npm run typecheck -w packages/style
     run 'shared style build' npm run build -w packages/style
     style_built=$last_passed
     for app in $frontends; do

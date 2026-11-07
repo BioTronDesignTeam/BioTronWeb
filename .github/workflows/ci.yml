@@ -164,6 +164,25 @@ jobs:
       # through the app's own tsconfig.
       - run: npx oxlint "apps/$APP/frontend/src"
 
+  # The shared library, once for every frontend run: each app build above
+  # only type-checks the parts of it that app imports.
+  frontend-shared:
+    name: frontend shared
+    needs: changes
+    if: needs.changes.outputs.frontends != '[]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --ignore-scripts --include-workspace-root --workspace packages/style
+      - run: npm run typecheck -w packages/style
+
   backend:
     name: backend ${{ matrix.app }}
     needs: changes
@@ -326,7 +345,7 @@ jobs:
   passed:
     name: ci passed
     if: always()
-    needs: [compose-config, changes, frontend, backend, shared, secrets, vulnerabilities, shellcheck]
+    needs: [compose-config, changes, frontend, frontend-shared, backend, shared, secrets, vulnerabilities, shellcheck]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
