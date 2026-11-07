@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -31,8 +32,24 @@ type grafana struct {
 	token      string
 	resource   []otlpAttribute
 	httpClient *http.Client
-	batch      *batcher[otlpRecord]
+	// batch carries every event but the audit trail, which has audit, a
+	// queue of its own: a flood of request lines can fill batch, and then
+	// drops its events, but never an audit event.
+	batch *batcher[otlpRecord]
+	audit *batcher[otlpRecord]
 }
+
+// eventClass is how much an event matters when Grafana's queue is full.
+type eventClass int
+
+const (
+	// ordinaryEvent is queued until the queue is full.
+	ordinaryEvent eventClass = iota
+	// sheddableEvent is queued only while the queue is less than half full.
+	sheddableEvent
+	// auditEvent goes to the audit queue.
+	auditEvent
+)
 
 // newGrafanaFromEnv reads GRAFANA_OTLP_ENDPOINT, GRAFANA_OTLP_USER, and
 // GRAFANA_OTLP_TOKEN. All three unset means disabled, quietly; some unset
@@ -82,22 +99,40 @@ func newGrafana(endpoint, user, token, service, environment string, options batc
 		httpClient: &http.Client{Timeout: options.timeout},
 	}
 	g.batch = newBatcher("Grafana log", options, g.send)
+	g.audit = newBatcher("Grafana audit log", options, g.send)
 	return g
 }
 
 // add converts the event now, on the caller's goroutine, so a payload the
-// caller changes afterwards cannot change what is sent.
-func (g *grafana) add(level Level, message string, payload any) {
+// caller changes afterwards cannot change what is sent. An event that names
+// who acted goes to the audit queue, whatever class the caller gave.
+func (g *grafana) add(level Level, message string, payload any, class eventClass) {
 	now := strconv.FormatInt(time.Now().UnixNano(), 10)
 	number, text := otlpSeverity(level)
-	g.batch.add(otlpRecord{
+	record := otlpRecord{
 		TimeUnixNano:         now,
 		ObservedTimeUnixNano: now,
 		SeverityNumber:       number,
 		SeverityText:         text,
 		Body:                 otlpValue{StringValue: &message},
 		Attributes:           otlpAttributes(payload),
-	})
+	}
+	if _, _, ok := actorOf(payload); ok {
+		class = auditEvent
+	}
+	switch class {
+	case auditEvent:
+		g.audit.add(record)
+	case sheddableEvent:
+		g.batch.addSheddable(record)
+	default:
+		g.batch.add(record)
+	}
+}
+
+// close sends what both queues hold and stops them.
+func (g *grafana) close(ctx context.Context) error {
+	return errors.Join(g.audit.close(ctx), g.batch.close(ctx))
 }
 
 func (g *grafana) send(ctx context.Context, records []otlpRecord) error {

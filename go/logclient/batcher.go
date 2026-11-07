@@ -25,6 +25,7 @@ type batcher[T any] struct {
 	closing   chan struct{}
 	done      chan struct{}
 	dropped   atomic.Int64
+	shed      atomic.Int64
 	// failing is touched only by the run goroutine. It keeps a destination
 	// that is down from writing one line per batch to the standard log.
 	failing bool
@@ -69,6 +70,19 @@ func (b *batcher[T]) add(item T) {
 			log.Printf("%s delivery busy; %d events dropped so far", b.name, n)
 		}
 	}
+}
+
+// addSheddable is add for an item that matters least. It is queued only while
+// the queue is less than half full, so a flood of such items is shed first
+// and always leaves room for the rest.
+func (b *batcher[T]) addSheddable(item T) {
+	if len(b.queue) >= cap(b.queue)/2 {
+		if n := b.shed.Add(1); n%1000 == 1 {
+			log.Printf("%s delivery busy; %d low-priority events shed so far", b.name, n)
+		}
+		return
+	}
+	b.add(item)
 }
 
 // close sends what is queued and stops. It waits until that is done or ctx
