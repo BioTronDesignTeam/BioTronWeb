@@ -44,10 +44,7 @@ func mentions(users []string) *discordgo.MessageAllowedMentions {
 }
 
 func (d DiscordSession) SendMessage(channelID, content string, mentionUsers []string) (string, error) {
-	message, err := d.Session.ChannelMessageSendComplex(channelID, &discordgo.MessageSend{
-		Content:         content,
-		AllowedMentions: mentions(mentionUsers),
-	})
+	message, err := d.Session.ChannelMessageSendComplex(channelID, sendPayload(content, mentionUsers))
 	if err != nil {
 		return "", err
 	}
@@ -55,12 +52,7 @@ func (d DiscordSession) SendMessage(channelID, content string, mentionUsers []st
 }
 
 func (d DiscordSession) EditMessage(channelID, messageID, content string) error {
-	_, err := d.Session.ChannelMessageEditComplex(&discordgo.MessageEdit{
-		Channel:         channelID,
-		ID:              messageID,
-		Content:         &content,
-		AllowedMentions: mentions(nil),
-	})
+	_, err := d.Session.ChannelMessageEditComplex(editPayload(channelID, messageID, content))
 	return err
 }
 
@@ -70,12 +62,26 @@ func (d DiscordSession) DirectMessage(userID, content string) (string, error) {
 		return "", err
 	}
 	// A DM already reaches the one person it is for, so it needs no ping.
-	message, err := d.Session.ChannelMessageSendComplex(channel.ID, &discordgo.MessageSend{
-		Content:         content,
-		AllowedMentions: mentions(nil),
-	})
+	message, err := d.Session.ChannelMessageSendComplex(channel.ID, sendPayload(content, nil))
 	if err != nil {
 		return "", err
 	}
 	return message.ID, nil
+}
+
+// noEmbeds is on every message the scheduler posts or edits. An event's
+// title, location and URL come from Calendar and a nudge's draft from a
+// model; Discord would otherwise unfurl any link among them, fetching it the
+// moment the message posts.
+const noEmbeds = discordgo.MessageFlagsSuppressEmbeds
+
+func sendPayload(content string, mentionUsers []string) *discordgo.MessageSend {
+	return &discordgo.MessageSend{Content: content, AllowedMentions: mentions(mentionUsers), Flags: noEmbeds}
+}
+
+func editPayload(channelID, messageID, content string) *discordgo.MessageEdit {
+	return &discordgo.MessageEdit{
+		Channel: channelID, ID: messageID, Content: &content,
+		AllowedMentions: mentions(nil), Flags: noEmbeds,
+	}
 }
