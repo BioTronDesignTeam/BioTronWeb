@@ -84,9 +84,7 @@ func (h *Handler) listUpcoming(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	w.Header().Set("Content-Type", "application/json")
-	// The window slides with the clock, so an unchanged Last-Modified must never
-	// be allowed to serve a stale 304; the content-hash ETag still can.
-	return sendCacheable(w, r, body, latestChange(series), false)
+	return sendCacheable(w, r, body, latestChange(series))
 }
 
 // upcomingOccurrences is the rule this endpoint exists to own, kept out of the
