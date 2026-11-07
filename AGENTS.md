@@ -327,7 +327,8 @@ writing the words again, and keep docs that quote the UI in step.
   `/past-projects` redirects to `/projects#past`.
 - Use black and graphite surfaces. Purple `#160b6c` is the main highlight and
   blue `#3050b0` the second. Do not use pale blue `#aedbfc` in the site UI.
-- The hero reads exactly two lines: `Welcome to`, then `Biotron.`
+- The hero reads exactly two lines, `Welcome to` then `Biotron.`, in every
+  layout: the flythrough and the stacked homepage alike.
 - The hero's resting offset belongs on `.flythrough__hero-content`. GSAP
   animates `.flythrough__hero`. Putting both transforms on one element makes
   the page jump on the first pixel of scroll.

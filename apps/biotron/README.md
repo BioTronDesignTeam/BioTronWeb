@@ -13,7 +13,8 @@ The homepage is a scroll-driven tour of a Three.js workshop room. The camera
 stops at the About board, EXO, EMG Fabric, and e-NABLE, and a panel shows
 each stop's content. Phones narrower than 640px, phones held in landscape,
 browsers without WebGL, and reduced-motion visitors get the same content as
-a stacked page instead. The 3D models are procedural placeholders;
+a stacked page instead. Both heroes read the same two lines, `Welcome to`
+then `Biotron.` The 3D models are procedural placeholders;
 `frontend/public/models/README.md` says how to replace them with GLB files.
 
 This app was the `Biotron-Site` repository, then `apps/site`. Its Compose project is

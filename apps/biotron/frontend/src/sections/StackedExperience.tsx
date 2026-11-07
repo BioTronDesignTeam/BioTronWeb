@@ -1,7 +1,6 @@
 import { ArrowUpRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Reveal from '../components/Reveal';
-import SplitText from '../components/SplitText';
 import CountUp from '../components/CountUp';
 import ModelFallback from '../components/ModelFallback';
 import ActionButton from '../components/ActionButton';
@@ -18,15 +17,14 @@ export default function StackedExperience() {
       <section className="shero">
         <div className="shero__inner container">
           <span className="eyebrow mono-label">UW Biomechatronics Design Team</span>
-          <SplitText
-            as="h1"
-            className="shero__title"
-            text="We build technology that moves with people."
-            by="word"
-          />
+          {/* The same two lines as the fly-through hero: every layout reads them. */}
+          <h1 className="shero__title">
+            <span className="line">Welcome to</span>
+            <span className="line accent">Biotron.</span>
+          </h1>
           <p className="shero__lead">
-            Our projects include powered exoskeletons, EMG wearables, and 3D-printed assistive
-            devices.
+            We build technology that moves with people: powered exoskeletons, EMG wearables, and
+            3D-printed assistive devices.
           </p>
           <div className="shero__cta">
             <ActionButton to="/projects" variant="primary">

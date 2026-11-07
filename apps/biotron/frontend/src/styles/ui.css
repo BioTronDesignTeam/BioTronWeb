@@ -626,6 +626,17 @@
 .shero__title {
   font-size: var(--fs-3xl);
   margin: 1rem 0 1.4rem;
+  line-height: 0.95;
+}
+.shero__title .line {
+  display: block;
+}
+.shero__title .line:first-child {
+  white-space: nowrap;
+}
+.shero__title .accent {
+  color: var(--accent-secondary);
+  text-shadow: 0 0 40px var(--accent-glow);
 }
 .shero__lead {
   font-size: var(--fs-lg);
