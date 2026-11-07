@@ -55,7 +55,7 @@ func (h *Handler) RequireSession(next http.Handler) http.Handler {
 			if !h.guestKeyStands(w, r, session) {
 				return
 			}
-		} else if !h.stillMember(w, r, member.GitHubID, member.Login) {
+		} else if !h.stillMember(w, r, member.GitHubID) {
 			return
 		}
 		op := &store.SessionOperator{
@@ -79,15 +79,15 @@ func (h *Handler) RequireSession(next http.Handler) http.Handler {
 // with 401, as a ban is, so every tool sends them to sign in, where GitHub
 // refuses them. When GitHub cannot answer and no answer of the last
 // MembershipTTL is kept, the request fails closed with 503. The check goes
-// by login, so an operator who renamed their GitHub account must sign in
-// again to store the new one.
-func (h *Handler) stillMember(w http.ResponseWriter, r *http.Request, githubID int64, login string) bool {
+// by GitHub id, so a renamed account keeps its access and a login that
+// someone else later claims cannot borrow it.
+func (h *Handler) stillMember(w http.ResponseWriter, r *http.Request, githubID int64) bool {
 	if h.Members == nil {
 		fail(r, errors.New("no membership check configured"), "auth: membership")
 		httpx.Status(w, http.StatusServiceUnavailable)
 		return false
 	}
-	member, err := h.Members.Member(r.Context(), githubID, login)
+	member, err := h.Members.Member(r.Context(), githubID)
 	if err != nil {
 		fail(r, err, "auth: membership re-check")
 		httpx.Status(w, http.StatusServiceUnavailable)

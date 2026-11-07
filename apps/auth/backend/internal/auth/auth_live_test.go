@@ -39,7 +39,7 @@ func liveHandler(t *testing.T) (*Handler, *store.Store) {
 		Store:   st,
 		Cache:   cache.New(st),
 		GitHub:  github,
-		Members: NewMembership(github.IsOrgMember),
+		Members: NewMembership(github.IsOrgMemberByID),
 		Signer:  NewSigner(testSigningKey),
 		Cfg: Config{
 			FrontendURL:    "http://localhost:5173",

@@ -23,7 +23,7 @@ func (storedSuperuser) GetOperator(_ context.Context, githubID int64) (*store.Or
 // SUPERUSER_GITHUB_IDS decides on every request, whatever the stored flag
 // says, so removing an id and redeploying applies to the next request.
 func TestSuperuserComesFromTheConfiguredList(t *testing.T) {
-	github := &fakeGitHubMembers{members: map[string]bool{"octo": true}}
+	github := &fakeGitHubMembers{members: map[int64]bool{42: true}}
 	for _, tc := range []struct {
 		name   string
 		listed map[int64]bool
@@ -35,7 +35,7 @@ func TestSuperuserComesFromTheConfiguredList(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			h := &Handler{
 				Cache:   cache.New(storedSuperuser{}),
-				Members: NewMembership(github.IsOrgMember),
+				Members: NewMembership(github.IsOrgMemberByID),
 				Signer:  NewSigner(testSigningKey),
 				Cfg:     Config{IsSuperuserID: func(id int64) bool { return tc.listed[id] }},
 			}

@@ -208,10 +208,51 @@ func (g *GitHubClient) IsOrgMember(ctx context.Context, login string) (bool, err
 	}
 }
 
-// membershipStatus asks GitHub once, and once more with a new installation
-// token if GitHub refused the kept one.
+// IsOrgMemberByID reports whether the GitHub account githubID is a member of
+// the organization. A login can be renamed and then claimed by someone else,
+// so a stored login is never trusted: the account's current login is asked of
+// GitHub by its numeric id, which never changes, and that login's membership
+// is checked. An account GitHub no longer knows is not a member.
+func (g *GitHubClient) IsOrgMemberByID(ctx context.Context, githubID int64) (bool, error) {
+	login, found, err := g.currentLogin(ctx, githubID)
+	if err != nil || !found {
+		return false, err
+	}
+	return g.IsOrgMember(ctx, login)
+}
+
+// currentLogin returns the login GitHub now gives the account githubID, from
+// GET /user/{account_id}; found is false when GitHub answers 404, for an
+// account that was deleted.
+func (g *GitHubClient) currentLogin(ctx context.Context, githubID int64) (login string, found bool, err error) {
+	var user GitHubUser
+	status, err := g.appGet(ctx, "/user/"+strconv.FormatInt(githubID, 10), &user)
+	if err != nil {
+		return "", false, err
+	}
+	switch status {
+	case http.StatusOK:
+		if user.ID != githubID || user.Login == "" {
+			return "", false, errors.New("github user lookup: answer for another account or without a login")
+		}
+		return user.Login, true, nil
+	case http.StatusNotFound:
+		return "", false, nil
+	default:
+		return "", false, fmt.Errorf("github user lookup: status %d", status)
+	}
+}
+
+// membershipStatus asks GitHub whether login is a member.
 func (g *GitHubClient) membershipStatus(ctx context.Context, login string) (int, error) {
-	path := "/orgs/" + url.PathEscape(g.org) + "/members/" + url.PathEscape(login)
+	return g.appGet(ctx, "/orgs/"+url.PathEscape(g.org)+"/members/"+url.PathEscape(login), nil)
+}
+
+// appGet GETs path with the installation token, once, and once more with a
+// new token if GitHub refused the kept one. A 200 answer is decoded into out
+// when out is not nil. It returns the status; only a failure to ask, or to
+// read a 200, is an error.
+func (g *GitHubClient) appGet(ctx context.Context, path string, out any) (int, error) {
 	for attempt := 1; ; attempt++ {
 		token, err := g.installationToken(ctx)
 		if err != nil {
@@ -221,17 +262,31 @@ func (g *GitHubClient) membershipStatus(ctx context.Context, login string) (int,
 		if err != nil {
 			return 0, err
 		}
-		resp, err := g.http.Do(req)
+		status, err := g.doAppGet(req, out)
 		if err != nil {
-			return 0, fmt.Errorf("github membership check: %w", redact(err))
+			return 0, err
 		}
-		_ = resp.Body.Close()
-		if resp.StatusCode == http.StatusUnauthorized && attempt == 1 {
+		if status == http.StatusUnauthorized && attempt == 1 {
 			g.dropToken(token)
 			continue
 		}
-		return resp.StatusCode, nil
+		return status, nil
 	}
+}
+
+// doAppGet sends one request of appGet.
+func (g *GitHubClient) doAppGet(req *http.Request, out any) (int, error) {
+	resp, err := g.http.Do(req)
+	if err != nil {
+		return 0, fmt.Errorf("github GET %s: %w", req.URL.Path, redact(err))
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusOK && out != nil {
+		if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(out); err != nil {
+			return 0, fmt.Errorf("github GET %s: unreadable answer", req.URL.Path)
+		}
+	}
+	return resp.StatusCode, nil
 }
 
 // installationToken returns the token of the App's installation on the
