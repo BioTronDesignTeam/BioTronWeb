@@ -65,7 +65,6 @@ jobs:
               - 'go.work'
               - 'go.work.sum'
               - 'go/**'
-              - '.golangci.yml'
               - '.devcontainer/Dockerfile'
             biotron:
               - 'apps/biotron/**'
@@ -177,10 +176,13 @@ jobs:
         with:
           go-version-file: apps/${{ matrix.app }}/backend/go.mod
           cache-dependency-path: apps/${{ matrix.app }}/backend/go.sum
+      # The one config under go/ serves every module; nothing finds it by
+      # walking up from a module, so it is named.
       - uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
         with:
           version: ${{ needs.changes.outputs.golangci-lint }}
           working-directory: apps/${{ matrix.app }}/backend
+          args: --config=${{ github.workspace }}/go/.golangci.yml
       - run: go vet ./...
       - run: go test ./...
 
@@ -207,10 +209,13 @@ jobs:
         with:
           go-version-file: go/${{ matrix.module }}/go.mod
           cache-dependency-path: go/${{ matrix.module }}/go.sum
+      # The one config under go/ serves every module; nothing finds it by
+      # walking up from a module, so it is named.
       - uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
         with:
           version: ${{ needs.changes.outputs.golangci-lint }}
           working-directory: go/${{ matrix.module }}
+          args: --config=${{ github.workspace }}/go/.golangci.yml
       - run: go vet ./...
       - run: go test ./...
 

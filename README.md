@@ -127,8 +127,8 @@ affected frontends, then run golangci-lint, `go vet`, `go test`, and (where
 the backend has a `sqlc.yaml`) `sqlc diff` for affected backends, lint
 every workflow with actionlint and zizmor, and run ShellCheck on every shell
 script. Shared tooling changes expand the checks to their consumers. Changes
-to the precheck, devcontainer, CI workflow, or `.golangci.yml` check every
-app.
+to the precheck, devcontainer, CI workflow, or anything under `go/`, such as
+`go/.golangci.yml`, check every app.
 
 ```bash
 ./pr-precheck --plan             # inspect the selected checks
@@ -172,7 +172,7 @@ through their existing test-database environment variables.
 | `.github/rulesets/main.json` | The `main` ruleset, as code; `scripts/apply-rulesets` applies it |
 | `.github/workflows/codeql.yml` | CodeQL for Go, TypeScript, and the workflows, on pull requests, `main`, and each Monday |
 | `.github/dependabot.yml` | Weekly grouped updates for Go, npm (root and Prisma), actions, Dockerfiles, and compose files |
-| `.golangci.yml` | One golangci-lint config for every Go module; it lists each enabled linter and why |
+| `go/.golangci.yml` | One golangci-lint config for every Go module, passed with `--config`; it lists each enabled linter and why |
 
 Every action is pinned by commit SHA with its release in a comment, and
 Dependabot moves both, after a week of cooldown. Every check job reads the
