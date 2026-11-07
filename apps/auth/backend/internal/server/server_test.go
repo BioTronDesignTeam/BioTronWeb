@@ -1,8 +1,12 @@
 package server
 
 import (
+	"io"
+	"log"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -305,5 +309,30 @@ func TestLimiterRetryAfterAndWindowReset(t *testing.T) {
 	now = now.Add(45 * time.Second)
 	if again := serve(app, httptest.NewRequest(http.MethodPost, "/", nil)); again.Code != http.StatusNoContent {
 		t.Fatalf("after the window = %d, want the request admitted", again.Code)
+	}
+}
+
+// A trusted proxy's header counts only when it holds an address, and a /0 in
+// TRUSTED_PROXIES trusts no one rather than everyone.
+func TestClientIPTakesOnlyAnAddressFromATrustedProxy(t *testing.T) {
+	log.SetOutput(io.Discard)
+	t.Cleanup(func() { log.SetOutput(os.Stderr) })
+	key := clientIP([]string{"172.16.0.0/12", "0.0.0.0/0", "::/0"})
+	for _, tc := range []struct {
+		peer, header, want string
+	}{
+		{"172.18.0.5", "203.0.113.10", "203.0.113.10"},
+		{"172.18.0.5", "::ffff:203.0.113.10", "203.0.113.10"},
+		{"172.18.0.5", "not-an-address", "172.18.0.5"},
+		{"172.18.0.5", "203.0.113.10, 198.51.100.1", "172.18.0.5"},
+		{"198.51.100.7", "203.0.113.10", "198.51.100.7"},
+		{"2001:db8::1", "203.0.113.10", "2001:db8::1"},
+	} {
+		request := httptest.NewRequest(http.MethodPost, "/auth/guest", nil)
+		request.RemoteAddr = net.JoinHostPort(tc.peer, "40000")
+		request.Header.Set("Cf-Connecting-Ip", tc.header)
+		if got := key(request); got != tc.want {
+			t.Errorf("peer %s, header %q: key = %q, want %q", tc.peer, tc.header, got, tc.want)
+		}
 	}
 }

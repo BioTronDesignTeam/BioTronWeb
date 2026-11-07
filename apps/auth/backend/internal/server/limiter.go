@@ -82,7 +82,10 @@ func clientIP(trustedProxies []string) func(*http.Request) string {
 	var trusted []netip.Prefix
 	for _, entry := range trustedProxies {
 		entry = strings.TrimSpace(entry)
-		if prefix, err := netip.ParsePrefix(entry); err == nil {
+		if prefix, err := netip.ParsePrefix(entry); err == nil && prefix.Bits() == 0 {
+			// A /0 trusts every peer, so anyone could pick their own bucket.
+			log.Printf("TRUSTED_PROXIES: ignoring %q, which trusts every address", entry)
+		} else if err == nil {
 			trusted = append(trusted, prefix.Masked())
 		} else if addr, err := netip.ParseAddr(entry); err == nil {
 			trusted = append(trusted, netip.PrefixFrom(addr.Unmap(), addr.Unmap().BitLen()))
@@ -102,8 +105,10 @@ func clientIP(trustedProxies []string) func(*http.Request) string {
 		peer = peer.Unmap()
 		for _, prefix := range trusted {
 			if prefix.Contains(peer) {
-				if forwarded := strings.TrimSpace(r.Header.Get("Cf-Connecting-Ip")); forwarded != "" {
-					return forwarded
+				// Only an address is a key: anything else from the edge is a
+				// fault, and would let one client make up endless buckets.
+				if forwarded, err := netip.ParseAddr(strings.TrimSpace(r.Header.Get("Cf-Connecting-Ip"))); err == nil {
+					return forwarded.Unmap().String()
 				}
 				break
 			}
