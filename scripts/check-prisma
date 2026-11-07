@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+# Checks every app's Prisma schema (apps/*/prisma) with the one Prisma CLI of
+# infra/migrate:
+#
+#   - prisma format --check: schema.prisma is formatted.
+#   - prisma migrate diff --exit-code: the migrations, applied in order to an
+#     empty shadow database, build exactly what schema.prisma declares. A
+#     difference means a schema change without its migration, or a migration
+#     that the schema does not describe.
+#
+# The shadow databases are new ones, made in the Postgres of
+# PRISMA_CHECK_DATABASE_URL and dropped at the end, because Prisma empties a
+# shadow database before it uses it. That URL needs a user that may create
+# databases; it defaults to the devcontainer's Postgres. CI points it at a
+# Postgres service container.
+#
+# Install the CLI first: npm ci --prefix infra/migrate.
+# ./pr-precheck and the prisma job of .github/workflows/ci.yml run it.
+set -euo pipefail
+
+top=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)
+cd "$top"
+prisma=$top/infra/migrate/node_modules/.bin/prisma
+if [[ ! -x $prisma ]]; then
+  echo 'No Prisma CLI in infra/migrate: run npm ci --prefix infra/migrate first.' >&2
+  exit 1
+fi
+# No update notice, and no check for a newer version.
+export PRISMA_HIDE_UPDATE_MESSAGE=1 CHECKPOINT_DISABLE=1
+
+# The devcontainer's throwaway credentials (.devcontainer/docker-compose.yml).
+server=${PRISMA_CHECK_DATABASE_URL:-postgresql://biotron:change-me@postgres:5432/biotron} # trufflehog:ignore
+server=${server%%\?*}
+if ! psql "$server" -qtAc 'SELECT 1' >/dev/null; then
+  echo "Cannot reach the Postgres of PRISMA_CHECK_DATABASE_URL (${server%%://*}://...@${server#*@})." >&2
+  exit 1
+fi
+
+shadows=()
+cleanup() {
+  local name
+  for name in "${shadows[@]:-}"; do
+    if [[ -n $name ]]; then psql "$server" -qc "DROP DATABASE IF EXISTS $name WITH (FORCE)" >/dev/null || true; fi
+  done
+}
+trap cleanup EXIT
+
+failed=0
+for schema in apps/*/prisma/schema.prisma; do
+  dir=${schema%/schema.prisma}
+  app=${dir#apps/}
+  app=${app%%/*}
+  echo "== $app"
+  if ! "$prisma" format --check --schema "$schema"; then
+    echo "Run infra/migrate/node_modules/.bin/prisma format --schema $schema." >&2
+    failed=1
+  fi
+
+  # The app's own schema (?schema= of DATABASE_URL in its .env.example), so
+  # the shadow database looks like the real one.
+  namespace=$(sed -nE 's/^DATABASE_URL=[^#]*[?&]schema=([a-z_]+).*/\1/p' "apps/$app/.env.example" 2>/dev/null | head -n 1)
+  name="prisma_check_${app}_$$"
+  shadows+=("$name")
+  psql "$server" -qc "DROP DATABASE IF EXISTS $name WITH (FORCE)" -c "CREATE DATABASE $name" >/dev/null
+  url="${server%/*}/$name?schema=${namespace:-public}"
+  status=0
+  # DATABASE_URL names the schema that schema.prisma's models live in.
+  DATABASE_URL=$url "$prisma" migrate diff --exit-code --script \
+    --from-migrations "$dir/migrations" --to-schema-datamodel "$schema" \
+    --shadow-database-url "$url" || status=$?
+  if [[ $status -eq 2 ]]; then
+    echo "The migrations of apps/$app differ from schema.prisma: the SQL above is the difference. Write the change as a migration (infra/migrate/migrate $app dev --name <name>), or fix schema.prisma to describe the database." >&2
+  fi
+  if [[ $status -ne 0 ]]; then failed=1; fi
+done
+
+[[ $failed -eq 0 ]]
