@@ -135,6 +135,10 @@ jobs:
       fail-fast: false
       matrix:
         app: ${{ fromJSON(needs.changes.outputs.frontends) }}
+    # The run: steps read the app from the environment, never from an
+    # expression pasted into the script.
+    env:
+      APP: ${{ matrix.app }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -145,12 +149,12 @@ jobs:
           cache: npm
       # Only this app, the shared library, and the root lint tooling. Scripts
       # stay off, as in the Dockerfiles: the library is built explicitly.
-      - run: npm ci --ignore-scripts --include-workspace-root --workspace packages/style --workspace apps/${{ matrix.app }}/frontend
+      - run: npm ci --ignore-scripts --include-workspace-root --workspace packages/style --workspace "apps/$APP/frontend"
       - run: npm run build -w packages/style
-      - run: npm run build -w apps/${{ matrix.app }}/frontend
+      - run: npm run build -w "apps/$APP/frontend"
       # Oxlint reads .oxlintrc.json at the root; type-aware rules resolve
       # through the app's own tsconfig.
-      - run: npx oxlint apps/${{ matrix.app }}/frontend/src
+      - run: npx oxlint "apps/$APP/frontend/src"
 
   backend:
     name: backend ${{ matrix.app }}
