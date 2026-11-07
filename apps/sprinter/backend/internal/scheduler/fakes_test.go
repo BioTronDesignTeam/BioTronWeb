@@ -121,6 +121,11 @@ type fakeCalendar struct {
 	// from and to record the last window asked for, so a test can pin the
 	// span the cancellation check compares over.
 	from, to time.Time
+
+	// feedBody is the all.ics the feed answers with; feedErr fails it.
+	feedBody  string
+	feedErr   error
+	feedCalls int
 }
 
 func (f *fakeCalendar) Occurrences(_ context.Context, _ string, from, to time.Time) ([]calendar.Occurrence, error) {
@@ -130,6 +135,23 @@ func (f *fakeCalendar) Occurrences(_ context.Context, _ string, from, to time.Ti
 		return nil, f.err
 	}
 	return f.occurrences, nil
+}
+
+// emptyFeed is a calendar with no series in it: every vanished occurrence
+// reads as deleted.
+const emptyFeed = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nEND:VCALENDAR\r\n"
+
+// Feed answers with feedBody, an empty calendar when unset, or feedErr.
+func (f *fakeCalendar) Feed(context.Context) (*calendar.Feed, error) {
+	f.feedCalls++
+	if f.feedErr != nil {
+		return nil, f.feedErr
+	}
+	body := f.feedBody
+	if body == "" {
+		body = emptyFeed
+	}
+	return calendar.ParseFeed([]byte(body), toronto)
 }
 
 // fakeDiscord records every call the scheduler makes and answers

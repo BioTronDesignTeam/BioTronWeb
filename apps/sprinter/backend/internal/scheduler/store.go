@@ -22,7 +22,10 @@ type Store interface {
 	InsertNudge(ctx context.Context, automationID, uid, recurrenceIDLocal string, sequence int, trigger, status string, messageID *string) (store.Nudge, error)
 }
 
-// Calendar is the part of Calendar's API the scheduler reads.
+// Calendar is the part of Calendar's API the scheduler reads: the windowed
+// occurrences, and the whole feed that says whether a vanished one was
+// cancelled.
 type Calendar interface {
 	Occurrences(ctx context.Context, scopeID string, from, to time.Time) ([]calendar.Occurrence, error)
+	Feed(ctx context.Context) (*calendar.Feed, error)
 }

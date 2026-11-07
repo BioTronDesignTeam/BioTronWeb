@@ -190,14 +190,21 @@ with a drafted announcement from the model: a DM, or a channel mention
 when `deliver` is `CHANNEL`. The lead can post the draft as is. Without a
 model the nudge still goes out, without the draft.
 
-Calendar's public feed drops a cancelled occurrence instead of flagging
-it. Sprinter remembers what it last saw, so a future occurrence that
-stops coming back is treated as cancelled: a NUDGE automation tells the
-lead, and an ANNOUNCE automation's post is edited to say so. Only an
-occurrence starting inside the fetch window counts; one starting past it
-was never asked for, so its absence means nothing. A cancellation nudge
-ignores the lookback check, because the announcement that would satisfy
-it is the message now being corrected.
+Calendar's `/v1/events` drops a cancelled occurrence instead of flagging
+it. It also drops one whose scope was archived, one moved to another
+scope, and one moved past the window's end. So Sprinter remembers what it
+last saw, and looks up each future occurrence that stops coming back in
+Calendar's All Events feed (`/v1/feeds/all.ics`), which keeps cancelled
+events, marked as such, and archived scopes. Only an occurrence the feed
+marks cancelled, or no longer has at all, is treated as cancelled: a
+NUDGE automation tells the lead, and an ANNOUNCE automation's post is
+edited to say so. Any other is forgotten without a word, and seen afresh
+if it comes back into view. When the feed cannot be read, nothing is
+decided until a tick that can read it. Only an occurrence starting inside
+the fetch window counts; one starting past it was never asked for, so its
+absence means nothing. A cancellation nudge ignores the lookback check,
+because the announcement that would satisfy it is the message now being
+corrected.
 
 No message Sprinter sends parses mentions. An event title or a model's
 draft cannot ping the server. The one exception is a channel nudge,
@@ -321,8 +328,8 @@ not.
 | `Authorization service unavailable` | error | `error` |
 | `Scheduler started` | info | `poll_interval` |
 | `Scheduler tick failed` | error | `error` |
-| `Calendar fetch failed` | error | `automation_id`, `error` |
-| `Occurrence vanished` | info | `automation_id`, `uid`, `recurrence_id_local` |
+| `Calendar fetch failed` | error | `automation_id`, `error`, `source` `feed` when the feed failed |
+| `Occurrence vanished` | info | `automation_id`, `uid`, `recurrence_id_local`, `status` (`exists`, `cancelled` or `deleted`) |
 | `Announcement posted` | info | `automation_id`, `uid`, `message_id` |
 | `Announcement updated` | info | `automation_id`, `uid`, `message_id` |
 | `Nudge satisfied` | info | `automation_id`, `uid`, `trigger` |

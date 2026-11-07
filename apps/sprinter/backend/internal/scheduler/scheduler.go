@@ -5,11 +5,12 @@
 //
 // Calendar's public JSON drops a cancelled occurrence instead of flagging
 // it, so the scheduler keeps its own memory of what it last saw
-// (store.SeenOccurrence) and treats a future occurrence that stopped coming
-// back as cancelled. Everything else it needs — Store, Calendar, Discord,
-// and the model that drafts a nudge's suggested announcement — is a small
-// interface this package owns, so a tick can be tested with in-memory fakes
-// and a fixed clock.
+// (store.SeenOccurrence). A future occurrence that stopped coming back is
+// looked up in Calendar's feed, and only one the feed marks cancelled or no
+// longer has is treated as cancelled. Everything else it needs — Store,
+// Calendar, Discord, and the model that drafts a nudge's suggested
+// announcement — is a small interface this package owns, so a tick can be
+// tested with in-memory fakes and a fixed clock.
 package scheduler
 
 import (
