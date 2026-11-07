@@ -16,6 +16,7 @@ type fakeSource struct {
 	loads       int
 	guestKey    string
 	beforeGrant func()
+	revoked     map[string]bool
 }
 
 func (f *fakeSource) GetOperator(_ context.Context, id int64) (*store.OrgMember, error) {
@@ -41,6 +42,11 @@ func (f *fakeSource) GetGuestKey(context.Context, string, string) (string, error
 		return "", store.ErrNotFound
 	}
 	return f.guestKey, nil
+}
+
+func (f *fakeSource) IsSessionRevoked(_ context.Context, sessionID string) (bool, error) {
+	f.loads++
+	return f.revoked[sessionID], nil
 }
 
 func newTestCache(src Source) (*Cache, *time.Time) {
@@ -146,5 +152,39 @@ func TestGuestKeyIsKeptUntilInvalidated(t *testing.T) {
 	*now = now.Add(TTL)
 	if _, err := c.GuestKey(ctx, "exo-gui", "2026-10-23"); !errors.Is(err, store.ErrNotFound) {
 		t.Fatalf("after the TTL err = %v, want ErrNotFound", err)
+	}
+}
+
+// A sign-out through this process applies to the very next request; one made
+// in the store alone, such as in psql, within the TTL.
+func TestRevokedSessionsApplyAtOnceAndStay(t *testing.T) {
+	src := &fakeSource{revoked: map[string]bool{}}
+	c, now := newTestCache(src)
+	ctx := context.Background()
+
+	if revoked, err := c.Revoked(ctx, "a"); err != nil || revoked {
+		t.Fatalf("a fresh session: revoked = %v, err = %v", revoked, err)
+	}
+	c.MarkRevoked("a")
+	if revoked, _ := c.Revoked(ctx, "a"); !revoked {
+		t.Fatal("MarkRevoked did not apply to the next request")
+	}
+
+	// Revoked in the store only: seen once the kept answer is older than the TTL.
+	if revoked, _ := c.Revoked(ctx, "b"); revoked {
+		t.Fatal("b revoked before anyone revoked it")
+	}
+	src.revoked["b"] = true
+	*now = now.Add(TTL)
+	if revoked, _ := c.Revoked(ctx, "b"); !revoked {
+		t.Fatal("a revocation in the store was not seen after the TTL")
+	}
+
+	// The kept revocation of a is swept, and the store still answers for it.
+	src.revoked["a"] = true
+	*now = now.Add(TTL)
+	c.MarkRevoked("c")
+	if revoked, _ := c.Revoked(ctx, "a"); !revoked {
+		t.Fatal("a revocation was forgotten")
 	}
 }

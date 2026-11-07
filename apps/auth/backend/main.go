@@ -168,6 +168,11 @@ func prune(st *store.Store, events *logclient.Client) {
 			log.Printf("pruned %d stale product daily keys", n)
 			events.LogAsync(logclient.Info, "Stale guest keys pruned", map[string]any{"count": n})
 		}
+		// A revoked session past its expiry is refused by its signature.
+		if _, err := st.DeleteExpiredRevokedSessions(context.Background()); err != nil {
+			log.Printf("prune revoked sessions: %v", err)
+			events.LogAsync(logclient.Error, "Revoked session prune failed", map[string]any{"error": err.Error()})
+		}
 		time.Sleep(time.Hour)
 	}
 }

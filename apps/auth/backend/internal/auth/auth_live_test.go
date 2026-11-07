@@ -164,7 +164,8 @@ func TestLiveSignInThenGrantRevokeAndBan(t *testing.T) {
 		t.Fatal("the revoke did not apply to the next check")
 	}
 
-	// 4. A ban refuses the very next request; an unban lets the cookie in again.
+	// 4. A ban refuses the very next request, and ends the session for good: an
+	// unban needs a new sign-in.
 	change(h.BanMember, http.MethodPost, "/org/members/42/ban", "")
 	if response := get(h.Me, "/auth/me", session); response.Code != http.StatusUnauthorized {
 		t.Fatalf("me after a ban = %d, want 401", response.Code)
@@ -173,8 +174,8 @@ func TestLiveSignInThenGrantRevokeAndBan(t *testing.T) {
 		t.Fatalf("session after a ban = %d, want 401", response.Code)
 	}
 	change(h.UnbanMember, http.MethodPost, "/org/members/42/unban", "")
-	if response := get(h.Me, "/auth/me", session); response.Code != http.StatusOK {
-		t.Fatalf("me after an unban = %d, want 200", response.Code)
+	if response := get(h.Me, "/auth/me", session); response.Code != http.StatusUnauthorized {
+		t.Fatalf("the old cookie after an unban = %d, want 401", response.Code)
 	}
 
 	// 5. A session cookie from before the move to signed cookies is refused.

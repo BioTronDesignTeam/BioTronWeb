@@ -28,8 +28,41 @@ func TestSessionRoundTrip(t *testing.T) {
 			t.Fatal(err)
 		}
 		got, ok := s.ReadSession(value)
-		if !ok || got != session {
-			t.Fatalf("ReadSession = %+v, %v; want %+v", got, ok, session)
+		if !ok || got.ID == "" || !got.IssuedAt.Equal(now) || !got.ExpiresAt.Equal(now.Add(time.Hour)) {
+			t.Fatalf("ReadSession = %+v, %v", got, ok)
+		}
+		got.ID, got.IssuedAt, got.ExpiresAt = "", time.Time{}, time.Time{}
+		if got != session {
+			t.Fatalf("ReadSession = %+v; want %+v", got, session)
+		}
+	}
+}
+
+// Every session has its own id, which a sign-out revokes, and a cookie
+// without one, or without its microsecond sign time, is refused.
+func TestSessionsCarryAnIDAndTheirSignTime(t *testing.T) {
+	now := time.Unix(1_800_000_000, 0)
+	s := newTestSigner(now)
+	first, _ := s.Session(Session{GitHubID: 42}, now.Add(time.Hour))
+	second, _ := s.Session(Session{GitHubID: 42}, now.Add(time.Hour))
+	a, _ := s.ReadSession(first)
+	b, _ := s.ReadSession(second)
+	if a.ID == b.ID {
+		t.Fatal("two sessions share an id")
+	}
+	for name, claims := range map[string]*sessionClaims{
+		"no id":        {SignedAt: now.UnixMicro(), RegisteredClaims: s.registered("42", sessionAudience, now.Add(time.Hour))},
+		"no sign time": {RegisteredClaims: s.registered("42", sessionAudience, now.Add(time.Hour))},
+	} {
+		if name == "no sign time" {
+			claims.ID = "some-id"
+		}
+		value, err := s.sign(claims)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, ok := s.ReadSession(value); ok {
+			t.Errorf("a session with %s was accepted", name)
 		}
 	}
 }

@@ -211,15 +211,80 @@ func (h *Handler) signInFailed(r *http.Request, err error, stage, what string) {
 	})
 }
 
-// Logout removes the session cookie. There is no session store, so a copy of
-// the cookie stays valid until it expires; a ban is what ends it everywhere.
+// Logout signs this session out: it records the session's id, so a copy of
+// the cookie is refused from the next request on, and removes the cookie. When
+// the record cannot be written the cookie stays and the answer is 503, so the
+// sign-out can be tried again rather than only look done.
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
+	if !h.revokeSession(w, r) {
+		return
+	}
 	clearSessionCookie(w, h.Cfg.CookieSecure, h.Cfg.CookieSameSite, h.Cfg.CookieDomain)
 	if op := OperatorFrom(r); op != nil {
 		h.Events.LogAsync(logclient.Info, "Operator signed out", map[string]any{
 			"operator_id": op.GitHubID, "operator_login": op.Login,
 		})
 	}
+	httpx.Status(w, http.StatusNoContent)
+}
+
+// LogoutEverywhere signs the operator out on every device: every session
+// signed before now is refused, this one included.
+func (h *Handler) LogoutEverywhere(w http.ResponseWriter, r *http.Request) {
+	op := OperatorFrom(r)
+	if err := h.Store.SignOutEverywhere(r.Context(), op.GitHubID); err != nil {
+		fail(r, err, "auth: sign out everywhere")
+		httpx.Status(w, http.StatusServiceUnavailable)
+		return
+	}
+	h.invalidate(op.GitHubID)
+	// A session signed within this second is not before the cut, so this
+	// one is also refused by its id.
+	if !h.revokeSession(w, r) {
+		return
+	}
+	clearSessionCookie(w, h.Cfg.CookieSecure, h.Cfg.CookieSameSite, h.Cfg.CookieDomain)
+	h.Events.LogAsync(logclient.Info, "Operator signed out everywhere", map[string]any{
+		"operator_id": op.GitHubID, "operator_login": op.Login,
+	})
+	httpx.Status(w, http.StatusNoContent)
+}
+
+// revokeSession records the request's session as signed out until it
+// expires, and answers 503 and returns false when it cannot.
+func (h *Handler) revokeSession(w http.ResponseWriter, r *http.Request) bool {
+	session, ok := sessionFrom(r)
+	if !ok {
+		httpx.Error(w, r, http.StatusUnauthorized)
+		return false
+	}
+	if err := h.Store.RevokeSession(r.Context(), session.ID, session.ExpiresAt); err != nil {
+		fail(r, err, "auth: revoke session")
+		httpx.Status(w, http.StatusServiceUnavailable)
+		return false
+	}
+	if h.Cache != nil {
+		h.Cache.MarkRevoked(session.ID)
+	}
+	return true
+}
+
+// SignOutMember signs another operator out on every device, as a ban does
+// without refusing their next sign-in: for a lost laptop or a cookie that
+// may have leaked. Only a superuser can sign out a superuser.
+func (h *Handler) SignOutMember(w http.ResponseWriter, r *http.Request) {
+	actor := OperatorFrom(r)
+	target, ok := h.memberTarget(w, r, actor, signOutRefusals)
+	if !ok {
+		return
+	}
+	if err := h.Store.SignOutEverywhere(r.Context(), target.GitHubID); err != nil {
+		fail(r, err, "org: sign out")
+		httpx.Status(w, http.StatusInternalServerError)
+		return
+	}
+	h.invalidate(target.GitHubID)
+	h.audit("Operator signed out everywhere", actor, map[string]any{"target_id": target.GitHubID, "target_login": target.Login})
 	httpx.Status(w, http.StatusNoContent)
 }
 
@@ -484,35 +549,68 @@ func (h *Handler) UnbanMember(w http.ResponseWriter, r *http.Request) {
 	h.setBanned(w, r, false)
 }
 
-func (h *Handler) setBanned(w http.ResponseWriter, r *http.Request, banned bool) {
-	actor := OperatorFrom(r)
+// targetRefusals are the reasons memberTarget gives for one action.
+type targetRefusals struct {
+	guest, self, superuser string
+}
+
+var (
+	banRefusals = targetRefusals{
+		guest:     "Guests can't be banned. Rotate the Daily guest key to sign them out.",
+		self:      "You can't ban yourself.",
+		superuser: "Only a superuser can ban or unban a superuser.",
+	}
+	signOutRefusals = targetRefusals{
+		guest:     "Guests can't be signed out here. Rotate the Daily guest key to sign them out.",
+		self:      "You can't sign yourself out here.",
+		superuser: "Only a superuser can sign out a superuser.",
+	}
+)
+
+// memberTarget loads the operator an /org/members/{id} action names. It
+// answers the request and returns false for a bad id, the guest account, the
+// actor themself, an unknown operator, or a superuser when the actor is not
+// one.
+func (h *Handler) memberTarget(w http.ResponseWriter, r *http.Request, actor *store.SessionOperator, refusals targetRefusals) (*store.OrgMember, bool) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
 		httpx.Error(w, r, http.StatusBadRequest)
-		return
+		return nil, false
 	}
 	if id == store.GuestGitHubID {
-		httpx.JSON(w, http.StatusBadRequest, map[string]any{"error": "Guests can't be banned. Rotate the Daily guest key to sign them out."})
-		return
+		httpx.JSON(w, http.StatusBadRequest, map[string]any{"error": refusals.guest})
+		return nil, false
 	}
 	if id == actor.GitHubID {
-		httpx.JSON(w, http.StatusBadRequest, map[string]any{"error": "You can't ban yourself."})
-		return
+		httpx.JSON(w, http.StatusBadRequest, map[string]any{"error": refusals.self})
+		return nil, false
 	}
 	target, err := h.Store.GetOperator(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			httpx.Error(w, r, http.StatusNotFound)
-			return
+			return nil, false
 		}
 		httpx.Error(w, r, http.StatusInternalServerError)
-		return
+		return nil, false
 	}
 	if h.isSuperuser(target.GitHubID) && !actor.IsSuperuser {
 		httplog.SetError(r, errors.New(http.StatusText(http.StatusForbidden)))
-		httpx.JSON(w, http.StatusForbidden, map[string]any{"error": "Only a superuser can ban or unban a superuser."})
+		httpx.JSON(w, http.StatusForbidden, map[string]any{"error": refusals.superuser})
+		return nil, false
+	}
+	return target, true
+}
+
+func (h *Handler) setBanned(w http.ResponseWriter, r *http.Request, banned bool) {
+	actor := OperatorFrom(r)
+	target, ok := h.memberTarget(w, r, actor, banRefusals)
+	if !ok {
 		return
 	}
+	id := target.GitHubID
+	// A ban also ends every session the operator holds, so an unban needs a
+	// new sign-in.
 	if err := h.Store.SetBanned(r.Context(), id, banned); err != nil {
 		httpx.Error(w, r, http.StatusInternalServerError)
 		return

@@ -37,6 +37,7 @@ func New(h *auth.Handler, allowedOrigins []string, trustedProxies []string, even
 	mux.Handle("GET /auth/github/callback", chain(h.Callback))
 	mux.Handle("POST /auth/guest", chain(h.GuestLogin, guestLimit.wrap))
 	mux.Handle("POST /auth/logout", chain(h.Logout, h.RequireXHR, h.RequireSession))
+	mux.Handle("POST /auth/logout/everywhere", chain(h.LogoutEverywhere, h.RequireXHR, h.RequireSession, h.RequireNotGuest))
 	mux.Handle("GET /auth/me", chain(h.Me, h.RequireSession))
 	mux.Handle("GET /auth/guest-keys", chain(h.StaffProductDailyKeys, h.RequireSession, h.RequireStaff))
 	mux.Handle("POST /auth/guest-keys/{app}/rotate", chain(h.RotateProductDailyKey, h.RequireXHR, h.RequireSession, h.RequireStaff))
@@ -62,6 +63,7 @@ func New(h *auth.Handler, allowedOrigins []string, trustedProxies []string, even
 	mux.Handle("GET /org/members/{id}/grants", org(h.MemberGrants))
 	mux.Handle("POST /org/members/{id}/ban", org(h.BanMember, h.RequireXHR))
 	mux.Handle("POST /org/members/{id}/unban", org(h.UnbanMember, h.RequireXHR))
+	mux.Handle("POST /org/members/{id}/sign-out", org(h.SignOutMember, h.RequireXHR))
 	mux.Handle("PATCH /org/members/{id}/manager", org(h.SetManager, h.RequireXHR, h.RequireSuperuser))
 
 	// httplog outermost, so the status it logs is the one the client got and

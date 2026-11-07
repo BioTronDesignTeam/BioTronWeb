@@ -51,6 +51,19 @@ func (q *Queries) DeleteAllGrants(ctx context.Context, operatorID int64) error {
 	return err
 }
 
+const deleteExpiredRevokedSessions = `-- name: DeleteExpiredRevokedSessions :execrows
+DELETE FROM revoked_sessions WHERE expires_at < now()
+`
+
+// A revoked session past its expiry is refused by its signature anyway.
+func (q *Queries) DeleteExpiredRevokedSessions(ctx context.Context) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteExpiredRevokedSessions)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteGrant = `-- name: DeleteGrant :execrows
 DELETE FROM grants WHERE operator_id = $1 AND app_id = $2 AND permission_key = $3
 `
@@ -133,19 +146,20 @@ func (q *Queries) GetGuestKey(ctx context.Context, arg GetGuestKeyParams) (strin
 
 const getOperator = `-- name: GetOperator :one
 SELECT github_id, login, COALESCE(name, '') AS name, COALESCE(avatar_url, '') AS avatar_url,
-       is_superuser, is_manager, is_banned, last_login_at
+       is_superuser, is_manager, is_banned, last_login_at, sessions_valid_after
 FROM operators WHERE github_id = $1
 `
 
 type GetOperatorRow struct {
-	GitHubID    int64
-	Login       string
-	Name        string
-	AvatarURL   string
-	IsSuperuser bool
-	IsManager   bool
-	IsBanned    bool
-	LastLoginAt time.Time
+	GitHubID           int64
+	Login              string
+	Name               string
+	AvatarURL          string
+	IsSuperuser        bool
+	IsManager          bool
+	IsBanned           bool
+	LastLoginAt        time.Time
+	SessionsValidAfter time.Time
 }
 
 func (q *Queries) GetOperator(ctx context.Context, githubID int64) (GetOperatorRow, error) {
@@ -160,6 +174,7 @@ func (q *Queries) GetOperator(ctx context.Context, githubID int64) (GetOperatorR
 		&i.IsManager,
 		&i.IsBanned,
 		&i.LastLoginAt,
+		&i.SessionsValidAfter,
 	)
 	return i, err
 }
@@ -183,6 +198,17 @@ func (q *Queries) GetPermission(ctx context.Context, arg GetPermissionParams) (P
 		&i.Description,
 	)
 	return i, err
+}
+
+const isSessionRevoked = `-- name: IsSessionRevoked :one
+SELECT EXISTS (SELECT 1 FROM revoked_sessions WHERE jti = $1)
+`
+
+func (q *Queries) IsSessionRevoked(ctx context.Context, jti string) (bool, error) {
+	row := q.db.QueryRow(ctx, isSessionRevoked, jti)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }
 
 const listApps = `-- name: ListApps :many
@@ -298,21 +324,22 @@ func (q *Queries) ListGrantsForOperator(ctx context.Context, operatorID int64) (
 
 const listOrgMembers = `-- name: ListOrgMembers :many
 SELECT github_id, login, COALESCE(name, '') AS name, COALESCE(avatar_url, '') AS avatar_url,
-       is_superuser, is_manager, is_banned, last_login_at
+       is_superuser, is_manager, is_banned, last_login_at, sessions_valid_after
 FROM operators
 WHERE github_id <> $1
 ORDER BY login
 `
 
 type ListOrgMembersRow struct {
-	GitHubID    int64
-	Login       string
-	Name        string
-	AvatarURL   string
-	IsSuperuser bool
-	IsManager   bool
-	IsBanned    bool
-	LastLoginAt time.Time
+	GitHubID           int64
+	Login              string
+	Name               string
+	AvatarURL          string
+	IsSuperuser        bool
+	IsManager          bool
+	IsBanned           bool
+	LastLoginAt        time.Time
+	SessionsValidAfter time.Time
 }
 
 func (q *Queries) ListOrgMembers(ctx context.Context, githubID int64) ([]ListOrgMembersRow, error) {
@@ -333,6 +360,7 @@ func (q *Queries) ListOrgMembers(ctx context.Context, githubID int64) ([]ListOrg
 			&i.IsManager,
 			&i.IsBanned,
 			&i.LastLoginAt,
+			&i.SessionsValidAfter,
 		); err != nil {
 			return nil, err
 		}
@@ -389,6 +417,21 @@ func (q *Queries) ReconcileSuperusers(ctx context.Context, ids []int64) (int64, 
 	return result.RowsAffected(), nil
 }
 
+const revokeSession = `-- name: RevokeSession :exec
+INSERT INTO revoked_sessions (jti, expires_at) VALUES ($1, $2)
+ON CONFLICT (jti) DO NOTHING
+`
+
+type RevokeSessionParams struct {
+	Jti       string
+	ExpiresAt time.Time
+}
+
+func (q *Queries) RevokeSession(ctx context.Context, arg RevokeSessionParams) error {
+	_, err := q.db.Exec(ctx, revokeSession, arg.Jti, arg.ExpiresAt)
+	return err
+}
+
 const rotateProductDailyKey = `-- name: RotateProductDailyKey :one
 INSERT INTO guest_keys (app_id, day, key)
 SELECT id, $1::text::date, $2::text FROM apps
@@ -419,16 +462,24 @@ func (q *Queries) RotateProductDailyKey(ctx context.Context, arg RotateProductDa
 }
 
 const setBanned = `-- name: SetBanned :execrows
-UPDATE operators SET is_banned = $2 WHERE github_id = $1
+UPDATE operators
+SET is_banned = $1::boolean,
+    sessions_valid_after = CASE WHEN $1::boolean
+                                THEN $2::timestamptz
+                                ELSE sessions_valid_after END
+WHERE github_id = $3
 `
 
 type SetBannedParams struct {
-	GitHubID int64
-	IsBanned bool
+	IsBanned    bool
+	SignedOutAt time.Time
+	GitHubID    int64
 }
 
+// A ban also ends every session the operator holds, so an unban needs a new
+// sign-in rather than letting an old, perhaps stolen, cookie back in.
 func (q *Queries) SetBanned(ctx context.Context, arg SetBannedParams) (int64, error) {
-	result, err := q.db.Exec(ctx, setBanned, arg.GitHubID, arg.IsBanned)
+	result, err := q.db.Exec(ctx, setBanned, arg.IsBanned, arg.SignedOutAt, arg.GitHubID)
 	if err != nil {
 		return 0, err
 	}
@@ -446,6 +497,27 @@ type SetManagerParams struct {
 
 func (q *Queries) SetManager(ctx context.Context, arg SetManagerParams) (int64, error) {
 	result, err := q.db.Exec(ctx, setManager, arg.GitHubID, arg.IsManager)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const signOutEverywhere = `-- name: SignOutEverywhere :execrows
+UPDATE operators SET sessions_valid_after = $1::timestamptz
+WHERE github_id = $2
+`
+
+type SignOutEverywhereParams struct {
+	SignedOutAt time.Time
+	GitHubID    int64
+}
+
+// Refuses every session of the operator signed before signed_out_at. Auth
+// passes its own clock, the one that stamps each session cookie, so the two
+// never disagree.
+func (q *Queries) SignOutEverywhere(ctx context.Context, arg SignOutEverywhereParams) (int64, error) {
+	result, err := q.db.Exec(ctx, signOutEverywhere, arg.SignedOutAt, arg.GitHubID)
 	if err != nil {
 		return 0, err
 	}

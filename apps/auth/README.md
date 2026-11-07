@@ -133,7 +133,8 @@ the organization.
 | GET | `/auth/github/login` | anyone | starts OAuth; `?redirect=` must be an allowed origin |
 | GET | `/auth/github/callback` | anyone | non-members return with `?auth=denied`, banned operators with `?auth=banned` |
 | POST | `/auth/guest` | anyone | guest login with `app_id` and `key`; 20 per minute per IP |
-| POST | `/auth/logout` | session | removes the session cookie |
+| POST | `/auth/logout` | session | signs this session out on the server and removes its cookie |
+| POST | `/auth/logout/everywhere` | member | signs the operator out on every device |
 | GET | `/auth/me` | session | current operator; a guest must pass its `?app=` |
 | GET | `/auth/guest-keys` | staff | today's key for each opted-in tool |
 | POST | `/auth/guest-keys/:app/rotate` | staff | replaces today's key of one tool, which signs out its guests |
@@ -143,7 +144,8 @@ the organization.
 | POST, DELETE | `/grants` | staff | grants or revokes one permission |
 | GET | `/org/members` | staff | every operator who has signed in |
 | GET | `/org/members/:id/grants` | staff | one member's grants |
-| POST | `/org/members/:id/ban`, `/unban` | staff | a ban refuses the member at once |
+| POST | `/org/members/:id/ban`, `/unban` | staff | a ban refuses the member at once and ends their sessions |
+| POST | `/org/members/:id/sign-out` | staff | signs the member out on every device |
 | PATCH | `/org/members/:id/manager` | superuser | sets the manager flag, effective at once |
 | GET | `/v1/check?app=&permission=` | session | allow or deny |
 | GET | `/v1/session?app=&permission=` | session | current operator and a verdict per permission, in one call |
@@ -164,9 +166,10 @@ starts and at each sign-in.
 The cookie is `oauth_session`: a JWT signed with HMAC-SHA256 and
 `SESSION_SIGNING_KEY`, with its own issuer and audience, and it lasts
 `SESSION_TTL_HOURS` (a guest's ends at the next Eastern midnight). There is
-no session table: the signature is the check. The cookie names only the
-operator's GitHub id, and for a guest its tool, the day, and an HMAC of the
-key it signed in with. Roles, bans, grants, and the daily keys are read
+no session table: the signature is the check, and only revocations are
+stored (see below). The cookie names only the operator's GitHub id, its own
+random id (`jti`), and when it was signed, to the microsecond; for a guest
+also its tool, the day, and an HMAC of the key it signed in with. Roles, bans, grants, and the daily keys are read
 from Postgres through an in-memory cache of at most 30 seconds, and every
 grant, revoke, ban, and manager change clears that operator from the cache,
 and every key rotation that tool's keys, so it applies to the very next
@@ -179,14 +182,26 @@ is the folder of `OAUTH_CALLBACK_URL` (`/api/auth/github` behind the edge,
 
 What that means in practice:
 
-- A ban refuses the operator's next request on every device. An unban lets
-  their unexpired cookies in again.
+- A ban refuses the operator's next request on every device, and ends every
+  session they hold, so after an unban they sign in again.
 - A guest session is checked on every request against its tool's current
   key. Rotating the key in the Keys tab, or turning the tool's daily key off
   in `apps.daily_key_enabled`, refuses every guest of that tool at their next
   request (a change by hand in psql within 30 seconds).
-- Sign-out removes the cookie from that browser only. A copy of the cookie
-  stays valid until it expires; ban the operator to end it everywhere.
+- Sign-out ends that session on the server, not only in the browser: its
+  `jti` goes into `revoked_sessions` until the cookie would have expired, so
+  a copy of the cookie is refused from the very next request. The hourly
+  prune deletes the rows of expired sessions.
+- Sign out everywhere (`POST /auth/logout/everywhere`, for yourself) and a
+  manager's sign-out of someone (`POST /org/members/:id/sign-out`) set the
+  operator's `sessions_valid_after` to now, which refuses every session
+  signed before it, on every device, from the next request. A ban sets it
+  too. A sign-in afterwards works as usual.
+- Both are read through the same 30-second cache, which a revocation made
+  by Auth updates at once. A revocation written by hand in psql applies
+  within 30 seconds.
+- A manager change applies at the next request without signing anyone out:
+  roles are read on every request, so there is no old session to cut.
 - Changing `SESSION_SIGNING_KEY` signs everyone out.
 - Membership of the organization is asked again, with the App's
   installation token, at most every 15 minutes per operator. Someone removed
@@ -243,6 +258,7 @@ operator as `actor`.
 | `HTTP request completed` | info, warning on 4xx, error on 5xx | `method`, `path`, `status`, `duration_ms`, `actor`, `error` |
 | `Operator signed in` | info | `operator_id`, `operator_login`, `new_operator` |
 | `Operator signed out` | info | `operator_id`, `operator_login` |
+| `Operator signed out everywhere` | info | `operator_id`, `operator_login` for yourself; `target_id`, `target_login` for a manager's sign-out of someone |
 | `Sign-in refused` | warning | `reason` (`not a member` or `banned`), `login` when known |
 | `GitHub sign-in failed` | error | `stage` (`exchange`, `user`, `membership`), `error` |
 | `Guest signed in` | info | `app_id` |
@@ -254,10 +270,10 @@ operator as `actor`.
 | `Guest key rotated` | info | `app_id` |
 | `Stale guest keys pruned` | info | `count` |
 | `Guest key prune failed` | error | `error` |
+| `Revoked session prune failed` | error | `error` |
 
-The grant, revoke, ban, unban, manager, tool, and key rotation rows are the
-audit trail.
-Each also names the actor as `actor_id` and `actor_login`. These events are
+The grant, revoke, ban, unban, manager, sign-out of someone, tool, and key
+rotation rows are the audit trail. Each also names the actor as `actor_id` and `actor_login`. These events are
 the only record of who changed what. The hourly prune reports only what it
 deleted, so an idle hour sends nothing.
 
@@ -290,8 +306,8 @@ bundle; Compose passes it to `auth-web` as a build argument.
 
 ## Database
 
-Prisma 6.19.3, pinned exactly. Five tables: `operators`, `guest_keys`,
-`apps`, `permissions`, and `grants`. Tools and their permissions are rows
+Prisma 6.19.3, pinned exactly. Six tables: `operators`, `guest_keys`,
+`apps`, `permissions`, `grants`, and `revoked_sessions`. Tools and their permissions are rows
 that the migrations seed, so `auth-migrate` is what makes a fresh database
 usable. Without it, every permission check for a
 non-staff operator answers `false`.

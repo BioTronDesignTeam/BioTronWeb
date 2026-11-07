@@ -55,6 +55,10 @@ func (fakeOperators) GetGuestKey(context.Context, string, string) (string, error
 	return testGuestKey, nil
 }
 
+func (fakeOperators) IsSessionRevoked(context.Context, string) (bool, error) {
+	return false, nil
+}
+
 func (fakeOperators) ListGrantsForOperator(context.Context, int64) ([]store.Grant, error) {
 	return nil, nil
 }
