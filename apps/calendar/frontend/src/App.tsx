@@ -68,9 +68,9 @@ export function App() {
     [occurrences, selectedScopes],
   );
 
-  const loadScopes = useCallback(async () => {
-    setScopes(await calendarApi.scopes());
-  }, []);
+  // Every loader below sets state only as its responses land, so the effects
+  // that start them never set state synchronously.
+  const loadScopes = useCallback(() => calendarApi.scopes().then(setScopes), []);
 
   // Month and scope changes overlap on a slow connection, and whichever
   // response landed last used to win: three taps on "Next month" could paint
@@ -80,45 +80,69 @@ export function App() {
   const occurrenceAbort = useRef<AbortController>(undefined);
   const occurrencesInFlight = useRef(0);
 
-  const loadOccurrences = useCallback(async () => {
+  const fetchOccurrences = useCallback(() => {
     occurrenceAbort.current?.abort();
     const controller = new AbortController();
     occurrenceAbort.current = controller;
     const request = ++occurrenceRequest.current;
     occurrencesInFlight.current += 1;
-    setLoading(true);
-    setError('');
-    try {
-      const next = await calendarApi.occurrences(range.from, range.to, undefined, controller.signal);
-      if (request === occurrenceRequest.current) setOccurrences(next);
-    } catch (caught) {
-      if (request !== occurrenceRequest.current || controller.signal.aborted) return;
-      // Leaving the previous month's events on screen under an error banner
-      // reads as if they belong to the month that failed.
-      setOccurrences([]);
-      setError(caught instanceof Error ? caught.message : 'Could not load the calendar.');
-    } finally {
-      occurrencesInFlight.current -= 1;
-      // The progress bar belongs to the newest request rather than the first
-      // one to settle, so it stays up while a superseded fetch unwinds.
-      setLoading(occurrencesInFlight.current > 0);
-    }
+    return calendarApi.occurrences(range.from, range.to, undefined, controller.signal)
+      .then(
+        (next) => {
+          if (request === occurrenceRequest.current) setOccurrences(next);
+        },
+        (caught: unknown) => {
+          if (request !== occurrenceRequest.current || controller.signal.aborted) return;
+          // Leaving the previous month's events on screen under an error banner
+          // reads as if they belong to the month that failed.
+          setOccurrences([]);
+          setError(caught instanceof Error ? caught.message : 'Could not load the calendar.');
+        },
+      )
+      .finally(() => {
+        occurrencesInFlight.current -= 1;
+        // The progress bar belongs to the newest request rather than the first
+        // one to settle, so it stays up while a superseded fetch unwinds.
+        setLoading(occurrencesInFlight.current > 0);
+      });
   }, [range.from, range.to]);
 
-  const loadAdmin = useCallback(async () => {
-    if (!canWrite) return;
+  // A new range shows the progress bar and drops the last range's error from
+  // the render that asks for it; the effect below then fetches it.
+  const [shownRange, setShownRange] = useState(range);
+  if (shownRange.from !== range.from || shownRange.to !== range.to) {
+    setShownRange(range);
+    setLoading(true);
+    setError('');
+  }
+
+  /** Reloads the range on screen, from an event handler. */
+  const loadOccurrences = useCallback(() => {
+    setLoading(true);
+    setError('');
+    return fetchOccurrences();
+  }, [fetchOccurrences]);
+
+  const loadAdmin = useCallback(() => {
+    if (!canWrite) return Promise.resolve();
     setAdminLoading(true);
     setAdminError('');
-    try {
-      const [nextScopes, nextEvents] = await Promise.all([calendarApi.adminScopes(), calendarApi.adminEvents()]);
-      setAdminScopes(nextScopes);
-      setAdminEvents(nextEvents);
-    } catch (caught) {
-      setAdminError(caught instanceof Error ? caught.message : 'Could not load calendar administration.');
-    } finally {
-      setAdminLoading(false);
-    }
+    return Promise.all([calendarApi.adminScopes(), calendarApi.adminEvents()])
+      .then(
+        ([nextScopes, nextEvents]) => {
+          setAdminScopes(nextScopes);
+          setAdminEvents(nextEvents);
+        },
+        (caught: unknown) => setAdminError(caught instanceof Error ? caught.message : 'Could not load calendar administration.'),
+      )
+      .finally(() => setAdminLoading(false));
   }, [canWrite]);
+
+  // Opening the manager is the event that loads it.
+  function manage() {
+    setManaging(true);
+    void loadAdmin();
+  }
 
   useEffect(() => {
     void loadScopes().catch(() => setError('Could not load the calendar.'));
@@ -129,10 +153,9 @@ export function App() {
   }, [expire]);
 
   useEffect(() => {
-    void loadOccurrences();
+    void fetchOccurrences();
     return () => occurrenceAbort.current?.abort();
-  }, [loadOccurrences]);
-  useEffect(() => { if (managing) void loadAdmin(); }, [managing, loadAdmin]);
+  }, [fetchOccurrences]);
 
   // A write can land and the reload behind it still fail. The editor is closed
   // by then, so its own error slot is gone; say so on the page instead of
@@ -240,7 +263,7 @@ export function App() {
         />
       ) : (
         <div className="flex min-h-0 flex-1">
-          <Sidebar open={sidebarOpen} view={view} anchor={anchor} onStep={step} viewSwitch={viewSwitch} onManage={canWrite ? () => setManaging(true) : undefined} scopes={scopes} selectedScopes={selectedScopes} onScopeChange={setSelectedScopes} onClose={() => setSidebarOpen(false)}
+          <Sidebar open={sidebarOpen} view={view} anchor={anchor} onStep={step} viewSwitch={viewSwitch} onManage={canWrite ? manage : undefined} scopes={scopes} selectedScopes={selectedScopes} onScopeChange={setSelectedScopes} onClose={() => setSidebarOpen(false)}
             onSubscribe={() => {
               // As a drawer the sidebar would sit open behind the subscribe panel.
               if (!window.matchMedia('(min-width: 1024px)').matches) setSidebarOpen(false);
