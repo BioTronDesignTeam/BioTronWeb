@@ -83,6 +83,13 @@ func New(deps Deps) *Scheduler {
 
 // Run ticks every interval until ctx is done, running one Tick immediately
 // so the first automation does not wait a full interval after start.
+//
+// Cancelling ctx stops the scheduler between messages, never between a
+// message and its record: a tick sends nothing once ctx is done, and a
+// message already sent is still written down (recordContext). Run returns
+// once the tick in flight has, so the caller can wait for it before closing
+// the store and the Discord session. Otherwise a message posted just before
+// shutdown would go unrecorded and be posted again after the restart.
 func (s *Scheduler) Run(ctx context.Context, every time.Duration) {
 	s.tickAndLog(ctx)
 	ticker := time.NewTicker(every)
@@ -97,8 +104,19 @@ func (s *Scheduler) Run(ctx context.Context, every time.Duration) {
 	}
 }
 
+// recordTimeout bounds the write that records a message already sent.
+const recordTimeout = 10 * time.Second
+
+// recordContext is for the write that follows a message Discord has already
+// accepted. It outlives ctx's cancellation, so a shutdown arriving between
+// the send and the write cannot leave a sent message unrecorded, which the
+// next run would send again.
+func recordContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), recordTimeout)
+}
+
 func (s *Scheduler) tickAndLog(ctx context.Context) {
-	if err := s.Tick(ctx); err != nil {
+	if err := s.Tick(ctx); err != nil && ctx.Err() == nil {
 		s.emit(logclient.Error, "Scheduler tick failed", map[string]any{"error": err.Error()})
 	}
 }

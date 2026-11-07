@@ -66,7 +66,10 @@ func (f *fakeStore) ListSeenFuture(_ context.Context, automationID string, now t
 	return future, nil
 }
 
-func (f *fakeStore) DeleteSeen(_ context.Context, automationID, uid, recurrenceIDLocal string) error {
+func (f *fakeStore) DeleteSeen(ctx context.Context, automationID, uid, recurrenceIDLocal string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	key := seenKey(automationID, uid, recurrenceIDLocal)
 	if _, ok := f.seen[key]; !ok {
 		return store.ErrNotFound
@@ -83,7 +86,11 @@ func (f *fakeStore) GetPosted(_ context.Context, automationID, uid, recurrenceID
 	return posted, nil
 }
 
-func (f *fakeStore) UpsertPosted(_ context.Context, automationID, uid, recurrenceIDLocal string, sequence int, channelID, messageID string) (store.PostedOccurrence, error) {
+func (f *fakeStore) UpsertPosted(ctx context.Context, automationID, uid, recurrenceIDLocal string, sequence int, channelID, messageID string) (store.PostedOccurrence, error) {
+	// Like pgx, a write on a cancelled context fails.
+	if err := ctx.Err(); err != nil {
+		return store.PostedOccurrence{}, err
+	}
 	f.upsertPostedCalls++
 	posted := store.PostedOccurrence{
 		AutomationID: automationID, UID: uid, RecurrenceIDLocal: recurrenceIDLocal,
@@ -98,7 +105,10 @@ func (f *fakeStore) HasNudge(_ context.Context, automationID, uid, recurrenceIDL
 	return ok, nil
 }
 
-func (f *fakeStore) InsertNudge(_ context.Context, automationID, uid, recurrenceIDLocal string, sequence int, trigger, status string, messageID *string) (store.Nudge, error) {
+func (f *fakeStore) InsertNudge(ctx context.Context, automationID, uid, recurrenceIDLocal string, sequence int, trigger, status string, messageID *string) (store.Nudge, error) {
+	if err := ctx.Err(); err != nil {
+		return store.Nudge{}, err
+	}
 	key := nudgeKey(automationID, uid, recurrenceIDLocal, sequence, trigger)
 	if _, ok := f.nudges[key]; ok {
 		return store.Nudge{}, store.ErrConflict
@@ -164,6 +174,10 @@ type fakeDiscord struct {
 	sentMessages   []sentMessage
 	editedMessages []editedMessage
 	dms            []sentMessage
+
+	// onSend runs after each SendMessage, as if something happened while
+	// Discord was answering.
+	onSend func()
 }
 
 type sentMessage struct {
@@ -217,6 +231,9 @@ func snowflakeAt(t time.Time, n int) string {
 }
 
 func (f *fakeDiscord) SendMessage(channelID, content string, mentionUsers []string) (string, error) {
+	if f.onSend != nil {
+		defer f.onSend()
+	}
 	f.nextID++
 	id := fmt.Sprintf("msg-%d", f.nextID)
 	f.sentMessages = append(f.sentMessages, sentMessage{

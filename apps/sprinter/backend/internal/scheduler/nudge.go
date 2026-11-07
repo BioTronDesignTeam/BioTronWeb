@@ -85,6 +85,11 @@ func (s *Scheduler) runNudge(ctx context.Context, automation store.Automation, u
 	}
 
 	draft, draftErr := s.draftAnnouncement(ctx, title, startsAt, trigger)
+	// A shutdown that cut the draft short must not send a nudge saying the
+	// draft failed. The next run sends the real one.
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	body := nudgeBody(s.location, title, startsAt, draft, draftErr)
 
 	var (
@@ -108,7 +113,9 @@ func (s *Scheduler) runNudge(ctx context.Context, automation store.Automation, u
 	}
 
 	sentMessageID := messageID
-	if _, err := s.store.InsertNudge(ctx, automation.ID, uid, recurrenceIDLocal, sequence, trigger, store.NudgeSent, &sentMessageID); err != nil &&
+	recordCtx, cancel := recordContext(ctx)
+	defer cancel()
+	if _, err := s.store.InsertNudge(recordCtx, automation.ID, uid, recurrenceIDLocal, sequence, trigger, store.NudgeSent, &sentMessageID); err != nil &&
 		!errors.Is(err, store.ErrConflict) {
 		return fmt.Errorf("record sent nudge %s: %w", uid, err)
 	}
