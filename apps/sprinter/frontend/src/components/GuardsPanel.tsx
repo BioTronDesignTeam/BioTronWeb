@@ -1,37 +1,11 @@
 import { useState } from 'react';
 import type { Guard, GuardSubject } from '../types';
 import { cancelClass, fieldClass, panelClass, primaryClass } from './classes';
-
-const SUBJECTS: GuardSubject[] = ['agent', 'agent-thread', 'announce', 'nudge'];
-
-const SUBJECT_LABELS: Record<GuardSubject, string> = {
-  agent: 'Agent',
-  'agent-thread': 'Agent thread',
-  announce: 'Announce',
-  nudge: 'Nudge',
-};
-
-function idsToText(ids: string[]) {
-  return ids.join(', ');
-}
-
-function textToIds(text: string) {
-  return text
-    .split(',')
-    .map((part) => part.trim())
-    .filter(Boolean);
-}
-
-function allDigits(ids: string[]) {
-  return ids.every((id) => /^\d+$/.test(id));
-}
+import { idsToText, readGuardForm, SUBJECT_LABELS, SUBJECTS, type GuardBody } from './guardForm';
 
 interface GuardsPanelProps {
   guards: Guard[];
-  onSave: (
-    subject: GuardSubject,
-    body: { guild_id: string; role_ids: string[]; channel_ids: string[] },
-  ) => Promise<void>;
+  onSave: (subject: GuardSubject, body: GuardBody) => Promise<void>;
   onClear: (subject: GuardSubject) => Promise<void>;
 }
 
@@ -91,24 +65,14 @@ function GuardRow({
 
   async function save() {
     setError('');
-    const trimmedGuildId = guildId.trim();
-    const roles = textToIds(roleIds);
-    const channels = textToIds(channelIds);
-    if (!/^\d+$/.test(trimmedGuildId)) {
-      setError('Guild id must be a digit string.');
-      return;
-    }
-    if (!allDigits(roles)) {
-      setError('Role ids must be digit strings, separated by commas.');
-      return;
-    }
-    if (!allDigits(channels)) {
-      setError('Channel ids must be digit strings, separated by commas.');
+    const form = readGuardForm(guildId, roleIds, channelIds);
+    if ('error' in form) {
+      setError(form.error);
       return;
     }
     setSaving(true);
     try {
-      await onSave(subject, { guild_id: trimmedGuildId, role_ids: roles, channel_ids: channels });
+      await onSave(subject, form.body);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Could not save the guard.');
     } finally {
