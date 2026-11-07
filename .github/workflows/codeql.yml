@@ -33,11 +33,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
-      contents: read
-      # Upload the results to code scanning.
-      security-events: write
-      # Read the workflow run, as code scanning needs in a private repository.
-      actions: read
+      contents: read # read the source
+      security-events: write # upload the results to code scanning
+      actions: read # read the workflow run, as code scanning needs in a private repository
     strategy:
       fail-fast: false
       matrix:
@@ -65,9 +63,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
-      contents: read
-      security-events: write
-      actions: read
+      contents: read # read the source
+      security-events: write # upload the results to code scanning
+      actions: read # read the workflow run, as code scanning needs in a private repository
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
