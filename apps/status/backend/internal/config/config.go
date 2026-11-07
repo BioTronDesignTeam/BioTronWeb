@@ -26,7 +26,7 @@ func Load() Config {
 		DatabaseURL: os.Getenv("DATABASE_URL"),
 		CatalogJSON: os.Getenv("STATUS_CATALOG_JSON"),
 		// Peers whose Cf-Connecting-Ip header may be believed. Only the edge
-		// proxy sets that header (Server/nginx/snippets/proxy-headers.conf
+		// proxy sets that header (infra/nginx/snippets/proxy-headers.conf
 		// overwrites whatever the client sent), so widening this list past the
 		// edge network would let any client choose its own rate-limit bucket.
 		TrustedProxies:        splitCSV(getenv("TRUSTED_PROXIES", "127.0.0.1,::1")),
