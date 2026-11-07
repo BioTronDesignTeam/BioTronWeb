@@ -14,16 +14,13 @@ RUN go mod download
 COPY apps/sprinter/backend/ .
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/sprinter .
 
-FROM debian:12.15-slim@sha256:734a72b3d6142a71993b4bc580ca01d8ca687f77a2c422d96a961d3376b179bc
-
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates \
-    && rm -rf /var/lib/apt/lists/* \
-    && useradd --system --uid 10001 app
+# A static binary needs no OS: distroless static carries only CA certificates,
+# tzdata, and a nonroot user (65532), so there are no packages to patch.
+FROM gcr.io/distroless/static-debian13:nonroot@sha256:25ac8f0c3b2334a9eb05452266bd4697864a8c8ef0ef71e5e6480d7f92868329
 
 COPY --from=build /out/sprinter /usr/local/bin/sprinter
 
-USER app
+USER nonroot
 EXPOSE 8080
 
 CMD ["sprinter"]
