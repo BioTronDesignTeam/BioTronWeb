@@ -197,8 +197,8 @@ export function TimeGrid({
                 <button
                   type="button"
                   onClick={() => onOpenDay(day)}
-                  aria-label={`Open ${keys[index]}`}
-                  className="rounded-full hover:bg-soft/30 dark:hover:bg-white/10"
+                  aria-label={`Open ${dayLabel(dateKey(day), true)}`}
+                  className="grid place-items-center rounded-full hover:bg-soft/30 dark:hover:bg-white/10 pointer-coarse:size-11"
                 >
                   {number}
                 </button>

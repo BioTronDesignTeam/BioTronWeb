@@ -256,8 +256,8 @@ function CalendarViews(props: PublicCalendarProps) {
                     <button
                       type="button"
                       onClick={() => props.onOpenDay(day)}
-                      aria-label={`Open ${key}`}
-                      className={`relative mb-1 grid size-7 shrink-0 place-items-center rounded-full text-xs font-semibold ${key === today ? 'bg-deep text-white dark:bg-brand' : 'hover:bg-soft/30 dark:hover:bg-white/10'}`}
+                      aria-label={`Open ${dayLabel(key, true)}`}
+                      className={`relative mb-1 grid size-7 shrink-0 place-items-center rounded-full text-xs font-semibold pointer-coarse:size-11 ${key === today ? 'bg-deep text-white dark:bg-brand' : 'hover:bg-soft/30 dark:hover:bg-white/10'}`}
                     >
                       {day.getUTCDate()}
                     </button>
