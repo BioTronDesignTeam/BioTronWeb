@@ -55,20 +55,20 @@ export function useIsLandscapePhone(maxHeight = 520): boolean {
 
 /** Detects whether the browser can create a WebGL context. */
 export function useWebGLSupported(): boolean {
-  const [supported, setSupported] = useState(true);
-
-  useEffect(() => {
-    try {
-      const canvas = document.createElement('canvas');
-      const gl =
-        canvas.getContext('webgl2') ||
-        canvas.getContext('webgl') ||
-        canvas.getContext('experimental-webgl');
-      setSupported(!!gl);
-    } catch {
-      setSupported(false);
-    }
-  }, []);
-
+  // Probed once, on the first render; the answer never changes in a session.
+  const [supported] = useState(webGLAvailable);
   return supported;
+}
+
+function webGLAvailable(): boolean {
+  try {
+    const canvas = document.createElement('canvas');
+    const gl =
+      canvas.getContext('webgl2') ||
+      canvas.getContext('webgl') ||
+      canvas.getContext('experimental-webgl');
+    return !!gl;
+  } catch {
+    return false;
+  }
 }
