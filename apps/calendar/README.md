@@ -122,7 +122,8 @@ operator and their permission in one call, so the log can name the
 operator behind the change. The public routes never call Auth. No cookie answers `401`, a
 session without the permission `403`, an unreachable Auth `503`. Every
 mutating request must carry `X-Requested-With: XMLHttpRequest`, which
-blocks cross-site form posts.
+blocks cross-site form posts. An `:id` that is not a UUID answers `404`;
+a `scope_id` or `parent_id` that is not one answers `400`.
 
 Every write to an existing series carries `expected_sequence`. The
 `sequence` rises on each edit, publish, cancel, and occurrence change; a
@@ -147,6 +148,8 @@ Calendar reports to Grafana and PostHog as `calendar-api`, through
 |---------|-------|---------|
 | `BiotronCalendar started` | info | `port` |
 | `BiotronCalendar stopping` | info | — |
+| `Database connection failed` | error | `error`; the API then exits |
+| `Listener failed` | error | `error`; the API then exits |
 | `Configuration warning` | warning | `warning` |
 | `HTTP request completed` | info, warning on 4xx, error on 5xx | `method`, `path`, `status`, `duration_ms`, `actor` and `error` when known |
 | `Authorization service unavailable` | error | `error` |
@@ -192,10 +195,18 @@ daylight saving. Feed URLs use the scope id, so a rename never breaks a
 subscription. An archived scope leaves the public JSON, but its feed
 keeps its events.
 
+Every `VEVENT` of a series carries the series' `SEQUENCE`, changed
+occurrences included. It rises on every change to the series or to one
+of its occurrences, a reset included, so a client that honours
+`SEQUENCE` never sees it go down.
+
 The feeds and `/v1/events/upcoming` send `ETag`, `Last-Modified`, and
 `Cache-Control: public, max-age=60, stale-while-revalidate=300`, and
-answer a matching `If-None-Match` with `304`. Only the feeds honour
-`If-Modified-Since`: the upcoming window moves with the clock.
+answer a matching `If-None-Match` with `304`. `If-Modified-Since` is
+never honoured. `Last-Modified` is the newest edit among the rows still
+served, so it misses a deleted event, a parent project's rename, and two
+edits in one second; the `ETag` hashes the body and misses nothing. A
+client that revalidates by date alone gets a full `200`.
 
 ## Frontend
 
