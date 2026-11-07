@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { RequireAuth, useSession } from '@biotron/style';
 import { setUnauthorizedHandler, sprinterApi } from './api';
 import type { Automation, AutomationPayload, Guard, GuardSubject, Scope } from './types';
@@ -27,38 +27,34 @@ function Administration() {
   const [guards, setGuards] = useState<Guard[]>([]);
   const [automations, setAutomations] = useState<Automation[]>([]);
   const [scopes, setScopes] = useState<Scope[]>([]);
-  const [loading, setLoading] = useState(false);
+  // The page starts loading as it mounts.
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
     setUnauthorizedHandler(expire);
   }, [expire]);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError('');
+  // State is set only as each response lands, never synchronously in the effect.
+  useEffect(() => {
     // Only says whether Discord is on; the page works the same without it.
     void sprinterApi.status().then((status) => setDiscordEnabled(status.discord_enabled), () => undefined);
-    try {
-      const [nextGuards, nextAutomations] = await Promise.all([sprinterApi.guards(), sprinterApi.automations()]);
-      setGuards(nextGuards);
-      setAutomations(nextAutomations);
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Could not load Sprinter administration.');
-    }
-    // The Calendar scopes list lives on a separate service, so its own
-    // failure should not blank out guards and automations that already loaded.
-    try {
-      setScopes(await sprinterApi.scopes());
-    } catch (caught) {
-      setError((current) => current || (caught instanceof Error ? caught.message : 'Could not load calendar scopes.'));
-    }
-    setLoading(false);
+    void Promise.all([sprinterApi.guards(), sprinterApi.automations()])
+      .then(
+        ([nextGuards, nextAutomations]) => {
+          setGuards(nextGuards);
+          setAutomations(nextAutomations);
+        },
+        (caught: unknown) => setError(caught instanceof Error ? caught.message : 'Could not load Sprinter administration.'),
+      )
+      // The Calendar scopes list lives on a separate service, so its own
+      // failure should not blank out guards and automations that already loaded.
+      .then(() => sprinterApi.scopes())
+      .then(setScopes, (caught: unknown) => {
+        setError((current) => current || (caught instanceof Error ? caught.message : 'Could not load calendar scopes.'));
+      })
+      .finally(() => setLoading(false));
   }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
 
   async function saveGuard(subject: GuardSubject, body: { guild_id: string; role_ids: string[]; channel_ids: string[] }) {
     const updated = await sprinterApi.saveGuard(subject, body);
