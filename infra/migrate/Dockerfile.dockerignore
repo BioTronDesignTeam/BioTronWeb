@@ -4,5 +4,6 @@
 !infra/migrate/package.json
 !infra/migrate/package-lock.json
 !infra/migrate/migrate
+!infra/migrate/grants
 !apps/*/prisma/schema.prisma
 !apps/*/prisma/migrations

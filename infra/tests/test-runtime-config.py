@@ -14,6 +14,11 @@ ROOT = Path(__file__).resolve().parents[2]
 APPS = ('auth', 'calendar', 'exogui', 'status', 'biotron', 'sprinter')
 # The apps that own a database schema, each with its own DATABASE_URL.
 DATABASE_APPS = ('auth', 'calendar', 'status', 'sprinter')
+# Each app role's password, and every database password an instance needs.
+ROLE_PASSWORDS = {f'{app.upper()}_DB_PASSWORD': f'pw-{app}' for app in DATABASE_APPS}
+DATABASE_PASSWORDS = dict(POSTGRES_PASSWORD='fixture-db', SPRINTER_READER_PASSWORD='fixture-reader',
+                          AUTH_DB_PASSWORD='fixture-auth', CALENDAR_DB_PASSWORD='fixture-calendar',
+                          STATUS_DB_PASSWORD='fixture-status', SPRINTER_DB_PASSWORD='fixture-sprinter')
 
 
 def database_url_parts(url):
@@ -55,10 +60,10 @@ class RuntimeConfigTests(unittest.TestCase):
     def secrets(self):
         for app in DATABASE_APPS:
             self.env[f'{app.upper()}_DATABASE_URL'] = f'fixture-{app}'
-        self.env.update(POSTGRES_PASSWORD='fixture-db', SPRINTER_READER_PASSWORD='fixture-reader')
+        self.env.update(DATABASE_PASSWORDS)
 
     def test_no_env_files_required_to_parse_or_stop_web(self):
-        self.assertEqual(len(self.config()['services']), 16)
+        self.assertEqual(len(self.config()['services']), 17)
         self.run_command('./launch', 'stop', 'web', '--runtime', '--dry-run')
 
     def test_database_and_public_config_are_isolated(self):
@@ -140,7 +145,7 @@ class RuntimeConfigTests(unittest.TestCase):
     def test_edge_is_its_own_project(self):
         self.env.update(POSTGRES_PASSWORD='fixture-db', SPRINTER_READER_PASSWORD='fixture-reader')
         infra = self.config('-f', 'infra/docker-compose.yml', '--env-file', '/dev/null')
-        self.assertEqual(sorted(infra['services']), ['postgres'])
+        self.assertEqual(sorted(infra['services']), ['postgres', 'postgres-roles'])
         (self.root / 'edge.env').write_text('EDGE_SITES=local=localhost\n')
         self.env['EDGE_ENV_FILE'] = str(self.root / 'edge.env')
         result = self.run_command('./launch', 'edge', '--no-tunnel', '--dry-run')
@@ -211,7 +216,7 @@ class RuntimeConfigTests(unittest.TestCase):
         ups = [line for line in result.stdout.splitlines() if ' up ' in line]
         self.assertEqual(len(ups), 2, result.stdout)
         self.assertTrue(all('-p biotron-prod' in line for line in ups), result.stdout)
-        self.assertTrue(ups[0].endswith('up -d postgres'), ups[0])
+        self.assertTrue(ups[0].endswith('up -d postgres postgres-roles'), ups[0])
         self.assertNotIn('postgres', ups[1])
 
     def test_named_instances_publish_no_host_ports(self):
@@ -252,7 +257,26 @@ class RuntimeConfigTests(unittest.TestCase):
     def test_infra_needs_database_passwords(self):
         self.run_command('./launch', 'infra', '--runtime', '--dry-run', success=False)
         self.env.update(POSTGRES_PASSWORD='fixture-db', SPRINTER_READER_PASSWORD='fixture-reader')
+        # A laptop may leave the app roles out; a deployment may not.
+        self.run_command('./launch', 'infra', '--dry-run')
+        self.run_command('./launch', 'infra', '--runtime', '--dry-run', success=False)
+        self.env.update(DATABASE_PASSWORDS)
         self.run_command('./launch', 'infra', '--runtime', '--dry-run')
+
+    def test_migrations_run_as_the_owner_after_the_roles(self):
+        self.env.update(AUTH_DATABASE_URL='fixture-app', AUTH_MIGRATE_DATABASE_URL='fixture-owner')
+        services = self.config()['services']
+        self.assertEqual(services['auth-migrate']['environment']['DATABASE_URL'], 'fixture-owner')
+        self.assertEqual(services['auth-api']['environment']['DATABASE_URL'], 'fixture-app')
+        for app in DATABASE_APPS:
+            self.assertEqual(services[f'{app}-migrate']['depends_on']['postgres-roles']['condition'],
+                             'service_completed_successfully')
+        self.assertEqual(services['postgres-roles']['depends_on']['postgres']['condition'],
+                         'service_healthy')
+        # Without a separate owner URL, a laptop's single DATABASE_URL serves both.
+        del self.env['AUTH_MIGRATE_DATABASE_URL']
+        services = self.config()['services']
+        self.assertEqual(services['auth-migrate']['environment']['DATABASE_URL'], 'fixture-app')
 
     def test_infisical_is_independent_and_loopback_only(self):
         self.env.update(ENCRYPTION_KEY='fixture-key', AUTH_SECRET='fixture-auth',
@@ -283,10 +307,17 @@ class RuntimeConfigTests(unittest.TestCase):
         return dict(line.split('=', 1) for line in result.stdout.splitlines() if '=' in line)
 
     def test_instance_defaults_derive_settings_from_the_domain_and_passwords(self):
-        env = self.instance_defaults(BASE_DOMAIN='example.test', POSTGRES_PASSWORD='abc123',
-                                     SPRINTER_READER_PASSWORD='def456')
-        self.assertEqual(database_url_parts(env['AUTH_DATABASE_URL']),
-                         ('postgresql', 'biotron', 'abc123', 'postgres:5432', '/biotron', 'schema=oauth'))
+        env = self.instance_defaults(**ROLE_PASSWORDS, BASE_DOMAIN='example.test',
+                                     POSTGRES_PASSWORD='abc123', SPRINTER_READER_PASSWORD='def456')
+        # Each API connects as its own role; its migrations run as the owner.
+        for app, schema in (('auth', 'oauth'), ('calendar', 'calendar'), ('status', 'logger'),
+                            ('sprinter', 'sprinter')):
+            self.assertEqual(database_url_parts(env[f'{app.upper()}_DATABASE_URL']),
+                             ('postgresql', f'{app}_app', f'pw-{app}', 'postgres:5432', '/biotron',
+                              f'schema={schema}'))
+            self.assertEqual(database_url_parts(env[f'{app.upper()}_MIGRATE_DATABASE_URL']),
+                             ('postgresql', 'biotron', 'abc123', 'postgres:5432', '/biotron',
+                              f'schema={schema}'))
         self.assertEqual(database_url_parts(env['SPRINTER_READ_DATABASE_URL']),
                          ('postgresql', 'sprinter_reader', 'def456', 'postgres:5432', '/biotron', ''))
         self.assertEqual(env['AUTH_OAUTH_CALLBACK_URL'],
@@ -299,14 +330,22 @@ class RuntimeConfigTests(unittest.TestCase):
 
     def test_instance_defaults_reject_missing_or_unsafe_values(self):
         self.run_command('bash', 'deploy/instance-defaults.sh', 'true', success=False)
-        self.env.update(BASE_DOMAIN='example.test', POSTGRES_PASSWORD='a@b',
+        self.env.update(BASE_DOMAIN='example.test', POSTGRES_PASSWORD='abc',
                         SPRINTER_READER_PASSWORD='def456')
+        # Every app role needs its password.
+        self.run_command('bash', 'deploy/instance-defaults.sh', 'true', success=False)
+        self.env.update(ROLE_PASSWORDS)
+        self.run_command('bash', 'deploy/instance-defaults.sh', 'true')
+        self.env.update(AUTH_DB_PASSWORD='a@b')
+        self.run_command('bash', 'deploy/instance-defaults.sh', 'true', success=False)
+        self.env.update(ROLE_PASSWORDS, POSTGRES_PASSWORD='a@b')
+        self.run_command('bash', 'deploy/instance-defaults.sh', 'true', success=False)
         self.run_command('bash', 'deploy/instance-defaults.sh', 'true', success=False)
         self.env.update(POSTGRES_PASSWORD='abc', BASE_DOMAIN='Example.test')
         self.run_command('bash', 'deploy/instance-defaults.sh', 'true', success=False)
 
     def test_derived_settings_satisfy_launch(self):
-        self.env.update(BASE_DOMAIN='example.test', POSTGRES_PASSWORD='abc123',
+        self.env.update(**ROLE_PASSWORDS, BASE_DOMAIN='example.test', POSTGRES_PASSWORD='abc123',
                         SPRINTER_READER_PASSWORD='def456',
                         IMAGE_REGISTRY='ghcr.io/biotrondesignteam/', IMAGE_TAG='0' * 40)
         self.run_command('bash', 'deploy/instance-defaults.sh', './launch', 'all',

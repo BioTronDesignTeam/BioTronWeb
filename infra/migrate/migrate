@@ -2,9 +2,12 @@
 # Runs `prisma migrate` for one app against its own schema. The schema and the
 # migrations stay with the app, in apps/<app>/prisma; DATABASE_URL names the
 # database and, through ?schema=, the app's schema, where Prisma keeps that
-# app's _prisma_migrations history.
+# app's _prisma_migrations history. It connects as the cluster owner, which
+# owns every schema; the app itself connects as its own role (see
+# infra/postgres/init/05-app-roles.sh).
 #
-#   migrate <app>                    apply what is pending (migrate deploy)
+#   migrate <app>                    apply what is pending (migrate deploy),
+#                                    then grants/<app>.sql
 #   migrate <app> dev --name <name>  create a migration from schema.prisma
 #   migrate <app> status             any other `prisma migrate` command
 #
@@ -16,6 +19,7 @@ set -eu
 
 here=$(cd "$(dirname "$0")" && pwd)
 root=$(cd "$here/../.." && pwd)
+prisma=$here/node_modules/.bin/prisma
 
 app=${1:-}
 case $app in
@@ -24,6 +28,14 @@ esac
 shift
 schema=$root/apps/$app/prisma/schema.prisma
 [ -f "$schema" ] || { echo "migrate: apps/$app has no prisma/schema.prisma" >&2; exit 2; }
-[ $# -gt 0 ] || set -- deploy
+if [ $# -gt 0 ]; then exec "$prisma" migrate "$@" --schema "$schema"; fi
 
-exec "$here/node_modules/.bin/prisma" migrate "$@" --schema "$schema"
+"$prisma" migrate deploy --schema "$schema"
+# A migration that recreates a table drops the grants on it, and the tables
+# Sprinter's read-only role reads exist only once their app has migrated, so
+# the grants are made again after every deploy.
+grants=$here/grants/$app.sql
+if [ -f "$grants" ]; then
+  "$prisma" db execute --schema "$schema" --file "$grants"
+  echo "migrate: applied grants/$app.sql"
+fi

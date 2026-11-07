@@ -52,7 +52,9 @@ root=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 cd "$root"
 
 apps='biotron calendar auth exogui status sprinter'
-infra_services='postgres'
+# postgres-roles is a one-shot that brings the database roles up to date
+# before any migration; see infra/postgres/init.
+infra_services='postgres postgres-roles'
 target='' build=false pull=false tunnel=true dry_run=false excluded='' stop_target='all' runtime=false instance=''
 
 die() { echo "launch: $*" >&2; exit 1; }
@@ -194,10 +196,12 @@ ensure_network() {
   fi
 }
 
-# Check only selected services, without printing the rendered credentials.
+# Check only selected services, without printing the rendered credentials. A
+# deployment (--runtime) also needs every app role's password; a laptop whose
+# infra/.env predates the roles may leave them out and use the owner's URL.
 validate() {
   command -v jq >/dev/null 2>&1 || die 'jq is required to validate configuration'
-  stack_config --format json | jq -er --arg selected "$1" '
+  stack_config --format json | jq -er --arg selected "$1" --argjson runtime "$runtime" '
     .services as $services |
     ($selected | split("\n"))[] as $name |
     $services[$name].environment as $env |
@@ -205,6 +209,10 @@ validate() {
       error($name + ": set its app-prefixed DATABASE_URL")
     elif $name == "postgres" and ((($env.POSTGRES_PASSWORD // "") == "") or (($env.SPRINTER_READER_PASSWORD // "") == "")) then
       error("postgres: set POSTGRES_PASSWORD and SPRINTER_READER_PASSWORD")
+    elif $name == "postgres" and $runtime and
+        ([$env.AUTH_DB_PASSWORD, $env.CALENDAR_DB_PASSWORD, $env.STATUS_DB_PASSWORD, $env.SPRINTER_DB_PASSWORD]
+         | any((. // "") == "")) then
+      error("postgres: set AUTH_DB_PASSWORD, CALENDAR_DB_PASSWORD, STATUS_DB_PASSWORD, and SPRINTER_DB_PASSWORD")
     else true end
   ' >/dev/null
 }

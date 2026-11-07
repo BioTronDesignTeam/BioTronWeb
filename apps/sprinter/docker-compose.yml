@@ -9,9 +9,15 @@ services:
       dockerfile: infra/migrate/Dockerfile
     command: ["sprinter"]
     environment:
-      DATABASE_URL: ${SPRINTER_DATABASE_URL:-${DATABASE_URL:-}}
+      # The cluster owner, which owns the schema. The API connects as its own
+      # role (infra/postgres/init/05-app-roles.sh).
+      DATABASE_URL: ${SPRINTER_MIGRATE_DATABASE_URL:-${MIGRATE_DATABASE_URL:-${SPRINTER_DATABASE_URL:-${DATABASE_URL:-}}}}
     networks:
       - biotron
+    # Postgres is up and every role exists before a migration starts.
+    depends_on:
+      postgres-roles:
+        condition: service_completed_successfully
     restart: "no"
 
   sprinter-bot:

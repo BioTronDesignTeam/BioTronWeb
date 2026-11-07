@@ -136,7 +136,7 @@ wait_healthy() {
       IFS=$'\t' read -r service state health code < <(docker inspect --format \
         '{{index .Config.Labels "com.docker.compose.service"}}{{"\t"}}{{.State.Status}}{{"\t"}}{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}{{"\t"}}{{.State.ExitCode}}' "$id")
       case $service in
-        *-migrate) [[ $state == exited && $code == 0 ]] || bad+=("$service=$id=$state, exit $code") ;;
+        *-migrate|postgres-roles) [[ $state == exited && $code == 0 ]] || bad+=("$service=$id=$state, exit $code") ;;
         *) [[ $state == running && ( $health == none || $health == healthy ) ]] || bad+=("$service=$id=$state, $health") ;;
       esac
     done

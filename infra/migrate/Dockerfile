@@ -2,8 +2,9 @@
 
 # One image applies the Prisma migrations of every app, each to its own
 # schema: each app's *-migrate service runs it with the app's name and its own
-# DATABASE_URL. Build it from the repository root. Dockerfile.dockerignore
-# beside this file keeps the context to this folder and every
+# DATABASE_URL, then makes its grants (grants/<app>.sql). Build it from the
+# repository root. Dockerfile.dockerignore beside this file keeps the context
+# to this folder and every
 # apps/*/prisma schema and migrations, so a new app's are picked up as is.
 
 # npm installs the Prisma CLI and its engines here; the runtime below gets
@@ -28,6 +29,7 @@ RUN apt-get update     && apt-get upgrade -y     && apt-get install -y --no-inst
 WORKDIR /app
 COPY --from=install /app/infra/migrate/node_modules infra/migrate/node_modules
 COPY infra/migrate/package.json infra/migrate/migrate infra/migrate/
+COPY infra/migrate/grants infra/migrate/grants
 COPY apps apps
 
 # Applying migrations needs no root; the image's built-in node user does it.
