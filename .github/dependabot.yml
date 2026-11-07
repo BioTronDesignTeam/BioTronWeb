@@ -9,6 +9,10 @@
 # soon as an advisory lands (when Dependabot security updates are on in the
 # repository settings).
 #
+# A release waits a week before Dependabot proposes it (cooldown), so a
+# compromised release is more likely to be caught and pulled first. Security
+# updates skip the wait.
+#
 # Not updated by Dependabot: the Go version on the `go` line of each go.mod
 # and go.work (README.md owns it). Tool versions that CI shares with the
 # devcontainer live on the FROM lines of .devcontainer/Dockerfile, which the
@@ -26,6 +30,8 @@ updates:
     schedule:
       interval: weekly
       day: monday
+    cooldown:
+      default-days: 7
     groups:
       go:
         patterns: ["*"]
@@ -39,6 +45,8 @@ updates:
     schedule:
       interval: weekly
       day: monday
+    cooldown:
+      default-days: 7
     groups:
       npm:
         patterns: ["*"]
@@ -57,6 +65,8 @@ updates:
     schedule:
       interval: weekly
       day: monday
+    cooldown:
+      default-days: 7
     groups:
       prisma:
         patterns: ["*"]
@@ -71,6 +81,8 @@ updates:
     schedule:
       interval: weekly
       day: monday
+    cooldown:
+      default-days: 7
     groups:
       actions:
         patterns: ["*"]
@@ -91,6 +103,8 @@ updates:
     schedule:
       interval: weekly
       day: monday
+    cooldown:
+      default-days: 7
     groups:
       docker:
         patterns: ["*"]
@@ -110,6 +124,8 @@ updates:
     schedule:
       interval: weekly
       day: monday
+    cooldown:
+      default-days: 7
     groups:
       compose:
         patterns: ["*"]
