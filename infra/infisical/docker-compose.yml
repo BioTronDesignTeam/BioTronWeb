@@ -3,7 +3,7 @@ name: biotron-secrets
 
 services:
   infisical:
-    image: ${INFISICAL_IMAGE:-infisical/infisical:v0.166.2}
+    image: ${INFISICAL_IMAGE:-infisical/infisical:v0.166.2@sha256:3f014f284cb9af5b12087681cbbddc55244fe8e58a8d080987cd3e0f262bf837}
     restart: unless-stopped
     environment:
       NODE_ENV: production
@@ -25,7 +25,7 @@ services:
       - no-new-privileges:true
 
   db:
-    image: postgres:16.10-alpine
+    image: postgres:16.10-alpine@sha256:029660641a0cfc575b14f336ba448fb8a75fd595d42e1fa316b9fb4378742297
     restart: unless-stopped
     environment:
       POSTGRES_USER: infisical
@@ -44,7 +44,7 @@ services:
       - no-new-privileges:true
 
   redis:
-    image: redis:7.4.6-alpine
+    image: redis:7.4.6-alpine@sha256:3b73847e72874be07e6657b129a94761662b79bc0f679273757d4218573b2a98
     restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes"]
     volumes:
