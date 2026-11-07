@@ -203,3 +203,16 @@ func TestSplitMessageNeverCutsThroughACharacter(t *testing.T) {
 		t.Fatalf("parts = %q", parts)
 	}
 }
+
+// People read the refusals in the channel, so they use the platform's words:
+// a manager, never an admin.
+func TestRefusalsUseThePlatformWording(t *testing.T) {
+	if got := refusals[reasonNoGuard]; got != "This command is not configured yet. Ask a manager." {
+		t.Fatalf("no-guard refusal = %q", got)
+	}
+	for why, sentence := range refusals {
+		if strings.Contains(strings.ToLower(sentence), "admin") {
+			t.Errorf("refusal %q says admin: %q", why, sentence)
+		}
+	}
+}
