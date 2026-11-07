@@ -138,6 +138,13 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertNotIn('setup-qemu-action', workflow)
         self.assertIn('image-ref: ${{ env.REPOSITORY }}@${{ steps.build.outputs.digest }}', workflow)
 
+    def test_ci_tests_against_the_postgres_that_instances_run(self):
+        compose = (ROOT / 'infra/docker-compose.yml').read_text()
+        image = re.search(r'image: &postgres-image (\S+)', compose).group(1)
+        ci = (ROOT / '.github/workflows/ci.yml').read_text()
+        self.assertIn(f"image: ${{{{ matrix.app != 'exogui' && '{image}' || '' }}}}", ci)
+        self.assertIn('scripts/test-database --network host --host 127.0.0.1:5432', ci)
+
     def test_an_existing_image_tag_is_never_built_again(self):
         bin_dir = self.root / 'bin'
         bin_dir.mkdir()

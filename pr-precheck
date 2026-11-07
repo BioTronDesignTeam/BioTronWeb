@@ -4,7 +4,7 @@ set -euo pipefail
 
 usage() {
   cat <<'USAGE'
-Usage: ./pr-precheck [--base REF] [--all] [--plan]
+Usage: ./pr-precheck [--base REF] [--all] [--plan] [--no-live-db]
 
 Run CI's build, type, lint, format, test, sqlc, image, Prisma, workflow, secret, and
 vulnerability checks locally.
@@ -13,6 +13,8 @@ Includes committed, staged, unstaged, and untracked nonignored changes.
   --base REF  Compare with this local ref (default: origin/main, then main)
   --all       Check every app and the shared Go modules
   --plan      Show selected checks without running or installing anything
+  --no-live-db
+              Skip the backends' live database tests, which need Docker
   --help      Show this help
 
 Use the devcontainer for Node, Go, golangci-lint, govulncheck, sqlc, actionlint,
@@ -20,16 +22,19 @@ ShellCheck, zizmor, TruffleHog, Trivy, jq, and psql. The Prisma checks make and
 drop shadow databases in the Postgres of PRISMA_CHECK_DATABASE_URL (default:
 the devcontainer's).
 Security scans always run and require network access for live verification.
-No fetching, commits, pushes, migrations, or services are started.
+No fetching, commits, or pushes. For the live database tests of the selected
+backends, a throwaway Postgres container is started beside the devcontainer,
+built up with the roles and migrations as a deploy does, and removed at exit.
 USAGE
 }
 
-base='' all=false plan=false scratch=''
+base='' all=false plan=false scratch='' live_db=true test_pg=''
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --help|-h) usage; exit 0 ;;
     --all) all=true; shift ;;
     --plan) plan=true; shift ;;
+    --no-live-db) live_db=false; shift ;;
     --base)
       if [[ $# -lt 2 || "$2" == -* ]]; then echo '--base needs a local branch or commit' >&2; exit 1; fi
       base=$2; shift 2 ;;
@@ -54,7 +59,11 @@ head_commit=$(git rev-parse HEAD)
 merge_base=$(git merge-base "$base_commit" "$head_commit")
 
 scratch=$(mktemp -d "${TMPDIR:-/tmp}/biotron-pr-precheck.XXXXXX")
-trap 'rm -rf "$scratch"' EXIT
+cleanup() {
+  rm -rf "$scratch"
+  if [[ -n $test_pg ]]; then docker rm -f "$test_pg" >/dev/null 2>&1 || true; fi
+}
+trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 # NUL delimiters preserve spaces, newlines, and both sides of renames.
@@ -83,9 +92,17 @@ for app in $apps; do
 done
 shared=no
 if $all_backends; then shared=yes; fi
+# The backends that own a schema have live tests against a real database.
+live_backends=''
+if $live_db; then
+  for app in $backends; do
+    case $app in auth|calendar|status|sprinter) live_backends="${live_backends:+$live_backends }$app" ;; esac
+  done
+fi
 printf 'Base: %s (merge base %.12s)\nFrontends: %s\nBackends: %s\nShared Go modules: %s\n' "$base" "$merge_base" "${frontends:-none}" "${backends:-none}" "$shared"
 echo "Prisma: $(if $prisma; then echo 'format and migrations of every apps/*/prisma (scripts/check-prisma)'; else echo none; fi)"
 echo 'Images: pins and tool versions (scripts/check-images)'
+printf 'Live database tests: %s\n' "${live_backends:-none}"
 echo 'Workflows: actionlint and zizmor on every workflow'
 echo 'Shell scripts: ShellCheck on every one (scripts/list-shell-scripts)'
 echo 'Security: commit history, staged and working files, vulnerabilities and misconfigurations'
@@ -95,6 +112,7 @@ required='trufflehog trivy jq actionlint shellcheck zizmor'
 if [[ -n $frontends ]]; then required="$required npm"; fi
 if $prisma; then required="$required npm psql"; fi
 if [[ -n $backends || $shared == yes ]]; then required="$required go golangci-lint govulncheck sqlc"; fi
+if [[ -n $live_backends ]]; then required="$required docker"; fi
 missing=''
 for tool in $required; do
   if ! command -v "$tool" >/dev/null 2>&1; then missing="$missing $tool"; fi
@@ -195,13 +213,49 @@ if [[ -n $frontends ]]; then
   else echo 'SKIP frontend checks because dependency installation failed'
   fi
 fi
+# A throwaway Postgres in this container's network namespace, on a port of
+# its own, set up by scripts/test-database as CI's backend jobs are.
+start_test_database() {
+  local self password image
+  self=$(hostname)
+  if ! docker inspect "$self" >/dev/null 2>&1; then
+    echo "Docker does not know this container ($self). Run in the devcontainer, or pass --no-live-db." >&2
+    return 1
+  fi
+  password=$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')
+  image=$(sed -nE 's/^ *image: &postgres-image ([^[:space:]]+).*/\1/p' infra/docker-compose.yml)
+  test_pg=biotron-precheck-pg-$$
+  docker run -d --rm --name "$test_pg" --network "container:$self" -e POSTGRES_USER=biotron \
+    -e POSTGRES_PASSWORD="$password" -e POSTGRES_DB=biotron "$image" -p 54329 >/dev/null || return 1
+  PGPASSWORD=$password scripts/test-database --network "container:$self" --host 127.0.0.1:54329 > "$scratch/test-env" || return 1
+  set -a
+  # shellcheck source=/dev/null
+  . "$scratch/test-env"
+  set +a
+}
+# As in ci.yml: with a database set up, a live test that skips is a failure.
+every_live_test_ran() {
+  go test -race -p 1 -count=1 -run '^TestLive' -v ./... > "$scratch/live.txt" 2>&1 || { cat "$scratch/live.txt"; return 1; }
+  if grep -- '--- SKIP' "$scratch/live.txt"; then return 1; fi
+  grep -q -- '--- PASS: TestLive' "$scratch/live.txt"
+}
+live_ready=false
+if [[ -n $live_backends ]]; then
+  run 'live-test database' start_test_database
+  live_ready=$last_passed
+fi
+
 modules=''
 for app in $backends; do modules="$modules apps/$app/backend"; done
 if [[ $shared == yes ]]; then modules="$modules go/authclient go/logclient"; fi
 for module in $modules; do
   run "$module lint" in_directory "$root/$module" golangci-lint run --config "$root/go/.golangci.yml" ./...
   run "$module vet" in_directory "$root/$module" go vet ./...
-  run "$module tests" in_directory "$root/$module" go test -race ./...
+  run "$module tests" in_directory "$root/$module" go test -race -skip '^TestLive' ./...
+  app=${module#apps/} app=${app%/backend}
+  if $live_ready && [[ " $live_backends " == *" $app "* ]]; then
+    run "$module live tests" in_directory "$root/$module" every_live_test_ran
+  fi
   run "$module tidy" in_directory "$root/$module" go mod tidy -diff
   run "$module vulnerabilities" in_directory "$root/$module" govulncheck ./...
   # Same as .github/workflows/sqlc.yml: generated code matches its queries.
