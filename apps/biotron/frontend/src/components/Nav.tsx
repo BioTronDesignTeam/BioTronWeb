@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
 import { Brand } from '@biotron/style';
@@ -14,6 +14,8 @@ export default function Nav() {
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
   const location = useLocation();
+  const burger = useRef<HTMLButtonElement>(null);
+  const drawer = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 40);
@@ -49,13 +51,37 @@ export default function Nav() {
 
     const root = document.documentElement;
     const previousOverflow = root.style.overflow;
+    // The burger, now the close button, and the drawer links: focus stays
+    // among them while the menu is open.
+    const stops = () => [
+      ...(burger.current ? [burger.current] : []),
+      ...(drawer.current?.querySelectorAll<HTMLElement>('a[href]') ?? []),
+    ];
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false);
+      if (event.key === 'Escape') {
+        setOpen(false);
+        burger.current?.focus();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const list = stops();
+      const first = list[0];
+      const last = list.at(-1);
+      if (!first || !last) return;
+      const inside = list.includes(document.activeElement as HTMLElement);
+      if (event.shiftKey && (document.activeElement === first || !inside)) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !inside)) {
+        event.preventDefault();
+        first.focus();
+      }
     };
 
     root.style.overflow = 'hidden';
     pauseScroll();
     window.addEventListener('keydown', onKeyDown);
+    drawer.current?.querySelector<HTMLElement>('a[href]')?.focus();
 
     return () => {
       root.style.overflow = previousOverflow;
@@ -92,6 +118,8 @@ export default function Nav() {
         </nav>
 
         <button
+          ref={burger}
+          type="button"
           className="nav__burger"
           aria-label={open ? 'Close menu' : 'Open menu'}
           aria-expanded={open}
@@ -104,6 +132,7 @@ export default function Nav() {
 
       {/* Mobile drawer */}
       <div
+        ref={drawer}
         id="mobile-navigation"
         // Lenis takes the wheel and touch for the whole page. This hands them back to the drawer.
         data-lenis-prevent

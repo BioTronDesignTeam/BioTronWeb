@@ -337,8 +337,9 @@ writing the words again, and keep docs that quote the UI in step.
   and touch breakpoints. Phones below 640px, and short touch viewports, get the
   stacked homepage instead of the flythrough.
 - Mobile keeps a 20px minimum gutter, respects safe-area insets, and keeps
-  44px touch targets. The mobile menu locks page scroll while open and closes
-  on Escape and on every choice.
+  44px touch targets. The mobile menu locks page scroll while open (it stops
+  Lenis too, which `overflow: hidden` alone does not), keeps focus inside
+  itself, and closes on Escape and on every choice.
 - Site copy is active, concrete, and short. Do not use em dashes in site copy.
 - Facebook is retired and must not appear. Contact is `biotron@uwaterloo.ca`
   and Instagram `@uwaterloo_biotron`.
