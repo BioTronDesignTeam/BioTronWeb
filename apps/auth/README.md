@@ -237,6 +237,7 @@ operator as `actor`.
 |---|---|---|
 | `OAuthManager started` | info | `port` |
 | `OAuthManager stopping` | info | — |
+| `OAuthManager failed to start`, `OAuthManager stopped serving` | error | `error`: the cause, sent before the process exits |
 | `HTTP request completed` | info, warning on 4xx, error on 5xx | `method`, `path`, `status`, `duration_ms`, `actor`, `error` |
 | `Operator signed in` | info | `operator_id`, `operator_login`, `new_operator` |
 | `Operator signed out` | info | `operator_id`, `operator_login` |

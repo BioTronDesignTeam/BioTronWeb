@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"os/signal"
@@ -21,38 +22,53 @@ import (
 )
 
 func main() {
+	// Set before anything runs, since every goroutine reads time.Local. No
+	// event client exists yet, so there is nothing to flush.
 	loc, err := time.LoadLocation("America/Toronto")
 	if err != nil {
 		log.Fatalf("load America/Toronto timezone: %v", err)
 	}
 	time.Local = loc
+	if err := run(); err != nil {
+		log.Fatal(err)
+	}
+}
 
+// run starts Auth and serves until SIGINT or SIGTERM. Every way out, a
+// failure to start included, passes through the deferred flush, so the cause
+// reaches Grafana before the process exits; main only prints it and exits 1.
+func run() error {
 	_ = godotenv.Load("../.env")
+
+	events := logclient.NewFromEnv("oauth-manager")
+	defer flush(events)
+	if !events.Enabled() {
+		log.Println("warning: neither Grafana nor PostHog is configured — structured events go nowhere")
+	}
+	startFailed := func(err error) error {
+		events.LogAsync(logclient.Error, "OAuthManager failed to start", map[string]any{"error": err.Error()})
+		return err
+	}
 
 	cfg := config.Load()
 	if err := cfg.Validate(); err != nil {
-		log.Fatalf("config: %v", err)
+		return startFailed(fmt.Errorf("config: %w", err))
 	}
 	if cfg.DatabaseURL == "" {
-		log.Fatal("DATABASE_URL is required")
+		return startFailed(errors.New("DATABASE_URL is required"))
 	}
 	// Validate has already refused a missing or malformed GitHub App, so the
 	// key parses here.
 	appKey, err := config.ParsePrivateKey(cfg.GitHubAppPrivateKey)
 	if err != nil {
-		log.Fatalf("config: %v", err)
-	}
-	events := logclient.NewFromEnv("oauth-manager")
-	if !events.Enabled() {
-		log.Println("warning: neither Grafana nor PostHog is configured — structured events go nowhere")
+		return startFailed(fmt.Errorf("config: %w", err))
 	}
 
 	st, err := connectDB(cfg.DatabaseURL)
 	if err != nil {
-		log.Fatalf("connect db: %v", err)
+		return startFailed(fmt.Errorf("connect db: %w", err))
 	}
 	defer st.Close()
-
 	// RequireSession reads SUPERUSER_GITHUB_IDS on every request. The column
 	// mirrors it for readers of the table, such as Sprinter, so a removed id
 	// loses the flag there with this deploy rather than at its next sign-in.
@@ -103,16 +119,22 @@ func main() {
 	}
 	events.LogAsync(logclient.Info, "OAuthManager started", map[string]any{"port": cfg.Port})
 
+	serveErr := make(chan error, 1)
 	go func() {
 		log.Printf("oauth-manager listening on %s", srv.Addr)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Fatalf("listen: %v", err)
+			serveErr <- err
 		}
 	}()
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
-	<-ctx.Done()
+	select {
+	case err := <-serveErr:
+		events.LogAsync(logclient.Error, "OAuthManager stopped serving", map[string]any{"error": err.Error()})
+		return fmt.Errorf("listen: %w", err)
+	case <-ctx.Done():
+	}
 	log.Println("shutting down")
 	events.LogAsync(logclient.Info, "OAuthManager stopping", nil)
 	// In-flight requests get ten seconds to finish; new ones are refused.
@@ -121,11 +143,15 @@ func main() {
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		log.Printf("shutdown: %v", err)
 	}
-	// The last request events are queued now; send what Grafana and PostHog
-	// still hold before the process exits.
-	flushCtx, cancelFlush := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancelFlush()
-	if err := events.Close(flushCtx); err != nil {
+	return nil
+}
+
+// flush sends what Grafana and PostHog still hold before the process exits:
+// the last request events at a shutdown, or the cause of a failed start.
+func flush(events *logclient.Client) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := events.Close(ctx); err != nil {
 		log.Printf("log export flush: %v", err)
 	}
 }
