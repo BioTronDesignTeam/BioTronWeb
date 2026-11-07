@@ -39,8 +39,16 @@ const WAVE_POSITION = `
 
 type WaveUniform = { uWaveTime: { value: number } };
 
+/** The wave time uniform that applyWave left on a mesh's material. */
+function waveTime(mesh: Mesh | null): WaveUniform['uWaveTime'] | undefined {
+  const material = mesh?.material;
+  if (!material || Array.isArray(material)) return undefined;
+  return (material.userData as Partial<WaveUniform>).uWaveTime;
+}
+
 /** Moves the panel's vertex motion into the vertex shader. */
 function applyWave(material: Material, uniforms: WaveUniform, lit: boolean) {
+  material.userData.uWaveTime = uniforms.uWaveTime;
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uWaveTime = uniforms.uWaveTime;
     shader.vertexShader = WAVE_FUNCTION + shader.vertexShader;
@@ -118,7 +126,10 @@ export default function EmgFabricModel({ color, animate = true }: ModelProps) {
 
   useFrame((state) => {
     const t = animate ? state.clock.elapsedTime : 0;
-    uniforms.uWaveTime.value = t;
+    // The three materials share one uniform; the frame loop reaches it through
+    // the mesh, the three.js object it owns, not through React state.
+    const time = waveTime(cloth.current);
+    if (time) time.value = t;
 
     if (pulse.current && animate) {
       pulse.current.position.x = ((Math.sin(t * 0.8) * 0.5 + 0.5) * 1.6 - 0.8);

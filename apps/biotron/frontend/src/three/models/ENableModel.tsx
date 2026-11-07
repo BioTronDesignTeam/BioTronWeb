@@ -1,4 +1,4 @@
-import { useRef, type MutableRefObject } from 'react';
+import { useRef, type Ref } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Group } from 'three';
 import type { ModelProps } from './types';
@@ -23,22 +23,19 @@ interface FingerProps {
   x: number;
   len?: number;
   color: string;
-  /** Shared list the parent's frame loop curls; the finger registers itself. */
-  fingers: MutableRefObject<Group[]>;
-  refIndex: number;
+  /** The finger's root group, which the parent's frame loop curls. */
+  ref: Ref<Group>;
 }
 
 /**
  * One finger: proximal capsule, glowing knuckle, and a canted distal segment.
  * Lives at module scope so React keeps the same instance across parent renders.
  */
-function Finger({ x, len = 0.5, color, fingers, refIndex }: FingerProps) {
+function Finger({ x, len = 0.5, color, ref }: FingerProps) {
   return (
     <group
       position={[x, 0.35, 0]}
-      ref={(el) => {
-        if (el) fingers.current[refIndex] = el;
-      }}
+      ref={ref}
     >
       {/* proximal */}
       <mesh position={[0, len / 2, 0]} castShadow>
@@ -69,6 +66,10 @@ export default function ENableModel({ color, animate = true }: ModelProps) {
   const root = useRef<Group>(null);
   const fingers = useRef<Group[]>([]);
   const thumb = useRef<Group>(null);
+  // Each finger hands its group to the frame loop through a ref callback.
+  const holdFinger = (index: number) => (finger: Group | null) => {
+    if (finger) fingers.current[index] = finger;
+  };
 
   useFrame((state) => {
     const t = animate ? state.clock.elapsedTime : 0;
@@ -98,10 +99,10 @@ export default function ENableModel({ color, animate = true }: ModelProps) {
       </mesh>
 
       {/* Fingers */}
-      <Finger x={-0.24} refIndex={0} len={0.42} color={color} fingers={fingers} />
-      <Finger x={-0.08} refIndex={1} len={0.52} color={color} fingers={fingers} />
-      <Finger x={0.08} refIndex={2} len={0.5} color={color} fingers={fingers} />
-      <Finger x={0.24} refIndex={3} len={0.4} color={color} fingers={fingers} />
+      <Finger x={-0.24} len={0.42} color={color} ref={holdFinger(0)} />
+      <Finger x={-0.08} len={0.52} color={color} ref={holdFinger(1)} />
+      <Finger x={0.08} len={0.5} color={color} ref={holdFinger(2)} />
+      <Finger x={0.24} len={0.4} color={color} ref={holdFinger(3)} />
 
       {/* Thumb */}
       <group ref={thumb} position={[-0.34, -0.05, 0.05]} rotation={[0, 0, -0.5]}>
