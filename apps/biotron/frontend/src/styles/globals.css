@@ -115,7 +115,7 @@ canvas {
   gap: var(--sp-2);
 }
 .eyebrow::before {
-  content: '';
+  content: "";
   width: 28px;
   height: 1px;
   background: var(--accent-secondary);
@@ -133,7 +133,7 @@ canvas {
 
 /* Grain overlay */
 .grain::after {
-  content: '';
+  content: "";
   position: fixed;
   inset: 0;
   z-index: 1;

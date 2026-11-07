@@ -1,7 +1,7 @@
-const API_BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/$/, '');
+const API_BASE = (import.meta.env.VITE_API_URL || "/api").replace(/\/$/, "");
 
 /** Coarse public state. Never carries operational detail. */
-export type StatusState = 'operational' | 'degraded' | 'down' | 'unknown';
+export type StatusState = "operational" | "degraded" | "down" | "unknown";
 
 export type StatusComponent = {
   id: string;
@@ -50,11 +50,7 @@ export type ComponentHistory = {
   buckets: HistoryBucket[];
 };
 
-export type ApplicationHistory = {
-  id: string;
-  name: string;
-  buckets: HistoryBucket[];
-};
+export type ApplicationHistory = { id: string; name: string; buckets: HistoryBucket[] };
 
 export type StatusHistoryResponse = {
   days: number;
@@ -78,7 +74,7 @@ export class APIError extends Error {
  * the same for every visitor.
  */
 async function publicAPI<T>(path: string): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, { credentials: 'omit' });
+  const response = await fetch(`${API_BASE}${path}`, { credentials: "omit" });
   if (!response.ok) {
     let message = response.statusText;
     try {
@@ -92,7 +88,6 @@ async function publicAPI<T>(path: string): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-export const getStatus = () => publicAPI<StatusResponse>('/v1/status');
+export const getStatus = () => publicAPI<StatusResponse>("/v1/status");
 export const getStatusHistory = (days = 90) =>
   publicAPI<StatusHistoryResponse>(`/v1/status/history?days=${days}`);
-

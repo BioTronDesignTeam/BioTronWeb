@@ -1,20 +1,20 @@
-import { useRef } from 'react';
-import { gsap, useGSAP } from '../lib/gsap';
-import { useReducedMotion } from '../lib/hooks';
+import { useRef } from "react";
+import { gsap, useGSAP } from "../lib/gsap";
+import { useReducedMotion } from "../lib/hooks";
 
 /**
  * Tags this component may render as. A bare `ElementType` covers void elements
  * such as `<br>`, whose props declare `children?: never`; React 19's types
  * intersect the whole union and leave nothing a child can satisfy.
  */
-type TextTag = 'span' | 'p' | 'div' | 'h1' | 'h2' | 'h3' | 'h4';
+type TextTag = "span" | "p" | "div" | "h1" | "h2" | "h3" | "h4";
 
 interface SplitTextProps {
   text: string;
   as?: TextTag;
   className?: string;
   /** Animate per 'word' or per 'char'. */
-  by?: 'word' | 'char';
+  by?: "word" | "char";
   delay?: number;
   trigger?: boolean;
 }
@@ -26,9 +26,9 @@ interface SplitTextProps {
  */
 export default function SplitText({
   text,
-  as: Tag = 'span',
+  as: Tag = "span",
   className,
-  by = 'word',
+  by = "word",
   delay = 0,
   trigger = false,
 }: SplitTextProps) {
@@ -36,28 +36,27 @@ export default function SplitText({
   const reduced = useReducedMotion();
 
   // A token is identified by its place in the text, which never reorders.
-  const tokens = (by === 'word' ? text.split(' ') : Array.from(text)).map((value, at) => ({ value, key: `${at}:${value}` }));
+  const tokens = (by === "word" ? text.split(" ") : Array.from(text)).map((value, at) => ({
+    value,
+    key: `${at}:${value}`,
+  }));
 
   useGSAP(
     () => {
       if (reduced || !ref.current) return;
-      const parts = ref.current.querySelectorAll<HTMLElement>('[data-split]');
+      const parts = ref.current.querySelectorAll<HTMLElement>("[data-split]");
       gsap.from(parts, {
         yPercent: 120,
         opacity: 0,
         duration: 0.9,
-        ease: 'power4.out',
-        stagger: by === 'char' ? 0.025 : 0.06,
+        ease: "power4.out",
+        stagger: by === "char" ? 0.025 : 0.06,
         delay,
         // Promote only while the reveal is running. A permanent will-change
         // holds a compositor layer for every word for the life of the page.
-        onStart: () => parts.forEach((part) => (part.style.willChange = 'transform')),
-        onComplete: () => parts.forEach((part) => (part.style.willChange = '')),
-        ...(trigger
-          ? {
-              scrollTrigger: { trigger: ref.current, start: 'top 85%' },
-            }
-          : {}),
+        onStart: () => parts.forEach((part) => (part.style.willChange = "transform")),
+        onComplete: () => parts.forEach((part) => (part.style.willChange = "")),
+        ...(trigger ? { scrollTrigger: { trigger: ref.current, start: "top 85%" } } : {}),
       });
     },
     { scope: ref, dependencies: [reduced, text] },
@@ -73,11 +72,11 @@ export default function SplitText({
         <span
           key={token.key}
           aria-hidden="true"
-          style={{ display: 'inline-block', overflow: 'hidden', verticalAlign: 'top' }}
+          style={{ display: "inline-block", overflow: "hidden", verticalAlign: "top" }}
         >
-          <span data-split style={{ display: 'inline-block' }}>
+          <span data-split style={{ display: "inline-block" }}>
             {token.value}
-            {by === 'word' && i < tokens.length - 1 ? ' ' : ''}
+            {by === "word" && i < tokens.length - 1 ? " " : ""}
           </span>
         </span>
       ))}

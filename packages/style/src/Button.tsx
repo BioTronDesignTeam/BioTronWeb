@@ -1,14 +1,11 @@
-import type { ButtonHTMLAttributes } from 'react';
+import type { ButtonHTMLAttributes } from "react";
 
 export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
-  tone?: 'primary' | 'neutral' | 'danger';
+  tone?: "primary" | "neutral" | "danger";
 };
 
-export function Button({ className = '', tone = 'primary', ...props }: ButtonProps) {
+export function Button({ className = "", tone = "primary", ...props }: ButtonProps) {
   return (
-    <button
-      className={`biotron-button biotron-button--${tone} ${className}`.trim()}
-      {...props}
-    />
+    <button className={`biotron-button biotron-button--${tone} ${className}`.trim()} {...props} />
   );
 }

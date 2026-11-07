@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react';
-import { RequireAuth, useSession } from '@biotron/style';
-import { setUnauthorizedHandler, sprinterApi } from './api';
-import type { Automation, AutomationPayload, Guard, GuardSubject, Scope } from './types';
-import { AutomationsPanel } from './components/AutomationsPanel';
-import { GuardsPanel } from './components/GuardsPanel';
-import { Header } from './components/Header';
+import { useEffect, useState } from "react";
+import { RequireAuth, useSession } from "@biotron/style";
+import { setUnauthorizedHandler, sprinterApi } from "./api";
+import type { Automation, AutomationPayload, Guard, GuardSubject, Scope } from "./types";
+import { AutomationsPanel } from "./components/AutomationsPanel";
+import { GuardsPanel } from "./components/GuardsPanel";
+import { Header } from "./components/Header";
 
 export function App() {
   return (
@@ -29,7 +29,7 @@ function Administration() {
   const [scopes, setScopes] = useState<Scope[]>([]);
   // The page starts loading as it mounts.
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
   useEffect(() => {
     setUnauthorizedHandler(expire);
@@ -38,25 +38,38 @@ function Administration() {
   // State is set only as each response lands, never synchronously in the effect.
   useEffect(() => {
     // Only says whether Discord is on; the page works the same without it.
-    void sprinterApi.status().then((status) => setDiscordEnabled(status.discord_enabled), () => undefined);
+    void sprinterApi.status().then(
+      (status) => setDiscordEnabled(status.discord_enabled),
+      () => undefined,
+    );
     void Promise.all([sprinterApi.guards(), sprinterApi.automations()])
       .then(
         ([nextGuards, nextAutomations]) => {
           setGuards(nextGuards);
           setAutomations(nextAutomations);
         },
-        (caught: unknown) => setError(caught instanceof Error ? caught.message : 'Could not load Sprinter administration.'),
+        (caught: unknown) =>
+          setError(
+            caught instanceof Error ? caught.message : "Could not load Sprinter administration.",
+          ),
       )
       // The Calendar scopes list lives on a separate service, so its own
       // failure should not blank out guards and automations that already loaded.
       .then(() => sprinterApi.scopes())
       .then(setScopes, (caught: unknown) => {
-        setError((current) => current || (caught instanceof Error ? caught.message : 'Could not load calendar scopes.'));
+        setError(
+          (current) =>
+            current ||
+            (caught instanceof Error ? caught.message : "Could not load calendar scopes."),
+        );
       })
       .finally(() => setLoading(false));
   }, []);
 
-  async function saveGuard(subject: GuardSubject, body: { guild_id: string; role_ids: string[]; channel_ids: string[] }) {
+  async function saveGuard(
+    subject: GuardSubject,
+    body: { guild_id: string; role_ids: string[]; channel_ids: string[] },
+  ) {
     const updated = await sprinterApi.saveGuard(subject, body);
     setGuards((current) => [...current.filter((guard) => guard.subject !== subject), updated]);
   }
@@ -73,7 +86,9 @@ function Administration() {
 
   async function updateAutomation(id: string, body: Partial<AutomationPayload>) {
     const updated = await sprinterApi.updateAutomation(id, body);
-    setAutomations((current) => current.map((automation) => (automation.id === id ? updated : automation)));
+    setAutomations((current) =>
+      current.map((automation) => (automation.id === id ? updated : automation)),
+    );
   }
 
   async function deleteAutomation(automation: Automation) {
@@ -82,13 +97,18 @@ function Administration() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-[1200px] space-y-8 px-4 pb-16 pt-8 sm:px-6 lg:px-8">
+    <main className="mx-auto w-full max-w-[1200px] space-y-8 px-4 pt-8 pb-16 sm:px-6 lg:px-8">
       {discordEnabled === false && (
         <output className="block rounded-xl border border-ink/10 bg-white px-4 py-3 text-sm dark:border-line dark:bg-surface">
-          Discord is turned off in this environment. Guards and automations save, but the bot does not answer commands or post until it is turned on.
+          Discord is turned off in this environment. Guards and automations save, but the bot does
+          not answer commands or post until it is turned on.
         </output>
       )}
-      {error && <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800 dark:bg-red-950/30 dark:text-red-200">{error}</p>}
+      {error && (
+        <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800 dark:bg-red-950/30 dark:text-red-200">
+          {error}
+        </p>
+      )}
       {loading && <div className="h-1 animate-pulse rounded-full bg-brand" />}
       <GuardsPanel guards={guards} onSave={saveGuard} onClear={clearGuard} />
       <AutomationsPanel

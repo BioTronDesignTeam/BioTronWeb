@@ -1,8 +1,8 @@
-import { ArrowRight } from 'lucide-react';
-import Reveal from '../components/Reveal';
-import SplitText from '../components/SplitText';
-import ActionButton from '../components/ActionButton';
-import { SUBTEAMS } from '../data/projects';
+import { ArrowRight } from "lucide-react";
+import Reveal from "../components/Reveal";
+import SplitText from "../components/SplitText";
+import ActionButton from "../components/ActionButton";
+import { SUBTEAMS } from "../data/projects";
 
 interface JoinProps {
   showGuideLink?: boolean;
@@ -11,7 +11,7 @@ interface JoinProps {
 export default function Join({ showGuideLink = true }: JoinProps) {
   return (
     <section className="join" id="join">
-      <div className="container join__inner">
+      <div className="join__inner container">
         <div className="join__head">
           <Reveal>
             <span className="eyebrow mono-label">Join the team</span>
@@ -25,8 +25,8 @@ export default function Join({ showGuideLink = true }: JoinProps) {
           />
           <Reveal delay={0.1}>
             <p className="join__lead">
-              We welcome every discipline and experience level. Bring curiosity, commitment, and
-              a willingness to learn.
+              We welcome every discipline and experience level. Bring curiosity, commitment, and a
+              willingness to learn.
             </p>
           </Reveal>
         </div>

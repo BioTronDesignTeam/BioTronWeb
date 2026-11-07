@@ -1,7 +1,7 @@
-import { useState, type FormEvent, type ReactNode } from 'react';
-import { authStrings } from './auth/strings';
-import { Brand } from './Brand';
-import { ThemeToggle } from './ThemeToggle';
+import { useState, type FormEvent, type ReactNode } from "react";
+import { authStrings } from "./auth/strings";
+import { Brand } from "./Brand";
+import { ThemeToggle } from "./ThemeToggle";
 
 const GitHubMark = () => (
   <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -9,17 +9,14 @@ const GitHubMark = () => (
   </svg>
 );
 
-export type AuthNotice = {
-  content: ReactNode;
-  tone?: 'info' | 'error';
-};
+export type AuthNotice = { content: ReactNode; tone?: "info" | "error" };
 
 export type AuthAction = {
   label: string;
   href?: string;
   onClick?: () => void;
   /** A named icon the screen draws itself, or any custom node. */
-  icon?: 'github' | Exclude<ReactNode, string>;
+  icon?: "github" | Exclude<ReactNode, string>;
 };
 
 export type GuestAccess = {
@@ -51,10 +48,11 @@ export type AuthScreenProps = {
 function noticeKeys(notices: readonly AuthNotice[]): string[] {
   const seen = new Map<string, number>();
   return notices.map((notice) => {
-    const text = typeof notice.content === 'string' || typeof notice.content === 'number'
-      ? String(notice.content)
-      : 'node';
-    const base = `${notice.tone ?? 'info'}:${text}`;
+    const text =
+      typeof notice.content === "string" || typeof notice.content === "number"
+        ? String(notice.content)
+        : "node";
+    const base = `${notice.tone ?? "info"}:${text}`;
     const occurrence = seen.get(base) ?? 0;
     seen.set(base, occurrence + 1);
     return occurrence === 0 ? base : `${base}~${occurrence}`;
@@ -67,8 +65,8 @@ function AuthNotices({ notices }: { notices: readonly AuthNotice[] }) {
     <>
       {notices.map((notice, position) => (
         <div
-          className={`biotron-auth-notice biotron-auth-notice--${notice.tone ?? 'info'}`}
-          role={notice.tone === 'error' ? 'alert' : 'status'}
+          className={`biotron-auth-notice biotron-auth-notice--${notice.tone ?? "info"}`}
+          role={notice.tone === "error" ? "alert" : "status"}
           key={keys[position]}
         >
           {notice.content}
@@ -81,16 +79,22 @@ function AuthNotices({ notices }: { notices: readonly AuthNotice[] }) {
 function AuthActionControl({ action }: { action: AuthAction }) {
   const contents = (
     <>
-      {action.icon === 'github' ? <GitHubMark /> : action.icon}
+      {action.icon === "github" ? <GitHubMark /> : action.icon}
       {action.label}
     </>
   );
 
   if (action.href) {
-    return <a className="biotron-auth-action" href={action.href}>{contents}</a>;
+    return (
+      <a className="biotron-auth-action" href={action.href}>
+        {contents}
+      </a>
+    );
   }
   return (
-    <button className="biotron-auth-action" type="button" onClick={action.onClick}>{contents}</button>
+    <button className="biotron-auth-action" type="button" onClick={action.onClick}>
+      {contents}
+    </button>
   );
 }
 
@@ -105,7 +109,7 @@ function guestLabels(guestAccess: GuestAccess) {
 }
 
 function useGuestSubmission(guestAccess: GuestAccess) {
-  const [guestKey, setGuestKey] = useState('');
+  const [guestKey, setGuestKey] = useState("");
   const [failed, setFailed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -167,7 +171,7 @@ export function AuthScreen({
   loading = false,
   footer,
   showThemeToggle = true,
-  className = '',
+  className = "",
 }: AuthScreenProps) {
   return (
     <main className={`biotron-auth-screen ${className}`.trim()}>
@@ -181,7 +185,11 @@ export function AuthScreen({
         {loading && <div className="biotron-auth-loading" aria-label="Loading" />}
         {guestAccess && (
           <>
-            <div className="biotron-auth-divider"><span />or<span /></div>
+            <div className="biotron-auth-divider">
+              <span />
+              or
+              <span />
+            </div>
             <GuestAccessForm guestAccess={guestAccess} />
           </>
         )}

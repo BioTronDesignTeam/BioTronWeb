@@ -1,5 +1,5 @@
-import { useEffect, useRef } from 'react';
-import { gsap, ScrollTrigger } from '../lib/gsap';
+import { useEffect, useRef } from "react";
+import { gsap, ScrollTrigger } from "../lib/gsap";
 
 /** Thin top progress bar tracking page scroll. */
 export default function ScrollProgress() {
@@ -8,7 +8,7 @@ export default function ScrollProgress() {
   useEffect(() => {
     const st = ScrollTrigger.create({
       start: 0,
-      end: 'max',
+      end: "max",
       onUpdate: (self) => {
         if (bar.current) gsap.set(bar.current, { scaleX: self.progress });
       },

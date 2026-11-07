@@ -1,6 +1,6 @@
-import { useEffect, useRef } from 'react';
-import Reveal from '../components/Reveal';
-import { SPONSORS } from '../data/sponsors';
+import { useEffect, useRef } from "react";
+import Reveal from "../components/Reveal";
+import { SPONSORS } from "../data/sponsors";
 
 /**
  * The marquee runs two identical halves so the loop has no seam. Each half

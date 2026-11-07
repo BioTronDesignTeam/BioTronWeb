@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
-import { ArrowUpRight } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { gsap, useGSAP } from '../lib/gsap';
-import { useScene } from '../lib/store';
-import { PROJECTS, TEAM_STATS } from '../data/projects';
-import CountUp from './CountUp';
+import { useEffect, useRef, useState } from "react";
+import { ArrowUpRight } from "lucide-react";
+import { Link } from "react-router-dom";
+import { gsap, useGSAP } from "../lib/gsap";
+import { useScene } from "../lib/store";
+import { PROJECTS, TEAM_STATS } from "../data/projects";
+import CountUp from "./CountUp";
 
 /**
  * Glass info panel anchored to the side of the viewport. Its content swaps to
@@ -39,8 +39,8 @@ export default function RoomPopup() {
       if (!wrap.current) return;
       gsap.fromTo(
         wrap.current,
-        { opacity: 0, y: 24, filter: 'blur(6px)' },
-        { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.5, ease: 'power3.out' },
+        { opacity: 0, y: 24, filter: "blur(6px)" },
+        { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.5, ease: "power3.out" },
       );
     },
     { dependencies: [activeStop] },
@@ -52,15 +52,19 @@ export default function RoomPopup() {
 
   return (
     <div
-      className={`room-popup${activeStop === 'about' ? ' room-popup--about' : ''}`}
+      className={`room-popup${activeStop === "about" ? "room-popup--about" : ""}`}
       ref={wrap}
       // A live region rather than <output>, which may hold only phrasing
       // content, not these cards. aria-atomic keeps the reading of role=status.
       aria-live="polite"
       aria-atomic="true"
     >
-      {activeStop === 'about' ? (
-        <article className="glass popup-card" ref={card} data-lenis-prevent={overflowing ? '' : undefined}>
+      {activeStop === "about" ? (
+        <article
+          className="glass popup-card"
+          ref={card}
+          data-lenis-prevent={overflowing ? "" : undefined}
+        >
           <span className="mono-label">00 / About</span>
           <h2 className="popup-title">Solving biomedical problems with mechatronic solutions.</h2>
           <p className="popup-body">
@@ -71,7 +75,7 @@ export default function RoomPopup() {
             {TEAM_STATS.map((s) => (
               <div key={s.label} className="popup-stat">
                 <span className="popup-stat__num">
-                  <CountUp value={s.value} suffix={s.suffix} plain={'plain' in s && s.plain} />
+                  <CountUp value={s.value} suffix={s.suffix} plain={"plain" in s && s.plain} />
                 </span>
                 <span className="popup-stat__label">{s.label}</span>
               </div>
@@ -79,12 +83,14 @@ export default function RoomPopup() {
           </div>
         </article>
       ) : project ? (
-        <article className="glass popup-card" ref={card} data-lenis-prevent={overflowing ? '' : undefined}>
+        <article
+          className="glass popup-card"
+          ref={card}
+          data-lenis-prevent={overflowing ? "" : undefined}
+        >
           <span className="mono-label">{project.status}</span>
           <h2 className="popup-title">{project.name}</h2>
-          <p className="popup-tagline">
-            {project.tagline}
-          </p>
+          <p className="popup-tagline">{project.tagline}</p>
           <p className="popup-body">{project.blurb}</p>
           <div className="popup-specs">
             {project.specs.map((sp) => (

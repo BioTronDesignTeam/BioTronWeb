@@ -1,8 +1,8 @@
-import { useRef, useState } from 'react';
-import { useFrame, useThree } from '@react-three/fiber';
-import { Vector3 } from 'three';
-import { useScene } from '../lib/store';
-import { sampleCamera, stopAtProgress } from './CameraPath';
+import { useRef, useState } from "react";
+import { useFrame, useThree } from "@react-three/fiber";
+import { Vector3 } from "three";
+import { useScene } from "../lib/store";
+import { sampleCamera, stopAtProgress } from "./CameraPath";
 
 /** Scratch vector reused every frame for the parallax-offset camera target. */
 const _desiredPos = new Vector3();
@@ -19,7 +19,7 @@ export default function Rig({ reduced = false }: { reduced?: boolean }) {
   const [targetPos] = useState(() => new Vector3(7.5, 6.5, 9.5));
   const [targetLook] = useState(() => new Vector3(0, 0.8, -1.5));
   const [currentLook] = useState(() => new Vector3(0, 0.8, -1.5));
-  const lastStop = useRef<string | null>('about');
+  const lastStop = useRef<string | null>("about");
 
   useFrame((_, delta) => {
     const { progress, pointer, setActiveStop } = useScene.getState();

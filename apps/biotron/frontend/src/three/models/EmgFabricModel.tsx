@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef } from 'react';
-import { useFrame } from '@react-three/fiber';
+import { useEffect, useMemo, useRef } from "react";
+import { useFrame } from "@react-three/fiber";
 import {
   DoubleSide,
   Group,
@@ -10,8 +10,8 @@ import {
   MeshStandardMaterial,
   PlaneGeometry,
   RGBADepthPacking,
-} from 'three';
-import type { ModelProps } from './types';
+} from "three";
+import type { ModelProps } from "./types";
 
 /**
  * The weave's resting wave, evaluated on the GPU. Kept in one string so the
@@ -40,7 +40,7 @@ const WAVE_POSITION = `
 type WaveUniform = { uWaveTime: { value: number } };
 
 /** The wave time uniform that applyWave left on a mesh's material. */
-function waveTime(mesh: Mesh | null): WaveUniform['uWaveTime'] | undefined {
+function waveTime(mesh: Mesh | null): WaveUniform["uWaveTime"] | undefined {
   const material = mesh?.material;
   if (!material || Array.isArray(material)) return undefined;
   return (material.userData as Partial<WaveUniform>).uWaveTime;
@@ -53,9 +53,12 @@ function applyWave(material: Material, uniforms: WaveUniform, lit: boolean) {
     shader.uniforms.uWaveTime = uniforms.uWaveTime;
     shader.vertexShader = WAVE_FUNCTION + shader.vertexShader;
     if (lit) {
-      shader.vertexShader = shader.vertexShader.replace('#include <beginnormal_vertex>', WAVE_NORMAL);
+      shader.vertexShader = shader.vertexShader.replace(
+        "#include <beginnormal_vertex>",
+        WAVE_NORMAL,
+      );
     }
-    shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', WAVE_POSITION);
+    shader.vertexShader = shader.vertexShader.replace("#include <begin_vertex>", WAVE_POSITION);
   };
 }
 
@@ -75,7 +78,7 @@ export default function EmgFabricModel({ color, animate = true }: ModelProps) {
 
   const clothMaterial = useMemo(() => {
     const material = new MeshStandardMaterial({
-      color: '#241a3a',
+      color: "#241a3a",
       metalness: 0.1,
       roughness: 0.8,
       emissive: color,
@@ -132,7 +135,7 @@ export default function EmgFabricModel({ color, animate = true }: ModelProps) {
     if (time) time.value = t;
 
     if (pulse.current && animate) {
-      pulse.current.position.x = ((Math.sin(t * 0.8) * 0.5 + 0.5) * 1.6 - 0.8);
+      pulse.current.position.x = (Math.sin(t * 0.8) * 0.5 + 0.5) * 1.6 - 0.8;
     }
     if (root.current && animate) root.current.rotation.y = Math.sin(t * 0.35) * 0.18;
   });
@@ -155,7 +158,12 @@ export default function EmgFabricModel({ color, animate = true }: ModelProps) {
       {nodes.map(([x, y]) => (
         <mesh key={`${x}:${y}`} position={[x, y, 0.06]}>
           <sphereGeometry args={[0.05, 16, 16]} />
-          <meshStandardMaterial color={color} emissive={color} emissiveIntensity={2.4} toneMapped={false} />
+          <meshStandardMaterial
+            color={color}
+            emissive={color}
+            emissiveIntensity={2.4}
+            toneMapped={false}
+          />
         </mesh>
       ))}
 

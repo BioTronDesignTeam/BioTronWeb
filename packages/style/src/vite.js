@@ -1,7 +1,7 @@
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
-const faviconFile = fileURLToPath(new URL('./biotron-hand.png', import.meta.url));
+const faviconFile = fileURLToPath(new URL("./biotron-hand.png", import.meta.url));
 
 /**
  * Serves the BioTron hand favicon during development and emits it into every
@@ -9,7 +9,7 @@ const faviconFile = fileURLToPath(new URL('./biotron-hand.png', import.meta.url)
  * discover the icon before React starts.
  */
 export function biotronFavicon(options = {}) {
-  const fileName = options.fileName ?? 'biotron-hand.png';
+  const fileName = options.fileName ?? "biotron-hand.png";
   const publicPath = `/${fileName}`;
   let source;
 
@@ -19,27 +19,23 @@ export function biotronFavicon(options = {}) {
   };
 
   return {
-    name: 'biotron-favicon',
+    name: "biotron-favicon",
     configureServer(server) {
       server.middlewares.use((request, response, next) => {
-        const pathname = new URL(request.url ?? '/', 'http://localhost').pathname;
+        const pathname = new URL(request.url ?? "/", "http://localhost").pathname;
         if (pathname !== publicPath) {
           next();
           return;
         }
 
         response.statusCode = 200;
-        response.setHeader('Content-Type', 'image/png');
-        response.setHeader('Cache-Control', 'no-cache');
+        response.setHeader("Content-Type", "image/png");
+        response.setHeader("Cache-Control", "no-cache");
         response.end(getSource());
       });
     },
     generateBundle() {
-      this.emitFile({
-        type: 'asset',
-        fileName,
-        source: getSource(),
-      });
+      this.emitFile({ type: "asset", fileName, source: getSource() });
     },
   };
 }

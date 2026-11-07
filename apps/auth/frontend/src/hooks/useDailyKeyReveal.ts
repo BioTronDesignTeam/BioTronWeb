@@ -1,5 +1,5 @@
-import { useCallback, useState } from 'react';
-import { type ProductDailyKey } from '../api';
+import { useCallback, useState } from "react";
+import { type ProductDailyKey } from "../api";
 
 /**
  * Reveal and copy state for the Keys tab. It lives above the tab so a key you
@@ -29,7 +29,7 @@ export function useDailyKeyReveal(onError: (message: string) => void) {
           2000,
         );
       } catch {
-        onError('Could not copy key');
+        onError("Could not copy key");
       }
     },
     [onError],

@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { SessionLoading, SessionUnavailable, SignInScreen, useSession } from '@biotron/style';
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { SessionLoading, SessionUnavailable, SignInScreen, useSession } from "@biotron/style";
 import {
   type Grant,
   type Me,
@@ -10,15 +10,15 @@ import {
   setManager,
   setUnauthorizedHandler,
   unbanMember,
-} from './api';
-import AccessTab from './components/AccessTab';
-import AppHeader from './components/AppHeader';
-import KeysTab from './components/KeysTab';
-import OrgTab from './components/OrgTab';
-import TabBar, { type Tab } from './components/TabBar';
-import { useAccessDirectory } from './hooks/useAccessDirectory';
-import { useDailyKeyReveal } from './hooks/useDailyKeyReveal';
-import { useMemberGrants, useOrgSelection } from './hooks/useOrgSelection';
+} from "./api";
+import AccessTab from "./components/AccessTab";
+import AppHeader from "./components/AppHeader";
+import KeysTab from "./components/KeysTab";
+import OrgTab from "./components/OrgTab";
+import TabBar, { type Tab } from "./components/TabBar";
+import { useAccessDirectory } from "./hooks/useAccessDirectory";
+import { useDailyKeyReveal } from "./hooks/useDailyKeyReveal";
+import { useMemberGrants, useOrgSelection } from "./hooks/useOrgSelection";
 
 export default function App() {
   const { status, operator, expire } = useSession();
@@ -27,21 +27,22 @@ export default function App() {
     setUnauthorizedHandler(expire);
   }, [expire]);
 
-  if (status === 'loading') return <SessionLoading />;
-  if (status === 'unavailable') return <SessionUnavailable productName="Auth" />;
-  if (status === 'anon' || !operator) return <SignInScreen productName="Auth" />;
+  if (status === "loading") return <SessionLoading />;
+  if (status === "unavailable") return <SessionUnavailable productName="Auth" />;
+  if (status === "anon" || !operator) return <SignInScreen productName="Auth" />;
   // Keyed by person, so nothing one operator loaded outlives a sign-out.
   return <Console key={operator.github_id} me={operator} />;
 }
 
 function Console({ me }: { me: Me }) {
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<Tab>('access');
+  const [tab, setTab] = useState<Tab>("access");
 
   const { directory, refresh } = useAccessDirectory(me);
   const reportError = useCallback((message: string) => setError(message), []);
   const keyReveal = useDailyKeyReveal(reportError);
-  const { selection, selectMember, selectApp, selectPermission, clearPermission } = useOrgSelection();
+  const { selection, selectMember, selectApp, selectPermission, clearPermission } =
+    useOrgSelection();
   const { grants: memberGrantList, reload: reloadMemberGrants } = useMemberGrants(
     selection.memberId,
     reportError,
@@ -65,21 +66,21 @@ function Console({ me }: { me: Me }) {
   }, []);
 
   const onBan = (id: number) =>
-    void runAction('Ban failed', async () => {
+    void runAction("Ban failed", async () => {
       await banMember(id);
       await refresh();
       await reloadMemberGrants();
     });
 
   const onUnban = (id: number) =>
-    void runAction('Unban failed', async () => {
+    void runAction("Unban failed", async () => {
       await unbanMember(id);
       await refresh();
       await reloadMemberGrants();
     });
 
   const onSetManager = (id: number, manager: boolean) =>
-    void runAction('Update failed', async () => {
+    void runAction("Update failed", async () => {
       await setManager(id, manager);
       await refresh();
     });
@@ -87,7 +88,7 @@ function Console({ me }: { me: Me }) {
   const onCreateGrant = () => {
     const { memberId, appId, permissionKey } = selection;
     if (!memberId || !appId || !permissionKey) return;
-    void runAction('Grant failed', async () => {
+    void runAction("Grant failed", async () => {
       await createGrant(memberId, appId, permissionKey);
       clearPermission();
       await reloadMemberGrants();
@@ -95,13 +96,13 @@ function Console({ me }: { me: Me }) {
   };
 
   const onRevokeGrant = (grant: Grant) =>
-    void runAction('Revoke failed', async () => {
+    void runAction("Revoke failed", async () => {
       await deleteGrant(grant.operator_id, grant.app_id, grant.permission_key);
       await reloadMemberGrants();
     });
 
   const onRotateKey = (appId: string) =>
-    void runAction('Rotate failed', async () => {
+    void runAction("Rotate failed", async () => {
       await rotateProductDailyKey(appId);
       await refresh();
     });
@@ -109,10 +110,10 @@ function Console({ me }: { me: Me }) {
   if (directory.loading) return <SessionLoading />;
 
   return (
-    <div className="min-h-screen pb-safe">
+    <div className="pb-safe min-h-screen">
       <AppHeader />
 
-      <main className="mx-auto w-full max-w-6xl px-page py-6 sm:py-8 lg:py-10">
+      <main className="px-page mx-auto w-full max-w-6xl py-6 sm:py-8 lg:py-10">
         <TabBar tab={tab} onSelect={setTab} isStaff={me.is_staff === true} />
 
         {(error ?? directory.error) && (
@@ -121,7 +122,7 @@ function Console({ me }: { me: Me }) {
           </p>
         )}
 
-        {tab === 'access' && (
+        {tab === "access" && (
           <AccessTab
             me={me}
             apps={directory.apps}
@@ -131,7 +132,7 @@ function Console({ me }: { me: Me }) {
           />
         )}
 
-        {tab === 'keys' && me.is_staff && (
+        {tab === "keys" && me.is_staff && (
           <KeysTab
             dailyKeys={directory.dailyKeys}
             revealedAppIds={keyReveal.revealedAppIds}
@@ -142,7 +143,7 @@ function Console({ me }: { me: Me }) {
           />
         )}
 
-        {tab === 'org' && me.is_staff && (
+        {tab === "org" && me.is_staff && (
           <OrgTab
             members={directory.members}
             selectedMember={selectedMember}

@@ -1,13 +1,14 @@
-import { useRef, type ReactNode } from 'react';
-import { gsap, useGSAP } from '../lib/gsap';
-import { useReducedMotion } from '../lib/hooks';
+import { useRef, type ReactNode } from "react";
+import { gsap, useGSAP } from "../lib/gsap";
+import { useReducedMotion } from "../lib/hooks";
 
 /**
  * Tags this wrapper may render as. A bare `ElementType` covers void elements
  * such as `<br>`, whose props declare `children?: never`; React 19's types
  * intersect the whole union and leave nothing a child can satisfy.
  */
-type ContainerTag = 'div' | 'section' | 'article' | 'aside' | 'li' | 'p' | 'span' | 'h1' | 'h2' | 'h3';
+type ContainerTag =
+  "div" | "section" | "article" | "aside" | "li" | "p" | "span" | "h1" | "h2" | "h3";
 
 interface RevealProps {
   children: ReactNode;
@@ -24,7 +25,7 @@ interface RevealProps {
  */
 export default function Reveal({
   children,
-  as: Tag = 'div',
+  as: Tag = "div",
   className,
   delay = 0,
   y = 28,
@@ -46,14 +47,10 @@ export default function Reveal({
         y,
         duration: 0.8,
         delay,
-        ease: 'power3.out',
+        ease: "power3.out",
         scrollTrigger: onScreenNow
           ? undefined
-          : {
-              trigger: ref.current,
-              start: 'top 85%',
-              toggleActions: 'play none none none',
-            },
+          : { trigger: ref.current, start: "top 85%", toggleActions: "play none none none" },
       });
     },
     { scope: ref, dependencies: [reduced] },

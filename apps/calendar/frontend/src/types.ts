@@ -1,6 +1,6 @@
-export type ScopeKind = 'TEAM' | 'PROJECT' | 'SUBTEAM';
-export type ScopeStatus = 'ACTIVE' | 'ARCHIVED';
-export type EventState = 'DRAFT' | 'PUBLISHED' | 'CANCELLED';
+export type ScopeKind = "TEAM" | "PROJECT" | "SUBTEAM";
+export type ScopeStatus = "ACTIVE" | "ARCHIVED";
+export type EventState = "DRAFT" | "PUBLISHED" | "CANCELLED";
 
 export interface Scope {
   id: string;
@@ -43,7 +43,7 @@ export interface Occurrence {
 export interface EventOverride {
   id: string;
   recurrence_id_local: string;
-  state: 'MODIFIED' | 'CANCELLED';
+  state: "MODIFIED" | "CANCELLED";
   patch: Record<string, string | null>;
   sequence: number;
 }

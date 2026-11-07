@@ -1,9 +1,9 @@
-import type { ComponentType } from 'react';
-import type { ModelId } from '../../data/projects';
-import type { ModelProps } from './types';
-import ExoModel from './ExoModel';
-import EmgFabricModel from './EmgFabricModel';
-import ENableModel from './ENableModel';
+import type { ComponentType } from "react";
+import type { ModelId } from "../../data/projects";
+import type { ModelProps } from "./types";
+import ExoModel from "./ExoModel";
+import EmgFabricModel from "./EmgFabricModel";
+import ENableModel from "./ENableModel";
 
 /**
  * Registry mapping a project's modelId to its 3D component.

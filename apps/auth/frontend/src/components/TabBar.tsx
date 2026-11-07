@@ -1,6 +1,6 @@
-import type { ReactNode } from 'react';
+import type { ReactNode } from "react";
 
-export type Tab = 'access' | 'keys' | 'org';
+export type Tab = "access" | "keys" | "org";
 
 function TabButton({
   active,
@@ -17,8 +17,8 @@ function TabButton({
       onClick={onClick}
       className={`inline-flex min-h-11 items-center justify-center rounded-lg px-3 py-2.5 text-sm font-medium transition sm:min-h-0 sm:px-4 ${
         active
-          ? 'bg-white text-slate-900 shadow dark:bg-highlight dark:text-white'
-          : 'text-slate-600 hover:text-slate-800 dark:text-muted dark:hover:text-white'
+          ? "bg-white text-slate-900 shadow dark:bg-highlight dark:text-white"
+          : "text-slate-600 hover:text-slate-800 dark:text-muted dark:hover:text-white"
       }`}
     >
       {children}
@@ -44,13 +44,13 @@ export default function TabBar({
   if (!isStaff) return null;
   return (
     <div className="mb-6 grid grid-cols-3 gap-1 rounded-xl bg-slate-200/80 p-1 ring-1 ring-slate-300 dark:bg-surface-2/80 dark:ring-white/10">
-      <TabButton active={tab === 'access'} onClick={() => onSelect('access')}>
+      <TabButton active={tab === "access"} onClick={() => onSelect("access")}>
         My permissions
       </TabButton>
-      <TabButton active={tab === 'keys'} onClick={() => onSelect('keys')}>
+      <TabButton active={tab === "keys"} onClick={() => onSelect("keys")}>
         Keys
       </TabButton>
-      <TabButton active={tab === 'org'} onClick={() => onSelect('org')}>
+      <TabButton active={tab === "org"} onClick={() => onSelect("org")}>
         Org
       </TabButton>
     </div>

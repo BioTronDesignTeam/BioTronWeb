@@ -1,10 +1,10 @@
-import SegmentedToggle from './SegmentedToggle'
+import SegmentedToggle from "./SegmentedToggle";
 
-export type ViewMode = 'live' | 'historical'
+export type ViewMode = "live" | "historical";
 
 interface ModeToggleProps {
-  mode: ViewMode
-  onModeChange: (mode: ViewMode) => void
+  mode: ViewMode;
+  onModeChange: (mode: ViewMode) => void;
 }
 
 export default function ModeToggle({ mode, onModeChange }: ModeToggleProps) {
@@ -15,9 +15,9 @@ export default function ModeToggle({ mode, onModeChange }: ModeToggleProps) {
       value={mode}
       onChange={onModeChange}
       options={[
-        { value: 'live', label: 'Live' },
-        { value: 'historical', label: 'Historical' },
+        { value: "live", label: "Live" },
+        { value: "historical", label: "Historical" },
       ]}
     />
-  )
+  );
 }

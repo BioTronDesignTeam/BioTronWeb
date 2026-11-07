@@ -1,14 +1,14 @@
-import { StrictMode } from 'react';
-import { createRoot } from 'react-dom/client';
-import { SessionProvider } from '@biotron/style';
-import { App } from './App';
-import { AUTH_URL } from './api';
-import './index.css';
-import '@biotron/style/styles.css';
+import { StrictMode } from "react";
+import { createRoot } from "react-dom/client";
+import { SessionProvider } from "@biotron/style";
+import { App } from "./App";
+import { AUTH_URL } from "./api";
+import "./index.css";
+import "@biotron/style/styles.css";
 
-createRoot(document.getElementById('root')!).render(
+createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <SessionProvider authUrl={AUTH_URL} appId="sprinter" permissions={['admin']}>
+    <SessionProvider authUrl={AUTH_URL} appId="sprinter" permissions={["admin"]}>
       <App />
     </SessionProvider>
   </StrictMode>,

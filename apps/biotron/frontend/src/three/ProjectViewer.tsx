@@ -1,9 +1,9 @@
-import { Suspense } from 'react';
-import { Canvas } from '@react-three/fiber';
-import { OrbitControls, Environment, Float, ContactShadows } from '@react-three/drei';
-import type { ModelId } from '../data/projects';
-import ProjectModel from './models/ProjectModel';
-import { useReducedMotion, useIsMobile } from '../lib/hooks';
+import { Suspense } from "react";
+import { Canvas } from "@react-three/fiber";
+import { OrbitControls, Environment, Float, ContactShadows } from "@react-three/drei";
+import type { ModelId } from "../data/projects";
+import ProjectModel from "./models/ProjectModel";
+import { useReducedMotion, useIsMobile } from "../lib/hooks";
 
 /** Standalone interactive viewer for a single project model (detail pages). */
 export default function ProjectViewer({ id, color }: { id: ModelId; color: string }) {
@@ -15,9 +15,9 @@ export default function ProjectViewer({ id, color }: { id: ModelId; color: strin
       shadows={!mobile}
       dpr={mobile ? 1 : [1, 1.75]}
       camera={{ position: [2.4, 1.4, 3], fov: 40 }}
-      gl={{ antialias: !mobile, powerPreference: 'high-performance' }}
+      gl={{ antialias: !mobile, powerPreference: "high-performance" }}
     >
-      <color attach="background" args={['#080d12']} />
+      <color attach="background" args={["#080d12"]} />
       <ambientLight intensity={0.4} />
       <directionalLight position={[4, 6, 3]} intensity={1.2} castShadow={!mobile} />
       <pointLight position={[-3, 2, 2]} intensity={16} color={color} distance={10} />

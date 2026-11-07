@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useReducer } from 'react';
+import { useCallback, useEffect, useReducer } from "react";
 import {
   type AppInfo,
   type Grant,
@@ -11,7 +11,7 @@ import {
   listOrgMembers,
   listPermissions,
   myGrants,
-} from '../api';
+} from "../api";
 
 /** Everything one signed-in operator can see, loaded as a single snapshot. */
 export type AccessDirectory = {
@@ -26,9 +26,9 @@ export type AccessDirectory = {
   dailyKeys: ProductDailyKey[];
 };
 
-type Snapshot = Omit<AccessDirectory, 'loading' | 'error'>;
+type Snapshot = Omit<AccessDirectory, "loading" | "error">;
 
-type Action = { type: 'loaded'; snapshot: Snapshot } | { type: 'failed'; error: string };
+type Action = { type: "loaded"; snapshot: Snapshot } | { type: "failed"; error: string };
 
 const empty: Snapshot = {
   apps: [],
@@ -46,14 +46,14 @@ const initial: AccessDirectory = { loading: true, error: null, ...empty };
 // leave the screen showing one operator's grants beside another's roster.
 function reducer(state: AccessDirectory, action: Action): AccessDirectory {
   switch (action.type) {
-    case 'loaded':
+    case "loaded":
       return { loading: false, error: null, ...action.snapshot };
-    case 'failed':
+    case "failed":
       return { ...state, loading: false, error: action.error };
   }
 }
 
-type StaffSnapshot = Pick<Snapshot, 'members' | 'dailyKeys'>;
+type StaffSnapshot = Pick<Snapshot, "members" | "dailyKeys">;
 
 /** The org roster and the daily guest keys only exist for staff. */
 async function loadStaffSnapshot(isStaff: boolean): Promise<StaffSnapshot> {
@@ -92,9 +92,12 @@ export function useAccessDirectory(me: Me) {
 
   const refresh = useCallback(async () => {
     try {
-      dispatch({ type: 'loaded', snapshot: await loadSnapshot(isStaff) });
+      dispatch({ type: "loaded", snapshot: await loadSnapshot(isStaff) });
     } catch (e) {
-      dispatch({ type: 'failed', error: e instanceof Error ? e.message : 'Could not load your permissions.' });
+      dispatch({
+        type: "failed",
+        error: e instanceof Error ? e.message : "Could not load your permissions.",
+      });
     }
   }, [isStaff]);
 

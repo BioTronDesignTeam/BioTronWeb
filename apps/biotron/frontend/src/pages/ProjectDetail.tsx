@@ -1,15 +1,15 @@
-import { Suspense, lazy } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, ArrowUpRight, Rotate3d } from 'lucide-react';
-import { getProject, PROJECTS } from '../data/projects';
-import Reveal from '../components/Reveal';
-import SplitText from '../components/SplitText';
-import ModelFallback from '../components/ModelFallback';
-import { useReducedMotion, useWebGLSupported } from '../lib/hooks';
-import NotFound from './NotFound';
-import PageMeta from '../components/PageMeta';
+import { Suspense, lazy } from "react";
+import { useParams, Link } from "react-router-dom";
+import { ArrowLeft, ArrowUpRight, Rotate3d } from "lucide-react";
+import { getProject, PROJECTS } from "../data/projects";
+import Reveal from "../components/Reveal";
+import SplitText from "../components/SplitText";
+import ModelFallback from "../components/ModelFallback";
+import { useReducedMotion, useWebGLSupported } from "../lib/hooks";
+import NotFound from "./NotFound";
+import PageMeta from "../components/PageMeta";
 
-const ProjectViewer = lazy(() => import('../three/ProjectViewer'));
+const ProjectViewer = lazy(() => import("../three/ProjectViewer"));
 
 export default function ProjectDetail() {
   const { slug } = useParams();
@@ -23,9 +23,9 @@ export default function ProjectDetail() {
   const showLive = webgl && !reduced;
 
   return (
-    <main id="main" className="detail" style={{ ['--card-accent' as string]: project.accentHex }}>
+    <main id="main" className="detail" style={{ ["--card-accent" as string]: project.accentHex }}>
       <PageMeta path={`/projects/${project.slug}`} />
-      <div className="container detail__top">
+      <div className="detail__top container">
         <Link to="/projects" className="detail__back">
           <ArrowLeft size={16} /> All projects
         </Link>
@@ -35,9 +35,7 @@ export default function ProjectDetail() {
         <div className="detail__intro">
           <span className="mono-label">{project.status}</span>
           <SplitText as="h1" className="detail__title" text={project.name} by="char" />
-          <p className="detail__tagline">
-            {project.tagline}
-          </p>
+          <p className="detail__tagline">{project.tagline}</p>
           <p className="detail__blurb">{project.blurb}</p>
           <div className="detail__specs">
             {project.specs.map((sp) => (
@@ -100,7 +98,7 @@ export default function ProjectDetail() {
               key={p.slug}
               to={`/projects/${p.slug}`}
               className="detail__nextcard glass"
-              style={{ ['--card-accent' as string]: p.accentHex }}
+              style={{ ["--card-accent" as string]: p.accentHex }}
             >
               <span className="mono-label">{p.status}</span>
               <h3>{p.name}</h3>

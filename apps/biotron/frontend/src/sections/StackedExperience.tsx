@@ -1,11 +1,11 @@
-import { ArrowUpRight } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import Reveal from '../components/Reveal';
-import SplitText from '../components/SplitText';
-import CountUp from '../components/CountUp';
-import ModelFallback from '../components/ModelFallback';
-import ActionButton from '../components/ActionButton';
-import { PROJECTS, TEAM_STATS } from '../data/projects';
+import { ArrowUpRight } from "lucide-react";
+import { Link } from "react-router-dom";
+import Reveal from "../components/Reveal";
+import SplitText from "../components/SplitText";
+import CountUp from "../components/CountUp";
+import ModelFallback from "../components/ModelFallback";
+import ActionButton from "../components/ActionButton";
+import { PROJECTS, TEAM_STATS } from "../data/projects";
 
 /**
  * Conventional stacked layout shown when 3D is unavailable (no WebGL) or under
@@ -16,7 +16,7 @@ export default function StackedExperience() {
     <>
       {/* Hero */}
       <section className="shero">
-        <div className="container shero__inner">
+        <div className="shero__inner container">
           <span className="eyebrow mono-label">UW Biomechatronics Design Team</span>
           <SplitText
             as="h1"
@@ -47,15 +47,15 @@ export default function StackedExperience() {
         </Reveal>
         <Reveal delay={0.1}>
           <p className="sabout__body">
-            We are a University of Waterloo student team that solves biomedical problems by
-            building and testing real hardware.
+            We are a University of Waterloo student team that solves biomedical problems by building
+            and testing real hardware.
           </p>
         </Reveal>
         <div className="sabout__stats">
           {TEAM_STATS.map((s) => (
             <Reveal key={s.label} className="sabout__stat">
               <span className="sabout__num">
-                <CountUp value={s.value} suffix={s.suffix} plain={'plain' in s && s.plain} />
+                <CountUp value={s.value} suffix={s.suffix} plain={"plain" in s && s.plain} />
               </span>
               <span className="sabout__lbl">{s.label}</span>
             </Reveal>
@@ -72,16 +72,17 @@ export default function StackedExperience() {
         <div className="sprojects__list">
           {PROJECTS.map((p, i) => (
             <Reveal key={p.slug} delay={i * 0.05}>
-              <article className="sproject glass" style={{ ['--card-accent' as string]: p.accentHex }}>
+              <article
+                className="sproject glass"
+                style={{ ["--card-accent" as string]: p.accentHex }}
+              >
                 <div className="sproject__visual">
                   <ModelFallback project={p} />
                 </div>
                 <div className="sproject__content">
                   <span className="mono-label">{p.status}</span>
                   <h3 className="sproject__name">{p.name}</h3>
-                  <p className="sproject__tag">
-                    {p.tagline}
-                  </p>
+                  <p className="sproject__tag">{p.tagline}</p>
                   <p className="sproject__blurb">{p.blurb}</p>
                   <Link to={`/projects/${p.slug}`} className="sproject__cta">
                     View project <ArrowUpRight size={16} />

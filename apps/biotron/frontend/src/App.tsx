@@ -1,16 +1,16 @@
-import { Navigate, Routes, Route } from 'react-router-dom';
-import SmoothScroll from './lib/SmoothScroll';
-import Nav from './components/Nav';
-import Footer from './components/Footer';
-import ScrollProgress from './components/ScrollProgress';
-import PageTransition from './components/PageTransition';
-import Home from './pages/Home';
-import ProjectsIndex from './pages/ProjectsIndex';
-import ProjectDetail from './pages/ProjectDetail';
-import JoinPage from './pages/JoinPage';
-import SponsorsPage from './pages/SponsorsPage';
-import CalendarPage from './pages/CalendarPage';
-import NotFound from './pages/NotFound';
+import { Navigate, Routes, Route } from "react-router-dom";
+import SmoothScroll from "./lib/SmoothScroll";
+import Nav from "./components/Nav";
+import Footer from "./components/Footer";
+import ScrollProgress from "./components/ScrollProgress";
+import PageTransition from "./components/PageTransition";
+import Home from "./pages/Home";
+import ProjectsIndex from "./pages/ProjectsIndex";
+import ProjectDetail from "./pages/ProjectDetail";
+import JoinPage from "./pages/JoinPage";
+import SponsorsPage from "./pages/SponsorsPage";
+import CalendarPage from "./pages/CalendarPage";
+import NotFound from "./pages/NotFound";
 
 export default function App() {
   return (

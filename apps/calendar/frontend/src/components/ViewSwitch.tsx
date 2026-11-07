@@ -1,4 +1,4 @@
-import type { CalendarView } from '../date';
+import type { CalendarView } from "../date";
 
 interface ViewSwitchProps {
   view: CalendarView;
@@ -6,9 +6,9 @@ interface ViewSwitchProps {
 }
 
 const views: { value: CalendarView; label: string }[] = [
-  { value: 'day', label: 'Day' },
-  { value: 'week', label: 'Week' },
-  { value: 'month', label: 'Month' },
+  { value: "day", label: "Day" },
+  { value: "week", label: "Week" },
+  { value: "month", label: "Month" },
 ];
 
 /** Day, Week, or Month. One is always pressed. */
@@ -22,7 +22,7 @@ export function ViewSwitch({ view, onChange }: ViewSwitchProps) {
           type="button"
           aria-pressed={view === value}
           onClick={() => onChange(value)}
-          className={`min-h-9 flex-1 rounded-full px-3.5 text-sm font-semibold ${view === value ? 'bg-deep text-white dark:bg-brand' : 'hover:bg-soft/30 dark:hover:bg-white/10'}`}
+          className={`min-h-9 flex-1 rounded-full px-3.5 text-sm font-semibold ${view === value ? "bg-deep text-white dark:bg-brand" : "hover:bg-soft/30 dark:hover:bg-white/10"}`}
         >
           {label}
         </button>

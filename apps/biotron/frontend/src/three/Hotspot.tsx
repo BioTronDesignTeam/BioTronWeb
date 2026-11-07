@@ -1,8 +1,8 @@
-import { useRef, useState, type ReactNode } from 'react';
-import { useFrame, type ThreeEvent } from '@react-three/fiber';
-import { Group } from 'three';
-import type { Stop } from '../lib/store';
-import { jumpToStop } from '../lib/flythrough';
+import { useRef, useState, type ReactNode } from "react";
+import { useFrame, type ThreeEvent } from "@react-three/fiber";
+import { Group } from "three";
+import type { Stop } from "../lib/store";
+import { jumpToStop } from "../lib/flythrough";
 
 interface HotspotProps {
   stop: Stop;
@@ -42,7 +42,8 @@ export default function Hotspot({
     inner.current.position.y += (targetLift - inner.current.position.y) * Math.min(1, delta * 8);
     if (ring.current) {
       const targetScale = active ? 1 : 0.001;
-      const s = ring.current.scale.x + (targetScale - ring.current.scale.x) * Math.min(1, delta * 6);
+      const s =
+        ring.current.scale.x + (targetScale - ring.current.scale.x) * Math.min(1, delta * 6);
       ring.current.scale.setScalar(s);
       ring.current.rotation.z = state.clock.elapsedTime * (reduced ? 0 : 0.4);
     }
@@ -51,11 +52,11 @@ export default function Hotspot({
   const onOver = (e: ThreeEvent<PointerEvent>) => {
     e.stopPropagation();
     setHovered(true);
-    document.body.style.cursor = 'pointer';
+    document.body.style.cursor = "pointer";
   };
   const onOut = () => {
     setHovered(false);
-    document.body.style.cursor = '';
+    document.body.style.cursor = "";
   };
   const onClick = (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation();
@@ -80,12 +81,7 @@ export default function Hotspot({
       <group ref={inner}>{children}</group>
 
       {/* Invisible collider for hover/click */}
-      <mesh
-        onPointerOver={onOver}
-        onPointerOut={onOut}
-        onClick={onClick}
-        visible={false}
-      >
+      <mesh onPointerOver={onOver} onPointerOut={onOut} onClick={onClick} visible={false}>
         <sphereGeometry args={[radius * 1.25, 12, 12]} />
       </mesh>
     </group>

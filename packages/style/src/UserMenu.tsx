@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { authStrings } from './auth/strings';
+import { useEffect, useRef, useState } from "react";
+import { authStrings } from "./auth/strings";
 
 const UserIcon = () => (
   <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -25,7 +25,7 @@ export function UserMenu({
   user,
   onLogout,
   logoutLabel = authStrings.signOut,
-  className = '',
+  className = "",
 }: UserMenuProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -36,13 +36,13 @@ export function UserMenu({
       if (ref.current && !ref.current.contains(event.target as Node)) setOpen(false);
     };
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false);
+      if (event.key === "Escape") setOpen(false);
     };
-    document.addEventListener('pointerdown', onPointerDown);
-    document.addEventListener('keydown', onKeyDown);
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
     return () => {
-      document.removeEventListener('pointerdown', onPointerDown);
-      document.removeEventListener('keydown', onKeyDown);
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
     };
   }, [open]);
 

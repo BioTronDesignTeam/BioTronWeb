@@ -1,18 +1,18 @@
-import { useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
-import Flythrough from '../sections/Flythrough';
-import StackedExperience from '../sections/StackedExperience';
-import Sponsors from '../sections/Sponsors';
-import Join from '../sections/Join';
+import { useEffect } from "react";
+import { useLocation } from "react-router-dom";
+import Flythrough from "../sections/Flythrough";
+import StackedExperience from "../sections/StackedExperience";
+import Sponsors from "../sections/Sponsors";
+import Join from "../sections/Join";
 import {
   useReducedMotion,
   useWebGLSupported,
   useIsMobile,
   useIsLandscapePhone,
-} from '../lib/hooks';
-import { scrollToElement } from '../lib/scroll';
-import type { Stop } from '../lib/store';
-import PageMeta from '../components/PageMeta';
+} from "../lib/hooks";
+import { scrollToElement } from "../lib/scroll";
+import type { Stop } from "../lib/store";
+import PageMeta from "../components/PageMeta";
 
 export default function Home() {
   const reduced = useReducedMotion();
@@ -31,7 +31,7 @@ export default function Home() {
     const stop = (location.state as { stop?: Stop } | null)?.stop;
     if (immersive || !stop) return;
 
-    const target = stop === 'about' ? '#about' : '#projects';
+    const target = stop === "about" ? "#about" : "#projects";
     const frame = window.requestAnimationFrame(() => scrollToElement(target, -72));
     return () => window.cancelAnimationFrame(frame);
   }, [immersive, location]);

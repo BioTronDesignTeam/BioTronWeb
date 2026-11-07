@@ -1,26 +1,26 @@
-import type { ReactNode } from 'react'
+import type { ReactNode } from "react";
 
 export interface SegmentOption<T extends string> {
-  value: T
-  label?: string
-  icon?: ReactNode
+  value: T;
+  label?: string;
+  icon?: ReactNode;
   /** Accessible name for an icon-only segment (falls back to label, then value). */
-  ariaLabel?: string
+  ariaLabel?: string;
 }
 
 interface SegmentedToggleProps<T extends string> {
   // Exactly two segments — this renders an accessible binary switch. (A 3+ option
   // toggle would need a role="radiogroup", which the single-button model can't give.)
-  options: readonly [SegmentOption<T>, SegmentOption<T>]
-  value: T
-  onChange: (value: T) => void
-  ariaLabel: string
+  options: readonly [SegmentOption<T>, SegmentOption<T>];
+  value: T;
+  onChange: (value: T) => void;
+  ariaLabel: string;
   /** width of each (equal-width) segment, in rem */
-  segmentRem: number
+  segmentRem: number;
 }
 
 function optionName<T extends string>(o: SegmentOption<T>): string {
-  return o.ariaLabel ?? o.label ?? o.value
+  return o.ariaLabel ?? o.label ?? o.value;
 }
 
 export default function SegmentedToggle<T extends string>({
@@ -30,12 +30,12 @@ export default function SegmentedToggle<T extends string>({
   ariaLabel,
   segmentRem,
 }: SegmentedToggleProps<T>) {
-  const [first, second] = options
+  const [first, second] = options;
   // The second segment is on only when it, and not the first, holds the value.
-  const activeIndex = value !== first.value && value === second.value ? 1 : 0
-  const active = activeIndex === 1 ? second : first
+  const activeIndex = value !== first.value && value === second.value ? 1 : 0;
+  const active = activeIndex === 1 ? second : first;
   // The whole pill is one control: a click toggles to the other option.
-  const nextValue = (activeIndex === 1 ? first : second).value
+  const nextValue = (activeIndex === 1 ? first : second).value;
 
   return (
     <button
@@ -52,10 +52,13 @@ export default function SegmentedToggle<T extends string>({
       <span
         aria-hidden
         className="absolute top-1 bottom-1 left-1 rounded-full bg-white shadow transition-transform duration-300 ease-out dark:bg-highlight"
-        style={{ width: `${segmentRem}rem`, transform: `translateX(${activeIndex * segmentRem}rem)` }}
+        style={{
+          width: `${segmentRem}rem`,
+          transform: `translateX(${activeIndex * segmentRem}rem)`,
+        }}
       />
       {options.map((o) => {
-        const active = o.value === value
+        const active = o.value === value;
         return (
           <span
             key={o.value}
@@ -63,14 +66,14 @@ export default function SegmentedToggle<T extends string>({
             style={{ width: `${segmentRem}rem` }}
             className={`relative z-10 flex items-center justify-center rounded-full py-1.5 text-sm font-medium ${
               active
-                ? 'text-slate-900 dark:text-white'
-                : 'text-slate-600 group-hover:text-slate-800 dark:text-muted dark:group-hover:text-white'
+                ? "text-slate-900 dark:text-white"
+                : "text-slate-600 group-hover:text-slate-800 dark:text-muted dark:group-hover:text-white"
             }`}
           >
             {o.icon ?? o.label}
           </span>
-        )
+        );
       })}
     </button>
-  )
+  );
 }

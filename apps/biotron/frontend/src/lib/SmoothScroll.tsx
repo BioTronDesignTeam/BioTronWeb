@@ -1,9 +1,9 @@
-import { useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
-import Lenis from 'lenis';
-import { gsap, ScrollTrigger } from './gsap';
-import { useReducedMotion } from './hooks';
-import { scrollToElement, scrollToY, setLenis } from './scroll';
+import { useEffect } from "react";
+import { useLocation } from "react-router-dom";
+import Lenis from "lenis";
+import { gsap, ScrollTrigger } from "./gsap";
+import { useReducedMotion } from "./hooks";
+import { scrollToElement, scrollToY, setLenis } from "./scroll";
 
 /**
  * Wires Lenis smooth scrolling to GSAP's ticker + ScrollTrigger (the canonical
@@ -24,7 +24,7 @@ export default function SmoothScroll({ children }: { children: React.ReactNode }
     });
     setLenis(lenis);
 
-    lenis.on('scroll', () => ScrollTrigger.update());
+    lenis.on("scroll", () => ScrollTrigger.update());
 
     const tick = (time: number) => lenis.raf(time * 1000);
     gsap.ticker.add(tick);

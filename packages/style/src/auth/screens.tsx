@@ -1,11 +1,11 @@
-import type { ReactNode } from 'react';
-import { AuthScreen, type AuthNotice } from '../AuthScreen';
-import { useSession, type SessionNotice } from './session';
-import { authStrings, noticeMessage } from './strings';
+import type { ReactNode } from "react";
+import { AuthScreen, type AuthNotice } from "../AuthScreen";
+import { useSession, type SessionNotice } from "./session";
+import { authStrings, noticeMessage } from "./strings";
 
 function noticeList(notice: SessionNotice | null): AuthNotice[] {
   if (!notice) return [];
-  return [{ content: noticeMessage(notice), tone: notice === 'expired' ? 'info' : 'error' }];
+  return [{ content: noticeMessage(notice), tone: notice === "expired" ? "info" : "error" }];
 }
 
 export type SignInScreenProps = {
@@ -22,7 +22,7 @@ export function SignInScreen({ productName, description, guest = false }: SignIn
     <AuthScreen
       productName={productName}
       description={description}
-      action={{ label: authStrings.signInWithGitHub, onClick: login, icon: 'github' }}
+      action={{ label: authStrings.signInWithGitHub, onClick: login, icon: "github" }}
       notices={noticeList(notice)}
       guestAccess={guest ? { onSubmit: loginGuest } : undefined}
     />
@@ -42,7 +42,7 @@ export function AccessDenied({ productName, message }: AccessDeniedProps) {
     <AuthScreen
       productName={productName}
       notices={[
-        { content: authStrings.accessDenied, tone: 'error' },
+        { content: authStrings.accessDenied, tone: "error" },
         { content: message ?? authStrings.noPermission(productName) },
       ]}
       action={{ label: authStrings.signOut, onClick: () => void logout().catch(() => undefined) }}
@@ -66,11 +66,7 @@ export function SessionUnavailable({ productName }: { productName: string }) {
 
 /** The full-page placeholder while the first session check runs. */
 export function SessionLoading() {
-  return (
-    <output className="biotron-session-loading">
-      {authStrings.loading}
-    </output>
-  );
+  return <output className="biotron-session-loading">{authStrings.loading}</output>;
 }
 
 export type RequireAuthProps = {
@@ -87,11 +83,18 @@ export type RequireAuthProps = {
  * sign-in, the outage screen, or Access denied, and the page only once the
  * session holds what it needs.
  */
-export function RequireAuth({ productName, permission, description, guest, children }: RequireAuthProps) {
+export function RequireAuth({
+  productName,
+  permission,
+  description,
+  guest,
+  children,
+}: RequireAuthProps) {
   const { status, can } = useSession();
-  if (status === 'loading') return <SessionLoading />;
-  if (status === 'unavailable') return <SessionUnavailable productName={productName} />;
-  if (status === 'anon') return <SignInScreen productName={productName} description={description} guest={guest} />;
+  if (status === "loading") return <SessionLoading />;
+  if (status === "unavailable") return <SessionUnavailable productName={productName} />;
+  if (status === "anon")
+    return <SignInScreen productName={productName} description={description} guest={guest} />;
   if (permission && !can(permission)) return <AccessDenied productName={productName} />;
   return <>{children}</>;
 }

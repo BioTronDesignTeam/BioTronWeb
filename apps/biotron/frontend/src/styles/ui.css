@@ -19,7 +19,9 @@
   font-size: var(--fs-sm);
   letter-spacing: 0.01em;
   padding: 0;
-  transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out),
+  transition:
+    background-color var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out),
     border-color var(--dur-base) var(--ease-out);
 }
 .actionbtn__inner {
@@ -77,8 +79,10 @@
   z-index: var(--z-nav);
   display: flex;
   align-items: center;
-  transition: background var(--dur-base) var(--ease-out),
-    backdrop-filter var(--dur-base) var(--ease-out), border-color var(--dur-base) var(--ease-out);
+  transition:
+    background var(--dur-base) var(--ease-out),
+    backdrop-filter var(--dur-base) var(--ease-out),
+    border-color var(--dur-base) var(--ease-out);
   border-bottom: 1px solid transparent;
 }
 .nav--scrolled {
@@ -124,7 +128,7 @@
   transition: color var(--dur-fast) var(--ease-out);
 }
 .nav__link::after {
-  content: '';
+  content: "";
   position: absolute;
   left: 0.85rem;
   right: 0.85rem;
@@ -184,7 +188,9 @@
   transform: translateY(-12px);
   opacity: 0;
   pointer-events: none;
-  transition: opacity var(--dur-base) var(--ease-out), transform var(--dur-base) var(--ease-out);
+  transition:
+    opacity var(--dur-base) var(--ease-out),
+    transform var(--dur-base) var(--ease-out);
 }
 .nav__drawer--open {
   opacity: 1;
@@ -557,7 +563,9 @@
 }
 .join__card {
   padding: 1.5rem;
-  transition: transform var(--dur-base) var(--ease-out), border-color var(--dur-base) var(--ease-out);
+  transition:
+    transform var(--dur-base) var(--ease-out),
+    border-color var(--dur-base) var(--ease-out);
 }
 .join__card:hover {
   transform: translateY(-4px);
@@ -609,8 +617,8 @@
   align-items: center;
   padding-top: var(--nav-h);
   position: relative;
-  background: radial-gradient(120% 80% at 70% 0%, rgba(22, 11, 108, 0.2), transparent 60%),
-    var(--bg);
+  background:
+    radial-gradient(120% 80% at 70% 0%, rgba(22, 11, 108, 0.2), transparent 60%), var(--bg);
 }
 .shero__inner {
   max-width: 50rem;
@@ -682,7 +690,9 @@
   gap: 2rem;
   padding: 2rem;
   align-items: center;
-  transition: transform var(--dur-base) var(--ease-out), border-color var(--dur-base) var(--ease-out);
+  transition:
+    transform var(--dur-base) var(--ease-out),
+    border-color var(--dur-base) var(--ease-out);
 }
 .sproject:hover {
   transform: translateY(-4px);
@@ -1112,7 +1122,9 @@
   gap: 2rem;
   align-items: center;
   padding: 1.5rem;
-  transition: transform var(--dur-base) var(--ease-out), border-color var(--dur-base) var(--ease-out);
+  transition:
+    transform var(--dur-base) var(--ease-out),
+    border-color var(--dur-base) var(--ease-out);
 }
 .pindex__row:hover {
   transform: translateY(-4px);
@@ -1175,7 +1187,9 @@
 }
 .past__card {
   padding: 1.6rem;
-  transition: transform var(--dur-base) var(--ease-out), border-color var(--dur-base) var(--ease-out);
+  transition:
+    transform var(--dur-base) var(--ease-out),
+    border-color var(--dur-base) var(--ease-out);
 }
 .past__card:hover {
   transform: translateY(-4px);
@@ -1406,8 +1420,8 @@
 .detail__viewerloading {
   position: absolute;
   inset: 0;
-  background: radial-gradient(60% 60% at 50% 45%, rgba(255, 255, 255, 0.05), transparent),
-    var(--surface);
+  background:
+    radial-gradient(60% 60% at 50% 45%, rgba(255, 255, 255, 0.05), transparent), var(--surface);
 }
 .detail__viewerhint {
   position: absolute;
@@ -1460,7 +1474,7 @@
   font-size: var(--fs-sm);
 }
 .detail__teamlist li::before {
-  content: '';
+  content: "";
   position: absolute;
   left: 0;
   top: 0.55em;
@@ -1494,7 +1508,9 @@
   --card-accent-readable: var(--text);
   position: relative;
   padding: 1.6rem;
-  transition: transform var(--dur-base) var(--ease-out), border-color var(--dur-base) var(--ease-out);
+  transition:
+    transform var(--dur-base) var(--ease-out),
+    border-color var(--dur-base) var(--ease-out);
 }
 .detail__nextcard:hover {
   transform: translateY(-4px);

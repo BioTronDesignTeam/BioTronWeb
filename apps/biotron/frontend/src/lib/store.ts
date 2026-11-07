@@ -1,8 +1,8 @@
-import { create } from 'zustand';
-import type { ModelId } from '../data/projects';
+import { create } from "zustand";
+import type { ModelId } from "../data/projects";
 
 /** Ordered stops along the Home camera path. */
-export type Stop = 'about' | ModelId;
+export type Stop = "about" | ModelId;
 
 interface SceneState {
   /** Normalized progress (0..1) through the Home fly-through section. */
@@ -22,7 +22,7 @@ interface SceneState {
 
 export const useScene = create<SceneState>((set) => ({
   progress: 0,
-  activeStop: 'about',
+  activeStop: "about",
   ready: false,
   pointer: { x: 0, y: 0 },
 

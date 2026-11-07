@@ -1,4 +1,4 @@
-import type { Project } from '../data/projects';
+import type { Project } from "../data/projects";
 
 /**
  * Lightweight static visual used in place of the live 3D model in the
@@ -8,7 +8,7 @@ export default function ModelFallback({ project }: { project: Project }) {
   return (
     <div
       className="model-fallback"
-      style={{ ['--mf-accent' as string]: project.accentHex }}
+      style={{ ["--mf-accent" as string]: project.accentHex }}
       aria-hidden="true"
     >
       <svg viewBox="0 0 200 200" role="presentation">

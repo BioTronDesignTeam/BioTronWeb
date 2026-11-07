@@ -1,22 +1,25 @@
-import { useState } from 'react';
-import type { Guard, GuardSubject } from '../types';
-import { cancelClass, fieldClass, panelClass, primaryClass } from './classes';
+import { useState } from "react";
+import type { Guard, GuardSubject } from "../types";
+import { cancelClass, fieldClass, panelClass, primaryClass } from "./classes";
 
-const SUBJECTS: GuardSubject[] = ['agent', 'agent-thread', 'announce', 'nudge'];
+const SUBJECTS: GuardSubject[] = ["agent", "agent-thread", "announce", "nudge"];
 
 const SUBJECT_LABELS: Record<GuardSubject, string> = {
-  agent: 'Agent',
-  'agent-thread': 'Agent thread',
-  announce: 'Announce',
-  nudge: 'Nudge',
+  agent: "Agent",
+  "agent-thread": "Agent thread",
+  announce: "Announce",
+  nudge: "Nudge",
 };
 
 function idsToText(ids: string[]) {
-  return ids.join(', ');
+  return ids.join(", ");
 }
 
 function textToIds(text: string) {
-  return text.split(',').map((part) => part.trim()).filter(Boolean);
+  return text
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
 }
 
 function allDigits(ids: string[]) {
@@ -25,7 +28,10 @@ function allDigits(ids: string[]) {
 
 interface GuardsPanelProps {
   guards: Guard[];
-  onSave: (subject: GuardSubject, body: { guild_id: string; role_ids: string[]; channel_ids: string[] }) => Promise<void>;
+  onSave: (
+    subject: GuardSubject,
+    body: { guild_id: string; role_ids: string[]; channel_ids: string[] },
+  ) => Promise<void>;
   onClear: (subject: GuardSubject) => Promise<void>;
 }
 
@@ -35,7 +41,8 @@ export function GuardsPanel({ guards, onSave, onClear }: GuardsPanelProps) {
       <div className="border-b border-ink/10 px-5 py-4 dark:border-line">
         <h2 className="font-semibold">Guards</h2>
         <p className="mt-1 text-sm text-ink/60 dark:text-muted">
-          An empty channel ids list means any channel. A guard needs at least one role; to turn a feature off, clear the guard.
+          An empty channel ids list means any channel. A guard needs at least one role; to turn a
+          feature off, clear the guard.
         </p>
       </div>
       <div className="divide-y divide-ink/10 dark:divide-line">
@@ -53,17 +60,22 @@ export function GuardsPanel({ guards, onSave, onClear }: GuardsPanelProps) {
   );
 }
 
-function GuardRow({ subject, guard, onSave, onClear }: {
+function GuardRow({
+  subject,
+  guard,
+  onSave,
+  onClear,
+}: {
   subject: GuardSubject;
   guard?: Guard;
-  onSave: GuardsPanelProps['onSave'];
-  onClear: GuardsPanelProps['onClear'];
+  onSave: GuardsPanelProps["onSave"];
+  onClear: GuardsPanelProps["onClear"];
 }) {
-  const [guildId, setGuildId] = useState(guard?.guild_id ?? '');
+  const [guildId, setGuildId] = useState(guard?.guild_id ?? "");
   const [roleIds, setRoleIds] = useState(idsToText(guard?.role_ids ?? []));
   const [channelIds, setChannelIds] = useState(idsToText(guard?.channel_ids ?? []));
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
   // The row is uncontrolled from the server's point of view between saves, but
   // a save elsewhere (or the initial load landing after this row mounted)
@@ -72,45 +84,45 @@ function GuardRow({ subject, guard, onSave, onClear }: {
   const [shownGuard, setShownGuard] = useState(guard);
   if (guard !== shownGuard) {
     setShownGuard(guard);
-    setGuildId(guard?.guild_id ?? '');
+    setGuildId(guard?.guild_id ?? "");
     setRoleIds(idsToText(guard?.role_ids ?? []));
     setChannelIds(idsToText(guard?.channel_ids ?? []));
   }
 
   async function save() {
-    setError('');
+    setError("");
     const trimmedGuildId = guildId.trim();
     const roles = textToIds(roleIds);
     const channels = textToIds(channelIds);
     if (!/^\d+$/.test(trimmedGuildId)) {
-      setError('Guild id must be a digit string.');
+      setError("Guild id must be a digit string.");
       return;
     }
     if (!allDigits(roles)) {
-      setError('Role ids must be digit strings, separated by commas.');
+      setError("Role ids must be digit strings, separated by commas.");
       return;
     }
     if (!allDigits(channels)) {
-      setError('Channel ids must be digit strings, separated by commas.');
+      setError("Channel ids must be digit strings, separated by commas.");
       return;
     }
     setSaving(true);
     try {
       await onSave(subject, { guild_id: trimmedGuildId, role_ids: roles, channel_ids: channels });
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Could not save the guard.');
+      setError(caught instanceof Error ? caught.message : "Could not save the guard.");
     } finally {
       setSaving(false);
     }
   }
 
   async function clear() {
-    setError('');
+    setError("");
     setSaving(true);
     try {
       await onClear(subject);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Could not clear the guard.');
+      setError(caught instanceof Error ? caught.message : "Could not clear the guard.");
     } finally {
       setSaving(false);
     }
@@ -120,22 +132,57 @@ function GuardRow({ subject, guard, onSave, onClear }: {
     <div className="grid gap-3 p-5 sm:grid-cols-[8rem_1fr_1fr_1fr_auto] sm:items-center">
       <p className="font-semibold">{SUBJECT_LABELS[subject]}</p>
       <label className="block">
-        <span className="mb-1 block text-xs font-semibold text-ink/60 dark:text-muted sm:hidden">Guild id</span>
-        <input value={guildId} onChange={(event) => setGuildId(event.target.value)} placeholder="Guild id" className={fieldClass} />
+        <span className="mb-1 block text-xs font-semibold text-ink/60 sm:hidden dark:text-muted">
+          Guild id
+        </span>
+        <input
+          value={guildId}
+          onChange={(event) => setGuildId(event.target.value)}
+          placeholder="Guild id"
+          className={fieldClass}
+        />
       </label>
       <label className="block">
-        <span className="mb-1 block text-xs font-semibold text-ink/60 dark:text-muted sm:hidden">Role ids</span>
-        <input value={roleIds} onChange={(event) => setRoleIds(event.target.value)} placeholder="Role ids, comma-separated" className={fieldClass} />
+        <span className="mb-1 block text-xs font-semibold text-ink/60 sm:hidden dark:text-muted">
+          Role ids
+        </span>
+        <input
+          value={roleIds}
+          onChange={(event) => setRoleIds(event.target.value)}
+          placeholder="Role ids, comma-separated"
+          className={fieldClass}
+        />
       </label>
       <label className="block">
-        <span className="mb-1 block text-xs font-semibold text-ink/60 dark:text-muted sm:hidden">Channel ids</span>
-        <input value={channelIds} onChange={(event) => setChannelIds(event.target.value)} placeholder="Channel ids, comma-separated" className={fieldClass} />
+        <span className="mb-1 block text-xs font-semibold text-ink/60 sm:hidden dark:text-muted">
+          Channel ids
+        </span>
+        <input
+          value={channelIds}
+          onChange={(event) => setChannelIds(event.target.value)}
+          placeholder="Channel ids, comma-separated"
+          className={fieldClass}
+        />
       </label>
       <div className="flex gap-2">
-        <button type="button" disabled={saving} onClick={() => void save()} className={primaryClass}>Save</button>
-        <button type="button" disabled={saving} onClick={() => void clear()} className={cancelClass}>Clear</button>
+        <button
+          type="button"
+          disabled={saving}
+          onClick={() => void save()}
+          className={primaryClass}
+        >
+          Save
+        </button>
+        <button
+          type="button"
+          disabled={saving}
+          onClick={() => void clear()}
+          className={cancelClass}
+        >
+          Clear
+        </button>
       </div>
-      {error && <p className="text-sm text-red-700 dark:text-red-300 sm:col-span-5">{error}</p>}
+      {error && <p className="text-sm text-red-700 sm:col-span-5 dark:text-red-300">{error}</p>}
     </div>
   );
 }

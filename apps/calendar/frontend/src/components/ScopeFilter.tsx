@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import type { Scope } from '../types';
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { Scope } from "../types";
 
 interface ScopeFilterProps {
   scopes: Scope[];
@@ -14,7 +14,9 @@ interface ScopeNode {
 
 /** Builds the team / project / subteam tree the filter draws. */
 function buildTree(scopes: Scope[]): ScopeNode[] {
-  const nodes = new Map<string, ScopeNode>(scopes.map((scope) => [scope.id, { scope, children: [] }]));
+  const nodes = new Map<string, ScopeNode>(
+    scopes.map((scope) => [scope.id, { scope, children: [] }]),
+  );
   const roots: ScopeNode[] = [];
   for (const scope of scopes) {
     const node = nodes.get(scope.id);
@@ -58,7 +60,9 @@ export function ScopeFilter({ scopes, selected, onChange }: ScopeFilterProps) {
   return (
     <div>
       <div className="flex items-center justify-between px-2 py-1">
-        <span className="text-xs font-bold uppercase tracking-[0.16em] text-ink/50 dark:text-muted">Calendars</span>
+        <span className="text-xs font-bold tracking-[0.16em] text-ink/50 uppercase dark:text-muted">
+          Calendars
+        </span>
         <button
           type="button"
           onClick={() => onChange([])}
@@ -69,7 +73,15 @@ export function ScopeFilter({ scopes, selected, onChange }: ScopeFilterProps) {
         </button>
       </div>
       <ul>
-        {tree.map((node) => <ScopeBranch key={node.scope.id} node={node} depth={0} chosen={chosen} onToggle={toggle} />)}
+        {tree.map((node) => (
+          <ScopeBranch
+            key={node.scope.id}
+            node={node}
+            depth={0}
+            chosen={chosen}
+            onToggle={toggle}
+          />
+        ))}
       </ul>
     </div>
   );
@@ -119,7 +131,13 @@ function ScopeBranch({ node, depth, chosen, onToggle }: ScopeBranchProps) {
             onChange={(next) => onToggle([node.scope.id], next)}
           />
           {node.children.map((child) => (
-            <ScopeBranch key={child.scope.id} node={child} depth={depth + 1} chosen={chosen} onToggle={onToggle} />
+            <ScopeBranch
+              key={child.scope.id}
+              node={child}
+              depth={depth + 1}
+              chosen={chosen}
+              onToggle={onToggle}
+            />
           ))}
         </ul>
       )}
@@ -139,22 +157,44 @@ interface ScopeRowProps {
   onExpand?: () => void;
 }
 
-function ScopeRow({ label, depth, bold = false, checked, partial, onChange, expanded, onExpand }: ScopeRowProps) {
+function ScopeRow({
+  label,
+  depth,
+  bold = false,
+  checked,
+  partial,
+  onChange,
+  expanded,
+  onExpand,
+}: ScopeRowProps) {
   const box = useRef<HTMLInputElement>(null);
   useEffect(() => {
     if (box.current) box.current.indeterminate = partial;
   }, [partial]);
   return (
     <div className="flex items-center" style={{ paddingLeft: `${depth * 1.1}rem` }}>
-      {expanded === undefined ? <span className="size-7 shrink-0" aria-hidden="true" /> : (
+      {expanded === undefined ? (
+        <span className="size-7 shrink-0" aria-hidden="true" />
+      ) : (
         <button
           type="button"
           onClick={onExpand}
           aria-expanded={expanded}
-          aria-label={`${expanded ? 'Collapse' : 'Expand'} ${label}`}
+          aria-label={`${expanded ? "Collapse" : "Expand"} ${label}`}
           className="grid size-7 shrink-0 place-items-center rounded-full text-ink/55 hover:bg-soft/30 dark:text-muted dark:hover:bg-white/10"
         >
-          <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={expanded ? 'rotate-90' : ''}>
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 12 12"
+            aria-hidden="true"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className={expanded ? "rotate-90" : ""}
+          >
             <polyline points="4,2 8,6 4,10" />
           </svg>
         </button>
@@ -167,7 +207,7 @@ function ScopeRow({ label, depth, bold = false, checked, partial, onChange, expa
           onChange={(event) => onChange(event.target.checked)}
           className="size-4 shrink-0 accent-brand"
         />
-        <span className={`truncate ${bold ? 'font-semibold' : ''}`}>{label}</span>
+        <span className={`truncate ${bold ? "font-semibold" : ""}`}>{label}</span>
       </label>
     </div>
   );

@@ -1,9 +1,9 @@
-import { useEffect, useRef } from 'react';
-import type { AppInfo, Grant, OrgMember, Permission } from '../api';
-import type { OrgSelection } from '../hooks/useOrgSelection';
-import OrgMemberDetail from './OrgMemberDetail';
-import OrgMemberList from './OrgMemberList';
-import { panel } from './ui';
+import { useEffect, useRef } from "react";
+import type { AppInfo, Grant, OrgMember, Permission } from "../api";
+import type { OrgSelection } from "../hooks/useOrgSelection";
+import OrgMemberDetail from "./OrgMemberDetail";
+import OrgMemberList from "./OrgMemberList";
+import { panel } from "./ui";
 
 export default function OrgTab({
   members,
@@ -46,9 +46,12 @@ export default function OrgTab({
   const selectedMemberId = selectedMember?.github_id ?? null;
   useEffect(() => {
     if (selectedMemberId === null) return;
-    if (!window.matchMedia('(max-width: 1023px)').matches) return;
-    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    detailRef.current?.scrollIntoView({ block: 'start', behavior: reduceMotion ? 'auto' : 'smooth' });
+    if (!window.matchMedia("(max-width: 1023px)").matches) return;
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    detailRef.current?.scrollIntoView({
+      block: "start",
+      behavior: reduceMotion ? "auto" : "smooth",
+    });
   }, [selectedMemberId]);
 
   return (

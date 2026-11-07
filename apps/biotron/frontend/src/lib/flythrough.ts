@@ -1,6 +1,6 @@
-import type { Stop } from './store';
-import { STOP_AT } from '../three/CameraPath';
-import { scrollToY } from './scroll';
+import type { Stop } from "./store";
+import { STOP_AT } from "../three/CameraPath";
+import { scrollToY } from "./scroll";
 
 /** Scroll range (in px) covered by the pinned Home fly-through section. */
 let range: { start: number; end: number } | null = null;

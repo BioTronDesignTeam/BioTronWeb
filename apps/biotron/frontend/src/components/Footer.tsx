@@ -1,8 +1,8 @@
-import { Link } from 'react-router-dom';
-import { Mail, ArrowUp } from 'lucide-react';
-import InstagramIcon from './InstagramIcon';
-import { CONTACT, PROJECTS } from '../data/projects';
-import { scrollToY } from '../lib/scroll';
+import { Link } from "react-router-dom";
+import { Mail, ArrowUp } from "lucide-react";
+import InstagramIcon from "./InstagramIcon";
+import { CONTACT, PROJECTS } from "../data/projects";
+import { scrollToY } from "../lib/scroll";
 
 export default function Footer() {
   return (
@@ -53,7 +53,9 @@ export default function Footer() {
       </div>
 
       <div className="container-wide footer__base">
-        <span>© {new Date().getFullYear()} {CONTACT.org}</span>
+        <span>
+          © {new Date().getFullYear()} {CONTACT.org}
+        </span>
         <span className="mono-label">Waterloo, ON · Canada</span>
       </div>
     </footer>

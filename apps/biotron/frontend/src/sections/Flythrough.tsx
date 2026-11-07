@@ -1,13 +1,13 @@
-import { Suspense, lazy, useEffect, useRef } from 'react';
-import { useLocation } from 'react-router-dom';
-import { ChevronDown, ArrowUpRight } from 'lucide-react';
-import { gsap, ScrollTrigger } from '../lib/gsap';
-import { useScene, type Stop } from '../lib/store';
-import { registerFlythroughRange, clearFlythroughRange, jumpToStop } from '../lib/flythrough';
-import ActionButton from '../components/ActionButton';
-import RoomPopup from '../components/RoomPopup';
+import { Suspense, lazy, useEffect, useRef } from "react";
+import { useLocation } from "react-router-dom";
+import { ChevronDown, ArrowUpRight } from "lucide-react";
+import { gsap, ScrollTrigger } from "../lib/gsap";
+import { useScene, type Stop } from "../lib/store";
+import { registerFlythroughRange, clearFlythroughRange, jumpToStop } from "../lib/flythrough";
+import ActionButton from "../components/ActionButton";
+import RoomPopup from "../components/RoomPopup";
 
-const Scene = lazy(() => import('../three/Scene'));
+const Scene = lazy(() => import("../three/Scene"));
 
 /**
  * The immersive Home centerpiece: a tall scroll section whose progress drives
@@ -27,8 +27,8 @@ export default function Flythrough() {
 
     const st = ScrollTrigger.create({
       trigger: el,
-      start: 'top top',
-      end: 'bottom bottom',
+      start: "top top",
+      end: "bottom bottom",
       scrub: true,
       onUpdate: (self) => {
         setProgress(self.progress);
@@ -73,18 +73,16 @@ export default function Flythrough() {
               <span className="line">Welcome to</span>
               <span className="line accent">Biotron.</span>
             </h1>
-            <p className="flythrough__lead">
-              Scroll through our workshop.
-            </p>
+            <p className="flythrough__lead">Scroll through our workshop.</p>
             <div className="flythrough__cta">
-              <ActionButton onClick={() => jumpToStop('exo')} variant="primary">
+              <ActionButton onClick={() => jumpToStop("exo")} variant="primary">
                 Explore projects <ArrowUpRight size={18} />
               </ActionButton>
               <ActionButton to="/join" variant="ghost">
                 Join us
               </ActionButton>
             </div>
-            <div className={`flythrough__hint ${ready ? 'is-ready' : ''}`}>
+            <div className={`flythrough__hint ${ready ? "is-ready" : ""}`}>
               <ChevronDown size={18} />
               <span>Scroll to begin</span>
             </div>

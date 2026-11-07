@@ -8,8 +8,8 @@ import {
   useSyncExternalStore,
   type CSSProperties,
   type ReactNode,
-} from 'react';
-import { Brand, ThemeToggle } from '@biotron/style';
+} from "react";
+import { Brand, ThemeToggle } from "@biotron/style";
 import {
   type HistoryBucket,
   type StatusApplication,
@@ -18,19 +18,26 @@ import {
   type StatusState,
   getStatus,
   getStatusHistory,
-} from './api';
+} from "./api";
 
 const HISTORY_DAYS = 90;
 
 // Building an Intl formatter is expensive, so the shared instances live here
 // rather than being rebuilt inside a function that runs on every render.
-const relativeFormatter = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
+const relativeFormatter = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
 const longDateFormatter = new Intl.DateTimeFormat(undefined, {
-  weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
+  weekday: "short",
+  month: "short",
+  day: "numeric",
+  year: "numeric",
 });
-const rangeFormatter = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-const monthFormatter = new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric' });
-const weekdayFormatter = new Intl.DateTimeFormat(undefined, { weekday: 'short' });
+const rangeFormatter = new Intl.DateTimeFormat(undefined, {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+});
+const monthFormatter = new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric" });
+const weekdayFormatter = new Intl.DateTimeFormat(undefined, { weekday: "short" });
 
 /**
  * Status is never conveyed by colour alone: every state carries its own glyph
@@ -39,36 +46,37 @@ const weekdayFormatter = new Intl.DateTimeFormat(undefined, { weekday: 'short' }
  */
 const statusMeta: Record<StatusState, { label: string; headline: string; description: string }> = {
   operational: {
-    label: 'Operational',
-    headline: 'All systems operational',
-    description: 'We are not aware of any issues affecting the platform.',
+    label: "Operational",
+    headline: "All systems operational",
+    description: "We are not aware of any issues affecting the platform.",
   },
   degraded: {
-    label: 'Degraded',
-    headline: 'Some systems are degraded',
-    description: 'One or more components are unavailable or not being observed. Expand an application below for detail.',
+    label: "Degraded",
+    headline: "Some systems are degraded",
+    description:
+      "One or more components are unavailable or not being observed. Expand an application below for detail.",
   },
   down: {
-    label: 'Down',
-    headline: 'Major outage',
-    description: 'Every component is currently failing its health check.',
+    label: "Down",
+    headline: "Major outage",
+    description: "Every component is currently failing its health check.",
   },
   unknown: {
-    label: 'No data',
-    headline: 'Status is not being observed',
-    description: 'Status has no recent health checks to report.',
+    label: "No data",
+    headline: "Status is not being observed",
+    description: "Status has no recent health checks to report.",
   },
 };
 
 function relativeTime(timestamp?: string | null) {
-  if (!timestamp) return 'not checked yet';
+  if (!timestamp) return "not checked yet";
   const seconds = Math.round((new Date(timestamp).getTime() - Date.now()) / 1000);
-  if (Math.abs(seconds) < 60) return relativeFormatter.format(seconds, 'second');
+  if (Math.abs(seconds) < 60) return relativeFormatter.format(seconds, "second");
   const minutes = Math.round(seconds / 60);
-  if (Math.abs(minutes) < 60) return relativeFormatter.format(minutes, 'minute');
+  if (Math.abs(minutes) < 60) return relativeFormatter.format(minutes, "minute");
   const hours = Math.round(minutes / 60);
-  if (Math.abs(hours) < 24) return relativeFormatter.format(hours, 'hour');
-  return relativeFormatter.format(Math.round(hours / 24), 'day');
+  if (Math.abs(hours) < 24) return relativeFormatter.format(hours, "hour");
+  return relativeFormatter.format(Math.round(hours / 24), "day");
 }
 
 /** "100%", "99.43%", never "100.00%": trailing zeros only add noise. */
@@ -78,7 +86,7 @@ function percent(value: number) {
 
 /** A null uptime means the window was never observed, which is not 100%. */
 function uptimeText(value: number | null | undefined) {
-  return value === null || value === undefined ? 'No data' : `${percent(value)} uptime`;
+  return value === null || value === undefined ? "No data" : `${percent(value)} uptime`;
 }
 
 function localNoon(date: string) {
@@ -91,7 +99,14 @@ const glyphs: Record<StatusState, ReactNode> = {
   operational: (
     <>
       <circle cx="8" cy="8" r="8" fill="currentColor" />
-      <path d="M4.6 8.3l2.2 2.2 4.6-4.8" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M4.6 8.3l2.2 2.2 4.6-4.8"
+        fill="none"
+        stroke="#fff"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </>
   ),
   degraded: (
@@ -104,13 +119,33 @@ const glyphs: Record<StatusState, ReactNode> = {
   down: (
     <>
       <rect x="0.5" y="0.5" width="15" height="15" rx="3.5" fill="currentColor" />
-      <path d="M5.4 5.4l5.2 5.2M10.6 5.4l-5.2 5.2" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" />
+      <path
+        d="M5.4 5.4l5.2 5.2M10.6 5.4l-5.2 5.2"
+        fill="none"
+        stroke="#fff"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
     </>
   ),
   unknown: (
     <>
-      <circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" strokeWidth="1.5" strokeDasharray="2.6 2.1" />
-      <path d="M6.2 6.4a1.8 1.8 0 1 1 2.6 1.6c-.6.3-.8.6-.8 1.2" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <circle
+        cx="8"
+        cy="8"
+        r="7"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeDasharray="2.6 2.1"
+      />
+      <path
+        d="M6.2 6.4a1.8 1.8 0 1 1 2.6 1.6c-.6.3-.8.6-.8 1.2"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
       <circle cx="8" cy="11.5" r=".9" fill="currentColor" />
     </>
   ),
@@ -119,7 +154,9 @@ const glyphs: Record<StatusState, ReactNode> = {
 function StatusIcon({ state, label }: { state: StatusState; label?: string }) {
   return (
     <span className={`status-icon status-icon--${state}`}>
-      <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">{glyphs[state]}</svg>
+      <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+        {glyphs[state]}
+      </svg>
       <span className="visually-hidden">{label ?? statusMeta[state].label}</span>
     </span>
   );
@@ -127,24 +164,64 @@ function StatusIcon({ state, label }: { state: StatusState; label?: string }) {
 
 function Chevron({ open }: { open: boolean }) {
   return (
-    <svg className={`chevron ${open ? 'chevron--open' : ''}`} width="10" height="6" viewBox="0 0 10 6" aria-hidden="true" focusable="false">
-      <path d="M1.5 1l3.75 4L9 1" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    <svg
+      className={`chevron ${open ? "chevron--open" : ""}`}
+      width="10"
+      height="6"
+      viewBox="0 0 10 6"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path
+        d="M1.5 1l3.75 4L9 1"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
 
 function InfoIcon() {
   return (
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true" focusable="false">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
+    <svg
+      viewBox="0 0 24 24"
+      width="16"
+      height="16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z"
+      />
     </svg>
   );
 }
 
 function CalendarIcon() {
   return (
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true" focusable="false">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+    <svg
+      viewBox="0 0 24 24"
+      width="16"
+      height="16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5"
+      />
     </svg>
   );
 }
@@ -157,10 +234,17 @@ function CalendarIcon() {
 function InfoTip({ id, name, text }: { id: string; name: string; text: string }) {
   return (
     <span className="info-tip">
-      <button type="button" className="info-tip__trigger" aria-label={`About ${name}`} aria-describedby={id}>
+      <button
+        type="button"
+        className="info-tip__trigger"
+        aria-label={`About ${name}`}
+        aria-describedby={id}
+      >
         <InfoIcon />
       </button>
-      <span role="tooltip" id={id} className="popover info-tip__bubble">{text}</span>
+      <span role="tooltip" id={id} className="popover info-tip__bubble">
+        {text}
+      </span>
     </span>
   );
 }
@@ -173,20 +257,20 @@ function InfoTip({ id, name, text }: { id: string; name: string; text: string })
  * viewport can ever make the page body scroll sideways.
  */
 const dayBreakpoints = [
-  { query: '(max-width: 559px)', days: 30 },
-  { query: '(max-width: 899px)', days: 60 },
+  { query: "(max-width: 559px)", days: 30 },
+  { query: "(max-width: 899px)", days: 60 },
 ];
 
 function subscribeToWidth(onChange: () => void) {
   const lists = dayBreakpoints.map((breakpoint) => window.matchMedia(breakpoint.query));
-  lists.forEach((list) => list.addEventListener('change', onChange));
+  lists.forEach((list) => list.addEventListener("change", onChange));
   // resize is a belt-and-braces fallback for embedded viewports that resize
   // without firing media-query change events. The snapshot is a number, so a
   // resize that does not cross a breakpoint re-renders nothing.
-  window.addEventListener('resize', onChange);
+  window.addEventListener("resize", onChange);
   return () => {
-    lists.forEach((list) => list.removeEventListener('change', onChange));
-    window.removeEventListener('resize', onChange);
+    lists.forEach((list) => list.removeEventListener("change", onChange));
+    window.removeEventListener("resize", onChange);
   };
 }
 
@@ -200,14 +284,14 @@ const useVisibleDays = () =>
 
 function dayDetail(bucket: HistoryBucket) {
   switch (bucket.state) {
-    case 'operational':
-      return 'No incidents';
-    case 'degraded':
+    case "operational":
+      return "No incidents";
+    case "degraded":
       return `Degraded · ${uptimeText(bucket.uptime)}`;
-    case 'down':
+    case "down":
       return `Outage · ${uptimeText(bucket.uptime)}`;
     default:
-      return 'No data · nobody was watching';
+      return "No data · nobody was watching";
   }
 }
 
@@ -217,14 +301,23 @@ function dayDetail(bucket: HistoryBucket) {
  * bar is more than a decorative stripe. Enter and Space do nothing on
  * purpose: the strip is explored, not activated.
  */
-function UptimeBar({ buckets, days, label }: { buckets: HistoryBucket[]; days: number; label: string }) {
+function UptimeBar({
+  buckets,
+  days,
+  label,
+}: {
+  buckets: HistoryBucket[];
+  days: number;
+  label: string;
+}) {
   const shown = buckets.slice(-days);
   const [active, setActive] = useState<number | null>(null);
   const trackRef = useRef<HTMLButtonElement>(null);
-  const summary = `${label}, ${shown.length}-day history: ` +
-    `${shown.filter((bucket) => bucket.state === 'operational').length} fully operational days, ` +
-    `${shown.filter((bucket) => bucket.state === 'degraded' || bucket.state === 'down').length} with incidents, ` +
-    `${shown.filter((bucket) => bucket.state === 'unknown').length} without data. Use the arrow keys to read each day.`;
+  const summary =
+    `${label}, ${shown.length}-day history: ` +
+    `${shown.filter((bucket) => bucket.state === "operational").length} fully operational days, ` +
+    `${shown.filter((bucket) => bucket.state === "degraded" || bucket.state === "down").length} with incidents, ` +
+    `${shown.filter((bucket) => bucket.state === "unknown").length} without data. Use the arrow keys to read each day.`;
 
   const indexAt = (clientX: number) => {
     const track = trackRef.current;
@@ -248,7 +341,7 @@ function UptimeBar({ buckets, days, label }: { buckets: HistoryBucket[]; days: n
     if (move !== undefined) {
       event.preventDefault();
       setActive(move);
-    } else if (event.key === 'Escape') {
+    } else if (event.key === "Escape") {
       setActive(null);
     }
   }
@@ -274,7 +367,7 @@ function UptimeBar({ buckets, days, label }: { buckets: HistoryBucket[]; days: n
       >
         {shown.map((day, index) => (
           <span
-            className={`uptime-day uptime-day--${day.state} ${index === active ? 'uptime-day--active' : ''}`}
+            className={`uptime-day uptime-day--${day.state} ${index === active ? "uptime-day--active" : ""}`}
             key={day.date}
           />
         ))}
@@ -283,9 +376,11 @@ function UptimeBar({ buckets, days, label }: { buckets: HistoryBucket[]; days: n
         {bucket && active !== null && (
           <div
             className="popover day-popover"
-            style={{ '--x': `${((active + 0.5) / shown.length) * 100}%` } as CSSProperties}
+            style={{ "--x": `${((active + 0.5) / shown.length) * 100}%` } as CSSProperties}
           >
-            <div className="day-popover__date">{longDateFormatter.format(localNoon(bucket.date))}</div>
+            <div className="day-popover__date">
+              {longDateFormatter.format(localNoon(bucket.date))}
+            </div>
             <div className={`day-popover__line day-popover__line--${bucket.state}`}>
               <StatusIcon state={bucket.state} label="" />
               <span>{dayDetail(bucket)}</span>
@@ -325,7 +420,7 @@ function Shell({ children }: { children: ReactNode }) {
 function usePlatformStatus(poll: boolean) {
   const [status, setStatus] = useState<StatusResponse>();
   const [history, setHistory] = useState<StatusHistoryResponse>();
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
   // State changes only once the responses land, never synchronously.
@@ -336,9 +431,10 @@ function usePlatformStatus(poll: boolean) {
           ([current, past]) => {
             setStatus(current);
             setHistory(past);
-            setError('');
+            setError("");
           },
-          (reason: unknown) => setError(reason instanceof Error ? reason.message : 'Status is unavailable'),
+          (reason: unknown) =>
+            setError(reason instanceof Error ? reason.message : "Status is unavailable"),
         )
         .finally(() => setLoading(false)),
     [],
@@ -359,26 +455,37 @@ function rangeLabel(history?: StatusHistoryResponse) {
   const buckets = history?.applications[0]?.buckets ?? history?.components[0]?.buckets;
   const first = buckets?.[0];
   const last = buckets?.at(-1);
-  if (!first || !last) return '';
+  if (!first || !last) return "";
   return rangeFormatter.formatRange(localNoon(first.date), localNoon(last.date));
 }
 
 /* Status page ------------------------------------------------------------ */
 
-function StatusBanner({ overall, loading }: { overall?: StatusResponse['overall']; loading: boolean }) {
-  const state = overall?.state ?? 'unknown';
+function StatusBanner({
+  overall,
+  loading,
+}: {
+  overall?: StatusResponse["overall"];
+  loading: boolean;
+}) {
+  const state = overall?.state ?? "unknown";
   const meta = statusMeta[state];
   return (
-    <section className={`box box--${overall ? state : 'pending'}`} aria-live="polite">
+    <section className={`box box--${overall ? state : "pending"}`} aria-live="polite">
       <div className="box__head">
         {overall && <StatusIcon state={state} label="" />}
-        <h1>{loading && !overall ? 'Checking platform status…' : meta.headline}</h1>
+        <h1>{loading && !overall ? "Checking platform status…" : meta.headline}</h1>
       </div>
       <div className="box__body">
-        <p>{overall ? meta.description : 'Health is checked from inside the BioTron service network.'}</p>
+        <p>
+          {overall
+            ? meta.description
+            : "Health is checked from inside the BioTron service network."}
+        </p>
         {overall && (
           <p className="box__meta">
-            Updated {relativeTime(overall.updated_at)} · {uptimeText(overall.uptime_90d)} over {HISTORY_DAYS} days
+            Updated {relativeTime(overall.updated_at)} · {uptimeText(overall.uptime_90d)} over{" "}
+            {HISTORY_DAYS} days
           </p>
         )}
       </div>
@@ -391,7 +498,7 @@ function ComponentRow({
   buckets,
   days,
 }: {
-  component: StatusApplication['components'][number];
+  component: StatusApplication["components"][number];
   buckets: HistoryBucket[];
   days: number;
 }) {
@@ -433,7 +540,11 @@ function ApplicationGroup({
       <div className="group__row">
         <StatusIcon state={application.state} />
         <h3 className="group__name">{application.name}</h3>
-        <InfoTip id={`about-${application.id}`} name={application.name} text={application.description} />
+        <InfoTip
+          id={`about-${application.id}`}
+          name={application.name}
+          text={application.description}
+        />
         <button
           type="button"
           className="group__toggle"
@@ -441,7 +552,9 @@ function ApplicationGroup({
           aria-controls={panelID}
           onClick={() => setOpen((current) => !current)}
         >
-          <span className="group__count">{count} {count === 1 ? 'component' : 'components'}</span>
+          <span className="group__count">
+            {count} {count === 1 ? "component" : "components"}
+          </span>
           <Chevron open={open} />
         </button>
         <span className="row__uptime">{uptimeText(application.uptime_90d)}</span>
@@ -518,8 +631,8 @@ function StatusPage() {
 
         <p className="column__footnote">
           Health is checked every 15 seconds from inside the BioTron service network. Uptime is
-          time-weighted across every component's observed time; days nobody was watching are
-          hatched and left out of the figures.
+          time-weighted across every component's observed time; days nobody was watching are hatched
+          and left out of the figures.
         </p>
       </main>
     </Shell>
@@ -532,7 +645,7 @@ type Incident = {
   key: string;
   application: string;
   component: string;
-  state: 'degraded' | 'down';
+  state: "degraded" | "down";
   uptime: number | null;
 };
 
@@ -545,17 +658,22 @@ type IncidentMonth = { key: string; label: string; days: IncidentDay[] };
  * when a component spent part of it degraded or down. A day with no data is not
  * an incident: nobody was watching, which is a different claim.
  */
-function incidentMonths(history: StatusHistoryResponse | undefined, applications: StatusApplication[]): IncidentMonth[] {
+function incidentMonths(
+  history: StatusHistoryResponse | undefined,
+  applications: StatusApplication[],
+): IncidentMonth[] {
   if (!history) return [];
   // Component names repeat across applications: several are called "Web" and
   // several "API". An incident line has to name the application too, or it
   // says nothing about what was down.
-  const applicationNames = new Map(applications.map((application) => [application.id, application.name]));
+  const applicationNames = new Map(
+    applications.map((application) => [application.id, application.name]),
+  );
   const byDate = new Map<string, Incident[]>();
   for (const component of history.components) {
     const application = applicationNames.get(component.application_id) ?? component.application_id;
     for (const bucket of component.buckets) {
-      if (bucket.state !== 'degraded' && bucket.state !== 'down') continue;
+      if (bucket.state !== "degraded" && bucket.state !== "down") continue;
       const list = byDate.get(bucket.date) ?? [];
       list.push({
         key: `${bucket.date}-${component.id}`,
@@ -584,7 +702,10 @@ function incidentMonths(history: StatusHistoryResponse | undefined, applications
 
 function HistoryPage() {
   const { status, history, error, loading } = usePlatformStatus(false);
-  const months = useMemo(() => incidentMonths(history, status?.applications ?? []), [history, status]);
+  const months = useMemo(
+    () => incidentMonths(history, status?.applications ?? []),
+    [history, status],
+  );
 
   return (
     <main className="column">
@@ -607,7 +728,9 @@ function HistoryPage() {
 
       {months.map((month) => (
         <section className="month" key={month.key} aria-labelledby={`month-${month.key}`}>
-          <h2 className="month__name" id={`month-${month.key}`}>{month.label}</h2>
+          <h2 className="month__name" id={`month-${month.key}`}>
+            {month.label}
+          </h2>
           {month.days.map((day) => (
             <div className="day" key={day.date}>
               <div className="day__date">
@@ -620,14 +743,16 @@ function HistoryPage() {
                     <span className="incident__rail" aria-hidden="true" />
                     <div className="incident__body">
                       <div className="incident__title">
-                        <span>{incident.application} · {incident.component}</span>
+                        <span>
+                          {incident.application} · {incident.component}
+                        </span>
                         <span className="incident__uptime">{uptimeText(incident.uptime)}</span>
                       </div>
                       <p className="incident__detail">
                         <StatusIcon state={incident.state} />
-                        {incident.state === 'down'
-                          ? 'Health checks failed repeatedly; the component was unavailable for part of the day.'
-                          : 'Health checks failed briefly; the component was available for the rest of the day.'}
+                        {incident.state === "down"
+                          ? "Health checks failed repeatedly; the component was unavailable for part of the day."
+                          : "Health checks failed briefly; the component was available for the rest of the day."}
                       </p>
                     </div>
                   </li>

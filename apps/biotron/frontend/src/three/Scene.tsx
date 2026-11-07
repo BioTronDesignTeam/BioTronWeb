@@ -1,16 +1,11 @@
-import { Suspense, useEffect, useState } from 'react';
-import { Canvas } from '@react-three/fiber';
-import {
-  AdaptiveDpr,
-  Environment,
-  PerformanceMonitor,
-  ContactShadows,
-} from '@react-three/drei';
-import { EffectComposer, Bloom, Vignette } from '@react-three/postprocessing';
-import WorkshopRoom from './WorkshopRoom';
-import Rig from './Rig';
-import { useScene } from '../lib/store';
-import { useReducedMotion, useIsMobile } from '../lib/hooks';
+import { Suspense, useEffect, useState } from "react";
+import { Canvas } from "@react-three/fiber";
+import { AdaptiveDpr, Environment, PerformanceMonitor, ContactShadows } from "@react-three/drei";
+import { EffectComposer, Bloom, Vignette } from "@react-three/postprocessing";
+import WorkshopRoom from "./WorkshopRoom";
+import Rig from "./Rig";
+import { useScene } from "../lib/store";
+import { useReducedMotion, useIsMobile } from "../lib/hooks";
 
 function SceneReady() {
   const setReady = useScene((s) => s.setReady);
@@ -36,7 +31,7 @@ export default function Scene() {
 
   return (
     <div
-      style={{ position: 'fixed', inset: 0, zIndex: 0 }}
+      style={{ position: "fixed", inset: 0, zIndex: 0 }}
       aria-hidden="true"
       onPointerMove={(e) => {
         const x = (e.clientX / window.innerWidth) * 2 - 1;
@@ -48,10 +43,10 @@ export default function Scene() {
         shadows={!mobile}
         dpr={dpr}
         camera={{ position: [7.5, 6.5, 9.5], fov: 38, near: 0.1, far: 100 }}
-        gl={{ antialias: !mobile, powerPreference: 'high-performance' }}
+        gl={{ antialias: !mobile, powerPreference: "high-performance" }}
       >
-        <color attach="background" args={['#070b0e']} />
-        <fog attach="fog" args={['#070b0e', 14, 30]} />
+        <color attach="background" args={["#070b0e"]} />
+        <fog attach="fog" args={["#070b0e", 14, 30]} />
 
         <PerformanceMonitor
           onDecline={() => setDpr(1)}
@@ -74,13 +69,7 @@ export default function Scene() {
           <WorkshopRoom reduced={reduced} mobile={mobile} />
           <Environment preset="warehouse" />
           {!mobile && (
-            <ContactShadows
-              position={[0, -0.85, -1]}
-              opacity={0.5}
-              scale={20}
-              blur={2.5}
-              far={6}
-            />
+            <ContactShadows position={[0, -0.85, -1]} opacity={0.5} scale={20} blur={2.5} far={6} />
           )}
           <SceneReady />
         </Suspense>

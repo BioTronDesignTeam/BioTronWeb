@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { authStrings, roleOf } from '@biotron/style';
-import type { AppInfo, Grant, OrgMember, Permission } from '../api';
-import type { OrgSelection } from '../hooks/useOrgSelection';
+import { useEffect, useMemo, useRef, useState } from "react";
+import { authStrings, roleOf } from "@biotron/style";
+import type { AppInfo, Grant, OrgMember, Permission } from "../api";
+import type { OrgSelection } from "../hooks/useOrgSelection";
 import {
   compactDangerButton,
   compactPrimaryButton,
@@ -10,12 +10,12 @@ import {
   divided,
   mutedText,
   selectControl,
-} from './ui';
+} from "./ui";
 
-const sectionHeading = 'text-sm font-semibold text-slate-900 dark:text-white';
-const fieldLabel = 'text-xs font-medium text-slate-500 dark:text-muted';
+const sectionHeading = "text-sm font-semibold text-slate-900 dark:text-white";
+const fieldLabel = "text-xs font-medium text-slate-500 dark:text-muted";
 
-type PendingAction = 'ban' | 'make-manager' | 'remove-manager';
+type PendingAction = "ban" | "make-manager" | "remove-manager";
 
 /**
  * A ban ends the person's sessions, and the manager flag changes what they
@@ -23,26 +23,32 @@ type PendingAction = 'ban' | 'make-manager' | 'remove-manager';
  * that say what will happen, before it runs. Unban only restores what a ban
  * took away and stays a single click.
  */
-function consequence(action: PendingAction, member: OrgMember): { title: string; detail: string; confirm: string } {
+function consequence(
+  action: PendingAction,
+  member: OrgMember,
+): { title: string; detail: string; confirm: string } {
   const who = `@${member.login}`;
   switch (action) {
-    case 'ban':
+    case "ban":
       return {
         title: `Ban ${who}?`,
-        detail: 'They are signed out everywhere now and cannot sign in to any BioTron tool until a manager unbans them.',
-        confirm: 'Ban',
+        detail:
+          "They are signed out everywhere now and cannot sign in to any BioTron tool until a manager unbans them.",
+        confirm: "Ban",
       };
-    case 'make-manager':
+    case "make-manager":
       return {
         title: `Make ${who} a manager?`,
-        detail: 'They get every permission in every tool, can grant and revoke permissions, and see the Keys and Org tabs. The change applies on their next request.',
-        confirm: 'Make manager',
+        detail:
+          "They get every permission in every tool, can grant and revoke permissions, and see the Keys and Org tabs. The change applies on their next request.",
+        confirm: "Make manager",
       };
-    case 'remove-manager':
+    case "remove-manager":
       return {
         title: `Remove ${who} as manager?`,
-        detail: 'They keep only the permissions listed below. The change applies on their next request.',
-        confirm: 'Remove manager',
+        detail:
+          "They keep only the permissions listed below. The change applies on their next request.",
+        confirm: "Remove manager",
       };
   }
 }
@@ -77,8 +83,8 @@ function MemberActions({
     if (!pending) return;
     const action = pending;
     setPending(null);
-    if (action === 'ban') onBan(member.github_id);
-    else onSetManager(member.github_id, action === 'make-manager');
+    if (action === "ban") onBan(member.github_id);
+    else onSetManager(member.github_id, action === "make-manager");
   };
 
   return (
@@ -92,17 +98,17 @@ function MemberActions({
           Unban
         </button>
       ) : (
-        <button type="button" onClick={() => setPending('ban')} className={dangerButton}>
+        <button type="button" onClick={() => setPending("ban")} className={dangerButton}>
           Ban…
         </button>
       )}
       {canManage && (
         <button
           type="button"
-          onClick={() => setPending(member.is_manager ? 'remove-manager' : 'make-manager')}
+          onClick={() => setPending(member.is_manager ? "remove-manager" : "make-manager")}
           className={compactSecondaryButton}
         >
-          {member.is_manager ? 'Remove manager…' : 'Make manager…'}
+          {member.is_manager ? "Remove manager…" : "Make manager…"}
         </button>
       )}
       <dialog
@@ -114,7 +120,10 @@ function MemberActions({
       >
         {text && (
           <>
-            <p id={`confirm-${member.github_id}-title`} className="text-sm font-semibold text-slate-900 dark:text-white">
+            <p
+              id={`confirm-${member.github_id}-title`}
+              className="text-sm font-semibold text-slate-900 dark:text-white"
+            >
               {text.title}
             </p>
             <p id={`confirm-${member.github_id}-detail`} className={`mt-1 ${mutedText}`}>
@@ -124,11 +133,15 @@ function MemberActions({
               <button
                 type="button"
                 onClick={run}
-                className={pending === 'ban' ? dangerButton : compactPrimaryButton}
+                className={pending === "ban" ? dangerButton : compactPrimaryButton}
               >
                 {text.confirm}
               </button>
-              <button type="button" onClick={() => setPending(null)} className={compactSecondaryButton}>
+              <button
+                type="button"
+                onClick={() => setPending(null)}
+                className={compactSecondaryButton}
+              >
                 Cancel
               </button>
             </div>
@@ -162,7 +175,7 @@ function GrantList({
           >
             <div className="min-w-0 text-sm break-words text-slate-700 dark:text-muted">
               <span className="font-medium text-slate-900 dark:text-white">{label.app}</span>
-              {' / '}
+              {" / "}
               {label.permission}
             </div>
             <button type="button" onClick={() => onRevoke(grant)} className={compactDangerButton}>
@@ -311,7 +324,9 @@ export default function OrgMemberDetail({
         </div>
       </div>
 
-      <div className={`px-4 py-4 sm:px-6 ${staff ? '' : 'border-b border-slate-200 dark:border-white/10'}`}>
+      <div
+        className={`px-4 py-4 sm:px-6 ${staff ? "" : "border-b border-slate-200 dark:border-white/10"}`}
+      >
         <h4 className={sectionHeading}>Grants</h4>
         {staff ? (
           <p className="mt-2 text-sm text-emerald-600 dark:text-emerald-400">

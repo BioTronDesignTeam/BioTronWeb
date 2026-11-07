@@ -1,7 +1,7 @@
-import { useRef, type Ref } from 'react';
-import { useFrame } from '@react-three/fiber';
-import { Group } from 'three';
-import type { ModelProps } from './types';
+import { useRef, type Ref } from "react";
+import { useFrame } from "@react-three/fiber";
+import { Group } from "three";
+import type { ModelProps } from "./types";
 
 /** Printed-plastic body material. A plain helper, so it is not a component. */
 const printedMaterial = (color: string, emissive = 0.05) => (
@@ -33,10 +33,7 @@ interface FingerProps {
  */
 function Finger({ x, len = 0.5, color, ref }: FingerProps) {
   return (
-    <group
-      position={[x, 0.35, 0]}
-      ref={ref}
-    >
+    <group position={[x, 0.35, 0]} ref={ref}>
       {/* proximal */}
       <mesh position={[0, len / 2, 0]} castShadow>
         <capsuleGeometry args={[0.05, len, 6, 12]} />

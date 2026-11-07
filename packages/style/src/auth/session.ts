@@ -1,4 +1,4 @@
-import { createContext, useContext } from 'react';
+import { createContext, useContext } from "react";
 
 /** Who is signed in, exactly as Auth's `GET /auth/me` sends it. */
 export type SessionOperator = {
@@ -20,14 +20,14 @@ export type SessionOperator = {
  * - `unavailable`: Auth could not be reached and nobody was signed in before.
  *   It is not "signed out", and the provider keeps retrying.
  */
-export type SessionStatus = 'loading' | 'anon' | 'authed' | 'unavailable';
+export type SessionStatus = "loading" | "anon" | "authed" | "unavailable";
 
 /**
  * Why the person is looking at a signed-out page: Auth's callback sends
  * `?auth=denied` (not an org member) and `?auth=banned`; `expired` is set when
  * a session that was live is refused.
  */
-export type SessionNotice = 'denied' | 'banned' | 'expired';
+export type SessionNotice = "denied" | "banned" | "expired";
 
 export type SessionValue = {
   status: SessionStatus;
@@ -53,16 +53,16 @@ export const SessionContext = createContext<SessionValue | null>(null);
 
 export function useSession(): SessionValue {
   const value = useContext(SessionContext);
-  if (!value) throw new Error('useSession must be used inside a SessionProvider');
+  if (!value) throw new Error("useSession must be used inside a SessionProvider");
   return value;
 }
 
-const noticeParam = 'auth';
+const noticeParam = "auth";
 
 /** Reads `?auth=denied|banned` from the current address. */
 export function readNotice(): SessionNotice | null {
   const value = new URLSearchParams(window.location.search).get(noticeParam);
-  return value === 'denied' || value === 'banned' ? value : null;
+  return value === "denied" || value === "banned" ? value : null;
 }
 
 /** Removes only `?auth=` so a reload does not bring a stale notice back. */
@@ -70,5 +70,5 @@ export function stripNotice() {
   const url = new URL(window.location.href);
   if (!url.searchParams.has(noticeParam)) return;
   url.searchParams.delete(noticeParam);
-  window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+  window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
 }

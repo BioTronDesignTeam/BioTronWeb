@@ -1,4 +1,4 @@
-export type GuardSubject = 'agent' | 'agent-thread' | 'announce' | 'nudge';
+export type GuardSubject = "agent" | "agent-thread" | "announce" | "nudge";
 
 export interface Guard {
   subject: GuardSubject;
@@ -8,8 +8,8 @@ export interface Guard {
   updated_at: string;
 }
 
-export type AutomationKind = 'ANNOUNCE' | 'NUDGE';
-export type DeliverMode = 'DM' | 'CHANNEL';
+export type AutomationKind = "ANNOUNCE" | "NUDGE";
+export type DeliverMode = "DM" | "CHANNEL";
 
 export interface Automation {
   id: string;
@@ -51,8 +51,8 @@ export interface SprinterStatus {
 // Copied from apps/calendar/frontend/src/types.ts — this is the exact shape
 // GET /v1/scopes on the Calendar API returns, and the dropdown needs the full
 // shape (path, in particular) to label nested scopes usefully.
-export type ScopeKind = 'TEAM' | 'PROJECT' | 'SUBTEAM';
-export type ScopeStatus = 'ACTIVE' | 'ARCHIVED';
+export type ScopeKind = "TEAM" | "PROJECT" | "SUBTEAM";
+export type ScopeStatus = "ACTIVE" | "ARCHIVED";
 
 export interface Scope {
   id: string;

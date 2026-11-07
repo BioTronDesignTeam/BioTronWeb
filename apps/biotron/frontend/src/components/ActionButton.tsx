@@ -1,12 +1,12 @@
-import type { ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import type { ReactNode } from "react";
+import { Link } from "react-router-dom";
 
 interface ActionButtonProps {
   children: ReactNode;
   to?: string;
   href?: string;
   onClick?: () => void;
-  variant?: 'primary' | 'ghost';
+  variant?: "primary" | "ghost";
   className?: string;
   accent?: string;
 }
@@ -17,12 +17,12 @@ export default function ActionButton({
   to,
   href,
   onClick,
-  variant = 'primary',
-  className = '',
+  variant = "primary",
+  className = "",
   accent,
 }: ActionButtonProps) {
   const cls = `actionbtn actionbtn--${variant} ${className}`;
-  const style = accent ? ({ ['--btn-accent' as string]: accent }) : undefined;
+  const style = accent ? { ["--btn-accent" as string]: accent } : undefined;
   const inner = <span className="actionbtn__inner">{children}</span>;
   const shared = { className: cls, style, onClick };
 

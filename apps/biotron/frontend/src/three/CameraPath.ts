@@ -1,5 +1,5 @@
-import { Vector3 } from 'three';
-import type { Stop } from '../lib/store';
+import { Vector3 } from "three";
+import type { Stop } from "../lib/store";
 
 export interface Keyframe {
   /** Progress (0..1) through the fly-through at which this pose is reached. */
@@ -22,26 +22,21 @@ export const KEYFRAMES: [Keyframe, ...Keyframe[]] = [
   // Establishing shot: isometric pull-back over the whole room.
   { at: 0.0, pos: [7.5, 6.5, 9.5], target: [0, 0.8, -1.5] },
   // About board (mounted on the back-left wall).
-  { at: 0.14, pos: [-3.2, 2.2, 3.6], target: [-3.2, 1.8, -3.2], stop: 'about' },
+  { at: 0.14, pos: [-3.2, 2.2, 3.6], target: [-3.2, 1.8, -3.2], stop: "about" },
   // EXO (left bench).
-  { at: 0.4, pos: [-2.0, 1.5, 2.2], target: [-4.2, 0.6, -1.5], stop: 'exo' },
+  { at: 0.4, pos: [-2.0, 1.5, 2.2], target: [-4.2, 0.6, -1.5], stop: "exo" },
   // EMG Fabric (center-back bench).
-  { at: 0.64, pos: [0, 1.7, 1.2], target: [0, 0.7, -3.4], stop: 'emg' },
+  { at: 0.64, pos: [0, 1.7, 1.2], target: [0, 0.7, -3.4], stop: "emg" },
   // e-NABLE (right bench). Hold this pose so normal wheel scrolling does not
   // carry the final project straight into the exit shot.
-  { at: 0.82, pos: [2.0, 1.5, 2.2], target: [4.2, 0.5, -1.5], stop: 'enable' },
+  { at: 0.82, pos: [2.0, 1.5, 2.2], target: [4.2, 0.5, -1.5], stop: "enable" },
   { at: 0.93, pos: [2.0, 1.5, 2.2], target: [4.2, 0.5, -1.5] },
   // Exit shot: pull back out before the page leaves the room.
   { at: 1.0, pos: [6.5, 5.5, 10], target: [0, 0.6, -2] },
 ];
 
 /** Progress value at which each stop's dwell is centered. */
-export const STOP_AT: Record<Stop, number> = {
-  about: 0.14,
-  exo: 0.4,
-  emg: 0.64,
-  enable: 0.875,
-};
+export const STOP_AT: Record<Stop, number> = { about: 0.14, exo: 0.4, emg: 0.64, enable: 0.875 };
 
 /** Half-width of the progress window in which a stop's popup is shown. */
 export const STOP_WINDOW = 0.11;

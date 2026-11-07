@@ -1,12 +1,12 @@
-import { useEffect, useState } from 'react';
-import { Link, NavLink, useLocation } from 'react-router-dom';
-import { Menu, X } from 'lucide-react';
-import { Brand } from '@biotron/style';
+import { useEffect, useState } from "react";
+import { Link, NavLink, useLocation } from "react-router-dom";
+import { Menu, X } from "lucide-react";
+import { Brand } from "@biotron/style";
 
 const ITEMS = [
-  { label: 'Projects', to: '/projects' },
-  { label: 'Sponsors', to: '/sponsors' },
-  { label: 'Calendar', to: '/calendar' },
+  { label: "Projects", to: "/projects" },
+  { label: "Sponsors", to: "/sponsors" },
+  { label: "Calendar", to: "/calendar" },
 ];
 
 export default function Nav() {
@@ -17,8 +17,8 @@ export default function Nav() {
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 40);
     onScroll();
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
   // Every navigation closes the menu: adjusted during render, as React
@@ -35,10 +35,12 @@ export default function Nav() {
   // and the page could never scroll again. So the menu closes itself.
   useEffect(() => {
     if (!open) return;
-    const narrow = window.matchMedia('(max-width: 860px)');
-    const onChange = () => { if (!narrow.matches) setOpen(false); };
-    narrow.addEventListener('change', onChange);
-    return () => narrow.removeEventListener('change', onChange);
+    const narrow = window.matchMedia("(max-width: 860px)");
+    const onChange = () => {
+      if (!narrow.matches) setOpen(false);
+    };
+    narrow.addEventListener("change", onChange);
+    return () => narrow.removeEventListener("change", onChange);
   }, [open]);
 
   useEffect(() => {
@@ -47,22 +49,27 @@ export default function Nav() {
     const root = document.documentElement;
     const previousOverflow = root.style.overflow;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false);
+      if (event.key === "Escape") setOpen(false);
     };
 
-    root.style.overflow = 'hidden';
-    window.addEventListener('keydown', onKeyDown);
+    root.style.overflow = "hidden";
+    window.addEventListener("keydown", onKeyDown);
 
     return () => {
       root.style.overflow = previousOverflow;
-      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener("keydown", onKeyDown);
     };
   }, [open]);
 
   return (
-    <header className={`nav ${scrolled ? 'nav--scrolled' : ''}`}>
+    <header className={`nav ${scrolled ? "nav--scrolled" : ""}`}>
       <div className="nav__inner container-wide">
-        <Link to="/" className="nav__brand" aria-label="Biotron home" onClick={() => setOpen(false)}>
+        <Link
+          to="/"
+          className="nav__brand"
+          aria-label="Biotron home"
+          onClick={() => setOpen(false)}
+        >
           <Brand label="" className="nav__logo" aria-hidden="true" />
         </Link>
 
@@ -71,7 +78,7 @@ export default function Nav() {
             <NavLink
               key={item.label}
               to={item.to}
-              className={({ isActive }) => `nav__link ${isActive ? 'nav__link--active' : ''}`}
+              className={({ isActive }) => `nav__link ${isActive ? "nav__link--active" : ""}`}
             >
               {item.label}
             </NavLink>
@@ -83,7 +90,7 @@ export default function Nav() {
 
         <button
           className="nav__burger"
-          aria-label={open ? 'Close menu' : 'Open menu'}
+          aria-label={open ? "Close menu" : "Open menu"}
           aria-expanded={open}
           aria-controls="mobile-navigation"
           onClick={() => setOpen((o) => !o)}
@@ -97,7 +104,7 @@ export default function Nav() {
         id="mobile-navigation"
         // Lenis takes the wheel and touch for the whole page. This hands them back to the drawer.
         data-lenis-prevent
-        className={`nav__drawer ${open ? 'nav__drawer--open' : ''}`}
+        className={`nav__drawer ${open ? "nav__drawer--open" : ""}`}
         aria-hidden={!open}
       >
         {ITEMS.map((item) => (
@@ -105,7 +112,7 @@ export default function Nav() {
             key={item.label}
             to={item.to}
             className={({ isActive }) =>
-              `nav__drawerlink ${isActive ? 'nav__drawerlink--active' : ''}`
+              `nav__drawerlink ${isActive ? "nav__drawerlink--active" : ""}`
             }
             tabIndex={open ? 0 : -1}
             onClick={() => setOpen(false)}

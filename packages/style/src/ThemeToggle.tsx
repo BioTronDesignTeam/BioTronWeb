@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { applyTheme, documentTheme, storedTheme, type Theme } from './theme';
+import { useEffect, useState } from "react";
+import { applyTheme, documentTheme, storedTheme, type Theme } from "./theme";
 
 const SunIcon = () => (
   <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -13,11 +13,9 @@ const MoonIcon = () => (
   </svg>
 );
 
-export type ThemeToggleProps = {
-  className?: string;
-};
+export type ThemeToggleProps = { className?: string };
 
-export function ThemeToggle({ className = '' }: ThemeToggleProps) {
+export function ThemeToggle({ className = "" }: ThemeToggleProps) {
   const [theme, setTheme] = useState<Theme>(documentTheme);
 
   useEffect(() => {
@@ -27,34 +25,38 @@ export function ThemeToggle({ className = '' }: ThemeToggleProps) {
   useEffect(() => {
     const synchronize = () => {
       const stored = storedTheme();
-      if (stored) setTheme((current) => current === stored ? current : stored);
+      if (stored) setTheme((current) => (current === stored ? current : stored));
     };
     const onVisibilityChange = () => {
-      if (document.visibilityState === 'visible') synchronize();
+      if (document.visibilityState === "visible") synchronize();
     };
     const interval = window.setInterval(synchronize, 1000);
-    window.addEventListener('focus', synchronize);
-    document.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener("focus", synchronize);
+    document.addEventListener("visibilitychange", onVisibilityChange);
     return () => {
       window.clearInterval(interval);
-      window.removeEventListener('focus', synchronize);
-      document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener("focus", synchronize);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, []);
 
-  const dark = theme === 'dark';
+  const dark = theme === "dark";
   return (
     <button
       type="button"
       role="switch"
       aria-checked={dark}
       aria-label={`Color theme: ${theme} mode`}
-      className={`biotron-theme-toggle ${dark ? 'biotron-theme-toggle--dark' : ''} ${className}`.trim()}
-      onClick={() => setTheme(dark ? 'light' : 'dark')}
+      className={`biotron-theme-toggle ${dark ? "biotron-theme-toggle--dark" : ""} ${className}`.trim()}
+      onClick={() => setTheme(dark ? "light" : "dark")}
     >
       <span className="biotron-theme-toggle__thumb" aria-hidden="true" />
-      <span className="biotron-theme-toggle__option"><SunIcon /></span>
-      <span className="biotron-theme-toggle__option"><MoonIcon /></span>
+      <span className="biotron-theme-toggle__option">
+        <SunIcon />
+      </span>
+      <span className="biotron-theme-toggle__option">
+        <MoonIcon />
+      </span>
     </button>
   );
 }

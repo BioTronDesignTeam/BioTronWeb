@@ -1,17 +1,17 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState } from "react";
 
 /** Tracks the user's reduced-motion preference, live. */
 export function useReducedMotion(): boolean {
   const [reduced, setReduced] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (typeof window === "undefined") return false;
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   });
 
   useEffect(() => {
-    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
     const onChange = () => setReduced(mq.matches);
-    mq.addEventListener('change', onChange);
-    return () => mq.removeEventListener('change', onChange);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
   }, []);
 
   return reduced;
@@ -20,7 +20,7 @@ export function useReducedMotion(): boolean {
 /** True below a given width breakpoint (default 768px). */
 export function useIsMobile(breakpoint = 768): boolean {
   const [isMobile, setIsMobile] = useState(() => {
-    if (typeof window === 'undefined') return false;
+    if (typeof window === "undefined") return false;
     return window.innerWidth < breakpoint;
   });
 
@@ -28,8 +28,8 @@ export function useIsMobile(breakpoint = 768): boolean {
     const mq = window.matchMedia(`(max-width: ${breakpoint - 1}px)`);
     const onChange = () => setIsMobile(mq.matches);
     onChange();
-    mq.addEventListener('change', onChange);
-    return () => mq.removeEventListener('change', onChange);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
   }, [breakpoint]);
 
   return isMobile;
@@ -38,7 +38,7 @@ export function useIsMobile(breakpoint = 768): boolean {
 /** True for short, touch-first viewports such as a phone held in landscape. */
 export function useIsLandscapePhone(maxHeight = 520): boolean {
   const [isLandscapePhone, setIsLandscapePhone] = useState(() => {
-    if (typeof window === 'undefined') return false;
+    if (typeof window === "undefined") return false;
     return window.matchMedia(`(max-height: ${maxHeight}px) and (pointer: coarse)`).matches;
   });
 
@@ -46,8 +46,8 @@ export function useIsLandscapePhone(maxHeight = 520): boolean {
     const mq = window.matchMedia(`(max-height: ${maxHeight}px) and (pointer: coarse)`);
     const onChange = () => setIsLandscapePhone(mq.matches);
     onChange();
-    mq.addEventListener('change', onChange);
-    return () => mq.removeEventListener('change', onChange);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
   }, [maxHeight]);
 
   return isLandscapePhone;
@@ -62,11 +62,11 @@ export function useWebGLSupported(): boolean {
 
 function webGLAvailable(): boolean {
   try {
-    const canvas = document.createElement('canvas');
+    const canvas = document.createElement("canvas");
     const gl =
-      canvas.getContext('webgl2') ||
-      canvas.getContext('webgl') ||
-      canvas.getContext('experimental-webgl');
+      canvas.getContext("webgl2") ||
+      canvas.getContext("webgl") ||
+      canvas.getContext("experimental-webgl");
     return !!gl;
   } catch {
     return false;
