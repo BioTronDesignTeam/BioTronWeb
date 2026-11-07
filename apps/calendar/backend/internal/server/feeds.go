@@ -56,28 +56,35 @@ func (h *Handler) sendFeed(w http.ResponseWriter, r *http.Request, name, filenam
 	}
 	w.Header().Set("Content-Type", "text/calendar; charset=utf-8")
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`inline; filename="%s"`, safeFilename(filename)))
-	return sendCacheable(w, r, feed.Content, lastModified, true)
+	return sendCacheable(w, r, feed.Content, lastModified)
 }
 
 // sendCacheable gives every public read the same validators: a strong
-// content-hash ETag, a Last-Modified derived from the data, and a short shared
-// cache window. honourModifiedSince is false for resources whose content also
-// changes with the clock, where an unchanged Last-Modified would hand a client
-// a stale 304 long after the body should have changed.
-func sendCacheable(w http.ResponseWriter, r *http.Request, body []byte, lastModified time.Time, honourModifiedSince bool) error {
+// content-hash ETag, an informational Last-Modified, and a short shared cache
+// window.
+//
+// Only If-None-Match can earn a 304; If-Modified-Since is never honoured.
+// Last-Modified is the newest updated_at among the rows a response still
+// holds, and that misses changes a client must see:
+//   - a deleted series leaves no row behind, so the date stays put or goes
+//     back, and a feed would answer 304 while still listing the deleted event;
+//   - renaming a parent project renames a subteam's feed without touching the
+//     subteam's row;
+//   - the header has one-second resolution, so a second edit in the same
+//     second as a fetch is invisible;
+//   - the upcoming list slides with the clock while its rows stay the same.
+//
+// The ETag hashes the exact bytes sent, so it changes whenever anything a
+// client would see changes. A client that revalidates by date alone gets a
+// full 200 every time. That costs bandwidth, never correctness, and the
+// server builds the body either way to compute the ETag.
+func sendCacheable(w http.ResponseWriter, r *http.Request, body []byte, lastModified time.Time) error {
 	etag := fmt.Sprintf(`"%x"`, sha256.Sum256(body))
-	lastModified = lastModified.UTC().Truncate(time.Second)
 	w.Header().Set("ETag", etag)
-	w.Header().Set("Last-Modified", lastModified.Format(http.TimeFormat))
+	w.Header().Set("Last-Modified", lastModified.UTC().Truncate(time.Second).Format(http.TimeFormat))
 	w.Header().Set("Cache-Control", "public, max-age=60, stale-while-revalidate=300")
-	if ifNoneMatch := r.Header.Get("If-None-Match"); ifNoneMatch != "" {
-		if etagMatches(ifNoneMatch, etag) {
-			return notModified(w)
-		}
-	} else if modifiedSince := r.Header.Get("If-Modified-Since"); honourModifiedSince && modifiedSince != "" {
-		if parsed, err := http.ParseTime(modifiedSince); err == nil && !lastModified.After(parsed) {
-			return notModified(w)
-		}
+	if ifNoneMatch := r.Header.Get("If-None-Match"); ifNoneMatch != "" && etagMatches(ifNoneMatch, etag) {
+		return notModified(w)
 	}
 	_, _ = w.Write(body)
 	return nil
