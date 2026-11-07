@@ -206,6 +206,11 @@ absence means nothing. A cancellation nudge ignores the lookback check,
 because the announcement that would satisfy it is the message now being
 corrected.
 
+Changing an automation's `scope_id` or `kind` forgets what it has seen,
+so the old scope's occurrences are not read as vanished. What it posted
+and whom it nudged are kept, so an occurrence in both scopes is not
+announced twice.
+
 No message Sprinter sends parses mentions. An event title or a model's
 draft cannot ping the server. The one exception is a channel nudge,
 which names the lead's own id and nothing else.

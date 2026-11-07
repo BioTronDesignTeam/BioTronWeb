@@ -157,6 +157,12 @@ func (s *Store) CreateAutomation(ctx context.Context, automation Automation) (Au
 // UpdateAutomation writes every field. The admin UI sends the whole row back,
 // and a PATCH that merged nulls could not tell "clear the lead" from "leave
 // the lead alone".
+//
+// A new scope_id or kind also forgets the automation's seen occurrences, in
+// the same transaction. The next tick fetches the new scope, and every
+// occurrence of the old one would otherwise read as vanished. What was posted
+// and who was nudged are kept, so an occurrence in both scopes is not
+// announced or nudged twice.
 func (s *Store) UpdateAutomation(ctx context.Context, automation Automation) (Automation, error) {
 	var counts int4s
 	params := queries.UpdateAutomationParams{
@@ -176,7 +182,18 @@ func (s *Store) UpdateAutomation(ctx context.Context, automation Automation) (Au
 	if counts.err != nil {
 		return Automation{}, counts.err
 	}
-	updated, err := s.q.UpdateAutomation(ctx, params)
+	var updated int64
+	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		q := s.q.WithTx(tx)
+		if _, err := q.ForgetSeenOnRetarget(ctx, queries.ForgetSeenOnRetargetParams{
+			ID: automation.ID, ScopeID: automation.ScopeID, Kind: automation.Kind,
+		}); err != nil {
+			return err
+		}
+		var err error
+		updated, err = q.UpdateAutomation(ctx, params)
+		return err
+	})
 	if err != nil {
 		return Automation{}, mapConstraintError(err)
 	}

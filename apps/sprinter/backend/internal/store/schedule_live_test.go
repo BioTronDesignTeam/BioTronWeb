@@ -194,3 +194,74 @@ func TestLiveNudges(t *testing.T) {
 		t.Fatalf("insert cancelled trigger: %v", err)
 	}
 }
+
+// A new scope or kind forgets what the automation has seen, or every
+// occurrence of the old scope would read as cancelled on the next tick. An
+// edit to anything else keeps it.
+func TestLiveRetargetingForgetsSeenOccurrences(t *testing.T) {
+	store, ctx := liveStore(t)
+	automation, err := store.CreateAutomation(ctx, Automation{
+		Kind: KindAnnounce, Name: "retarget live test", ScopeID: uuid.NewString(),
+		ChannelID: "200000000000000001", LeadHours: 24, LookbackHours: 24,
+		Deliver: DeliverChannel, Enabled: true,
+	})
+	if err != nil {
+		t.Fatalf("create automation: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := store.DeleteAutomation(ctx, automation.ID); err != nil && !errors.Is(err, ErrNotFound) {
+			t.Errorf("clean up automation: %v", err)
+		}
+	})
+	starts := time.Now().Add(48 * time.Hour).Truncate(time.Second)
+	see := func() {
+		t.Helper()
+		if _, err := store.UpsertSeen(ctx, automation.ID, SeenOccurrence{
+			UID: "uid-retarget", RecurrenceIDLocal: "2026-09-10T09:00:00", Sequence: 1,
+			StartsAt: starts, EndsAt: starts.Add(time.Hour), Title: "Kickoff", ScopeID: automation.ScopeID,
+		}); err != nil {
+			t.Fatalf("upsert seen: %v", err)
+		}
+	}
+	listed := func() int {
+		t.Helper()
+		future, err := store.ListSeenFuture(ctx, automation.ID, time.Now())
+		if err != nil {
+			t.Fatalf("list seen: %v", err)
+		}
+		return len(future)
+	}
+
+	see()
+	automation.Name = "renamed"
+	automation.LeadHours = 48
+	if automation, err = store.UpdateAutomation(ctx, automation); err != nil {
+		t.Fatalf("rename: %v", err)
+	}
+	if got := listed(); got != 1 {
+		t.Fatalf("seen rows after a rename = %d, want 1", got)
+	}
+
+	automation.ScopeID = uuid.NewString()
+	if automation, err = store.UpdateAutomation(ctx, automation); err != nil {
+		t.Fatalf("new scope: %v", err)
+	}
+	if got := listed(); got != 0 {
+		t.Fatalf("seen rows after a scope change = %d, want 0", got)
+	}
+
+	see()
+	automation.Kind = KindNudge
+	automation.Deliver = DeliverChannel
+	if _, err = store.UpdateAutomation(ctx, automation); err != nil {
+		t.Fatalf("new kind: %v", err)
+	}
+	if got := listed(); got != 0 {
+		t.Fatalf("seen rows after a kind change = %d, want 0", got)
+	}
+
+	automation.ID = uuid.NewString()
+	if _, err := store.UpdateAutomation(ctx, automation); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("update of a missing automation = %v, want ErrNotFound", err)
+	}
+}
