@@ -1,6 +1,7 @@
 import { Suspense, useEffect, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { AdaptiveDpr, Environment, PerformanceMonitor, ContactShadows } from '@react-three/drei';
+import { HDRI } from './lighting';
 import { EffectComposer, Bloom, Vignette } from '@react-three/postprocessing';
 import WorkshopRoom from './WorkshopRoom';
 import Rig from './Rig';
@@ -67,7 +68,7 @@ export default function Scene() {
 
         <Suspense fallback={null}>
           <WorkshopRoom reduced={reduced} mobile={mobile} />
-          <Environment preset="warehouse" />
+          <Environment files={HDRI.warehouse} />
           {!mobile && (
             <ContactShadows position={[0, -0.85, -1]} opacity={0.5} scale={20} blur={2.5} far={6} />
           )}

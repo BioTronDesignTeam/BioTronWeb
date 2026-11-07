@@ -38,3 +38,6 @@ infra/tests/* text eol=lf
 # hashes differently, so a local build would break its own script. Prettier
 # checks HTML too.
 *.html text eol=lf
+
+# Binary assets: never touch their bytes.
+*.hdr binary

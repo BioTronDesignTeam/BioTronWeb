@@ -1,6 +1,7 @@
 import { Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Environment, Float, ContactShadows } from '@react-three/drei';
+import { HDRI } from './lighting';
 import type { ModelId } from '../data/projects';
 import ProjectModel from './models/ProjectModel';
 import { useReducedMotion, useIsMobile } from '../lib/hooks';
@@ -30,7 +31,7 @@ export default function ProjectViewer({ id, color }: { id: ModelId; color: strin
         >
           <ProjectModel id={id} color={color} animate={!reduced} />
         </Float>
-        <Environment preset="city" />
+        <Environment files={HDRI.city} />
         {!mobile && (
           <ContactShadows position={[0, -1, 0]} opacity={0.5} scale={8} blur={2.5} far={4} />
         )}
