@@ -1,0 +1,32 @@
+{
+  "printWidth": 100,
+  "singleQuote": true,
+  "objectWrap": "collapse",
+  "plugins": ["prettier-plugin-tailwindcss"],
+  "overrides": [
+    {
+      "files": "*.css",
+      "options": { "singleQuote": false }
+    },
+    {
+      "files": "apps/biotron/frontend/**/*.css",
+      "options": { "singleQuote": true }
+    },
+    {
+      "files": "apps/auth/frontend/**",
+      "options": { "tailwindStylesheet": "./apps/auth/frontend/src/index.css" }
+    },
+    {
+      "files": "apps/calendar/frontend/**",
+      "options": { "tailwindStylesheet": "./apps/calendar/frontend/src/index.css" }
+    },
+    {
+      "files": "apps/exogui/frontend/**",
+      "options": { "tailwindStylesheet": "./apps/exogui/frontend/src/index.css" }
+    },
+    {
+      "files": "apps/sprinter/frontend/**",
+      "options": { "tailwindStylesheet": "./apps/sprinter/frontend/src/index.css" }
+    }
+  ]
+}
