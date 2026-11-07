@@ -72,9 +72,12 @@ Prisma. Do not add environment files below it.
   route, and every staff action, answers cross-origin only to
   `FRONTEND_URL`, Auth's own frontend. A tool that needs another route of
   Auth adds it to `siblingRoutes` in `backend/internal/server/cors.go`.
-- `TRUSTED_PROXIES` must include the edge Nginx network. The per-IP rate
-  limit keys on `Cf-Connecting-Ip`, which the API reads only from a trusted
-  proxy.
+- `TRUSTED_PROXIES` names the edge Nginx and nothing wider: its address
+  or its network on this instance. The per-IP rate limit keys on
+  `Cf-Connecting-Ip`, which the API reads only from a peer on that list, and
+  only when it holds one address; from anyone else the peer address is the
+  key. The backend defaults to `127.0.0.1,::1` and ignores a `/0`, which
+  would trust every peer.
 - `SESSION_SIGNING_KEY` signs the session and sign-in cookies. Generate one
   per environment with `openssl rand -base64 48` and keep it secret: anyone
   holding it can sign in as anyone. The backend refuses a key shorter than 32
