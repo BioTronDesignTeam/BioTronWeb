@@ -201,9 +201,12 @@ bot.
 
 An **ANNOUNCE** automation posts each occurrence to `channel_id` once it
 falls inside `lead_hours`. It edits the post if the occurrence changes
-afterward, and posts only once per occurrence. `post_hour`, when set,
-holds the post back until the local hour reaches it, so a tick before
-dawn does not wake the channel.
+afterward, and posts only once per occurrence. A change is a higher
+`series_sequence`, the SEQUENCE Calendar's feed sends: Calendar raises it
+on every series edit, occurrence edit and occurrence reset.
+`override_sequence` is ignored, because it restarts at 1 after a reset.
+`post_hour`, when set, holds the post back until the local hour reaches
+it, so a tick before dawn does not wake the channel.
 
 A **NUDGE** automation checks whether `lead_user_id` has already posted in
 `channel_id` since `lookback_hours` ago. `any_author` widens that check to

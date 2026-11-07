@@ -45,7 +45,7 @@ func TestOccurrencesRequestsExpectedWindow(t *testing.T) {
 		t.Fatalf("len = %d", len(occurrences))
 	}
 	occ := occurrences[0]
-	if occ.UID != "abc" || occ.Sequence() != 5 || !occ.Modified {
+	if occ.UID != "abc" || occ.Sequence() != 2 || !occ.Modified {
 		t.Fatalf("occurrence = %+v", occ)
 	}
 
@@ -112,24 +112,30 @@ func TestOccurrencesCoverTheExactWindow(t *testing.T) {
 	}
 }
 
-func TestSequenceIsSeriesPlusOverride(t *testing.T) {
-	occ := Occurrence{SeriesSequence: 4}
+// Sequence is the series' sequence alone, which is what the ICS feed sends
+// as SEQUENCE. The override's restarts at 1 after a reset, so it is ignored.
+func TestSequenceIsTheSeriesSequence(t *testing.T) {
+	occ := Occurrence{SeriesSequence: 4, OverrideSequence: 7}
 	if occ.Sequence() != 4 {
-		t.Fatalf("Sequence() = %d, want 4", occ.Sequence())
-	}
-	occ.OverrideSequence = 7
-	if occ.Sequence() != 11 {
-		t.Fatalf("Sequence() = %d, want 11, the ICS feed's SEQUENCE", occ.Sequence())
+		t.Fatalf("Sequence() = %d, want 4, the ICS feed's SEQUENCE", occ.Sequence())
 	}
 }
 
-// Calendar bumps the series on an override write and starts the override at
-// 1. The first edit to one occurrence must still read as a higher sequence.
-func TestSequenceRisesOnTheFirstOccurrenceEdit(t *testing.T) {
-	before := Occurrence{SeriesSequence: 5}
-	after := Occurrence{SeriesSequence: 6, OverrideSequence: 1}
-	if after.Sequence() <= before.Sequence() {
-		t.Fatalf("sequence went from %d to %d on an edit", before.Sequence(), after.Sequence())
+// Calendar bumps the series on every occurrence edit and reset. Through an
+// edit, a second edit, a reset and a re-edit, the sequence must rise every
+// time, though series plus override would fall at the reset.
+func TestSequenceRisesThroughEditResetAndReEdit(t *testing.T) {
+	steps := []Occurrence{
+		{SeriesSequence: 5},                      // announced
+		{SeriesSequence: 6, OverrideSequence: 1}, // occurrence edited
+		{SeriesSequence: 7, OverrideSequence: 2}, // edited again
+		{SeriesSequence: 8},                      // reset to the series
+		{SeriesSequence: 9, OverrideSequence: 1}, // edited again, a new override row
+	}
+	for i := 1; i < len(steps); i++ {
+		if steps[i].Sequence() <= steps[i-1].Sequence() {
+			t.Fatalf("step %d: sequence went from %d to %d", i, steps[i-1].Sequence(), steps[i].Sequence())
+		}
 	}
 }
 
