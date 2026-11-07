@@ -471,10 +471,15 @@ function StatusBanner({
   const state = overall?.state ?? 'unknown';
   const meta = statusMeta[state];
   return (
-    <section className={`box box--${overall ? state : 'pending'}`} aria-live="polite">
+    <section className={`box box--${overall ? state : 'pending'}`}>
       <div className="box__head">
         {overall && <StatusIcon state={state} label="" />}
-        <h1>{loading && !overall ? 'Checking platform status…' : meta.headline}</h1>
+        {/* Only the headline is live. The "Updated … ago" line below changes on
+            every 30-second poll, and a live region around it would read the
+            whole banner out again each time. */}
+        <h1 aria-live="polite" aria-atomic="true">
+          {loading && !overall ? 'Checking platform status…' : meta.headline}
+        </h1>
       </div>
       <div className="box__body">
         <p>
