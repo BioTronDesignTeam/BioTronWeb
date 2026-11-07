@@ -185,6 +185,11 @@ func (s *Scheduler) draftAnnouncement(ctx context.Context, title string, startsA
 	} else {
 		ask = fmt.Sprintf("Write a short Discord announcement for %q, scheduled for %s.", title, when)
 	}
+	// The scheduler's context runs until shutdown, and ticks run one at a
+	// time. Without a deadline of its own, one stalled draft would stop
+	// every automation until the process restarts.
+	ctx, cancel := context.WithTimeout(ctx, s.modelTimeout)
+	defer cancel()
 	response, err := s.model.Generate(ctx,
 		"You write short Discord announcements for a university robotics team.",
 		[]model.Message{{Role: model.RoleUser, Text: ask}}, nil)
