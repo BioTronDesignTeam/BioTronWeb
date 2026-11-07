@@ -23,9 +23,16 @@ There is no waiting variant, because no destination answers per event.
 Events below `LOG_LEVEL` are dropped before they are queued. Keep debug calls
 in the code and lower `LOG_LEVEL` per container instead.
 
-Grafana and PostHog are never waited on. Each has one
-background queue of 1024 events, sent in batches of up to 100 every second
-with a five-second timeout. A full queue drops the event; a failed batch is
+Grafana and PostHog are never waited on. Each has a background queue of
+1024 events, sent in batches of up to 100 every second with a five-second
+timeout. Grafana has a second queue, of the same size, for the audit trail:
+every event whose map payload names a non-empty `actor_login` or
+`operator_login`, at any level. A flood of other events can fill the first
+queue but never push an audit event out. `LogSheddable` is `LogAsync` for the
+events that matter least; `httplog` sends the request line of an anonymous
+request that succeeded through it. Grafana queues such an event only while
+its queue is less than half full, so under a flood these drop first and
+warnings and errors still find room. A full queue drops the event; a failed batch is
 dropped, not retried, and the failure is said once on the standard log until
 the destination recovers. A destination that is down can never fail or stall
 a request. Call `Close` once at shutdown, after the last event, so the queues
@@ -93,15 +100,17 @@ httplog.SetError(r, err)
 ## Compose wiring
 
 Each Go service that calls `NewFromEnv` must pass these through, beside its
-`LOG_LEVEL` entry, all optional:
+`LOG_LEVEL` entry, all optional. `<APP>` is the service's prefix, such as
+`AUTH`, so a value set for one app in Infisical wins over the shared one (see
+`deploy/README.md`):
 
 ```yaml
-      GRAFANA_OTLP_ENDPOINT: ${GRAFANA_OTLP_ENDPOINT:-}
-      GRAFANA_OTLP_USER: ${GRAFANA_OTLP_USER:-}
-      GRAFANA_OTLP_TOKEN: ${GRAFANA_OTLP_TOKEN:-}
-      POSTHOG_HOST: ${POSTHOG_HOST:-}
-      POSTHOG_API_KEY: ${POSTHOG_API_KEY:-}
-      BIOTRON_ENV: ${BIOTRON_ENV:-}
+      GRAFANA_OTLP_ENDPOINT: ${<APP>_GRAFANA_OTLP_ENDPOINT:-${GRAFANA_OTLP_ENDPOINT:-}}
+      GRAFANA_OTLP_USER: ${<APP>_GRAFANA_OTLP_USER:-${GRAFANA_OTLP_USER:-}}
+      GRAFANA_OTLP_TOKEN: ${<APP>_GRAFANA_OTLP_TOKEN:-${GRAFANA_OTLP_TOKEN:-}}
+      POSTHOG_HOST: ${<APP>_POSTHOG_HOST:-${POSTHOG_HOST:-}}
+      POSTHOG_API_KEY: ${<APP>_POSTHOG_API_KEY:-${POSTHOG_API_KEY:-}}
+      BIOTRON_ENV: ${<APP>_BIOTRON_ENV:-${BIOTRON_ENV:-}}
 ```
 
 | Compose file | Service |
