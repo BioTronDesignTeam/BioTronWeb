@@ -65,3 +65,47 @@ func (l *limiter) clear(userID string) {
 	delete(l.busy, userID)
 	l.mu.Unlock()
 }
+
+// threadLocks runs one follow-up at a time per thread. Two people can each
+// hold a limiter slot and post in the same thread at once; without this both
+// would read the same transcript, write their turns at the same sequence
+// numbers, and pass the same turn-count check. In turn, the second question
+// also sees the first one's answer, which is what a conversation means.
+type threadLocks struct {
+	mu    sync.Mutex
+	locks map[string]*threadLock
+}
+
+type threadLock struct {
+	mu sync.Mutex
+	// holders counts who holds or waits for mu, so the entry can be dropped
+	// once nobody does and the map does not grow with every thread ever used.
+	holders int
+}
+
+func newThreadLocks() *threadLocks {
+	return &threadLocks{locks: map[string]*threadLock{}}
+}
+
+// lock waits for threadID's turn and returns the function that ends it.
+func (t *threadLocks) lock(threadID string) func() {
+	t.mu.Lock()
+	entry := t.locks[threadID]
+	if entry == nil {
+		entry = &threadLock{}
+		t.locks[threadID] = entry
+	}
+	entry.holders++
+	t.mu.Unlock()
+
+	entry.mu.Lock()
+	return func() {
+		entry.mu.Unlock()
+		t.mu.Lock()
+		entry.holders--
+		if entry.holders == 0 {
+			delete(t.locks, threadID)
+		}
+		t.mu.Unlock()
+	}
+}
