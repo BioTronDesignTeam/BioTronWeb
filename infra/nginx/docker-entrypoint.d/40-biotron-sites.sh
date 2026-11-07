@@ -66,3 +66,10 @@ done
   printf '}\n'
 } > "$out/01-maps.conf"
 rm -f "$csp_map" "$robots_map"
+
+# Cf-Connecting-Ip names the client only on a connection from the edge's own
+# network, where cloudflared is the only other container (nginx.conf).
+: "${EDGE_SUBNET:?set EDGE_SUBNET to the edge network, such as 10.213.255.0/29}"
+printf '%s\n' "$EDGE_SUBNET" | grep -Eqx '([0-9]{1,3}\.){3}[0-9]{1,3}/[0-9]{1,2}' ||
+  { echo "EDGE_SUBNET: '$EDGE_SUBNET' is not an IPv4 CIDR range" >&2; exit 1; }
+printf 'set_real_ip_from %s;\n' "$EDGE_SUBNET" > "$out/02-real-ip.conf"

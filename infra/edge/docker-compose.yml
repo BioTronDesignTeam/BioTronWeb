@@ -15,6 +15,9 @@ services:
       # <instance>=<domain>[:noindex] pairs, space separated.
       # See ../nginx/docker-entrypoint.d/40-biotron-sites.sh.
       EDGE_SITES: ${EDGE_SITES:?set EDGE_SITES, such as staging=uwbiotron.dev:noindex prod=uwbiotron.ca}
+      # Nginx takes the client's address from Cf-Connecting-Ip only on a
+      # connection from this network, which holds cloudflared and Nginx alone.
+      EDGE_SUBNET: ${EDGE_SUBNET:-10.213.255.0/29}
     # ./launch edge also attaches Nginx to the network of every instance in
     # EDGE_SITES, as `edge-proxy`, through a generated override. Start the edge
     # with ./launch, not with this file alone.
@@ -56,8 +59,13 @@ services:
     security_opt:
       - no-new-privileges:true
 
+# A fixed subnet, so Nginx can trust Cf-Connecting-Ip from it alone. Set
+# EDGE_SUBNET in edge.env if this one is taken on the host.
 networks:
   edge:
+    ipam:
+      config:
+        - subnet: ${EDGE_SUBNET:-10.213.255.0/29}
 
 secrets:
   cloudflare_tunnel_token:

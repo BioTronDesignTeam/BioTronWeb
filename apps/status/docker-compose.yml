@@ -27,7 +27,9 @@ services:
       dockerfile: apps/status/backend/Dockerfile
     environment:
       DATABASE_URL: ${STATUS_DATABASE_URL:-${DATABASE_URL:-}}
-      TRUSTED_PROXIES: ${STATUS_TRUSTED_PROXIES:-${TRUSTED_PROXIES:-127.0.0.1,::1,172.16.0.0/12}}
+      # Only the edge may name the client in Cf-Connecting-Ip: its fixed address
+      # on this instance's network, which ./launch sets (infra/README.md).
+      TRUSTED_PROXIES: ${STATUS_TRUSTED_PROXIES:-${TRUSTED_PROXIES:-127.0.0.1,::1,${BIOTRON_EDGE_ADDRESS:-10.213.0.2}}}
       HEALTH_INTERVAL: ${STATUS_HEALTH_INTERVAL:-${HEALTH_INTERVAL:-15s}}
       HEALTH_HISTORY_INTERVAL: ${STATUS_HEALTH_HISTORY_INTERVAL:-${HEALTH_HISTORY_INTERVAL:-5m}}
       HEALTH_TIMEOUT: ${STATUS_HEALTH_TIMEOUT:-${HEALTH_TIMEOUT:-3s}}

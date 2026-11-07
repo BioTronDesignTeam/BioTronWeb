@@ -148,6 +148,22 @@ else
   unset BIOTRON_INSTANCE
 fi
 export BIOTRON_NETWORK=$network
+
+# Every instance network has a fixed subnet, so the edge can hold a fixed
+# address on it, .2, and the apps can trust that one address to name the
+# client (TRUSTED_PROXIES). Docker hands out the others from the upper half.
+# The laptop instance is `local`.
+instance_index() {
+  case $1 in
+    local) echo 0 ;;
+    staging) echo 1 ;;
+    prod) echo 2 ;;
+    *) echo $(( $(printf '%s' "$1" | cksum | cut -d' ' -f1) % 200 + 10 )) ;;
+  esac
+}
+instance_prefix() { echo "10.213.$(instance_index "$1")"; }
+export BIOTRON_EDGE_ADDRESS
+BIOTRON_EDGE_ADDRESS=$(instance_prefix "${instance:-local}").2
 stack_compose() { run docker compose -p "$project" "${stack_files[@]}" "$@"; }
 stack_config() { docker compose -p "$project" "${stack_files[@]}" config "$@"; }
 
@@ -174,7 +190,7 @@ edge_override() {
   for entry in $sites; do
     name=${entry%%=*}
     [[ $name =~ ^[a-z][a-z0-9]{0,15}$ ]] || die "EDGE_SITES: invalid instance name '$name'"
-    printf '      instance-%s:\n        aliases: [edge-proxy]\n' "$name"
+    printf '      instance-%s:\n        aliases: [edge-proxy]\n        ipv4_address: %s.2\n' "$name" "$(instance_prefix "$name")"
   done
   printf 'networks:\n'
   for entry in $sites; do
@@ -189,10 +205,17 @@ secrets_compose() {
 
 # The networks are external to every compose file, so infra, the apps, and the
 # edge can start in any order. Creating one is the only state launch adds.
+# ensure_network <network> <instance>
 ensure_network() {
-  if $dry_run || ! docker network inspect "$1" >/dev/null 2>&1; then
-    printf '+ docker network create %q\n' "$1"
-    $dry_run || docker network create "$1" >/dev/null
+  local prefix subnet have
+  prefix=$(instance_prefix "$2")
+  subnet=$prefix.0/24
+  if $dry_run || ! have=$(docker network inspect --format '{{range .IPAM.Config}}{{.Subnet}}{{end}}' "$1" 2>/dev/null); then
+    local args=(network create "$1" --subnet "$subnet" --ip-range "$prefix.128/25" --gateway "$prefix.1")
+    printf '+ docker'; printf ' %q' "${args[@]}"; printf '\n'
+    $dry_run || docker "${args[@]}" >/dev/null
+  elif [[ $have != "$subnet" ]]; then
+    die "the network $1 has the subnet '$have', not $subnet, which the edge's fixed address needs. Stop its containers and the edge, run docker network rm $1, and launch again"
   fi
 }
 
@@ -263,7 +286,7 @@ start_infra() {
   # shellcheck disable=SC2086
   validate "$(printf '%s\n' $infra_services)"
   refuse_old_infra
-  ensure_network "$network"
+  ensure_network "$network" "${instance:-local}"
   # shellcheck disable=SC2086
   bring_up stack_compose $infra_services
 }
@@ -273,19 +296,21 @@ start_web() {
   services=$(web_services)
   [[ -n $services ]] || die 'every app was left out, so there is nothing to start'
   validate "$services"
-  ensure_network "$network"
+  ensure_network "$network" "${instance:-local}"
   # shellcheck disable=SC2086
   bring_up stack_compose $services
 }
 
 start_edge() {
-  local net services=()
+  local services=()
   override=$(mktemp)
   trap 'rm -f "$override"' EXIT
   edge_override > "$override"
-  local nets
-  mapfile -t nets < <(sed -n 's/^    name: //p' "$override")
-  for net in "${nets[@]}"; do ensure_network "$net"; done
+  # A dry run shows the generated override too.
+  if $dry_run; then sed "s/^/# override: /" "$override"; fi
+  local names name
+  mapfile -t names < <(sed -n 's/^  instance-\(.*\):$/\1/p' "$override")
+  for name in "${names[@]}"; do ensure_network "$(instance_network "$name")" "$name"; done
   edge_files+=(-f "$override")
   $tunnel || services=(nginx)
   bring_up edge_compose "${services[@]}"

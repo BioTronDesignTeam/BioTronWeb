@@ -174,11 +174,33 @@ class RuntimeConfigTests(unittest.TestCase):
             'EDGE_SITES=staging=staging.example.test prod=example.test\n')
         self.env['EDGE_ENV_FILE'] = str(self.root / 'edge.env')
         result = self.run_command('./launch', 'edge', '--dry-run')
-        self.assertIn('docker network create biotron-staging', result.stdout)
-        self.assertIn('docker network create biotron-prod', result.stdout)
-        self.assertNotIn('create biotron\n', result.stdout)
+        # Each instance network has a fixed subnet, with the edge at .2.
+        self.assertIn('docker network create biotron-staging --subnet 10.213.1.0/24 '
+                      '--ip-range 10.213.1.128/25 --gateway 10.213.1.1', result.stdout)
+        self.assertIn('docker network create biotron-prod --subnet 10.213.2.0/24', result.stdout)
+        self.assertNotIn('create biotron ', result.stdout)
+        self.assertIn('# override:         ipv4_address: 10.213.1.2', result.stdout)
+        self.assertIn('# override:         ipv4_address: 10.213.2.2', result.stdout)
         (self.root / 'edge.env').write_text('EDGE_SITES=Prod=example.test\n')
         self.run_command('./launch', 'edge', '--dry-run', success=False)
+
+    def test_backends_trust_only_the_edge_to_name_the_client(self):
+        # ./launch sets BIOTRON_EDGE_ADDRESS to the edge's address on the instance's
+        # network, the one in the edge override above; a laptop's is the default.
+        for address in (None, '10.213.2.2'):
+            if address:
+                self.env['BIOTRON_EDGE_ADDRESS'] = address
+            services = self.config()['services']
+            for service in ('auth-api', 'status-api'):
+                self.assertEqual(services[service]['environment']['TRUSTED_PROXIES'],
+                                 f'127.0.0.1,::1,{address or "10.213.0.2"}')
+        for path in ('apps/auth/docker-compose.yml', 'apps/status/docker-compose.yml',
+                     'apps/auth/.env.example', 'apps/status/.env.example'):
+            self.assertNotIn('172.16.0.0/12', (ROOT / path).read_text(), path)
+        self.env['EDGE_SITES'] = 'prod=example.test'
+        edge = self.config('-f', 'infra/edge/docker-compose.yml', '--env-file', '/dev/null')
+        self.assertEqual(edge['networks']['edge']['ipam']['config'], [{'subnet': '10.213.255.0/29'}])
+        self.assertEqual(edge['services']['nginx']['environment']['EDGE_SUBNET'], '10.213.255.0/29')
 
     def test_apps_carry_instance_qualified_aliases_for_the_edge(self):
         edge_targets = {'biotron-web', 'calendar-api', 'calendar-web', 'oauth-manager',
