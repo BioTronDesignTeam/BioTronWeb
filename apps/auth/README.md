@@ -28,18 +28,22 @@ name Auth reports its events under.
 
 ## Run
 
-Start the shared Postgres once, from the monorepo root, then Auth:
+From the monorepo root, start the shared Postgres, then the apps. `./launch`
+reads `apps/auth/.env`; a plain `docker compose` from the root does not.
 
 ```bash
-docker compose -f infra/docker-compose.yml --env-file infra/.env up -d
 cp apps/auth/.env.example apps/auth/.env    # set the GitHub App values
-docker compose up -d --build auth-migrate auth-api auth-web
+./launch infra
+./launch web --build                        # or leave apps out: --no-sprinter
 ```
+
+To run Auth alone, run Compose from its folder, where it reads `.env`:
+`cd apps/auth && docker compose up -d --build auth-migrate auth-api auth-web`.
 
 The UI is at http://localhost:5173 and the API at http://localhost:8080.
 The API port must stay 8080: the GitHub App's callback is registered as
 `http://localhost:8080/auth/github/callback`. Put your GitHub user id in
-`SUPERUSER_GITHUB_IDS` so that the first login can grant permissions.
+`SUPERUSER_GITHUB_IDS` so that the first sign-in can grant permissions.
 
 ## Develop
 
@@ -68,8 +72,9 @@ Prisma. Do not add environment files below it.
 - `CORS_ORIGINS` must list each tool frontend as both `localhost` and
   `127.0.0.1`. Browsers treat them as different origins. These origins get
   credentialed CORS only for what the tools call: `GET /auth/me`,
-  `GET /v1/check`, `GET /v1/session`, `POST /auth/logout`, and `POST /auth/guest`. Every other
-  route, and every staff action, answers cross-origin only to
+  `GET /v1/check`, `GET /v1/session`, `POST /auth/logout`, and
+  `POST /auth/guest`. Every other route, and every Manager or Superuser
+  action, answers cross-origin only to
   `FRONTEND_URL`, Auth's own frontend. A tool that needs another route of
   Auth adds it to `siblingRoutes` in `backend/internal/server/cors.go`.
 - `TRUSTED_PROXIES` names the edge Nginx and nothing wider: its address
@@ -135,28 +140,29 @@ the organization.
 | GET | `/health` | anyone | liveness |
 | GET | `/auth/github/login` | anyone | starts OAuth; `?redirect=` must be an allowed origin |
 | GET | `/auth/github/callback` | anyone | non-members return with `?auth=denied`, banned operators with `?auth=banned` |
-| POST | `/auth/guest` | anyone | guest login with `app_id` and `key`; 20 per minute per IP |
+| POST | `/auth/guest` | anyone | guest sign-in with `app_id` and `key`; 20 per minute per IP |
 | POST | `/auth/logout` | session | signs this session out on the server and removes its cookie |
-| POST | `/auth/logout/everywhere` | member | signs the operator out on every device |
+| POST | `/auth/logout/everywhere` | Member | signs the operator out on every device |
 | GET | `/auth/me` | session | current operator; a guest must pass its `?app=` |
-| GET | `/auth/guest-keys` | staff | today's key for each opted-in tool |
-| POST | `/auth/guest-keys/:app/rotate` | staff | replaces today's key of one tool, which signs out its guests |
-| GET | `/apps`, `/permissions` | member | the catalog |
-| POST | `/apps` | superuser | registers a tool |
-| GET | `/me/grants` | member | my grants; `full_access` is true for staff |
-| POST, DELETE | `/grants` | staff | grants or revokes one permission |
-| GET | `/org/members` | staff | every operator who has signed in |
-| GET | `/org/members/:id/grants` | staff | one member's grants |
-| POST | `/org/members/:id/ban`, `/unban` | staff | a ban refuses the member at once and ends their sessions |
-| POST | `/org/members/:id/sign-out` | staff | signs the member out on every device |
-| PATCH | `/org/members/:id/manager` | superuser | sets the manager flag, effective at once |
+| GET | `/auth/guest-keys` | Manager or Superuser | today's key for each opted-in tool |
+| POST | `/auth/guest-keys/:app/rotate` | Manager or Superuser | replaces today's key of one tool, which signs out its guests |
+| GET | `/apps`, `/permissions` | Member | the catalog |
+| POST | `/apps` | Superuser | registers a tool |
+| GET | `/me/grants` | Member | my grants; `full_access` is true for a Manager or Superuser |
+| POST, DELETE | `/grants` | Manager or Superuser | grants or revokes one permission |
+| GET | `/org/members` | Manager or Superuser | every operator who has signed in |
+| GET | `/org/members/:id/grants` | Manager or Superuser | one member's grants |
+| POST | `/org/members/:id/ban`, `/unban` | Manager or Superuser | a ban refuses the member at once and ends their sessions |
+| POST | `/org/members/:id/sign-out` | Manager or Superuser | signs the member out on every device |
+| PATCH | `/org/members/:id/manager` | Superuser | sets the manager flag, effective at once |
 | GET | `/v1/check?app=&permission=` | session | allow or deny |
 | GET | `/v1/session?app=&permission=` | session | current operator and a verdict per permission, in one call |
 
 Member means a signed-in operator who is not a guest; a guest gets `403`.
-Staff means a manager or a superuser. Every mutating route requires the
-`X-Requested-With` header, which blocks cross-site form posts. Nobody can ban
-or change themself or the guest account. Only a superuser can ban a superuser.
+A Manager or Superuser passes every Member route too. Every mutating route
+requires the `X-Requested-With` header, which blocks cross-site form posts.
+Nobody can ban, sign out, or change themself or the guest account this way.
+Only a Superuser can ban, unban, or sign out a Superuser.
 
 A superuser is whoever `SUPERUSER_GITHUB_IDS` lists, read on every request:
 remove an id and redeploy, and that operator's next request is no longer a
@@ -172,8 +178,9 @@ The cookie is `oauth_session`: a JWT signed with HMAC-SHA256 and
 no session table: the signature is the check, and only revocations are
 stored (see below). The cookie names only the operator's GitHub id, its own
 random id (`jti`), and when it was signed, to the microsecond; for a guest
-also its tool, the day, and an HMAC of the key it signed in with. Roles, bans, grants, and the daily keys are read
-from Postgres through an in-memory cache of at most 30 seconds, and every
+also its tool, the day, and an HMAC of the key it signed in with. Roles,
+bans, grants, revocations, and the daily guest keys are read from Postgres
+through an in-memory cache of at most 30 seconds, and every
 grant, revoke, ban, and manager change clears that operator from the cache,
 and every key rotation that tool's keys, so it applies to the very next
 request. The sign-in state cookie,
@@ -181,15 +188,16 @@ request. The sign-in state cookie,
 the origin to return to and the PKCE verifier, whose S256 challenge goes to
 GitHub, so a stolen code is useless without this browser's cookie. Its path
 is the folder of `OAUTH_CALLBACK_URL` (`/api/auth/github` behind the edge,
-`/auth/github` locally), so it is sent only to the login and the callback.
+`/auth/github` locally), so it is sent only to the sign-in route and the
+callback.
 
 What that means in practice:
 
 - A ban refuses the operator's next request on every device, and ends every
   session they hold, so after an unban they sign in again.
 - A guest session is checked on every request against its tool's current
-  key. Rotating the key in the Keys tab, or turning the tool's daily key off
-  in `apps.daily_key_enabled`, refuses every guest of that tool at their next
+  key. Rotating the key in the Keys tab, or turning the tool's daily guest
+  key off in `apps.daily_key_enabled`, refuses every guest of that tool at their next
   request (a change by hand in psql within 30 seconds).
 - Sign-out ends that session on the server, not only in the browser: its
   `jti` goes into `revoked_sessions` until the cookie would have expired, so
@@ -213,8 +221,9 @@ What that means in practice:
   than that, the request fails closed with `503`. The check goes by GitHub id:
   it asks GitHub for the account's current login (`GET /user/{id}`) and
   then that login's membership, so a renamed account keeps its access and
-  an old login that someone else claims never passes for its former owner. A sign-in
-  records its own answer. Guests have no GitHub identity and are not checked.
+  an old login that someone else claims never passes for its former owner.
+  A sign-in records its own answer. Guests have no GitHub identity and are
+  not checked.
 
 Sessions from before signed cookies were opaque tokens in a `sessions`
 table. Those cookies no longer validate, so everyone signs in once more
@@ -276,9 +285,10 @@ operator as `actor`.
 | `Revoked session prune failed` | error | `error` |
 
 The grant, revoke, ban, unban, manager, sign-out of someone, tool, and key
-rotation rows are the audit trail. Each also names the actor as `actor_id` and `actor_login`. These events are
-the only record of who changed what. The hourly prune reports only what it
-deleted, so an idle hour sends nothing.
+rotation rows are the audit trail. Each also names the actor as `actor_id`
+and `actor_login`. These events are the only record of who changed what.
+The hourly prune reports only what it deleted, so an idle hour sends
+nothing.
 
 Query strings, cookies, tokens, guest keys, and the OAuth code and state are
 never sent.
@@ -310,10 +320,10 @@ bundle; Compose passes it to `auth-web` as a build argument.
 ## Database
 
 Prisma 6.19.3, pinned exactly. Six tables: `operators`, `guest_keys`,
-`apps`, `permissions`, `grants`, and `revoked_sessions`. Tools and their permissions are rows
-that the migrations seed, so `auth-migrate` is what makes a fresh database
-usable. Without it, every permission check for a
-non-staff operator answers `false`.
+`apps`, `permissions`, `grants`, and `revoked_sessions`. Tools and their
+permissions are rows that the migrations seed, so `auth-migrate` is what
+makes a fresh database usable. Without it, every permission check for a
+Member answers `false`.
 
 | Tool | Permissions |
 |---|---|
