@@ -5,6 +5,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/common"
 	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/model"
 )
 
@@ -81,10 +82,7 @@ func splitMessage(text string, limit int) []string {
 			// An answer holding an accent or an emoji puts a character across
 			// the limit, and splitting one leaves both messages holding half
 			// a character, which is not valid UTF-8.
-			cut = limit
-			for cut > 0 && !utf8.RuneStart(text[cut]) {
-				cut--
-			}
+			cut = common.RuneStart(text, limit)
 			if cut == 0 {
 				// One character wider than the whole limit. Take it whole:
 				// a cut of zero would remove nothing and loop forever.

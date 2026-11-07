@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/common"
 	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/model"
 )
 
@@ -91,7 +92,7 @@ func (t HealthHistory) Run(ctx context.Context, args json.RawMessage) (string, e
 		}
 		fmt.Fprintf(&out, "%s %s", stamp(row.CheckedAt), state)
 		if detail := strings.TrimSpace(row.Detail); detail != "" {
-			fmt.Fprintf(&out, " | %s", truncate(detail, healthDetailCap))
+			fmt.Fprintf(&out, " | %s", common.Truncate(detail, healthDetailCap))
 		}
 		out.WriteString("\n")
 	}

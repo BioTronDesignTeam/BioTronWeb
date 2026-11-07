@@ -13,8 +13,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
-	"unicode/utf8"
 
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/common"
 	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/model"
 	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/readstore"
 )
@@ -61,30 +61,10 @@ func capResult(text string, limit int, narrow string) string {
 	}
 	cut := strings.LastIndex(text[:limit], "\n")
 	if cut <= 0 {
-		cut = runeSafeCut(text, limit)
+		cut = common.RuneStart(text, limit)
 	}
 	return strings.TrimRight(text[:cut], "\n") +
 		fmt.Sprintf("\n[Cut here. This result was longer than %d characters. %s]", limit, narrow)
-}
-
-// truncate shortens one field rather than the whole result. A health detail is
-// the usual case: useful at a glance, unbounded in principle.
-func truncate(text string, limit int) string {
-	if len(text) <= limit {
-		return text
-	}
-	return text[:runeSafeCut(text, limit)] + "…"
-}
-
-// runeSafeCut moves a byte index back to the start of a character. Every
-// limit here counts bytes, and a line holding an accent or an emoji puts
-// a character across the limit; cutting mid-character leaves the model a
-// replacement glyph, and Discord a message that is not valid UTF-8.
-func runeSafeCut(text string, cut int) int {
-	for cut > 0 && cut < len(text) && !utf8.RuneStart(text[cut]) {
-		cut--
-	}
-	return cut
 }
 
 // decode reads a tool's arguments. Unknown fields are ignored on purpose: a

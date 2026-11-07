@@ -14,6 +14,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/common"
 )
 
 // localDateLayout matches Calendar's own from/to query format: a wall-clock
@@ -120,7 +122,7 @@ func (c *Client) Occurrences(ctx context.Context, scopeID string, from, to time.
 		return nil, fmt.Errorf("read occurrences response: %w", err)
 	}
 	if response.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("calendar returned HTTP %d: %s", response.StatusCode, truncate(body, 200))
+		return nil, fmt.Errorf("calendar returned HTTP %d: %s", response.StatusCode, common.Truncate(strings.TrimSpace(string(body)), 200))
 	}
 	var occurrences []Occurrence
 	if err := json.Unmarshal(body, &occurrences); err != nil {
@@ -139,12 +141,4 @@ func dateAfter(a, b time.Time) bool {
 		return am > bm
 	}
 	return ad > bd
-}
-
-func truncate(body []byte, n int) string {
-	text := strings.TrimSpace(string(body))
-	if len(text) > n {
-		return text[:n] + "..."
-	}
-	return text
 }
