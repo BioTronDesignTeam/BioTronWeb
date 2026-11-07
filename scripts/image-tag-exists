@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# Says whether an image tag exists in its registry, for the deploy workflow,
+# which never builds or pushes a tag again once it exists:
+#
+#   scripts/image-tag-exists ghcr.io/biotrondesignteam/auth-api:<commit>
+#
+# Writes exists=true or exists=false to $GITHUB_OUTPUT. Any answer other than
+# the image or "not found", such as a registry outage, fails, so it can never
+# pass for a missing tag and have one rebuilt over the tested image.
+set -euo pipefail
+
+[[ $# -eq 1 ]] || { echo 'usage: scripts/image-tag-exists <image>:<tag>' >&2; exit 2; }
+ref=$1
+if output=$(docker buildx imagetools inspect "$ref" 2>&1); then
+  exists=true
+  echo "::notice::$ref exists already, so it is not built again"
+elif grep -qiE 'not found|manifest unknown' <<<"$output"; then
+  exists=false
+else
+  printf '%s\n' "$output" >&2
+  echo "::error::Cannot tell whether $ref exists"
+  exit 1
+fi
+echo "exists=$exists" | tee -a "${GITHUB_OUTPUT:-/dev/null}"

@@ -128,6 +128,39 @@ class RuntimeConfigTests(unittest.TestCase):
         images = {service['image'].removeprefix('biotron-').split(':')[0]
                   for service in self.config()['services'].values() if 'build' in service}
         self.assertEqual(images, built - {'edge-nginx'})
+        # The merge job tags every image the build matrix builds.
+        merged = re.search(r'\n  merge:.*?image: \[([^\]]+)\]', workflow, re.S).group(1)
+        self.assertEqual({name.strip() for name in merged.split(',')}, built)
+        # Every image is built natively for both platforms production and
+        # staging run, and scanned on each.
+        self.assertIn('{ arch: amd64, runner: ubuntu-24.04 }', workflow)
+        self.assertIn('{ arch: arm64, runner: ubuntu-24.04-arm }', workflow)
+        self.assertNotIn('setup-qemu-action', workflow)
+        self.assertIn('image-ref: ${{ env.REPOSITORY }}@${{ steps.build.outputs.digest }}', workflow)
+
+    def test_an_existing_image_tag_is_never_built_again(self):
+        bin_dir = self.root / 'bin'
+        bin_dir.mkdir()
+        fake = bin_dir / 'docker'
+        output = self.root / 'output'
+        env = dict(self.env, PATH=f'{bin_dir}:{self.env["PATH"]}', GITHUB_OUTPUT=str(output))
+        for answer, code, exists in (('a manifest list', 0, 'true'),
+                                     ('ERROR: ghcr.io/x/y:z: not found', 1, 'false'),
+                                     ('ERROR: failed to do request: connection refused', 1, None)):
+            fake.write_text(f'#!/bin/sh\necho "{answer}"\nexit {code}\n')
+            fake.chmod(0o755)
+            output.write_text('')
+            result = subprocess.run([str(ROOT / 'scripts/image-tag-exists'), 'ghcr.io/x/y:z'],
+                                    env=env, capture_output=True, text=True)
+            if exists is None:
+                self.assertNotEqual(result.returncode, 0, answer)
+                self.assertEqual(output.read_text(), '')
+            else:
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(output.read_text(), f'exists={exists}\n')
+        workflow = (ROOT / '.github/workflows/deploy.yml').read_text()
+        self.assertEqual(workflow.count('run: scripts/image-tag-exists "$REPOSITORY:$GITHUB_SHA"'), 2)
+        self.assertEqual(workflow.count("if: steps.existing.outputs.exists == 'false'"), 7)
 
     def test_exogui_needs_no_database(self):
         services = self.config()['services']

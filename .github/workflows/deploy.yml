@@ -1,5 +1,5 @@
-# A push to main builds and scans every image, tags it with the commit, and
-# deploys it to staging. A v* tag on a commit that staging already deployed
+# A push to main builds and scans every image once, tags it with the commit,
+# and deploys it to staging. A v* tag on a commit that staging already deployed
 # sends those same images to production without rebuilding. Running this
 # workflow by hand on an older tag rolls production back to it.
 name: deploy
@@ -21,16 +21,24 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Each image is built once per commit, natively on an amd64 and an arm64
+  # runner, scanned there, and pushed by digest. The merge job below then
+  # tags the two digests together as <image>:<commit>. A tag that exists
+  # already is never built or pushed again, so a rerun of this workflow, or a
+  # rollback, deploys exactly the bytes staging tested.
   images:
-    name: image ${{ matrix.image.name }}
+    name: image ${{ matrix.image.name }} ${{ matrix.platform.arch }}
     if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.platform.runner }}
     permissions:
       contents: read # check out the Dockerfiles and sources
       packages: write # push the images to GHCR
     strategy:
       fail-fast: false
       matrix:
+        platform:
+          - { arch: amd64, runner: ubuntu-24.04 }
+          - { arch: arm64, runner: ubuntu-24.04-arm }
         image:
           - { name: biotron-web, context: ., dockerfile: apps/biotron/frontend/Dockerfile }
           - { name: calendar-web, context: ., dockerfile: apps/calendar/frontend/Dockerfile }
@@ -45,24 +53,30 @@ jobs:
           - { name: sprinter-bot, context: ., dockerfile: apps/sprinter/backend/Dockerfile }
           - { name: migrate, context: ., dockerfile: infra/migrate/Dockerfile }
           - { name: edge-nginx, context: infra/nginx, dockerfile: infra/nginx/Dockerfile }
+    env:
+      REPOSITORY: ghcr.io/biotrondesignteam/${{ matrix.image.name }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
-      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
       - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Skip an image that this commit has already
+        id: existing
+        run: scripts/image-tag-exists "$REPOSITORY:$GITHUB_SHA"
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+        if: steps.existing.outputs.exists == 'false'
       - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        id: build
+        if: steps.existing.outputs.exists == 'false'
         with:
           context: ${{ matrix.image.context }}
           file: ${{ matrix.image.dockerfile }}
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ghcr.io/biotrondesignteam/${{ matrix.image.name }}:${{ github.sha }}
+          platforms: linux/${{ matrix.platform.arch }}
+          outputs: type=image,name=${{ env.REPOSITORY }},push-by-digest=true,name-canonical=true,push=true
           build-args: |
             VITE_SITE_URL=https://__BASE_DOMAIN__
             VITE_CALENDAR_API_URL=https://calendar.__BASE_DOMAIN__/api
@@ -70,26 +84,70 @@ jobs:
             VITE_API_URL=/api
             VITE_AUTH_URL=https://auth.__BASE_DOMAIN__/api
             VITE_CALENDAR_URL=${{ matrix.image.name == 'sprinter-web' && 'https://calendar.__BASE_DOMAIN__/api' || 'https://calendar.__BASE_DOMAIN__' }}
-      # Both platforms: their OS packages can differ, and production runs
-      # arm64. Trivy scans the runner's platform unless TRIVY_PLATFORM names one.
-      - name: scan the amd64 image (Trivy)
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        env:
-          TRIVY_PLATFORM: linux/amd64
+      # On the image's own architecture: production runs the arm64 one.
+      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        if: steps.existing.outputs.exists == 'false'
         with:
-          image-ref: ghcr.io/biotrondesignteam/${{ matrix.image.name }}:${{ github.sha }}
+          image-ref: ${{ env.REPOSITORY }}@${{ steps.build.outputs.digest }}
           severity: CRITICAL,HIGH
           ignore-unfixed: true
           exit-code: '1'
-      - name: scan the arm64 image (Trivy)
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+      - name: Record the digest for the merge job
+        if: steps.existing.outputs.exists == 'false'
         env:
-          TRIVY_PLATFORM: linux/arm64
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          [[ $DIGEST =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "::error::No digest from the build: '$DIGEST'"; exit 1; }
+          mkdir -p "$RUNNER_TEMP/digests"
+          touch "$RUNNER_TEMP/digests/${DIGEST#sha256:}"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: steps.existing.outputs.exists == 'false'
         with:
-          image-ref: ghcr.io/biotrondesignteam/${{ matrix.image.name }}:${{ github.sha }}
-          severity: CRITICAL,HIGH
-          ignore-unfixed: true
-          exit-code: '1'
+          name: digest-${{ matrix.image.name }}-${{ matrix.platform.arch }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  # Tags each image's two digests, amd64 and arm64, as one <image>:<commit>.
+  merge:
+    name: tag ${{ matrix.image }}
+    needs: images
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read # check out the tag check script
+      packages: write # push the multi-platform tag to GHCR
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [biotron-web, calendar-web, calendar-api, status-web, status-api, auth-web, auth-api,
+                exogui-web, exogui-api, sprinter-web, sprinter-bot, migrate, edge-nginx]
+    env:
+      REPOSITORY: ghcr.io/biotrondesignteam/${{ matrix.image }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Skip an image that this commit has already
+        id: existing
+        run: scripts/image-tag-exists "$REPOSITORY:$GITHUB_SHA"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        if: steps.existing.outputs.exists == 'false'
+        with:
+          pattern: digest-${{ matrix.image }}-*
+          path: ${{ runner.temp }}/digests
+          merge-multiple: true
+      - name: Tag the amd64 and arm64 digests as the commit
+        if: steps.existing.outputs.exists == 'false'
+        run: |
+          mapfile -t digests < <(find "$RUNNER_TEMP/digests" -type f -printf "$REPOSITORY@sha256:%f\n" | sort)
+          [[ ${#digests[@]} -eq 2 ]] || { echo "::error::Expected 2 digests, found ${#digests[@]}"; exit 1; }
+          docker buildx imagetools create -t "$REPOSITORY:$GITHUB_SHA" "${digests[@]}"
+          docker buildx imagetools inspect "$REPOSITORY:$GITHUB_SHA"
 
   candidate:
     name: candidate commit
@@ -126,8 +184,8 @@ jobs:
 
   deploy:
     name: deploy ${{ startsWith(github.ref, 'refs/tags/') && 'prod' || 'staging' }}
-    needs: [candidate, images]
-    if: always() && needs.candidate.result == 'success' && (needs.images.result == 'success' || (startsWith(github.ref, 'refs/tags/') && needs.images.result == 'skipped'))
+    needs: [candidate, merge]
+    if: always() && needs.candidate.result == 'success' && (needs.merge.result == 'success' || (startsWith(github.ref, 'refs/tags/') && needs.merge.result == 'skipped'))
     runs-on: ubuntu-latest
     environment: ${{ startsWith(github.ref, 'refs/tags/') && 'production' || 'staging' }}
     # It checks out nothing: the host downloads the commit's files itself.
