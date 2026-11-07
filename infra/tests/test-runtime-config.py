@@ -548,6 +548,44 @@ sleep() { :; }
         self.assertIn('SECRET log line of a1', self.logs())
 
 
+class DeployShellTests(unittest.TestCase):
+    """deploy/biotron-deploy-shell, the CI accounts' login shell, runs a deploy
+    and nothing else."""
+
+    SHA = '0123456789abcdef0123456789abcdef01234567'
+
+    def shell(self, *args):
+        return subprocess.run([str(ROOT / 'deploy/biotron-deploy-shell'), *args],
+                              capture_output=True, text=True)
+
+    def test_refuses_everything_but_a_deploy(self):
+        for args in [(), ('-l',), ('-c', 'id'), ('-c', 'bash'), ('-i',),
+                     ('-c', f'sudo /usr/local/sbin/biotron-deploy staging {self.SHA}; id'),
+                     ('-c', f'sudo /usr/local/sbin/biotron-deploy staging {self.SHA} prod'),
+                     ('-c', f'sudo /usr/local/sbin/biotron-deploy staging $(id)'),
+                     ('-c', f'sudo /usr/local/sbin/biotron-deploy Staging {self.SHA}'),
+                     ('-c', f'sudo /tmp/biotron-deploy staging {self.SHA}'),
+                     ('-c', f'sudo -u root /usr/local/sbin/biotron-deploy staging {self.SHA}'),
+                     ('-c', f'sudo /usr/local/sbin/biotron-deploy staging {self.SHA}\nid'),
+                     ('-c', 'x', 'y')]:
+            result = self.shell(*args)
+            self.assertEqual(result.returncode, 1, args)
+            self.assertIn('this account can only run', result.stderr, args)
+
+    def test_passes_a_deploy_to_sudo(self):
+        # sudo is absent, or refuses for want of the real script; either way
+        # the shell let the command through rather than refusing it.
+        for args in [('-c', f'sudo /usr/local/sbin/biotron-deploy staging {self.SHA}'),
+                     ('-l', '-c', f'/usr/local/sbin/biotron-deploy edge {self.SHA}')]:
+            result = self.shell(*args)
+            self.assertNotIn('this account can only run', result.stderr, args)
+
+    def test_the_workflow_sends_the_form_the_shell_accepts(self):
+        workflow = (ROOT / '.github/workflows/deploy.yml').read_text()
+        self.assertIn('sudo /usr/local/sbin/biotron-deploy "$INSTANCE" "$REVISION"', workflow)
+        self.assertIn('sudo /usr/local/sbin/biotron-deploy edge "$REVISION"', workflow)
+
+
 class ContentSecurityPolicyTests(unittest.TestCase):
     """The edge's enforced CSP allows exactly the inline scripts the apps ship."""
 

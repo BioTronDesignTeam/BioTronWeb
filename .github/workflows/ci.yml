@@ -34,7 +34,7 @@ jobs:
           persist-credentials: false
       - name: validate Compose and launch without starting containers
         run: |
-          for script in launch deploy/*.sh deploy/biotron-deploy infra/nginx/docker-entrypoint.d/*.sh; do bash -n "$script"; done
+          for script in launch deploy/*.sh deploy/biotron-deploy deploy/biotron-deploy-shell infra/nginx/docker-entrypoint.d/*.sh; do bash -n "$script"; done
           python3 infra/tests/test-runtime-config.py
 
   changes:
