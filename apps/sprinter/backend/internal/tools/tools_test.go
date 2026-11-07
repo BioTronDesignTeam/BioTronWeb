@@ -221,3 +221,19 @@ func TestCalendarUpcomingValidatesItsArguments(t *testing.T) {
 		t.Fatal("an unconfigured Status URL must be an error")
 	}
 }
+
+// The model picks the app id from the description, so the description must
+// name Auth's real ids. Exo GUI is exo-gui, not exo, and logger is gone.
+func TestWhoHasAccessNamesTheRealAppIDs(t *testing.T) {
+	description := WhoHasAccess{}.Spec().Description
+	for _, id := range []string{"exo-gui", "calendar", "sprinter"} {
+		if !strings.Contains(description, id) {
+			t.Errorf("description does not name %q: %s", id, description)
+		}
+	}
+	for _, gone := range []string{"logger", "exo,", "exo or"} {
+		if strings.Contains(description, gone) {
+			t.Errorf("description names %q, which is not an app id: %s", gone, description)
+		}
+	}
+}
