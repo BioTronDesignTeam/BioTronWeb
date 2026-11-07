@@ -62,16 +62,23 @@ type Result struct {
 	InputTokens  int
 	OutputTokens int
 	Turns        int
+	// Private says a privileged tool ran, so the answer may hold what only
+	// managers and superusers may see. The caller must deliver it to the
+	// person who asked and nobody else.
+	Private bool
 	// RateLimited says the model refused for quota. The caller answers with
 	// Text and stores nothing: no question was actually answered.
 	RateLimited bool
 }
 
 type Agent struct {
-	model   model.Model
-	tools   map[string]tools.Tool
-	specs   []model.ToolSpec
-	options Options
+	model model.Model
+	tools map[string]tools.Tool
+	// specs is every tool the agent has; publicSpecs leaves out the
+	// privileged ones, which only AnswerPrivileged offers.
+	specs       []model.ToolSpec
+	publicSpecs []model.ToolSpec
+	options     Options
 }
 
 func New(m model.Model, list []tools.Tool, options Options) *Agent {
@@ -89,27 +96,44 @@ func New(m model.Model, list []tools.Tool, options Options) *Agent {
 	}
 	byName := make(map[string]tools.Tool, len(list))
 	specs := make([]model.ToolSpec, 0, len(list))
+	publicSpecs := make([]model.ToolSpec, 0, len(list))
 	for _, tool := range list {
 		spec := tool.Spec()
 		byName[spec.Name] = tool
 		specs = append(specs, spec)
+		if !tools.IsPrivileged(tool) {
+			publicSpecs = append(publicSpecs, spec)
+		}
 	}
-	return &Agent{model: m, tools: byName, specs: specs, options: options}
+	return &Agent{model: m, tools: byName, specs: specs, publicSpecs: publicSpecs, options: options}
 }
 
 // Model is the model's name, for the agent_threads row and the logs.
 func (a *Agent) Model() string { return a.model.Name() }
 
 // Answer is one question with no history: the `/agent` command, and the first
-// turn of a thread.
+// turn of a thread. It is offered the public tools only.
 func (a *Agent) Answer(ctx context.Context, question string) (Result, error) {
-	return a.Continue(ctx, nil, question)
+	return a.run(ctx, false, nil, question)
+}
+
+// AnswerPrivileged is Answer with the privileged tools offered as well. The
+// caller has established that the person asking may see what they return,
+// and that the answer reaches that person alone.
+func (a *Agent) AnswerPrivileged(ctx context.Context, question string) (Result, error) {
+	return a.run(ctx, true, nil, question)
 }
 
 // Continue is a question with the thread's transcript in front of it. History
 // is not copied into the result; only the new turns are, so the caller appends
-// rather than rewrites.
+// rather than rewrites. A thread is read by everyone in its channel and
+// replayed to everyone who asks in it, so Continue never offers a privileged
+// tool.
 func (a *Agent) Continue(ctx context.Context, history []model.Message, question string) (Result, error) {
+	return a.run(ctx, false, history, question)
+}
+
+func (a *Agent) run(ctx context.Context, privileged bool, history []model.Message, question string) (Result, error) {
 	question = strings.TrimSpace(question)
 	if question == "" {
 		return Result{}, errors.New("the question is empty")
@@ -136,7 +160,10 @@ func (a *Agent) Continue(ctx context.Context, history []model.Message, question 
 		// Once the tool budget is spent the model is offered no tools at all,
 		// which is what guarantees the loop ends: it has nothing left to ask
 		// for except an answer.
-		offered := a.specs
+		offered := a.publicSpecs
+		if privileged {
+			offered = a.specs
+		}
 		if toolCapHit {
 			offered = nil
 		}
@@ -182,7 +209,10 @@ func (a *Agent) Continue(ctx context.Context, history []model.Message, question 
 			}
 			spent++
 			result.Tools = appendOnce(result.Tools, call.Name)
-			results = append(results, a.runTool(ctx, call))
+			if tool, ok := a.tools[call.Name]; ok && privileged && tools.IsPrivileged(tool) {
+				result.Private = true
+			}
+			results = append(results, a.runTool(ctx, call, privileged))
 		}
 		for i := range results {
 			results[i].Content = fence(nonce, results[i].Content)
@@ -203,8 +233,13 @@ func (a *Agent) Continue(ctx context.Context, history []model.Message, question 
 // runTool runs one call. A tool failure is a result the model can read and
 // work around, not a reason to abandon the question: a mistyped service id
 // should cost one turn, not the answer.
-func (a *Agent) runTool(ctx context.Context, call model.ToolCall) model.ToolResult {
+func (a *Agent) runTool(ctx context.Context, call model.ToolCall, privileged bool) model.ToolResult {
 	tool, ok := a.tools[call.Name]
+	// A model can name a tool it was not offered. A privileged one stays
+	// unknown to a question that may not use it.
+	if ok && tools.IsPrivileged(tool) && !privileged {
+		ok = false
+	}
 	if !ok {
 		return model.ToolResult{
 			ID: call.ID, Name: call.Name, IsError: true,

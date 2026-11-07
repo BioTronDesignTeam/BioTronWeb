@@ -27,6 +27,21 @@ type Tool interface {
 	Run(ctx context.Context, args json.RawMessage) (string, error)
 }
 
+// Privileged is implemented by a tool whose output Auth shows only to
+// managers and superusers. The agent offers such a tool only to a question
+// from someone the who-has-access guard admits, and the bot sends that
+// answer to the person alone, never to the channel.
+type Privileged interface {
+	Privileged() bool
+}
+
+// IsPrivileged reports whether tool is one only the who-has-access guard
+// admits.
+func IsPrivileged(tool Tool) bool {
+	privileged, ok := tool.(Privileged)
+	return ok && privileged.Privileged()
+}
+
 // Reader is the part of readstore the SQL tools use. It is an interface so a
 // unit test can drive argument validation without a database.
 type Reader interface {
