@@ -95,12 +95,13 @@ export default function Flythrough() {
         <RoomPopup />
 
         {!ready && (
-          <div className="flythrough__boot" role="status" aria-live="polite">
-            <div className="flythrough__bootbar">
+          <output className="flythrough__boot" aria-live="polite">
+            {/* A span, as output holds phrasing content; the flex parent blocks it. */}
+            <span className="flythrough__bootbar">
               <span />
-            </div>
+            </span>
             <span className="mono-label">Loading workshop…</span>
-          </div>
+          </output>
         )}
       </div>
     </section>

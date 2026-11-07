@@ -69,11 +69,11 @@ export function SubscribePanel({ scopes, onClose }: SubscribePanelProps) {
           className="mt-3 min-h-11 w-full select-all rounded-xl border border-ink/10 bg-ink/[0.03] px-3 font-mono text-xs text-ink/70 outline-none focus:border-brand dark:border-line-strong dark:bg-surface-deep dark:text-muted"
         />
         {outcome && (
-          <p role="status" className={`mt-2 text-xs ${outcome.copied ? 'text-ink/60 dark:text-muted' : 'text-red-700 dark:text-red-300'}`}>
+          <output className={`mt-2 block text-xs ${outcome.copied ? 'text-ink/60 dark:text-muted' : 'text-red-700 dark:text-red-300'}`}>
             {outcome.copied
               ? 'Address copied. Paste it into "Add calendar by URL" in Google, Apple, or Outlook Calendar.'
               : 'This browser would not let the page use the clipboard. Tap the address above to select it, then copy it yourself.'}
-          </p>
+          </output>
         )}
       </div>
     );

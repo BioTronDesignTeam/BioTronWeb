@@ -88,9 +88,9 @@ function Administration() {
   return (
     <main className="mx-auto w-full max-w-[1200px] space-y-8 px-4 pb-16 pt-8 sm:px-6 lg:px-8">
       {discordEnabled === false && (
-        <p className="rounded-xl border border-ink/10 bg-white px-4 py-3 text-sm dark:border-line dark:bg-surface" role="status">
+        <output className="block rounded-xl border border-ink/10 bg-white px-4 py-3 text-sm dark:border-line dark:bg-surface">
           Discord is turned off in this environment. Guards and automations save, but the bot does not answer commands or post until it is turned on.
-        </p>
+        </output>
       )}
       {error && <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800 dark:bg-red-950/30 dark:text-red-200">{error}</p>}
       {loading && <div className="h-1 animate-pulse rounded-full bg-brand" />}

@@ -54,8 +54,10 @@ export default function RoomPopup() {
     <div
       className={`room-popup${activeStop === 'about' ? ' room-popup--about' : ''}`}
       ref={wrap}
-      role="status"
+      // A live region rather than <output>, which may hold only phrasing
+      // content, not these cards. aria-atomic keeps the reading of role=status.
       aria-live="polite"
+      aria-atomic="true"
     >
       {activeStop === 'about' ? (
         <article className="glass popup-card" ref={card} data-lenis-prevent={overflowing ? '' : undefined}>
