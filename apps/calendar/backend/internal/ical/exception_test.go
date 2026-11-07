@@ -81,3 +81,67 @@ func TestExceptionSequenceNeverGoesDown(t *testing.T) {
 		t.Fatalf("SEQUENCE went from %d to %d after a reset and re-edit", before, after)
 	}
 }
+
+// An exception repeats what the series says unless the override changes it,
+// and a move that names only the start keeps the series' duration.
+func TestExceptionCarriesEveryChangedField(t *testing.T) {
+	changed := model.EventOverride{
+		ID: "o", State: model.OverrideModified, Sequence: 2,
+		UpdatedAt: time.Date(2026, 10, 1, 9, 30, 0, 0, time.UTC),
+		Patch: json.RawMessage(`{"title":"Late build","description":"Bring, food; and tools",` +
+			`"location":"","url":"https://example.com/late","starts_at_local":"2026-10-12T20:00:00"}`),
+	}
+	block := exception(t, weeklySeries(t, 4, changed))
+	for _, want := range []string{
+		"RECURRENCE-ID;TZID=America/Toronto:20261012T180000",
+		"DTSTART;TZID=America/Toronto:20261012T200000",
+		"DTEND;TZID=America/Toronto:20261012T210000",
+		"SUMMARY:Late build",
+		`DESCRIPTION:Bring\, food\; and tools`,
+		"URL:https://example.com/late",
+		"LAST-MODIFIED:20261001T093000Z",
+		"SEQUENCE:4",
+		"STATUS:CONFIRMED",
+	} {
+		if !strings.Contains(block, want) {
+			t.Fatalf("exception missing %q:\n%s", want, block)
+		}
+	}
+	// The patch cleared the location, so the series' one must not leak in.
+	if strings.Contains(block, "LOCATION:") {
+		t.Fatalf("a cleared location is still in the exception:\n%s", block)
+	}
+
+	// An explicit end wins over the series' duration.
+	changed.Patch = json.RawMessage(`{"starts_at_local":"2026-10-13T08:00:00","ends_at_local":"2026-10-13T12:30:00"}`)
+	block = exception(t, weeklySeries(t, 4, changed))
+	for _, want := range []string{
+		"DTSTART;TZID=America/Toronto:20261013T080000",
+		"DTEND;TZID=America/Toronto:20261013T123000",
+		"SUMMARY:Controls meeting",
+		"LOCATION:E5 2001",
+	} {
+		if !strings.Contains(block, want) {
+			t.Fatalf("exception missing %q:\n%s", want, block)
+		}
+	}
+}
+
+// A cancelled occurrence keeps its slot and the series' details, so a client
+// can match it to the instance it removes.
+func TestCancelledExceptionKeepsItsSlot(t *testing.T) {
+	cancelled := model.EventOverride{
+		ID: "o", State: model.OverrideCancelled, Sequence: 1, Patch: json.RawMessage(`{}`),
+	}
+	block := exception(t, weeklySeries(t, 2, cancelled))
+	for _, want := range []string{
+		"DTSTART;TZID=America/Toronto:20261012T180000",
+		"DTEND;TZID=America/Toronto:20261012T190000",
+		"SUMMARY:Controls meeting",
+		"STATUS:CANCELLED",
+	} {
+		if !strings.Contains(block, want) {
+			t.Fatalf("cancelled exception missing %q:\n%s", want, block)
+		}
+	}
+}
