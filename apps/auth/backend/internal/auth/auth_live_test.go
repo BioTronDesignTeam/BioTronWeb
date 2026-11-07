@@ -11,6 +11,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/BioTronDesignTeam/BioTronWeb/apps/auth/backend/internal/cache"
 	"github.com/BioTronDesignTeam/BioTronWeb/apps/auth/backend/internal/store"
 )
@@ -184,16 +187,47 @@ func TestLiveSignInThenGrantRevokeAndBan(t *testing.T) {
 	}
 }
 
+// liveGuestApp adds an app of the test's own with daily keys on, so the store
+// package's live tests, which rotate Exo GUI's key and turn it off, can run
+// at the same time against the same database.
+func liveGuestApp(t *testing.T) {
+	t.Helper()
+	ctx := context.Background()
+	// The URL names its schema the Prisma way, which pgx does not accept.
+	u, err := url.Parse(os.Getenv("AUTH_TEST_DATABASE_URL"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	q := u.Query()
+	apps := pgx.Identifier{q.Get("schema"), "apps"}.Sanitize()
+	q.Del("schema")
+	u.RawQuery = q.Encode()
+	pool, err := pgxpool.New(ctx, u.String())
+	if err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+	drop := func() { _, _ = pool.Exec(ctx, `DELETE FROM `+apps+` WHERE id = 'live-guest'`) }
+	drop()
+	if _, err := pool.Exec(ctx, `INSERT INTO `+apps+` (id, name, daily_key_enabled) VALUES ('live-guest', 'Live guest', true)`); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		drop()
+		pool.Close()
+	})
+}
+
 func TestLiveGuestSessionIsScopedToItsTool(t *testing.T) {
 	h, st := liveHandler(t)
+	liveGuestApp(t)
 	ctx := context.Background()
-	key, err := st.EnsureProductDailyKey(ctx, "exo-gui", easternDay(time.Now()), "LIVEGUESTKEY")
+	key, err := st.EnsureProductDailyKey(ctx, "live-guest", easternDay(time.Now()), "LIVEGUESTKEY")
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	request := httptest.NewRequest(http.MethodPost, "/auth/guest",
-		strings.NewReader(`{"app_id":"exo-gui","key":"`+strings.ToLower(formatGuestKey(key.Key))+`"}`))
+		strings.NewReader(`{"app_id":"live-guest","key":"`+strings.ToLower(formatGuestKey(key.Key))+`"}`))
 	request.Header.Set("Content-Type", "application/json")
 	response := httptest.NewRecorder()
 	h.GuestLogin(response, request)
@@ -206,8 +240,8 @@ func TestLiveGuestSessionIsScopedToItsTool(t *testing.T) {
 	}
 
 	for target, want := range map[string]int{
-		"/auth/me?app=exo-gui":  http.StatusOK,
-		"/auth/me?app=calendar": http.StatusForbidden,
+		"/auth/me?app=live-guest": http.StatusOK,
+		"/auth/me?app=calendar":   http.StatusForbidden,
 	} {
 		me := httptest.NewRequest(http.MethodGet, target, nil)
 		me.AddCookie(session)
@@ -219,14 +253,14 @@ func TestLiveGuestSessionIsScopedToItsTool(t *testing.T) {
 	}
 
 	// Rotating today's key ends the session at its next request.
-	rotate := httptest.NewRequest(http.MethodPost, "/auth/guest-keys/exo-gui/rotate", nil)
-	rotate.SetPathValue("app", "exo-gui")
+	rotate := httptest.NewRequest(http.MethodPost, "/auth/guest-keys/live-guest/rotate", nil)
+	rotate.SetPathValue("app", "live-guest")
 	rotated := httptest.NewRecorder()
 	h.RotateProductDailyKey(rotated, withOperator(rotate, &store.SessionOperator{GitHubID: 7, Login: "manager", IsManager: true}))
 	if rotated.Code != http.StatusOK || strings.Contains(rotated.Body.String(), formatGuestKey(key.Key)) {
 		t.Fatalf("rotate = %d %s", rotated.Code, rotated.Body)
 	}
-	me := httptest.NewRequest(http.MethodGet, "/auth/me?app=exo-gui", nil)
+	me := httptest.NewRequest(http.MethodGet, "/auth/me?app=live-guest", nil)
 	me.AddCookie(session)
 	after := httptest.NewRecorder()
 	h.RequireSession(http.HandlerFunc(h.Me)).ServeHTTP(after, me)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"slices"
 	"testing"
 	"time"
 )
@@ -196,7 +197,9 @@ func TestLiveProductDailyKeys(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(apps) != 1 || apps[0].ID != "exo-gui" {
+	// Other packages' live tests may add apps of their own; Exo GUI is the
+	// one the migrations seed with daily keys on.
+	if !slices.ContainsFunc(apps, func(a App) bool { return a.ID == "exo-gui" }) {
 		t.Fatalf("daily-key apps = %+v", apps)
 	}
 
@@ -224,7 +227,7 @@ func TestLiveProductDailyKeys(t *testing.T) {
 		t.Fatalf("prune: n = %d, err = %v", n, err)
 	}
 	var left int
-	if err := st.pool.QueryRow(ctx, `SELECT count(*) FROM guest_keys WHERE day = $1::date`, day).Scan(&left); err != nil {
+	if err := st.pool.QueryRow(ctx, `SELECT count(*) FROM guest_keys WHERE app_id = 'exo-gui' AND day = $1::date`, day).Scan(&left); err != nil {
 		t.Fatal(err)
 	}
 	if left != 1 {
