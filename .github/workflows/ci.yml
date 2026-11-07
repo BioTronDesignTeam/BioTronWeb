@@ -160,6 +160,7 @@ jobs:
       - run: npm ci --ignore-scripts --include-workspace-root --workspace packages/style --workspace "apps/$APP/frontend"
       - run: npm run build -w packages/style
       - run: npm run build -w "apps/$APP/frontend"
+      - run: npm run test --if-present -w "apps/$APP/frontend"
       # Oxlint reads .oxlintrc.json at the root; type-aware rules resolve
       # through the app's own tsconfig.
       - run: npx oxlint --deny-warnings "apps/$APP/frontend"
@@ -183,6 +184,7 @@ jobs:
       - run: npm ci --ignore-scripts --include-workspace-root --workspace packages/style
       - run: npm run typecheck -w packages/style
       - run: npx oxlint --deny-warnings packages/style
+      - run: npm test -w packages/style
 
   backend:
     name: backend ${{ matrix.app }}

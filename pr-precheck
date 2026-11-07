@@ -172,10 +172,14 @@ if [[ -n $frontends ]]; then
   if $last_passed; then
     run 'shared style types' npm run typecheck -w packages/style
     run 'shared style lint' npm exec --no -- oxlint --deny-warnings packages/style
+    run 'shared style tests' npm test -w packages/style
     run 'shared style build' npm run build -w packages/style
     style_built=$last_passed
     for app in $frontends; do
-      if $style_built; then run "$app frontend build" npm run build -w "apps/$app/frontend"; fi
+      if $style_built; then
+        run "$app frontend build" npm run build -w "apps/$app/frontend"
+        run "$app frontend tests" npm run test --if-present -w "apps/$app/frontend"
+      fi
       run "$app frontend lint" npm exec --no -- oxlint --deny-warnings "apps/$app/frontend"
     done
     if ! $style_built; then echo 'SKIP app builds because the shared style build failed'; fi
