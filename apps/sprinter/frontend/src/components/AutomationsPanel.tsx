@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import type { Automation, AutomationKind, AutomationPayload, DeliverMode, Scope } from '../types';
-import { actionClass, cancelClass, destructiveActionClass, fieldClass, panelClass, primaryClass } from './GuardsPanel';
+import { actionClass, cancelClass, destructiveActionClass, fieldClass, panelClass, primaryClass } from './classes';
 
 function digits(value: string) {
   return /^\d+$/.test(value.trim());
