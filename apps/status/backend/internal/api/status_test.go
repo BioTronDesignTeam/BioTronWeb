@@ -377,3 +377,33 @@ func TestPublicStatusLimitIsPerClientBehindTheEdge(t *testing.T) {
 		t.Fatalf("first request from 198.51.100.4 = %d, want 200; the limiter is one global bucket", got)
 	}
 }
+
+// rollUp is what turns components into an application's state and
+// applications into the banner. "All systems operational" must mean every
+// part was seen working.
+func TestRollUpTable(t *testing.T) {
+	const (
+		up      = stateOperational
+		partial = stateDegraded
+		down    = stateDown
+		unknown = stateUnknown
+	)
+	for _, c := range []struct {
+		states []string
+		want   string
+	}{
+		{nil, unknown},
+		{[]string{up, up}, up},
+		{[]string{down, down}, down},
+		{[]string{up, down}, partial},
+		{[]string{down, unknown}, partial},
+		{[]string{up, partial}, partial},
+		{[]string{partial, partial}, partial},
+		{[]string{unknown, unknown}, unknown},
+		{[]string{up, unknown}, partial},
+	} {
+		if got := rollUp(c.states); got != c.want {
+			t.Errorf("rollUp(%v) = %q, want %q", c.states, got, c.want)
+		}
+	}
+}
