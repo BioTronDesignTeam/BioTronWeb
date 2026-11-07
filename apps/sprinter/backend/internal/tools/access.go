@@ -26,6 +26,12 @@ type accessArgs struct {
 	App string `json:"app"`
 }
 
+// Privileged marks the roster as for managers and superusers only, as Auth
+// keeps it. The grants, the manager and superuser flags and the bans are
+// behind Auth's staff check there, so the bot hands them only to someone the
+// who-has-access guard admits, and only in a direct message.
+func (WhoHasAccess) Privileged() bool { return true }
+
 func (t WhoHasAccess) Spec() model.ToolSpec {
 	return model.ToolSpec{
 		Name: "who_has_access",

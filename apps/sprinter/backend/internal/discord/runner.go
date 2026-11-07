@@ -21,16 +21,23 @@ type Request struct {
 	// ThreadID is set on a follow-up inside a thread and empty on a command.
 	ThreadID string
 	UserID   string
-	Question string
+	// Privileged lets the runner offer the privileged tools. The bot sets it
+	// only for a `/agent` question from someone the who-has-access guard
+	// admits, and then sends any answer that used one to that person alone.
+	Privileged bool
+	Question   string
 }
 
 // Reply is one answered question. Messages is the transcript the answer built,
 // which the bot stores as the thread's turns: the loop knows how many turns it
 // took and what each tool returned, and the bot must not guess at that.
 type Reply struct {
-	Text         string
-	Messages     []model.Message
-	Tools        []string
+	Text     string
+	Messages []model.Message
+	Tools    []string
+	// Private says the answer used a privileged tool. The bot sends it to
+	// the person who asked, by direct message, and never to the channel.
+	Private      bool
 	InputTokens  int
 	OutputTokens int
 }
