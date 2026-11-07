@@ -10,8 +10,8 @@ weekly meeting keeps its hour across a daylight-saving change.
 The public site's Calendar page reads the next few events from
 `GET /v1/events/upcoming` and links here. Editing requires the
 `calendar/write` permission from Auth; browsing requires nothing. This
-app was the `BiotronCalendar` repository. The old name remains in the Go
-module path and the Compose project name `biotron-calendar`.
+app was the `BiotronCalendar` repository. The old name remains in the
+`BiotronCalendar started` and `BiotronCalendar stopping` events.
 
 ## Layout
 
@@ -25,13 +25,18 @@ module path and the Compose project name `biotron-calendar`.
 
 ## Run
 
-Start the shared Postgres once, from the monorepo root, then Calendar:
+From the monorepo root, start the shared Postgres once, then the apps:
 
 ```bash
-docker compose -f infra/docker-compose.yml --env-file infra/.env up -d
+./launch infra
 cp apps/calendar/.env.example apps/calendar/.env
-docker compose up -d --build calendar-migrate calendar-api calendar-web
+./launch web --build            # every app; --no-<app> leaves one out
+(cd apps/calendar && docker compose up -d --build)   # or Calendar alone
 ```
+
+`./launch` reads `apps/calendar/.env`, as does `docker compose` run in
+`apps/calendar`. A `docker compose` run from the root does not, and
+starts the API with an empty `DATABASE_URL`.
 
 The UI is at http://localhost:5176 and the API at http://localhost:8083.
 To edit events, run Auth as well. The API reaches it at
@@ -58,8 +63,9 @@ schema migrated, and skip without it.
 
 ## Environment
 
-One file, `apps/calendar/.env`, feeds Compose, the backend, the
-frontend, and Prisma. Do not add environment files below it.
+One file, `apps/calendar/.env`, feeds the containers, the backend, the
+frontend, and Prisma. Compose gets it through `./launch` or when run in
+this folder. Do not add environment files below it.
 
 - `VITE_API_URL` is the public API address for both the browser and feed
   metadata. Use `http://localhost:8083` locally; behind the production edge,
@@ -105,7 +111,7 @@ frontend, and Prisma. Do not add environment files below it.
 | POST | `/v1/admin/events` | editor | creates a draft |
 | PATCH | `/v1/admin/events/:id` | editor | edits the series |
 | POST | `/v1/admin/events/:id/publish`, `/cancel` | editor | a cancelled series can be published again |
-| DELETE | `/v1/admin/events/:id` | editor | drafts only |
+| DELETE | `/v1/admin/events/:id` | editor | any state; removes it for good and tells no subscriber. Cancel to tell them |
 | PUT | `/v1/admin/events/:id/occurrences` | editor | changes or cancels one occurrence |
 | DELETE | `/v1/admin/events/:id/occurrences?recurrence_id_local=&expected_sequence=` | editor | resets one occurrence to the series |
 
@@ -126,7 +132,9 @@ no new or published events. Only a published weekly series can have
 occurrence changes. A change stores only the fields that differ from the
 series, keyed by the occurrence's original start, so a field left alone
 follows later series-wide edits. Cancelling a series cancels every
-occurrence, changed ones included. A new term gets a new series; there
+occurrence, changed ones included, and keeps it in every feed so subscribers
+are told. Deleting removes a series in any state for good, with its
+occurrence changes, and tells no subscriber. A new term gets a new series; there
 is no "this and future" edit.
 
 ### Logging
@@ -151,7 +159,7 @@ Calendar reports to Grafana and PostHog as `calendar-api`, through
 | `Event updated` | info | `series_id`, `sequence` |
 | `Event published` | info | `series_id`, `scope_id`, `title` |
 | `Event cancelled` | info | `series_id` |
-| `Event deleted` | info | `series_id` |
+| `Event deleted` | info | `series_id`, `title`, `state` |
 | `Occurrence changed` | info | `series_id`, `recurrence_id_local`, `cancelled` |
 | `Occurrence reset` | info | `series_id`, `recurrence_id_local` |
 
@@ -208,8 +216,8 @@ Manage button. The session and account controls are the shared ones from
 - **Event details**. Scope path, series and occurrence chips, time in
   ET, location, description, and link. An editor also gets Edit series
   and, on a weekly series, Edit and Cancel this occurrence.
-- **Manage** (editors). Events: Edit, Publish, Cancel series, Delete a
-  draft. Projects & subteams: Rename, Archive, Restore, Delete, Add.
+- **Manage** (editors). Events: Edit, Publish, Cancel series, Delete in
+  any state. Projects & subteams: Rename, Archive, Restore, Delete, Add.
   Destructive actions confirm in a dialog.
 
 `VITE_API_URL` and `VITE_AUTH_URL` are compiled into the bundle; Compose
