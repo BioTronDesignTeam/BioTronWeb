@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useId, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 
 interface ModalProps {
@@ -19,6 +19,18 @@ interface ModalProps {
  */
 let openModals = 0;
 let restorePage: (() => void) | undefined;
+
+/**
+ * Open modals, oldest first. Each one listens for keys on the window, so only
+ * the newest may act on Escape or Tab. Without this, one Escape closed the
+ * cancel confirmation and the event details under it together.
+ */
+const modalStack: symbol[] = [];
+
+/** True when the modal holding this token is the one on top. */
+function isTopModal(token: symbol) {
+  return modalStack.at(-1) === token;
+}
 
 function lockPage() {
   if (openModals++ === 0) {
@@ -64,6 +76,8 @@ export function Modal({ title, children, onClose, wide = false }: ModalProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const onCloseRef = useRef(onClose);
+  // Two modals can be open at once, so each needs its own title id.
+  const titleId = useId();
 
   // Writing this during render made the mutation visible to render work React
   // is free to replay or throw away. It belongs in a commit-phase effect.
@@ -74,7 +88,10 @@ export function Modal({ title, children, onClose, wide = false }: ModalProps) {
   useEffect(() => {
     const previousFocus =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const token = Symbol('modal');
+    modalStack.push(token);
     const handleKeys = (event: KeyboardEvent) => {
+      if (!isTopModal(token)) return;
       if (event.key === 'Escape') {
         onCloseRef.current();
         return;
@@ -100,6 +117,7 @@ export function Modal({ title, children, onClose, wide = false }: ModalProps) {
     window.addEventListener('keydown', handleKeys);
     closeRef.current?.focus();
     return () => {
+      modalStack.splice(modalStack.indexOf(token), 1);
       unlockPage();
       window.removeEventListener('keydown', handleKeys);
       previousFocus?.focus();
@@ -123,11 +141,11 @@ export function Modal({ title, children, onClose, wide = false }: ModalProps) {
         ref={dialogRef}
         open
         aria-modal="true"
-        aria-labelledby="modal-title"
+        aria-labelledby={titleId}
         className={`relative m-0 max-h-[92dvh] w-full overflow-y-auto overscroll-contain rounded-t-3xl border border-soft/40 bg-white p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] text-ink sm:max-h-[calc(100dvh-3rem)] sm:rounded-3xl sm:p-7 sm:pb-7 dark:border-line-strong dark:bg-surface dark:text-white ${wide ? 'sm:max-w-4xl' : 'sm:max-w-xl'}`}
       >
         <header className="mb-5 flex items-center justify-between gap-4">
-          <h2 id="modal-title" className="min-w-0 text-xl font-semibold tracking-tight break-words">
+          <h2 id={titleId} className="min-w-0 text-xl font-semibold tracking-tight break-words">
             {title}
           </h2>
           <button
