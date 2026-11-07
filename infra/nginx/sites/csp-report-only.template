@@ -40,4 +40,5 @@
 #   worker-src blob:        Three.js loaders on the public site construct their
 #                           decoder workers from blobs.
 #   frame-src 'none'        no frontend embeds an iframe.
-default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://avatars.githubusercontent.com; font-src 'self' data:; connect-src 'self' https://${BASE_DOMAIN} https://www.${BASE_DOMAIN} https://auth.${BASE_DOMAIN} https://exogui.${BASE_DOMAIN} https://status.${BASE_DOMAIN} https://calendar.${BASE_DOMAIN} https://sprinter.${BASE_DOMAIN}; worker-src 'self' blob:; frame-src 'none'; frame-ancestors 'none'; base-uri 'none'; object-src 'none'; form-action 'self'
+#   report-uri, report-to   the edge logs each violation (snippets/csp-report.conf).
+default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://avatars.githubusercontent.com; font-src 'self' data:; connect-src 'self' https://${BASE_DOMAIN} https://www.${BASE_DOMAIN} https://auth.${BASE_DOMAIN} https://exogui.${BASE_DOMAIN} https://status.${BASE_DOMAIN} https://calendar.${BASE_DOMAIN} https://sprinter.${BASE_DOMAIN}; worker-src 'self' blob:; frame-src 'none'; frame-ancestors 'none'; base-uri 'none'; object-src 'none'; form-action 'self'; report-uri /_edge/csp-report; report-to csp
