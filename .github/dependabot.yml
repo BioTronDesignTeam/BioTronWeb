@@ -112,15 +112,20 @@ updates:
       - dependency-name: node
         update-types: [version-update:semver-major]
 
-  # The images that the compose files run as they are: Postgres and
-  # cloudflared. The app images are built here and tagged by commit, so
-  # Dependabot leaves them alone.
+  # The images that the compose files run as they are: Postgres, cloudflared
+  # (infra/edge), and Infisical's Postgres and Redis (infra/infisical), each
+  # pinned by version and digest (scripts/check-images); Dependabot moves
+  # both. The app images are built here and tagged by commit, so Dependabot
+  # leaves them alone. Infisical itself sits in ${INFISICAL_IMAGE:-...},
+  # which Dependabot does not read: it moves deliberately, after a backup
+  # (infra/infisical/README.md).
   - package-ecosystem: docker-compose
     directories:
       - /
       - /.devcontainer
       - /apps/*
       - /infra
+      - /infra/*
     schedule:
       interval: weekly
       day: monday
