@@ -1,13 +1,13 @@
-// Package cache keeps each operator's standing and grants in memory for a
-// short while, so the permission check that every tool makes on every page
-// does not reach Postgres each time.
+// Package cache keeps each operator's standing and grants, and which sessions
+// were signed out, in memory for a short while, so the permission check that
+// every tool makes on every page does not reach Postgres each time.
 //
 // One process serves Auth, so the cache is a map, not Redis. Every change
 // Auth makes to an operator (a grant, a revoke, a ban, the manager flag)
 // invalidates that operator at once, and rotating a daily guest key
-// invalidates that app's keys, so the change applies to the very next
-// request. The TTL only bounds how long a change made outside this process,
-// such as by hand in psql, can go unseen.
+// invalidates that app's keys, and a sign-out marks its session revoked, so
+// the change applies to the very next request. The TTL only bounds how long
+// a change made outside this process, such as by hand in psql, can go unseen.
 package cache
 
 import (
@@ -28,6 +28,8 @@ type Source interface {
 	// GetGuestKey returns the daily key of an app for one Eastern day, or
 	// store.ErrNotFound when there is none or the app no longer has daily keys.
 	GetGuestKey(ctx context.Context, appID, day string) (string, error)
+	// IsSessionRevoked reports whether a session was signed out, by its id.
+	IsSessionRevoked(ctx context.Context, sessionID string) (bool, error)
 }
 
 type kept[T any] struct {
@@ -53,6 +55,9 @@ type Cache struct {
 	// guestKeyGeneration counts the invalidations of each app's keys.
 	guestKeys          map[guestKeyID]kept[string]
 	guestKeyGeneration map[string]uint64
+	// revoked holds whether each session id was signed out. A revocation by
+	// this process is kept at once, so it applies to the very next request.
+	revoked map[string]kept[bool]
 }
 
 type guestKeyID struct{ app, day string }
@@ -67,6 +72,7 @@ func New(src Source) *Cache {
 		generation:         map[int64]uint64{},
 		guestKeys:          map[guestKeyID]kept[string]{},
 		guestKeyGeneration: map[string]uint64{},
+		revoked:            map[string]kept[bool]{},
 	}
 }
 
@@ -204,4 +210,50 @@ func keep[T any](c *Cache, m map[int64]kept[T], id int64, value T, gen uint64) {
 		}
 	}
 	m[id] = kept[T]{value: value, loadedAt: now}
+}
+
+// Revoked reports whether the session with this id was signed out, from the
+// last TTL or from the store. A revocation made through MarkRevoked is seen
+// at once; one made by hand in psql within the TTL.
+func (c *Cache) Revoked(ctx context.Context, sessionID string) (bool, error) {
+	c.mu.Lock()
+	entry, ok := c.revoked[sessionID]
+	if ok && (entry.value || c.now().Sub(entry.loadedAt) < c.ttl) {
+		c.mu.Unlock()
+		return entry.value, nil
+	}
+	c.mu.Unlock()
+
+	revoked, err := c.src.IsSessionRevoked(ctx, sessionID)
+	if err != nil {
+		return false, err
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	// A MarkRevoked that raced this load wins: a revocation is never undone.
+	if current, ok := c.revoked[sessionID]; ok && current.value {
+		return true, nil
+	}
+	c.keepRevokedLocked(sessionID, revoked)
+	return revoked, nil
+}
+
+// MarkRevoked records that this process signed the session out, so the next
+// request with it is refused without waiting for the TTL.
+func (c *Cache) MarkRevoked(sessionID string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.keepRevokedLocked(sessionID, true)
+}
+
+func (c *Cache) keepRevokedLocked(sessionID string, revoked bool) {
+	now := c.now()
+	// Drop stale answers as new ones arrive. A revoked one is dropped too: the
+	// store still holds it, so the next request reads it from there.
+	for id, entry := range c.revoked {
+		if now.Sub(entry.loadedAt) >= c.ttl {
+			delete(c.revoked, id)
+		}
+	}
+	c.revoked[sessionID] = kept[bool]{value: revoked, loadedAt: now}
 }

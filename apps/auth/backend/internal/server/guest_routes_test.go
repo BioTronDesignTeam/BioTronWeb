@@ -28,6 +28,10 @@ func (guestStore) ListGrantsForOperator(context.Context, int64) ([]store.Grant, 
 	return nil, nil
 }
 
+func (guestStore) IsSessionRevoked(context.Context, string) (bool, error) {
+	return false, nil
+}
+
 func (guestStore) GetGuestKey(context.Context, string, string) (string, error) {
 	return guestKey, nil
 }

@@ -29,6 +29,10 @@ func (grantStore) ListGrantsForOperator(_ context.Context, operatorID int64) ([]
 	return []store.Grant{{OperatorID: 9, AppID: "calendar", PermissionKey: "write"}}, nil
 }
 
+func (grantStore) IsSessionRevoked(context.Context, string) (bool, error) {
+	return false, nil
+}
+
 func (grantStore) GetGuestKey(context.Context, string, string) (string, error) {
 	return "", store.ErrNotFound
 }

@@ -10,11 +10,27 @@ import (
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient/httplog"
 )
 
-type operatorKey struct{}
+type (
+	operatorKey struct{}
+	sessionKey  struct{}
+)
 
 // withOperator returns r carrying the operator that RequireSession loaded.
 func withOperator(r *http.Request, op *store.SessionOperator) *http.Request {
 	return r.WithContext(context.WithValue(r.Context(), operatorKey{}, op))
+}
+
+// withSession returns r carrying the session cookie RequireSession read, which
+// a sign-out revokes.
+func withSession(r *http.Request, session Session) *http.Request {
+	return r.WithContext(context.WithValue(r.Context(), sessionKey{}, session))
+}
+
+// sessionFrom returns the session RequireSession read; ok is false on a
+// request that did not pass it.
+func sessionFrom(r *http.Request) (Session, bool) {
+	session, ok := r.Context().Value(sessionKey{}).(Session)
+	return session, ok
 }
 
 // RequireSession accepts a session cookie this service signed that has not
@@ -51,6 +67,9 @@ func (h *Handler) RequireSession(next http.Handler) http.Handler {
 			httpx.Error(w, r, http.StatusUnauthorized)
 			return
 		}
+		if !h.sessionStands(w, r, session, member) {
+			return
+		}
 		if session.GuestAppID != "" {
 			if !h.guestKeyStands(w, r, session) {
 				return
@@ -70,8 +89,33 @@ func (h *Handler) RequireSession(next http.Handler) http.Handler {
 		// Every route that reaches a handler passes here first, so naming the
 		// operator once is what puts an actor on each request event.
 		httplog.SetActor(r, op.Login)
-		next.ServeHTTP(w, withOperator(r, op))
+		next.ServeHTTP(w, withSession(withOperator(r, op), session))
 	})
+}
+
+// sessionStands answers the request and returns false when the session was
+// revoked: signed before the operator's sessions_valid_after (sign out
+// everywhere, or a ban), or signed out by its id. Both are read through the
+// cache, which a revocation by this process updates at once, so a stolen copy
+// of a signed-out cookie is refused from the very next request.
+func (h *Handler) sessionStands(w http.ResponseWriter, r *http.Request, session Session, member *store.OrgMember) bool {
+	if session.IssuedAt.Before(member.SessionsValidAfter) {
+		httplog.SetError(r, errors.New("session signed out everywhere"))
+		httpx.Status(w, http.StatusUnauthorized)
+		return false
+	}
+	revoked, err := h.Cache.Revoked(r.Context(), session.ID)
+	if err != nil {
+		fail(r, err, "auth: session revocation lookup")
+		httpx.Status(w, http.StatusServiceUnavailable)
+		return false
+	}
+	if revoked {
+		httplog.SetError(r, errors.New("session signed out"))
+		httpx.Status(w, http.StatusUnauthorized)
+		return false
+	}
+	return true
 }
 
 // stillMember answers the request and returns false unless the operator is

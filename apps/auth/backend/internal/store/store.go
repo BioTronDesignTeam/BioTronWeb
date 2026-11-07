@@ -107,6 +107,9 @@ type OrgMember struct {
 	IsManager   bool      `json:"is_manager"`
 	IsBanned    bool      `json:"is_banned"`
 	LastLoginAt time.Time `json:"last_login_at"`
+	// SessionsValidAfter refuses every session signed before it. It is never
+	// sent to a client.
+	SessionsValidAfter time.Time `json:"-"`
 }
 
 func (op *SessionOperator) IsStaff() bool {
@@ -165,7 +168,8 @@ func (s *Store) ListOrgMembers(ctx context.Context) ([]OrgMember, error) {
 }
 
 func (s *Store) SetBanned(ctx context.Context, githubID int64, banned bool) error {
-	n, err := s.q.SetBanned(ctx, queries.SetBannedParams{GitHubID: githubID, IsBanned: banned})
+	// A ban also signs the operator out everywhere; see SignOutEverywhere.
+	n, err := s.q.SetBanned(ctx, queries.SetBannedParams{GitHubID: githubID, IsBanned: banned, SignedOutAt: time.Now()})
 	if err != nil {
 		return err
 	}
@@ -173,6 +177,35 @@ func (s *Store) SetBanned(ctx context.Context, githubID int64, banned bool) erro
 		return ErrNotFound
 	}
 	return nil
+}
+
+// SignOutEverywhere refuses every session of the operator signed before now.
+// The time is this process's clock, the one that stamps each session cookie.
+func (s *Store) SignOutEverywhere(ctx context.Context, githubID int64) error {
+	n, err := s.q.SignOutEverywhere(ctx, queries.SignOutEverywhereParams{GitHubID: githubID, SignedOutAt: time.Now()})
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// RevokeSession refuses one session, by its id, until expiresAt, when its
+// signature refuses it anyway.
+func (s *Store) RevokeSession(ctx context.Context, sessionID string, expiresAt time.Time) error {
+	return s.q.RevokeSession(ctx, queries.RevokeSessionParams{Jti: sessionID, ExpiresAt: expiresAt})
+}
+
+// IsSessionRevoked reports whether RevokeSession refused the session.
+func (s *Store) IsSessionRevoked(ctx context.Context, sessionID string) (bool, error) {
+	return s.q.IsSessionRevoked(ctx, sessionID)
+}
+
+// DeleteExpiredRevokedSessions forgets the revoked sessions that have expired.
+func (s *Store) DeleteExpiredRevokedSessions(ctx context.Context) (int64, error) {
+	return s.q.DeleteExpiredRevokedSessions(ctx)
 }
 
 func (s *Store) SetManager(ctx context.Context, githubID int64, manager bool) error {

@@ -2,11 +2,12 @@ package auth
 
 // The session cookie and the state cookie of a sign-in are JWTs signed with
 // HMAC-SHA256 and SESSION_SIGNING_KEY. There is no session store: the
-// signature is the check. A session names only the operator's GitHub id (and,
-// for a guest, the tool, the day, and an HMAC of the key it used); roles,
-// bans, grants, and the guest key are read on every request through the
-// cache, so a JWT never carries a privilege that could outlive its
-// revocation.
+// signature is the check, and only revocations are stored. A session names
+// only the operator's GitHub id, its own random id (jti), and when it was
+// signed (and, for a guest, the tool, the day, and an HMAC of the key it
+// used); roles, bans, grants, the guest key, and the revocations are read on
+// every request through the cache, so a JWT never carries a privilege that
+// could outlive its revocation, and a sign-out ends the cookie everywhere.
 //
 // The two kinds have their own audience, so one can never pass as the other.
 // Only HS256 is accepted, and the issuer, the audience, and the expiry are
@@ -54,12 +55,23 @@ type Session struct {
 	// they still match, so rotating the key ends the session.
 	GuestDay   string
 	GuestKeyID string
+	// ID is the session's own random id, the JWT's jti, which a sign-out
+	// records to refuse this one session. Session fills it in.
+	ID string
+	// IssuedAt is when the session was signed, to the microsecond, and
+	// ExpiresAt when it ends. ReadSession fills them in.
+	IssuedAt  time.Time
+	ExpiresAt time.Time
 }
 
 type sessionClaims struct {
 	GuestApp string `json:"guest_app,omitempty"`
 	GuestDay string `json:"guest_day,omitempty"`
 	GuestKey string `json:"guest_key,omitempty"`
+	// SignedAt is when the session was signed, in Unix microseconds: iat holds
+	// whole seconds, too coarse to tell a session signed just before a
+	// revocation from one signed just after it.
+	SignedAt int64 `json:"sat"`
 	jwt.RegisteredClaims
 }
 
@@ -81,19 +93,28 @@ type stateClaims struct {
 	jwt.RegisteredClaims
 }
 
-// Session returns a session cookie value that ends at expires.
+// Session returns a session cookie value that ends at expires, with a new
+// random id.
 func (s *Signer) Session(session Session, expires time.Time) (string, error) {
-	return s.sign(&sessionClaims{
+	id, err := newToken()
+	if err != nil {
+		return "", err
+	}
+	claims := &sessionClaims{
 		GuestApp:         session.GuestAppID,
 		GuestDay:         session.GuestDay,
 		GuestKey:         session.GuestKeyID,
 		RegisteredClaims: s.registered(strconv.FormatInt(session.GitHubID, 10), sessionAudience, expires),
-	})
+	}
+	claims.ID = id
+	claims.SignedAt = s.now().UnixMicro()
+	return s.sign(claims)
 }
 
 // ReadSession returns the session of a cookie value; ok is false when it is
 // not one this key signed, or has expired. A guest session must name its
-// tool and its key, and an operator's must name neither.
+// tool and its key, and an operator's must name neither. Every session must carry
+// its id and the time it was signed, which revocation goes by.
 func (s *Signer) ReadSession(value string) (Session, bool) {
 	var claims sessionClaims
 	if !s.read(value, sessionAudience, &claims) {
@@ -110,7 +131,13 @@ func (s *Signer) ReadSession(value string) (Session, bool) {
 	if (id == 0) != guest {
 		return Session{}, false
 	}
-	return Session{GitHubID: id, GuestAppID: claims.GuestApp, GuestDay: claims.GuestDay, GuestKeyID: claims.GuestKey}, true
+	if claims.ID == "" || claims.SignedAt <= 0 || claims.ExpiresAt == nil {
+		return Session{}, false
+	}
+	return Session{
+		GitHubID: id, GuestAppID: claims.GuestApp, GuestDay: claims.GuestDay, GuestKeyID: claims.GuestKey,
+		ID: claims.ID, IssuedAt: time.UnixMicro(claims.SignedAt), ExpiresAt: claims.ExpiresAt.Time,
+	}, true
 }
 
 // GuestKeyID returns what a guest session records of the daily key it used: an

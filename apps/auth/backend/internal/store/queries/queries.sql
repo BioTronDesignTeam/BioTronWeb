@@ -17,18 +17,43 @@ WHERE is_superuser IS DISTINCT FROM (github_id = ANY(sqlc.arg(ids)::bigint[]));
 
 -- name: GetOperator :one
 SELECT github_id, login, COALESCE(name, '') AS name, COALESCE(avatar_url, '') AS avatar_url,
-       is_superuser, is_manager, is_banned, last_login_at
+       is_superuser, is_manager, is_banned, last_login_at, sessions_valid_after
 FROM operators WHERE github_id = $1;
 
 -- name: ListOrgMembers :many
 SELECT github_id, login, COALESCE(name, '') AS name, COALESCE(avatar_url, '') AS avatar_url,
-       is_superuser, is_manager, is_banned, last_login_at
+       is_superuser, is_manager, is_banned, last_login_at, sessions_valid_after
 FROM operators
 WHERE github_id <> $1
 ORDER BY login;
 
 -- name: SetBanned :execrows
-UPDATE operators SET is_banned = $2 WHERE github_id = $1;
+-- A ban also ends every session the operator holds, so an unban needs a new
+-- sign-in rather than letting an old, perhaps stolen, cookie back in.
+UPDATE operators
+SET is_banned = sqlc.arg(is_banned)::boolean,
+    sessions_valid_after = CASE WHEN sqlc.arg(is_banned)::boolean
+                                THEN sqlc.arg(signed_out_at)::timestamptz
+                                ELSE sessions_valid_after END
+WHERE github_id = sqlc.arg(github_id);
+
+-- name: SignOutEverywhere :execrows
+-- Refuses every session of the operator signed before signed_out_at. Auth
+-- passes its own clock, the one that stamps each session cookie, so the two
+-- never disagree.
+UPDATE operators SET sessions_valid_after = sqlc.arg(signed_out_at)::timestamptz
+WHERE github_id = sqlc.arg(github_id);
+
+-- name: RevokeSession :exec
+INSERT INTO revoked_sessions (jti, expires_at) VALUES ($1, $2)
+ON CONFLICT (jti) DO NOTHING;
+
+-- name: IsSessionRevoked :one
+SELECT EXISTS (SELECT 1 FROM revoked_sessions WHERE jti = $1);
+
+-- name: DeleteExpiredRevokedSessions :execrows
+-- A revoked session past its expiry is refused by its signature anyway.
+DELETE FROM revoked_sessions WHERE expires_at < now();
 
 -- name: SetManager :execrows
 UPDATE operators SET is_manager = $2 WHERE github_id = $1;
