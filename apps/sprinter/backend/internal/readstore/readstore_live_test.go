@@ -6,17 +6,21 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/readstore/readstoretest"
 )
 
 // These run against the real read-only role, because the grants are the whole
 // point of this package and no compiler checks them. Set
-// SPRINTER_TEST_READ_DATABASE_URL; without it the tests skip.
+// SPRINTER_TEST_READ_DATABASE_URL; without it the tests skip. The tests that
+// assert on rows also need SPRINTER_TEST_OWNER_DATABASE_URL to seed them
+// (readstoretest).
 //
 //	SPRINTER_TEST_READ_DATABASE_URL='postgresql://sprinter_reader:change-me-reader@127.0.0.1:15433/biotron' \
 //	  go test ./internal/readstore/ -run Live -v
 //
-// Nothing here writes. The role could not write if it tried, which is what the
-// last test proves.
+// Nothing here writes through the read role. It could not if it tried, which
+// is what the last test proves.
 func liveStore(t *testing.T) (*Store, context.Context) {
 	t.Helper()
 	databaseURL := os.Getenv("SPRINTER_TEST_READ_DATABASE_URL")
@@ -32,42 +36,57 @@ func liveStore(t *testing.T) (*Store, context.Context) {
 	return store, ctx
 }
 
-func TestLiveHealthHistoryRuns(t *testing.T) {
+func TestLiveHealthHistoryReadsTheSeededChecks(t *testing.T) {
 	store, ctx := liveStore(t)
-	rows, err := store.HealthHistory(ctx, "logger-api", time.Now().Add(-24*time.Hour), 200)
+	seeded := readstoretest.Seed(t)
+	rows, err := store.HealthHistory(ctx, seeded.Service, time.Now().Add(-24*time.Hour), 200)
 	if err != nil {
 		t.Fatalf("health history: %v", err)
 	}
-	for i := 1; i < len(rows); i++ {
-		if rows[i].CheckedAt.After(rows[i-1].CheckedAt) {
-			t.Fatal("checks must come back newest first")
-		}
+	if len(rows) != 2 {
+		t.Fatalf("rows = %+v, want the two seeded checks", rows)
+	}
+	// Newest first: the failure half an hour ago, then the success before it.
+	if rows[0].OK || rows[0].Detail != "connection refused" || !rows[0].CheckedAt.Equal(seeded.DownAt) {
+		t.Fatalf("newest = %+v", rows[0])
+	}
+	if !rows[1].OK || !rows[1].CheckedAt.Equal(seeded.UpAt) {
+		t.Fatalf("oldest = %+v", rows[1])
+	}
+	none, err := store.HealthHistory(ctx, seeded.Service, time.Now().Add(-10*time.Minute), 200)
+	if err != nil || len(none) != 0 {
+		t.Fatalf("checks before since must be left out: %+v, %v", none, err)
 	}
 }
 
-func TestLiveAccessJoinsRun(t *testing.T) {
+func TestLiveAccessReportsTheSeededRoster(t *testing.T) {
 	store, ctx := liveStore(t)
+	seeded := readstoretest.Seed(t)
 	report, err := store.Access(ctx, "sprinter")
 	if err != nil {
 		t.Fatalf("access: %v", err)
 	}
-	if report.AppID != "sprinter" {
+	if !report.AppFound || report.AppID != "sprinter" {
 		t.Fatalf("report = %+v", report)
 	}
-	for _, grant := range report.Grants {
-		if grant.Login == "" {
-			t.Fatalf("a grant came back without an operator: %+v", grant)
+	var grant *GrantRow
+	for i := range report.Grants {
+		if report.Grants[i].Login == seeded.Member {
+			grant = &report.Grants[i]
 		}
 	}
-	for _, manager := range report.Managers {
-		if !manager.IsManager {
-			t.Fatalf("a non-manager is listed as one: %+v", manager)
-		}
+	if grant == nil {
+		t.Fatalf("grants = %+v, want %s", report.Grants, seeded.Member)
 	}
-	for _, superuser := range report.Superusers {
-		if !superuser.IsSuperuser {
-			t.Fatalf("a non-superuser is listed as one: %+v", superuser)
-		}
+	if grant.PermissionKey != "admin" || grant.Name != "Live Member" || !grant.IsBanned ||
+		grant.IsManager || !grant.GrantedAt.Equal(readstoretest.GrantedAt) {
+		t.Fatalf("grant = %+v", *grant)
+	}
+	if !listed(report.Managers, seeded.Manager) || listed(report.Managers, seeded.Member) {
+		t.Fatalf("managers = %+v, want %s and not %s", report.Managers, seeded.Manager, seeded.Member)
+	}
+	if listed(report.Superusers, seeded.Manager) {
+		t.Fatalf("superusers = %+v, a manager is not one", report.Superusers)
 	}
 
 	// An app nobody registered is an answer, not a failure.
@@ -78,6 +97,15 @@ func TestLiveAccessJoinsRun(t *testing.T) {
 	if missing.AppFound {
 		t.Fatal("an unregistered app must not report as found")
 	}
+}
+
+func listed(operators []OperatorRow, login string) bool {
+	for _, operator := range operators {
+		if operator.Login == login {
+			return true
+		}
+	}
+	return false
 }
 
 // TestLiveReadRoleCannotSeeGuestKeys is the containment test. Everything else
