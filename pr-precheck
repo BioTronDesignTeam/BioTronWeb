@@ -79,7 +79,8 @@ done
 shared=no
 if $all_backends; then shared=yes; fi
 printf 'Base: %s (merge base %.12s)\nFrontends: %s\nBackends: %s\nShared Go modules: %s\n' "$base" "$merge_base" "${frontends:-none}" "${backends:-none}" "$shared"
-echo 'Workflows: actionlint and ShellCheck on every workflow'
+echo 'Workflows: actionlint on every workflow'
+echo 'Shell scripts: ShellCheck on every one (scripts/list-shell-scripts)'
 echo 'Security: commit history, staged and working files, vulnerabilities and misconfigurations'
 if $plan; then exit 0; fi
 
@@ -195,6 +196,10 @@ for module in $modules; do
 done
 
 run 'workflows' actionlint
+# Same as the shellcheck job of ci.yml.
+shell_scripts=()
+while IFS= read -r -d '' file; do shell_scripts+=("$file"); done < <(scripts/list-shell-scripts)
+run 'shell scripts' shellcheck -x "${shell_scripts[@]}"
 
 repo_url=$(jq -nr --arg root "$root" '"file://" + ($root | split("/") | map(@uri) | join("/"))')
 run 'commit secrets' scan_secrets git "$repo_url" --since-commit "$merge_base" --branch "$head_commit"

@@ -261,6 +261,30 @@ jobs:
           exit-code: '1'
           trivyignores: .trivyignore.yaml
 
+  # ShellCheck on every shell script (scripts/list-shell-scripts), on every
+  # change: it takes seconds, and the scripts run on the deploy host.
+  shellcheck:
+    name: shell scripts (ShellCheck)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The ShellCheck of the actionlint image that .devcontainer/Dockerfile
+      # copies it from, by the same digest, so this job and ./pr-precheck
+      # agree. Dependabot updates that FROM line.
+      - name: ShellCheck every shell script
+        run: |
+          image=$(sed -nE 's|^FROM (rhysd/actionlint:[0-9.]+@sha256:[0-9a-f]{64}) AS actionlint$|\1|p' .devcontainer/Dockerfile)
+          if [[ -z $image ]]; then
+            echo "::error::No pinned actionlint image in .devcontainer/Dockerfile"
+            exit 1
+          fi
+          mapfile -d '' scripts < <(scripts/list-shell-scripts)
+          printf '%s\n' "${scripts[@]}"
+          docker run --rm -v "$PWD:/repo:ro" -w /repo --entrypoint shellcheck "$image" -x "${scripts[@]}"
+
   # The one check the main ruleset requires. The build and test jobs above
   # only exist for the parts a change touches, so they cannot be required by
   # name; this job waits for all of them and fails if any failed or was
@@ -268,7 +292,7 @@ jobs:
   passed:
     name: ci passed
     if: always()
-    needs: [compose-config, changes, frontend, backend, shared, secrets, vulnerabilities]
+    needs: [compose-config, changes, frontend, backend, shared, secrets, vulnerabilities, shellcheck]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
