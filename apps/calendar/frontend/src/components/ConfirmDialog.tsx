@@ -92,6 +92,7 @@ export function PromptDialog({
 }: PromptDialogProps) {
   const [value, setValue] = useState(initialValue);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
   const trimmed = value.trim();
   const invalid = trimmed.length < minLength || trimmed.length > maxLength;
 
@@ -99,8 +100,12 @@ export function PromptDialog({
     event.preventDefault();
     if (invalid || trimmed === initialValue) return;
     setBusy(true);
+    setError('');
     try {
       await onConfirm(trimmed);
+    } catch (caught) {
+      // Stay open with the typed value, and say why the server refused it.
+      setError(caught instanceof Error ? caught.message : 'The change failed.');
     } finally {
       setBusy(false);
     }
@@ -126,6 +131,11 @@ export function PromptDialog({
             ? `Use between ${minLength} and ${maxLength} characters.`
             : `${trimmed.length} of ${maxLength} characters.`}
         </p>
+        {error && (
+          <p role="alert" className="mt-2 text-sm text-red-700 dark:text-red-300">
+            {error}
+          </p>
+        )}
         <div className="mt-7 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <button type="button" onClick={onCancel} className={cancelClass}>
             Cancel

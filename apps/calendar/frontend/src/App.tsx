@@ -242,6 +242,15 @@ export function App() {
     }
   }
 
+  // For a form with its own error slot: a refusal is thrown back to it, so it
+  // stays open with what was typed and says why, rather than closing or
+  // clearing while only the banner explains.
+  async function mutateFromForm(action: () => Promise<unknown>) {
+    setAdminError('');
+    await action();
+    await refreshAfterMutation();
+  }
+
   const editorScopes = managing ? adminScopes : scopes;
   const showingAdmin = managing && canWrite;
   const step = (direction: -1 | 1) => setAnchor((current) => stepAnchor(view, current, direction));
@@ -296,10 +305,12 @@ export function App() {
             await mutate(() => calendarApi.deleteEvent(event.id));
           }}
           onCreateScope={async (kind, name, parentId) => {
-            await mutate(() => calendarApi.createScope({ kind, name, parent_id: parentId }));
+            await mutateFromForm(() =>
+              calendarApi.createScope({ kind, name, parent_id: parentId }),
+            );
           }}
           onRenameScope={async (scope, name) => {
-            await mutate(() => calendarApi.renameScope(scope.id, name));
+            await mutateFromForm(() => calendarApi.renameScope(scope.id, name));
           }}
           onArchiveScope={async (scope) => {
             await mutate(() => calendarApi.archiveScope(scope.id));
