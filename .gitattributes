@@ -2,3 +2,14 @@
 # the gofmt and goimports formatters of go/.golangci.yml, and sqlc diff, read a
 # CRLF file as unformatted or changed.
 *.go text eol=lf
+
+# The files Prettier checks stay LF too: its endOfLine default reads a CRLF
+# checkout as unformatted.
+*.ts text eol=lf
+*.tsx text eol=lf
+*.js text eol=lf
+*.mjs text eol=lf
+*.cjs text eol=lf
+*.json text eol=lf
+*.css text eol=lf
+*.html text eol=lf
