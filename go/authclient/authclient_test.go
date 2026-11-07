@@ -375,3 +375,51 @@ func TestStatusHandlerExtraNeverOverridesReservedKeys(t *testing.T) {
 		t.Fatalf("signed in: %s", got.body)
 	}
 }
+
+// The fallback for an Auth without /v1/session reads every answer of
+// /auth/me and /v1/check the way /v1/session's would be read.
+func TestLookupFallbackEdgeCases(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		me          int
+		meBody      string
+		check       int
+		wantErr     bool
+		wantSession bool
+		wantAllowed bool
+	}{
+		{name: "me 401 is anonymous", me: http.StatusUnauthorized, check: http.StatusOK},
+		{name: "me 403 is anonymous", me: http.StatusForbidden, check: http.StatusOK},
+		{name: "me 500 is an outage", me: http.StatusInternalServerError, check: http.StatusOK, wantErr: true},
+		{name: "me with bad JSON is an outage", me: http.StatusOK, meBody: `{"login":`, check: http.StatusOK, wantErr: true},
+		{name: "check 403 is not permitted", me: http.StatusOK, check: http.StatusForbidden, wantSession: true},
+		{name: "check 200 allows", me: http.StatusOK, check: http.StatusOK, wantSession: true, wantAllowed: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/auth/me":
+					w.WriteHeader(tc.me)
+					body := tc.meBody
+					if body == "" {
+						body = `{"github_id":7,"login":"octocat"}`
+					}
+					_, _ = io.WriteString(w, body)
+				case "/v1/check":
+					w.WriteHeader(tc.check)
+					_, _ = io.WriteString(w, `{"allowed":true}`)
+				default:
+					w.WriteHeader(http.StatusNotFound)
+				}
+			}))
+			t.Cleanup(server.Close)
+			session, err := authclient.New(server.URL, "calendar").Lookup(context.Background(), cookie, "write")
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("err = %v, want error %v", err, tc.wantErr)
+			}
+			if session.Authenticated() != tc.wantSession || session.Can("write") != tc.wantAllowed {
+				t.Fatalf("session = %+v", session)
+			}
+		})
+	}
+}
