@@ -6,9 +6,11 @@
 # an existing cluster; see the "Read-only role for Sprinter" section in
 # infra/README.md for that command.
 #
-# The read-only guarantee lives here, in Postgres, not in Sprinter's Go code:
-# default_transaction_read_only makes every session sprinter_reader opens
-# reject writes, even if the application code has a bug.
+# The read-only guarantee lives here, in Postgres, not in Sprinter's Go code,
+# and it is the grants below: SELECT on five named tables, no write on any.
+# default_transaction_read_only is a second line, not the guarantee: it is
+# only a session default, which the role can SET off for itself, and the role
+# still has TEMP on the database through PUBLIC.
 set -euo pipefail
 
 : "${SPRINTER_READER_PASSWORD:?SPRINTER_READER_PASSWORD is not set. Add it to infra/.env and pass it to this container.}"
