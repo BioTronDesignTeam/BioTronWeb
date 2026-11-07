@@ -53,7 +53,7 @@ export default function OrgMemberList({
                   <div className="truncate text-sm font-medium text-slate-900 dark:text-white">
                     {member.name || member.login}
                   </div>
-                  <div className="truncate text-xs text-slate-500 dark:text-muted">
+                  <div className="truncate text-xs text-slate-600 dark:text-muted">
                     {memberLine(member)}
                   </div>
                 </div>

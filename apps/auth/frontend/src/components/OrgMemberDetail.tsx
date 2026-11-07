@@ -308,7 +308,7 @@ export default function OrgMemberDetail({
             </h3>
             <p className={`mt-0.5 break-words ${mutedText}`}>@{member.login}</p>
             {member.last_login_at && (
-              <p className="mt-1 text-xs text-slate-400 dark:text-faint">
+              <p className="mt-1 text-xs text-slate-500 dark:text-faint">
                 {authStrings.lastSignIn} {new Date(member.last_login_at).toLocaleString()}
               </p>
             )}
@@ -329,7 +329,7 @@ export default function OrgMemberDetail({
       >
         <h4 className={sectionHeading}>Grants</h4>
         {staff ? (
-          <p className="mt-2 text-sm text-emerald-600 dark:text-emerald-400">
+          <p className="mt-2 text-sm text-emerald-700 dark:text-emerald-400">
             As a {role}, they hold every permission in every tool, so there is nothing to grant.
           </p>
         ) : null}

@@ -62,7 +62,7 @@ export default function AccessTab({
       <div className={panelHeader}>
         <h2 className={panelHeading}>Your permissions</h2>
         {fullAccess ? (
-          <p className="mt-1 text-sm text-emerald-600 dark:text-emerald-400">
+          <p className="mt-1 text-sm text-emerald-700 dark:text-emerald-400">
             As a {role}, you hold every permission in every tool.
           </p>
         ) : (
@@ -84,7 +84,7 @@ export default function AccessTab({
                 <div className={`mt-1 break-words ${mutedText}`}>{app.description || app.id}</div>
               </div>
               {perms.length === 0 ? (
-                <p className="mt-3 text-sm text-slate-400 dark:text-faint">
+                <p className="mt-3 text-sm text-slate-500 dark:text-faint">
                   No permissions defined.
                 </p>
               ) : (
