@@ -21,19 +21,19 @@ Its Compose project is `biotron-exogui`, and it reports its events as
 
 ## Run
 
-Exo needs a running Auth, which needs the shared Postgres. From the monorepo
-root, with `./launch` (it reads each app's `.env`; see `apps/auth/README.md`
-for Auth's):
+Exo needs a running Auth (see `apps/auth/README.md`), which needs the
+Postgres from `infra/`. Start them with Exo, from the monorepo root:
 
 ```bash
+cp infra/.env.example infra/.env
+cp apps/auth/.env.example apps/auth/.env   # set the GitHub App values
 cp apps/exogui/.env.example apps/exogui/.env
 ./launch infra
-./launch web --build    # every app; --no-<app> leaves one out
+./launch web --build --no-biotron --no-calendar --no-status --no-sprinter
 ```
 
-Plain `docker compose` from the root does not read `apps/exogui/.env`. To
-restart Exo alone, run it from this folder: `cd apps/exogui && docker compose
-up -d --build`.
+`./launch web --build` starts every app instead. `./launch` reads each
+app's `.env`; plain `docker compose` from the root does not.
 
 The UI is at http://localhost:5174 and the API at http://localhost:8081. The
 browser signs in against Auth on port 8080. The API reaches Auth at

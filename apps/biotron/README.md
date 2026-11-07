@@ -37,14 +37,17 @@ alias `biotron-web`.
 
 ## Run
 
-Start `infra/` once, from the monorepo root, so that the `biotron` network
-exists. Then the site:
+Start the site from the monorepo root:
 
 ```bash
-docker compose -f infra/docker-compose.yml --env-file infra/.env up -d
+cp infra/.env.example infra/.env
 cp apps/biotron/.env.example apps/biotron/.env
-docker compose up -d --build biotron-web
+./launch infra
+./launch web --build --no-calendar --no-auth --no-exogui --no-status --no-sprinter
 ```
+
+`./launch web --build` starts every app instead. `./launch` reads each
+app's `.env`; plain `docker compose` from the root does not.
 
 The site is at http://localhost:5177, bound to `127.0.0.1`. The image builds
 from the repository root so that it can see `packages/style`. The Calendar

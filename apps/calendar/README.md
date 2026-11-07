@@ -25,18 +25,17 @@ app was the `BiotronCalendar` repository. The old name remains in the
 
 ## Run
 
-From the monorepo root, start the shared Postgres once, then the apps:
+Start Postgres once, from the monorepo root, then Calendar alone:
 
 ```bash
-./launch infra
+cp infra/.env.example infra/.env
 cp apps/calendar/.env.example apps/calendar/.env
-./launch web --build            # every app; --no-<app> leaves one out
-(cd apps/calendar && docker compose up -d --build)   # or Calendar alone
+./launch infra
+./launch web --build --no-biotron --no-auth --no-exogui --no-status --no-sprinter
 ```
 
-`./launch` reads `apps/calendar/.env`, as does `docker compose` run in
-`apps/calendar`. A `docker compose` run from the root does not, and
-starts the API with an empty `DATABASE_URL`.
+`./launch web --build` starts every app instead. `./launch` reads each
+app's `.env`; plain `docker compose` from the root does not.
 
 The UI is at http://localhost:5176 and the API at http://localhost:8083.
 To edit events, run Auth as well. The API reaches it at

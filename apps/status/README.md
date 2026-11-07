@@ -23,17 +23,17 @@ keeps the component ids its history is stored under.
 
 ## Run
 
-From the monorepo root, with `./launch`, which reads each app's `.env`:
+Start Postgres once, from the monorepo root, then Status alone:
 
 ```bash
+cp infra/.env.example infra/.env
 cp apps/status/.env.example apps/status/.env
 ./launch infra
-./launch web --build    # every app; --no-<app> leaves one out
+./launch web --build --no-biotron --no-calendar --no-auth --no-exogui --no-sprinter
 ```
 
-Plain `docker compose` from the root does not read `apps/status/.env`. To
-restart Status alone, run it from this folder: `cd apps/status && docker
-compose up -d --build`.
+`./launch web --build` starts every app instead. `./launch` reads each
+app's `.env`; plain `docker compose` from the root does not.
 
 The status page is at http://localhost:5175. It has no sign-in.
 The API listens on http://127.0.0.1:8082; the Nginx inside `status-web`

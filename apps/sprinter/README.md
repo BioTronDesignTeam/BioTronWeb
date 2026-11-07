@@ -24,13 +24,17 @@ event that is coming up or was cancelled.
 
 ## Run
 
-Start the shared Postgres once, from the monorepo root, then Sprinter:
+Start Postgres once, from the monorepo root, then Sprinter alone:
 
 ```bash
-docker compose -f infra/docker-compose.yml --env-file infra/.env up -d
+cp infra/.env.example infra/.env
 cp apps/sprinter/.env.example apps/sprinter/.env   # Discord stays off
-docker compose up -d --build sprinter-migrate sprinter-bot sprinter-web
+./launch infra
+./launch web --build --no-biotron --no-calendar --no-auth --no-exogui --no-status
 ```
+
+`./launch web --build` starts every app instead. `./launch` reads each
+app's `.env`; plain `docker compose` from the root does not.
 
 The UI is at http://localhost:5178 and the API at http://localhost:8084.
 `SPRINTER_DISCORD_ENABLED` decides whether the bot runs at all. Off, the

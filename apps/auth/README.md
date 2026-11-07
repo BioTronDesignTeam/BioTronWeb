@@ -28,17 +28,17 @@ name Auth reports its events under.
 
 ## Run
 
-From the monorepo root, start the shared Postgres, then the apps. `./launch`
-reads `apps/auth/.env`; a plain `docker compose` from the root does not.
+Start Postgres once, from the monorepo root, then Auth alone:
 
 ```bash
-cp apps/auth/.env.example apps/auth/.env    # set the GitHub App values
+cp infra/.env.example infra/.env
+cp apps/auth/.env.example apps/auth/.env   # set the GitHub App values
 ./launch infra
-./launch web --build                        # or leave apps out: --no-sprinter
+./launch web --build --no-biotron --no-calendar --no-exogui --no-status --no-sprinter
 ```
 
-To run Auth alone, run Compose from its folder, where it reads `.env`:
-`cd apps/auth && docker compose up -d --build auth-migrate auth-api auth-web`.
+`./launch web --build` starts every app instead. `./launch` reads each
+app's `.env`; plain `docker compose` from the root does not.
 
 The UI is at http://localhost:5173 and the API at http://localhost:8080.
 The API port must stay 8080: the GitHub App's callback is registered as
