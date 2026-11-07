@@ -119,10 +119,20 @@ export function AdminPanel(props: AdminPanelProps) {
         )}
       </div>
       <div className="mb-6 flex gap-1 rounded-full bg-ink/5 p-1 sm:w-fit dark:bg-surface-2">
-        <button type="button" onClick={() => setTab('events')} className={tabClass('events')}>
+        <button
+          type="button"
+          aria-pressed={tab === 'events'}
+          onClick={() => setTab('events')}
+          className={tabClass('events')}
+        >
           Events
         </button>
-        <button type="button" onClick={() => setTab('scopes')} className={tabClass('scopes')}>
+        <button
+          type="button"
+          aria-pressed={tab === 'scopes'}
+          onClick={() => setTab('scopes')}
+          className={tabClass('scopes')}
+        >
           Projects &amp; subteams
         </button>
       </div>
