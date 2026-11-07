@@ -85,7 +85,8 @@ One file, `apps/biotron/.env`, feeds Compose and Vite. `vite.config.ts` sets
   `/v1/events/upcoming?limit=5&days=42` from it, without credentials.
   Default `http://localhost:8083`.
 - `VITE_CALENDAR_URL` is the Calendar app. The "Open full calendar" link
-  goes there. Default `http://localhost:5176`.
+  goes there, and "Subscribe" goes to `?subscribe=1` there, which opens the
+  subscribe panel. Default `http://localhost:5176`.
 
 The two `VITE_` values are compiled into the bundle. Compose passes them as
 build arguments, so a change needs a rebuild.
