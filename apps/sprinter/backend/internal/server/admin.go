@@ -96,7 +96,8 @@ func (h *Handler) deleteGuard(w http.ResponseWriter, r *http.Request) error {
 func guardSubject(r *http.Request) (string, error) {
 	subject := r.PathValue("subject")
 	switch subject {
-	case store.SubjectAgent, store.SubjectAgentThread, store.SubjectAnnounce, store.SubjectNudge:
+	case store.SubjectAgent, store.SubjectAgentThread, store.SubjectAnnounce, store.SubjectNudge,
+		store.SubjectWhoHasAccess:
 		return subject, nil
 	default:
 		return "", badRequest("unknown guard subject")
