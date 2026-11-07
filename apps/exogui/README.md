@@ -157,7 +157,9 @@ not the app. Guests hold `live` and `historical`, so they get in.
 The top bar leads with the wordmark from `@biotron/style` and, on wide
 screens, the "Exo GUI" label, then the machine
 selector, the Live / Historical toggle in the centre, and the theme toggle
-and account menu on the right. The machine list is one placeholder,
+and account menu on the right. Below `lg` the toggle moves to a second row of
+its own, and on a phone the wordmark gives way to the hand mark, so the header
+fits a 375px screen. The machine list is one placeholder,
 `TestDummyExo`, hard-coded in `App.tsx`. The main area names the chosen mode
 and machine and nothing else.
 

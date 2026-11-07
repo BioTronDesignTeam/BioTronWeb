@@ -46,7 +46,7 @@ export default function SegmentedToggle<T extends string>({
       // still tells a screen-reader user which mode is currently selected.
       aria-label={`${ariaLabel}: ${optionName(active)}`}
       onClick={() => onChange(nextValue)}
-      className="group relative inline-flex cursor-pointer items-center rounded-full bg-slate-200/80 p-1 ring-1 ring-slate-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:bg-surface-2/80 dark:ring-white/10 dark:focus-visible:ring-link"
+      className="group relative inline-flex cursor-pointer items-center rounded-full bg-slate-200/80 p-1 ring-1 ring-slate-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:bg-surface-2/80 dark:ring-white/10 dark:focus-visible:ring-link pointer-coarse:min-h-11"
     >
       {/* sliding highlight — same width as a segment, translated by the active index */}
       <span
