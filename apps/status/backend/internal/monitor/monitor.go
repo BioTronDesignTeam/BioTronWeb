@@ -110,6 +110,13 @@ func (m *Monitor) poll(ctx context.Context) {
 	wait.Wait()
 	close(results)
 
+	// A shutdown cancels the probes still in flight, and a cancelled probe
+	// says nothing about the component. Recording it would raise a false
+	// Component down for every healthy service at each SIGTERM.
+	if ctx.Err() != nil {
+		return
+	}
+
 	for result := range results {
 		health := result.health
 		m.store.SetLatestHealth(health)
