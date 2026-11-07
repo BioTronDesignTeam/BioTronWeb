@@ -36,6 +36,8 @@ jobs:
         run: |
           for script in launch deploy/*.sh deploy/biotron-deploy deploy/biotron-deploy-shell infra/nginx/docker-entrypoint.d/*.sh; do bash -n "$script"; done
           python3 infra/tests/test-runtime-config.py
+      - name: run the edge image and its sites script
+        run: python3 infra/tests/test-edge.py
       - name: run the Postgres image, the role scripts, and the migrate image
         run: python3 infra/tests/test-database-roles.py
 
