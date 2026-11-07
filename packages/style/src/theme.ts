@@ -8,7 +8,7 @@ const themeCookieMaxAge = 60 * 60 * 24 * 365;
 // domains never sit under a multi-part suffix such as co.uk, so two labels is
 // enough. localhost, any other name without a dot, and an IP address get a
 // host-only cookie; cookies ignore ports, so every local app still shares it.
-function cookieDomain(hostname: string) {
+export function cookieDomain(hostname: string) {
   if (!hostname.includes('.') || hostname.startsWith('[') || /^[\d.]+$/.test(hostname)) return '';
   return `; Domain=${hostname.split('.').slice(-2).join('.')}`;
 }
