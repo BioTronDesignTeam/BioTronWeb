@@ -51,8 +51,10 @@ in exactly one place so it cannot drift:
 | Tool | Version | Declared in |
 |---|---|---|
 | Node | 24 | every Dockerfile, the devcontainer, `.github/workflows` |
-| TypeScript | 7.0 | root `package.json` |
-| Linter | Oxlint, type-aware | root `package.json` and `.oxlintrc.json` |
+| TypeScript | 7.0, strict | root `package.json`; options in `tsconfig.base.json`, which every frontend extends |
+| Linter | Oxlint, type-aware, every rule an error | root `package.json` and `.oxlintrc.json` |
+| Formatter | Prettier 3.9 with the Tailwind plugin | root `package.json`, `.prettierrc.json`, `.prettierignore` |
+| Tests | Vitest 5.0.5, exact; jsdom for the library | root `package.json`; `test` in each workspace's `vite.config.ts` |
 | Vite, React plugin | 8.2, 6.1 | root `package.json` |
 | React, React DOM | 19.2 | each app's `package.json`, same range |
 | Tailwind | 4.3 | root `package.json`; an app opts in by importing it |
@@ -71,7 +73,11 @@ An app's own `package.json` lists only what that app alone needs, such as
 npm ci                                   # every frontend and the library, once
 npm run build                            # builds packages/style, then each app
 npm run build -w apps/status/frontend    # one app
-npm run lint                             # Oxlint, type-aware, one configuration for all frontends
+npm run typecheck                        # tsc --noEmit in the library and every app
+npm run lint                             # Oxlint, type-aware, one configuration; fails on any finding
+npm run format:check                     # Prettier; `npm run format` rewrites the files
+npm test                                 # Vitest in every workspace that has tests
+npm test -w packages/style               # one workspace
 go work sync                             # after changing any go.mod
 docker compose up -d                     # the whole platform (injected configuration)
 ```
@@ -123,11 +129,12 @@ the shared modules under `go/`; each app's compose file already sets
 ### Before opening a pull request
 
 Run `./pr-precheck` inside the devcontainer. It mirrors
-`.github/workflows/ci.yml`, `sqlc.yml`, and `workflows.yml`: build and lint
-affected frontends, then run golangci-lint, `go vet`, `go test -race`,
-`go mod tidy -diff`, govulncheck, and (where the backend has a `sqlc.yaml`)
-`sqlc diff` for affected backends and the shared Go modules, lint every
-workflow with actionlint and zizmor, and run ShellCheck on every shell
+`.github/workflows/ci.yml`, `sqlc.yml`, and `workflows.yml`: check the
+Prettier formatting, type-check, lint, and test the shared library; build,
+test, and lint affected frontends, then run golangci-lint, `go vet`,
+`go test -race`, `go mod tidy -diff`, govulncheck, and (where the backend has
+a `sqlc.yaml`) `sqlc diff` for affected backends and the shared Go modules,
+lint every workflow with actionlint and zizmor, and run ShellCheck on every shell
 script. Shared tooling changes expand the checks to their consumers. Changes
 to the precheck, devcontainer, CI workflow, or anything under `go/`, such as
 `go/.golangci.yml`, check every app.
@@ -266,8 +273,3 @@ runs, every Go module builds under `go.work`, and the root compose
 configuration parses with the includes. Since then, every image has been built
 from here and every container on the host runs from this repository, on the
 same ports as before.
-
-## What is still to do
-
-- The React hook and effect findings Oxlint reports are warnings; each app
-  should clear its own and the rules then return to errors.

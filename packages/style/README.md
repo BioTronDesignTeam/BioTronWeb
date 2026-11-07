@@ -14,7 +14,7 @@ button primitives without requiring Tailwind or another CSS framework.
 
 Reopen the repository in its devcontainer, then use
 `npm run dev` for the component preview. Build the consumable library with
-`npm run build`.
+`npm run build`, and run its tests with `npm test`.
 
 BioTronStyle is a build-time dependency for other frontends. It has no runtime
 container, environment file, database, or production service.
