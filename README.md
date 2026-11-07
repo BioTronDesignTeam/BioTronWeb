@@ -59,7 +59,7 @@ in exactly one place so it cannot drift:
 | Type packages | React 19.2, Node 24 | root `package.json` |
 | Prisma | 6.19.3 | `infra/migrate/package.json`, exact |
 | Go | 1.27.3 | every `go.mod`, `go.work`, every backend Dockerfile |
-| golangci-lint, sqlc, actionlint, TruffleHog | 2.15.0, 1.31.1, 1.7.12, 3.97.4 | `.devcontainer/Dockerfile` `FROM` lines; CI reads them there |
+| golangci-lint, sqlc, actionlint, zizmor, TruffleHog | 2.15.0, 1.31.1, 1.7.12, 1.31.1, 3.97.4 | `.devcontainer/Dockerfile` `FROM` lines; CI reads them there |
 
 An app's own `package.json` lists only what that app alone needs, such as
 `three` for the site. Build and lint tooling never goes there.
@@ -124,10 +124,11 @@ the shared modules under `go/`; each app's compose file already sets
 Run `./pr-precheck` inside the devcontainer. It mirrors
 `.github/workflows/ci.yml`, `sqlc.yml`, and `workflows.yml`: build and lint
 affected frontends, then run golangci-lint, `go vet`, `go test`, and (where
-the backend has a `sqlc.yaml`) `sqlc diff` for affected backends, and lint
-every workflow with actionlint. Shared tooling changes expand the checks to
-their consumers. Changes to the precheck, devcontainer, CI workflow, or
-`.golangci.yml` check every app.
+the backend has a `sqlc.yaml`) `sqlc diff` for affected backends, lint
+every workflow with actionlint and zizmor, and run ShellCheck on every shell
+script. Shared tooling changes expand the checks to their consumers. Changes
+to the precheck, devcontainer, CI workflow, or `.golangci.yml` check every
+app.
 
 ```bash
 ./pr-precheck --plan             # inspect the selected checks
@@ -163,23 +164,37 @@ through their existing test-database environment variables.
 
 | Workflow or file | What it does |
 |---|---|
-| `.github/workflows/ci.yml` | Builds, lints, and tests what a change touches; TruffleHog and Trivy on every change |
+| `.github/workflows/ci.yml` | Builds, lints, and tests what a change touches; TruffleHog, Trivy, and ShellCheck on every change |
 | `.github/workflows/sqlc.yml` | `sqlc diff` for every `apps/*/backend/sqlc.yaml`; passes when none exist |
-| `.github/workflows/workflows.yml` | actionlint, with ShellCheck, on every workflow |
+| `.github/workflows/workflows.yml` | actionlint, with ShellCheck, and zizmor on every workflow and on `dependabot.yml` |
+| `.github/zizmor.yml`, `.github/actionlint.yaml` | zizmor requires every action pinned by commit; actionlint knows the `vars.*` the workflows may read |
+| `scripts/list-shell-scripts` | The shell scripts ShellCheck checks: every `*.sh`, and every other file with a `sh` or `bash` shebang |
+| `.github/rulesets/main.json` | The `main` ruleset, as code; `scripts/apply-rulesets` applies it |
 | `.github/workflows/codeql.yml` | CodeQL for Go, TypeScript, and the workflows, on pull requests, `main`, and each Monday |
 | `.github/dependabot.yml` | Weekly grouped updates for Go, npm (root and Prisma), actions, Dockerfiles, and compose files |
 | `.golangci.yml` | One golangci-lint config for every Go module; it lists each enabled linter and why |
 
 Every action is pinned by commit SHA with its release in a comment, and
-Dependabot moves both. Every job reads the repository only, and no checkout
-keeps the token. Generate sqlc code with the devcontainer's `sqlc`: the
-header of each generated file names the release, and `sqlc diff` fails on
-any other one. Keep `database:` out of a `sqlc.yaml`, so sqlc reads the
+Dependabot moves both, after a week of cooldown. Every check job reads the
+repository only, no checkout keeps the token, and no `run:` step pastes an
+expression into its script: values reach scripts through `env:`. zizmor runs
+offline, so Dependabot covers known vulnerable actions. Generate sqlc code
+with the devcontainer's `sqlc`: the header of each generated file names the
+release, and `sqlc diff` fails on any other one. Keep `database:` out of a `sqlc.yaml`, so sqlc reads the
 schema from files and needs no Postgres in CI.
 
 Repository settings the workflows depend on: CodeQL's default setup must stay
 off (the workflow is the advanced setup), and Dependabot security updates
 are a separate switch from this file.
+
+The `main` ruleset lives in `.github/rulesets/main.json`: the required
+checks, one approving review, resolved threads, merge commits only, and no
+force-push or deletion. Change the file in a pull request, then, as a
+repository admin with `gh` and `jq`, run `scripts/apply-rulesets --check` to
+see the difference and `scripts/apply-rulesets` to apply it. It updates the
+ruleset of the same name, or makes one, and leaves a matching one alone. A
+job added to `ci.yml` goes in the `needs` of `ci passed` instead of the
+ruleset.
 
 ### Environment settings
 
