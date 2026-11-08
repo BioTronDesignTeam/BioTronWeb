@@ -214,13 +214,13 @@ func buildRunner(cfg config.Config, reader *readstore.Store, events *logclient.C
 		events.LogAsync(logclient.Error, "Model unavailable", map[string]any{"error": err.Error()})
 		return "", nil, nil, fmt.Errorf("build model: %w", err)
 	}
-	// A nil reader is passed on purpose: tools.All leaves out the SQL tools
-	// rather than building tools with nothing to read.
+	// A nil reader is passed on purpose: tools.All leaves out the SQL tool
+	// rather than building one with nothing to read.
 	var source tools.Reader
 	if reader != nil {
 		source = reader
 	}
-	available := tools.All(source, cfg.StatusURL, cfg.CalendarURL)
+	available := tools.All(source, cfg.CalendarURL)
 	loop := agent.New(answering, available, agent.Options{Timeout: cfg.AgentTimeout})
 	names := make([]string, 0, len(available))
 	for _, tool := range available {

@@ -1,7 +1,7 @@
 // Package tools is what the agent may look at.
 //
-// Four tools, each one read-only: two HTTP endpoints that are already public,
-// and two SQL queries through the read-only pool. A tool validates its own
+// Two tools, each one read-only: Calendar's public upcoming-events endpoint,
+// and one SQL query through the read-only pool. A tool validates its own
 // arguments and caps its own output, because both come from a model. The
 // argument may be nonsense and the result may be a thousand rows, and neither
 // is allowed to reach the loop as such.
@@ -42,26 +42,22 @@ func IsPrivileged(tool Tool) bool {
 	return ok && privileged.Privileged()
 }
 
-// Reader is the part of readstore the SQL tools use. It is an interface so a
+// Reader is the part of readstore the SQL tool uses. It is an interface so a
 // unit test can drive argument validation without a database.
 type Reader interface {
-	HealthHistory(ctx context.Context, service string, since time.Time, limit int) ([]readstore.HealthRow, error)
 	Access(ctx context.Context, appID string) (readstore.AccessReport, error)
 }
 
-// All builds every tool. A nil reader leaves out the two SQL tools, which is
-// what happens when READ_DATABASE_URL is unset: the bot still answers from the
-// two public endpoints rather than refusing to start.
-func All(reader Reader, statusURL, calendarURL string) []Tool {
-	all := []Tool{PlatformStatus{StatusURL: statusURL}}
+// All builds every tool. A nil reader leaves out the SQL tool, which is what
+// happens when READ_DATABASE_URL is unset, and an empty Calendar URL leaves out
+// the Calendar tool: the bot still starts rather than refusing to.
+func All(reader Reader, calendarURL string) []Tool {
+	var all []Tool
 	if calendarURL != "" {
 		all = append(all, CalendarUpcoming{CalendarURL: calendarURL})
 	}
 	if reader != nil {
-		all = append(all,
-			HealthHistory{Reader: reader},
-			WhoHasAccess{Reader: reader},
-		)
+		all = append(all, WhoHasAccess{Reader: reader})
 	}
 	return all
 }

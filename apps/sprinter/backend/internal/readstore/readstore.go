@@ -1,10 +1,10 @@
 // Package readstore is the second Postgres pool: the one the agent's tools
 // read through.
 //
-// It connects as a role with SELECT on the logger schema and on four oauth
-// tables and nothing else. That is the containment. A model can be talked into
-// asking for anything, so the answer to "what stops it writing" is the role's
-// grants, not the wording of a prompt. Every query names its schema, because
+// It connects as a role with SELECT on four oauth tables and nothing else.
+// That is the containment. A model can be talked into asking for anything, so
+// the answer to "what stops it writing" is the role's grants, not the wording
+// of a prompt. Every query names its schema, because
 // this pool has no search_path of its own. The SQL lives in
 // queries/queries.sql and sqlc makes it into Go (sqlc.yaml).
 package readstore
@@ -13,7 +13,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -56,33 +55,6 @@ func New(ctx context.Context, databaseURL string) (*Store, error) {
 func (s *Store) Close() { s.pool.Close() }
 
 func (s *Store) Ping(ctx context.Context) error { return s.pool.Ping(ctx) }
-
-// --- Health -----------------------------------------------------------------
-
-// HealthRow is one recorded check. Detail carries the dial error, which is the
-// point of asking Sprinter rather than reading the public status page.
-type HealthRow struct {
-	OK        bool
-	Detail    string
-	CheckedAt time.Time
-}
-
-func (s *Store) HealthHistory(ctx context.Context, service string, since time.Time, limit int) ([]HealthRow, error) {
-	if limit < 0 || limit > math.MaxInt32 {
-		return nil, fmt.Errorf("limit %d is out of range", limit)
-	}
-	found, err := s.q.HealthHistory(ctx, queries.HealthHistoryParams{
-		Service: service, Since: since, RowLimit: int32(limit),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("query health checks: %w", err)
-	}
-	checks := make([]HealthRow, 0, len(found))
-	for _, row := range found {
-		checks = append(checks, HealthRow{OK: row.Ok, Detail: row.Detail, CheckedAt: row.CheckedAt})
-	}
-	return checks, nil
-}
 
 // --- Access -----------------------------------------------------------------
 

@@ -147,9 +147,9 @@ func toDeclarations(tools []model.ToolSpec) ([]*genai.FunctionDeclaration, error
 const syntheticPrefix = "gemini-call-"
 
 // responseSeq numbers each response this process maps. Without it, two turns
-// that both call health_history first would each invent
-// "gemini-call-health_history-0", and a transcript replayed later could not say
-// which result answered which call.
+// that both call calendar_upcoming first would each invent
+// "gemini-call-calendar_upcoming-0", and a transcript replayed later could not
+// say which result answered which call.
 var responseSeq atomic.Uint64
 
 func syntheticID(name string, response uint64, index int) string {

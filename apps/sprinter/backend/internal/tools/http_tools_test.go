@@ -36,24 +36,11 @@ func TestHTTPToolsTurnBadAnswersIntoErrors(t *testing.T) {
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
 			base := serve(t, testCase.status, testCase.body)
-			for _, tool := range []Tool{PlatformStatus{StatusURL: base}, CalendarUpcoming{CalendarURL: base}} {
-				out, err := tool.Run(t.Context(), nil)
-				if err == nil {
-					t.Fatalf("%s answered %d characters, want an error", tool.Spec().Name, len(out))
-				}
+			out, err := CalendarUpcoming{CalendarURL: base}.Run(t.Context(), nil)
+			if err == nil {
+				t.Fatalf("calendar_upcoming answered %d characters, want an error", len(out))
 			}
 		})
-	}
-}
-
-func TestPlatformStatusIsCapped(t *testing.T) {
-	long := `{"components":[` + strings.Repeat(`{"id":"component","state":"operational"},`, 400) + `{"id":"last"}]}`
-	out, err := PlatformStatus{StatusURL: serve(t, http.StatusOK, long)}.Run(t.Context(), nil)
-	if err != nil {
-		t.Fatalf("run: %v", err)
-	}
-	if len(out) > statusCap+200 || !strings.Contains(out, "[Cut here.") {
-		t.Fatalf("result of %d characters, want it cut at %d with a notice", len(out), statusCap)
 	}
 }
 

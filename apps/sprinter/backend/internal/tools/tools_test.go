@@ -14,13 +14,8 @@ import (
 // stubReader answers with fixed rows, so a test can drive a tool without a
 // database.
 type stubReader struct {
-	health []readstore.HealthRow
 	access readstore.AccessReport
 	err    error
-}
-
-func (s *stubReader) HealthHistory(context.Context, string, time.Time, int) ([]readstore.HealthRow, error) {
-	return s.health, s.err
 }
 
 func (s *stubReader) Access(context.Context, string) (readstore.AccessReport, error) {
@@ -89,9 +84,9 @@ func TestCutsNeverSplitACharacter(t *testing.T) {
 
 func TestEverySpecIsUsableJSONSchema(t *testing.T) {
 	reader := &stubReader{}
-	all := All(reader, "http://status", "http://calendar")
-	if len(all) != 4 {
-		t.Fatalf("tools = %d, want 4", len(all))
+	all := All(reader, "http://calendar")
+	if len(all) != 2 {
+		t.Fatalf("tools = %d, want 2", len(all))
 	}
 	names := map[string]bool{}
 	for _, tool := range all {
@@ -114,50 +109,10 @@ func TestEverySpecIsUsableJSONSchema(t *testing.T) {
 			t.Fatalf("tool %q takes %q arguments, want object", spec.Name, schema.Type)
 		}
 	}
-	// A missing reader must leave out the SQL tools rather than build tools that
-	// would panic on their first call.
-	if got := len(All(nil, "http://status", "http://calendar")); got != 2 {
-		t.Fatalf("tools without a reader = %d, want 2", got)
-	}
-}
-
-func TestHealthHistoryNeedsAServiceAndASaneWindow(t *testing.T) {
-	tool := HealthHistory{Reader: &stubReader{}}
-	for name, args := range map[string]string{
-		"no service":      `{}`,
-		"a blank service": `{"service": "  "}`,
-		"too many hours":  `{"service": "logger-api", "hours": 169}`,
-		"no hours at all": `{"service": "logger-api", "hours": 0}`,
-	} {
-		t.Run(name, func(t *testing.T) {
-			if _, err := run(t, tool, args); err == nil {
-				t.Fatal("want an error")
-			}
-		})
-	}
-}
-
-func TestHealthHistoryCountsFailuresAndKeepsTheDetail(t *testing.T) {
-	reader := &stubReader{health: []readstore.HealthRow{
-		{OK: false, Detail: "dial tcp 10.0.0.2:8080: connect: refused", CheckedAt: time.Unix(1757000060, 0)},
-		{OK: true, CheckedAt: time.Unix(1757000000, 0)},
-	}}
-	out, err := run(t, HealthHistory{Reader: reader}, `{"service":"exo-api","hours":6}`)
-	if err != nil {
-		t.Fatalf("run: %v", err)
-	}
-	for _, want := range []string{"exo-api", "2 checks", "1 failed", "down", "connect: refused", "up"} {
-		if !strings.Contains(out, want) {
-			t.Fatalf("result is missing %q:\n%s", want, out)
-		}
-	}
-
-	empty, err := run(t, HealthHistory{Reader: &stubReader{}}, `{"service":"typo"}`)
-	if err != nil {
-		t.Fatalf("run: %v", err)
-	}
-	if !strings.Contains(empty, "No health checks") {
-		t.Fatalf("result = %q", empty)
+	// A missing reader must leave out the SQL tool rather than build one that
+	// would panic on its first call.
+	if got := len(All(nil, "http://calendar")); got != 1 {
+		t.Fatalf("tools without a reader = %d, want 1", got)
 	}
 }
 
@@ -216,9 +171,6 @@ func TestCalendarUpcomingValidatesItsArguments(t *testing.T) {
 	// A tool with nowhere to call must say so rather than dial an empty URL.
 	if _, err := run(t, CalendarUpcoming{}, `{}`); err == nil {
 		t.Fatal("an unconfigured Calendar URL must be an error")
-	}
-	if _, err := run(t, PlatformStatus{}, `{}`); err == nil {
-		t.Fatal("an unconfigured Status URL must be an error")
 	}
 }
 

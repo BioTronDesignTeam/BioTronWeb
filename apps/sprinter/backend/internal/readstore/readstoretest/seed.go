@@ -1,10 +1,10 @@
 // Package readstoretest seeds the rows the read pool's live tests assert on.
 //
 // The read role cannot write, so the rows go in through a second connection
-// that can: SPRINTER_TEST_OWNER_DATABASE_URL, the role that owns the oauth and
-// logger tables (the cluster's POSTGRES_USER in development). Every row gets
-// a name no real row has, and is removed when the test ends, so the tests can
-// run against a development database without disturbing it.
+// that can: SPRINTER_TEST_OWNER_DATABASE_URL, the role that owns the oauth
+// tables (the cluster's POSTGRES_USER in development). Every row gets a name
+// no real row has, and is removed when the test ends, so the tests can run
+// against a development database without disturbing it.
 package readstoretest
 
 import (
@@ -28,15 +28,10 @@ type Seeded struct {
 	Member string
 	// Manager is a manager with no grant.
 	Manager string
-	// Service has two health checks: one up an hour ago, one down with a
-	// detail half an hour ago.
-	Service string
-	// DownAt and UpAt are when those checks ran.
-	DownAt, UpAt time.Time
 }
 
-// Seed writes one banned grant holder, one manager and two health checks,
-// or skips the test when SPRINTER_TEST_OWNER_DATABASE_URL is unset.
+// Seed writes one banned grant holder and one manager, or skips the test when
+// SPRINTER_TEST_OWNER_DATABASE_URL is unset.
 func Seed(t *testing.T) Seeded {
 	t.Helper()
 	ownerURL := os.Getenv("SPRINTER_TEST_OWNER_DATABASE_URL")
@@ -51,13 +46,9 @@ func Seed(t *testing.T) Seeded {
 	t.Cleanup(func() { _ = conn.Close(context.Background()) })
 
 	suffix := randomSuffix(t)
-	now := time.Now().UTC().Truncate(time.Second)
 	seeded := Seeded{
 		Member:  "live-member-" + suffix,
 		Manager: "live-manager-" + suffix,
-		Service: "live-service-" + suffix,
-		UpAt:    now.Add(-time.Hour),
-		DownAt:  now.Add(-30 * time.Minute),
 	}
 	memberID, managerID := githubID(t), githubID(t)
 
@@ -71,19 +62,12 @@ func Seed(t *testing.T) Seeded {
 			[]any{managerID, seeded.Manager}},
 		{`INSERT INTO oauth.grants (operator_id, app_id, permission_key, created_at) VALUES ($1, 'sprinter', 'admin', $2)`,
 			[]any{memberID, GrantedAt}},
-		{`INSERT INTO logger.health_checks (service, ok, checked_at) VALUES ($1, true, $2)`,
-			[]any{seeded.Service, seeded.UpAt}},
-		{`INSERT INTO logger.health_checks (service, ok, detail, checked_at) VALUES ($1, false, 'connection refused', $2)`,
-			[]any{seeded.Service, seeded.DownAt}},
 	}
 	t.Cleanup(func() {
 		ctx := context.Background()
 		// Grants go with their operator (ON DELETE CASCADE).
 		if _, err := conn.Exec(ctx, `DELETE FROM oauth.operators WHERE github_id = ANY($1)`, []int64{memberID, managerID}); err != nil {
 			t.Errorf("clean up operators: %v", err)
-		}
-		if _, err := conn.Exec(ctx, `DELETE FROM logger.health_checks WHERE service = $1`, seeded.Service); err != nil {
-			t.Errorf("clean up health checks: %v", err)
 		}
 	})
 	for _, statement := range statements {

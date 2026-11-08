@@ -38,17 +38,15 @@ sql:
             go_type:
               type: time.Time
               pointer: true
-  # The read-only pool the agent's tools use. It reads Status's and Auth's
-  # tables, so its schema is their migrations. Those are written unqualified
-  # too, and each app applies them with its own schema on the search_path;
-  # the two files in internal/readstore/schema move the tables into logger
-  # and oauth after them, so the queries can name the schema as the pool
-  # must. The oauth file moves only the four tables sprinter_reader may read,
-  # so a query against guest_keys does not generate.
+  # The read-only pool the agent's tools use. It reads Auth's tables, so its
+  # schema is Auth's migrations. Those are written unqualified too, and Auth
+  # applies them with its own schema on the search_path; the file in
+  # internal/readstore/schema moves the tables into oauth after them, so the
+  # queries can name the schema as the pool must. It moves only the four
+  # tables sprinter_reader may read, so a query against guest_keys does not
+  # generate.
   - engine: postgresql
     schema:
-      - ../../status/prisma/migrations/*/migration.sql
-      - internal/readstore/schema/logger.sql
       - ../../auth/prisma/migrations/*/migration.sql
       - internal/readstore/schema/oauth.sql
     queries: internal/readstore/queries/queries.sql

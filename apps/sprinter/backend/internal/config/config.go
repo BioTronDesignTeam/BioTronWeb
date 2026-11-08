@@ -42,7 +42,6 @@ type Config struct {
 	// PollInterval is how often the scheduler reads Calendar.
 	PollInterval    time.Duration
 	CalendarURL     string
-	StatusURL       string
 	OAuthManagerURL string
 	FrontendURL     string
 	CORSOrigins     []string
@@ -64,7 +63,6 @@ func Load() Config {
 		AgentTimeout:    getduration("AGENT_TIMEOUT", 2*time.Minute),
 		PollInterval:    getduration("POLL_INTERVAL", 5*time.Minute),
 		CalendarURL:     trimURL(getenv("CALENDAR_URL", "http://calendar-api:8080")),
-		StatusURL:       trimURL(getenv("STATUS_URL", "http://status-api:8080")),
 		OAuthManagerURL: trimURL(getenv("OAUTH_MANAGER_URL", "http://oauth-manager:8080")),
 		FrontendURL:     trimURL(getenv("FRONTEND_URL", DefaultFrontendURL)),
 		CORSOrigins:     splitCSV(os.Getenv("CORS_ORIGINS")),

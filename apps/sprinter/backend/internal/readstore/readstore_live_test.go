@@ -5,7 +5,6 @@ import (
 	"os"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/readstore/readstoretest"
 )
@@ -34,29 +33,6 @@ func liveStore(t *testing.T) (*Store, context.Context) {
 	}
 	t.Cleanup(store.Close)
 	return store, ctx
-}
-
-func TestLiveHealthHistoryReadsTheSeededChecks(t *testing.T) {
-	store, ctx := liveStore(t)
-	seeded := readstoretest.Seed(t)
-	rows, err := store.HealthHistory(ctx, seeded.Service, time.Now().Add(-24*time.Hour), 200)
-	if err != nil {
-		t.Fatalf("health history: %v", err)
-	}
-	if len(rows) != 2 {
-		t.Fatalf("rows = %+v, want the two seeded checks", rows)
-	}
-	// Newest first: the failure half an hour ago, then the success before it.
-	if rows[0].OK || rows[0].Detail != "connection refused" || !rows[0].CheckedAt.Equal(seeded.DownAt) {
-		t.Fatalf("newest = %+v", rows[0])
-	}
-	if !rows[1].OK || !rows[1].CheckedAt.Equal(seeded.UpAt) {
-		t.Fatalf("oldest = %+v", rows[1])
-	}
-	none, err := store.HealthHistory(ctx, seeded.Service, time.Now().Add(-10*time.Minute), 200)
-	if err != nil || len(none) != 0 {
-		t.Fatalf("checks before since must be left out: %+v, %v", none, err)
-	}
 }
 
 func TestLiveAccessReportsTheSeededRoster(t *testing.T) {
@@ -126,9 +102,9 @@ func TestLiveReadRoleCannotSeeGuestKeys(t *testing.T) {
 func TestLiveReadRoleCannotWrite(t *testing.T) {
 	store, ctx := liveStore(t)
 	_, err := store.pool.Exec(ctx,
-		`INSERT INTO logger.health_checks (service, ok, checked_at) VALUES ('sprinter', true, now())`)
+		`INSERT INTO oauth.operators (github_id, login) VALUES (9000000000001, 'read-role-write-probe')`)
 	if err == nil {
-		t.Fatal("the read role wrote a health check; it must not be able to")
+		t.Fatal("the read role wrote an operator; it must not be able to")
 	}
 	// Two different settings can stop the write — a missing INSERT grant, or a
 	// role whose transactions are read-only. Either is the containment working,

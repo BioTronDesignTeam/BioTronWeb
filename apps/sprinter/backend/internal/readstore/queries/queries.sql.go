@@ -11,9 +11,12 @@ import (
 )
 
 const appName = `-- name: AppName :one
+
 SELECT name FROM oauth.apps WHERE id = $1
 `
 
+// What the agent's tools read through the read-only pool. Every table is
+// named with its schema, because the pool has no search_path of its own.
 func (q *Queries) AppName(ctx context.Context, id string) (string, error) {
 	row := q.db.QueryRow(ctx, appName, id)
 	var name string
@@ -71,49 +74,6 @@ func (q *Queries) Grants(ctx context.Context, arg GrantsParams) ([]GrantsRow, er
 			&i.IsBanned,
 			&i.CreatedAt,
 		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const healthHistory = `-- name: HealthHistory :many
-
-SELECT ok, COALESCE(detail, '')::text AS detail, checked_at
-FROM logger.health_checks
-WHERE service = $1 AND checked_at >= $2
-ORDER BY checked_at DESC, id DESC
-LIMIT $3
-`
-
-type HealthHistoryParams struct {
-	Service  string
-	Since    time.Time
-	RowLimit int32
-}
-
-type HealthHistoryRow struct {
-	Ok        bool
-	Detail    string
-	CheckedAt time.Time
-}
-
-// What the agent's tools read through the read-only pool. Every table is
-// named with its schema, because the pool has no search_path of its own.
-func (q *Queries) HealthHistory(ctx context.Context, arg HealthHistoryParams) ([]HealthHistoryRow, error) {
-	rows, err := q.db.Query(ctx, healthHistory, arg.Service, arg.Since, arg.RowLimit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []HealthHistoryRow
-	for rows.Next() {
-		var i HealthHistoryRow
-		if err := rows.Scan(&i.Ok, &i.Detail, &i.CheckedAt); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

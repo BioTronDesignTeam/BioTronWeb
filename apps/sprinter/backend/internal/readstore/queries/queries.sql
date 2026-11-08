@@ -1,13 +1,6 @@
 -- What the agent's tools read through the read-only pool. Every table is
 -- named with its schema, because the pool has no search_path of its own.
 
--- name: HealthHistory :many
-SELECT ok, COALESCE(detail, '')::text AS detail, checked_at
-FROM logger.health_checks
-WHERE service = sqlc.arg(service) AND checked_at >= sqlc.arg(since)
-ORDER BY checked_at DESC, id DESC
-LIMIT sqlc.arg(row_limit);
-
 -- name: AppName :one
 SELECT name FROM oauth.apps WHERE id = sqlc.arg(id);
 

@@ -25,7 +25,7 @@ func offeredNames(call fake.Call) map[string]bool {
 // model that names it anyway gets "no such tool", not the roster.
 func TestAPublicQuestionCannotReachAPrivilegedTool(t *testing.T) {
 	roster := &rosterTool{countingTool{name: "who_has_access", out: "- octocat: admin"}}
-	public := &countingTool{name: "platform_status", out: "all good"}
+	public := &countingTool{name: "calendar_upcoming", out: "all good"}
 	answering := fake.New(callTurn("who_has_access", `{"app":"sprinter"}`), textTurn("I cannot see that."))
 	loop := New(answering, []tools.Tool{public, roster}, Options{})
 
@@ -33,7 +33,7 @@ func TestAPublicQuestionCannotReachAPrivilegedTool(t *testing.T) {
 	if err != nil {
 		t.Fatalf("answer: %v", err)
 	}
-	if offered := offeredNames(answering.Calls()[0]); offered["who_has_access"] || !offered["platform_status"] {
+	if offered := offeredNames(answering.Calls()[0]); offered["who_has_access"] || !offered["calendar_upcoming"] {
 		t.Fatalf("offered = %v, want the public tools only", offered)
 	}
 	if roster.runs != 0 {
@@ -91,7 +91,7 @@ func TestWhoHasAccessIsPrivileged(t *testing.T) {
 	if !tools.IsPrivileged(tools.WhoHasAccess{}) {
 		t.Fatal("who_has_access must be privileged")
 	}
-	if tools.IsPrivileged(tools.PlatformStatus{}) {
-		t.Fatal("platform_status must not be privileged")
+	if tools.IsPrivileged(tools.CalendarUpcoming{}) {
+		t.Fatal("calendar_upcoming must not be privileged")
 	}
 }

@@ -16,7 +16,7 @@ func RuneStart(text string, cut int) int {
 
 // Truncate keeps at most limit bytes of text, cut at the start of a
 // character, and marks a cut with "…". It shortens one field, such as a
-// health detail or an error body: useful at a glance, unbounded in principle.
+// event field or an error body: useful at a glance, unbounded in principle.
 func Truncate(text string, limit int) string {
 	if len(text) <= limit {
 		return text

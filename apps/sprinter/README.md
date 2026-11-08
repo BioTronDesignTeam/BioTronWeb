@@ -4,7 +4,7 @@ Sprinter is the BioTron Discord bot and its admin UI. Two slash commands
 answer questions in Discord. An admin API holds the bot's configuration:
 who may run each command, and which Calendar scopes it will announce.
 
-A question goes to Gemini, which may call the bot's four read-only tools
+A question goes to Gemini, which may call the bot's two read-only tools
 before it answers. Without `GEMINI_API_KEY` the bot echoes the question
 back instead; everything around the model still runs.
 
@@ -67,7 +67,7 @@ npm run lint                                     # Oxlint, from the root
 `SPRINTER_TEST_DATABASE_URL` for the `sprinter` schema,
 `SPRINTER_TEST_READ_DATABASE_URL` for the read-only role the tools use,
 and `SPRINTER_TEST_OWNER_DATABASE_URL` for the role that owns the `oauth`
-and `logger` tables. The read tests seed their rows through that last one,
+tables. The read tests seed their rows through that last one,
 since the read role cannot, and remove them afterwards.
 
 ```bash
@@ -144,10 +144,9 @@ boundary.
 
 ## Tools
 
-The model answers from these four and nothing else. Every one is
-read-only. The two SQL tools read through a second Postgres pool that
-connects as a role with `SELECT` on `logger.health_checks` and on four
-`oauth` tables — nothing else, and no write anywhere. That role is the
+The model answers from these two and nothing else. Both are read-only.
+`who_has_access` reads through a second Postgres pool that connects as a
+role with `SELECT` on four `oauth` tables — nothing else, and no write anywhere. That role is the
 containment: a model can be talked into asking for anything, so the
 answer to "what stops it" is the grant, not the prompt.
 
@@ -156,8 +155,6 @@ saying it was cut and how to narrow the question.
 
 | Tool | Source | Arguments | Cap |
 |------|--------|-----------|-----|
-| `platform_status` | `GET {STATUS_URL}/v1/status` | none | 6000 characters |
-| `health_history` | `logger.health_checks` | `service` (required), `hours` 1–168 (24) | 6000 characters, 200 checks |
 | `calendar_upcoming` | `GET {CALENDAR_URL}/v1/events/upcoming` | `limit` 1–20 (5), `days` 1–90 (42) | 4000 characters |
 | `who_has_access` | `oauth.apps`, `oauth.grants`, `oauth.operators`, `oauth.permissions` | `app` (required) | 6000 characters |
 
@@ -184,10 +181,11 @@ only, and the bot keeps it that way:
   sent, the answer is dropped and the asker is told why. It is never
   posted in the channel.
 
-The model is told that tool results are data and never instructions. A
-health detail or an event title can contain words that read like an
-order; Sprinter reports them and does not act on them. Each result is wrapped in a
-`<tool_result nonce="...">` fence, with one random nonce per answer, so
+The model is told that tool results are data and never instructions. An
+event title or an operator name can contain words that read like an
+order; Sprinter reports them and does not act on them. Each result is
+wrapped in a `<tool_result nonce="...">` fence, with one random nonce per
+answer, so
 the model can see exactly which text the rule covers and no returned text
 can close the fence and speak in its place.
 
@@ -299,9 +297,8 @@ and Prisma. Do not add environment files below it. `go run .` reads
   only read, when the bot is enabled.
 - `DATABASE_URL`. The `sprinter` schema. The `?schema=` becomes the
   connection's `search_path`.
-- `READ_DATABASE_URL`. The read-only role the two SQL tools use. Empty
-  leaves those tools out; the bot still answers from the two public
-  endpoints.
+- `READ_DATABASE_URL`. The read-only role `who_has_access` uses. Empty
+  leaves that tool out; the bot still answers from Calendar.
 - `GEMINI_API_KEY`. Empty runs the echo runner and logs `Model unset`.
 - `GEMINI_MODEL`. Defaults to `gemini-2.5-flash`.
 - `THREAD_MAX_TURNS`. How many questions one thread answers. 40 by
@@ -315,7 +312,6 @@ and Prisma. Do not add environment files below it. `go run .` reads
 - `FRONTEND_URL` and `CORS_ORIGINS`. The origins that may make
   credentialed admin requests. List each host as `localhost` and
   `127.0.0.1`.
-- `STATUS_URL`. The status API, where `platform_status` reads.
 - `LOG_LEVEL` and the optional Grafana and PostHog variables listed in
   `go/logclient/README.md`. Where events go.
 
@@ -401,7 +397,7 @@ its occurrence rows.
 The bot opens two pools. `DATABASE_URL` writes its own schema.
 `READ_DATABASE_URL`, a role granted `SELECT` and nothing else, is what the
 tools read through, so a model cannot be talked into a write. The second
-pool qualifies every table as `logger.x` or `oauth.x` and carries no
+pool qualifies every table as `oauth.x` and carries no
 `search_path` of its own.
 
 To create a migration in the devcontainer, source `apps/sprinter/.env`
@@ -425,10 +421,9 @@ docker run --rm -v "$PWD:/src" -w /src/apps/sprinter/backend sqlc/sqlc:1.31.1 ge
 
 sqlc reads the schema from the Prisma migrations themselves, so a query
 that names a column no migration created does not generate. The read
-pool's schema is Status's and Auth's migrations, followed by the two
-files in `backend/internal/readstore/schema`, which move their tables
-into `logger` and `oauth` as Postgres has them. Only `health_checks` and
-the four `oauth` tables `sprinter_reader` may read are moved, so a query
+pool's schema is Auth's migrations, followed by
+`backend/internal/readstore/schema/oauth.sql`, which moves the tables into
+`oauth` as Postgres has them. Only the four `oauth` tables `sprinter_reader` may read are moved, so a query
 against `guest_keys` fails to generate as it would fail to run.
 
 ## Frontend
