@@ -83,8 +83,6 @@ jobs:
               - 'apps/biotron/**'
             calendar:
               - 'apps/calendar/**'
-            status:
-              - 'apps/status/**'
             auth:
               - 'apps/auth/**'
             exogui:
@@ -102,8 +100,8 @@ jobs:
         env:
           CHANGED: ${{ steps.filter.outputs.changes }}
         run: |
-          all='["biotron","calendar","status","auth","exogui","sprinter"]'
-          with_backend='["calendar","status","auth","exogui","sprinter"]'
+          all='["biotron","calendar","auth","exogui","sprinter"]'
+          with_backend='["calendar","auth","exogui","sprinter"]'
           changed_apps=$(jq -c --argjson all "$all" '[.[] | select(. as $x | $all | index($x) != null)]' <<<"$CHANGED")
           if jq -e 'index("style") != null' <<<"$CHANGED" >/dev/null; then
             frontends="$all"
@@ -120,7 +118,7 @@ jobs:
           # A change to the roles or the migrations re-tests every backend
           # that owns a schema against a database built from them.
           if jq -e 'index("database") != null' <<<"$CHANGED" >/dev/null; then
-            backends=$(jq -c '. + ["auth","calendar","status","sprinter"] | unique' <<<"$backends")
+            backends=$(jq -c '. + ["auth","calendar","sprinter"] | unique' <<<"$backends")
           fi
           {
             echo "frontends=$frontends"

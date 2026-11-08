@@ -20,7 +20,7 @@ done
 
 echo "== database: every app's migrations against the sidecar Postgres"
 npm ci --prefix infra/migrate --no-audit --no-fund >/dev/null
-for app in auth calendar status sprinter; do
+for app in auth calendar sprinter; do
   (
     set -a
     # Each app's .env is untracked, copied from its example just above.

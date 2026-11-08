@@ -13,11 +13,12 @@ import unittest
 from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[2]
-APPS = ('auth', 'calendar', 'exogui', 'status', 'biotron', 'sprinter')
+APPS = ('auth', 'calendar', 'exogui', 'biotron', 'sprinter')
 # The apps that own a database schema, each with its own DATABASE_URL.
-DATABASE_APPS = ('auth', 'calendar', 'status', 'sprinter')
+DATABASE_APPS = ('auth', 'calendar', 'sprinter')
 # Each app role's password, and every database password an instance needs.
-ROLE_PASSWORDS = {f'{app.upper()}_DB_PASSWORD': f'pw-{app}' for app in DATABASE_APPS}
+# status_app is retired with the Status app and goes in the next change.
+ROLE_PASSWORDS = {f'{app.upper()}_DB_PASSWORD': f'pw-{app}' for app in (*DATABASE_APPS, 'status')}
 DATABASE_PASSWORDS = dict(POSTGRES_PASSWORD='fixture-db', SPRINTER_READER_PASSWORD='fixture-reader',
                           AUTH_DB_PASSWORD='fixture-auth', CALENDAR_DB_PASSWORD='fixture-calendar',
                           STATUS_DB_PASSWORD='fixture-status', SPRINTER_DB_PASSWORD='fixture-sprinter')
@@ -65,7 +66,7 @@ class RuntimeConfigTests(unittest.TestCase):
         self.env.update(DATABASE_PASSWORDS)
 
     def test_no_env_files_required_to_parse_or_stop_web(self):
-        self.assertEqual(len(self.config()['services']), 17)
+        self.assertEqual(len(self.config()['services']), 14)
         self.run_command('./launch', 'stop', 'web', '--runtime', '--dry-run')
 
     def test_database_and_public_config_are_isolated(self):
@@ -109,7 +110,7 @@ class RuntimeConfigTests(unittest.TestCase):
     def test_launch_fails_for_missing_selected_credentials(self):
         self.run_command('./launch', 'web', '--runtime', '--dry-run', success=False)
         self.secrets()
-        del self.env['STATUS_DATABASE_URL']
+        del self.env['CALENDAR_DATABASE_URL']
         self.run_command('./launch', 'web', '--runtime', '--dry-run', success=False)
 
     def test_every_app_migrates_through_the_one_migrate_image(self):
@@ -233,11 +234,10 @@ class RuntimeConfigTests(unittest.TestCase):
             if address:
                 self.env['BIOTRON_EDGE_ADDRESS'] = address
             services = self.config()['services']
-            for service in ('auth-api', 'status-api'):
+            for service in ('auth-api',):
                 self.assertEqual(services[service]['environment']['TRUSTED_PROXIES'],
                                  f'127.0.0.1,::1,{address or "10.213.0.2"}')
-        for path in ('apps/auth/docker-compose.yml', 'apps/status/docker-compose.yml',
-                     'apps/auth/.env.example', 'apps/status/.env.example'):
+        for path in ('apps/auth/docker-compose.yml', 'apps/auth/.env.example'):
             self.assertNotIn('172.16.0.0/12', (ROOT / path).read_text(), path)
         self.env['EDGE_SITES'] = 'prod=example.test'
         edge = self.config('-f', 'infra/edge/docker-compose.yml', '--env-file', '/dev/null')
@@ -389,8 +389,7 @@ class RuntimeConfigTests(unittest.TestCase):
         env = self.instance_defaults(**ROLE_PASSWORDS, BASE_DOMAIN='example.test',
                                      POSTGRES_PASSWORD='abc123', SPRINTER_READER_PASSWORD='def456')
         # Each API connects as its own role; its migrations run as the owner.
-        for app, schema in (('auth', 'oauth'), ('calendar', 'calendar'), ('status', 'logger'),
-                            ('sprinter', 'sprinter')):
+        for app, schema in (('auth', 'oauth'), ('calendar', 'calendar'), ('sprinter', 'sprinter')):
             self.assertEqual(database_url_parts(env[f'{app.upper()}_DATABASE_URL']),
                              ('postgresql', f'{app}_app', f'pw-{app}', 'postgres:5432', '/biotron',
                               f'schema={schema}'))

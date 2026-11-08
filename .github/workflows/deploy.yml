@@ -43,8 +43,6 @@ jobs:
           - { name: biotron-web, context: ., dockerfile: apps/biotron/frontend/Dockerfile }
           - { name: calendar-web, context: ., dockerfile: apps/calendar/frontend/Dockerfile }
           - { name: calendar-api, context: ., dockerfile: apps/calendar/backend/Dockerfile }
-          - { name: status-web, context: ., dockerfile: apps/status/frontend/Dockerfile }
-          - { name: status-api, context: ., dockerfile: apps/status/backend/Dockerfile }
           - { name: auth-web, context: ., dockerfile: apps/auth/frontend/Dockerfile }
           - { name: auth-api, context: ., dockerfile: apps/auth/backend/Dockerfile }
           - { name: exogui-web, context: ., dockerfile: apps/exogui/frontend/Dockerfile }
@@ -119,8 +117,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        image: [biotron-web, calendar-web, calendar-api, status-web, status-api, auth-web, auth-api,
-                exogui-web, exogui-api, sprinter-web, sprinter-bot, migrate, edge-nginx]
+        image: [biotron-web, calendar-web, calendar-api, auth-web, auth-api, exogui-web, exogui-api,
+                sprinter-web, sprinter-bot, migrate, edge-nginx]
     env:
       REPOSITORY: ghcr.io/biotrondesignteam/${{ matrix.image }}
     steps:

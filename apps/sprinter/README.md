@@ -30,7 +30,7 @@ Start Postgres once, from the monorepo root, then Sprinter alone:
 cp infra/.env.example infra/.env
 cp apps/sprinter/.env.example apps/sprinter/.env   # Discord stays off
 ./launch infra
-./launch web --build --no-biotron --no-calendar --no-auth --no-exogui --no-status
+./launch web --build --no-biotron --no-calendar --no-auth --no-exogui
 ```
 
 `./launch web --build` starts every app instead. `./launch` reads each

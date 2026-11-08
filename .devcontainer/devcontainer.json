@@ -10,13 +10,11 @@
   "forwardPorts": [
     5173,
     5174,
-    5175,
     5176,
     5177,
     5178,
     8080,
     8081,
-    8082,
     8083,
     8084
   ],
@@ -26,9 +24,6 @@
     },
     "5174": {
       "label": "Exo GUI"
-    },
-    "5175": {
-      "label": "Status"
     },
     "5176": {
       "label": "Calendar"
@@ -44,9 +39,6 @@
     },
     "8081": {
       "label": "Exo GUI API"
-    },
-    "8082": {
-      "label": "Status API"
     },
     "8083": {
       "label": "Calendar API"

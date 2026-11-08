@@ -9,7 +9,7 @@ Usage: ./launch <target> [options]
 
 Targets
   infra     Postgres
-  web       The apps: biotron, calendar, auth, exogui, status, sprinter
+  web       The apps: biotron, calendar, auth, exogui, sprinter
   all       infra, then web
   edge      The edge Nginx and the Cloudflare tunnel (not part of all)
   secrets   Independent Infisical stack (not part of all)
@@ -51,7 +51,7 @@ USAGE
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 cd "$root"
 
-apps='biotron calendar auth exogui status sprinter'
+apps='biotron calendar auth exogui sprinter'
 # postgres-roles is a one-shot that brings the database roles up to date
 # before any migration; see infra/postgres/init.
 infra_services='postgres postgres-roles'

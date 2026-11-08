@@ -24,7 +24,6 @@ services:
       - nm-auth-frontend:/workspaces/biotron/apps/auth/frontend/node_modules
       - nm-calendar-frontend:/workspaces/biotron/apps/calendar/frontend/node_modules
       - nm-exogui-frontend:/workspaces/biotron/apps/exogui/frontend/node_modules
-      - nm-status-frontend:/workspaces/biotron/apps/status/frontend/node_modules
       - nm-biotron-frontend:/workspaces/biotron/apps/biotron/frontend/node_modules
       - nm-sprinter-frontend:/workspaces/biotron/apps/sprinter/frontend/node_modules
       - nm-migrate:/workspaces/biotron/infra/migrate/node_modules
@@ -57,7 +56,6 @@ volumes:
   nm-auth-frontend:
   nm-calendar-frontend:
   nm-exogui-frontend:
-  nm-status-frontend:
   nm-biotron-frontend:
   nm-sprinter-frontend:
   nm-migrate:

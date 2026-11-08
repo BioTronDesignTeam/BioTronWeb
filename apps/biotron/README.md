@@ -47,7 +47,7 @@ Start the site from the monorepo root:
 cp infra/.env.example infra/.env
 cp apps/biotron/.env.example apps/biotron/.env
 ./launch infra
-./launch web --build --no-calendar --no-auth --no-exogui --no-status --no-sprinter
+./launch web --build --no-calendar --no-auth --no-exogui --no-sprinter
 ```
 
 `./launch web --build` starts every app instead. `./launch` reads each

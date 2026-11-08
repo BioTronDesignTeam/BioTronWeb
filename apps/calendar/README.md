@@ -31,7 +31,7 @@ Start Postgres once, from the monorepo root, then Calendar alone:
 cp infra/.env.example infra/.env
 cp apps/calendar/.env.example apps/calendar/.env
 ./launch infra
-./launch web --build --no-biotron --no-auth --no-exogui --no-status --no-sprinter
+./launch web --build --no-biotron --no-auth --no-exogui --no-sprinter
 ```
 
 `./launch web --build` starts every app instead. `./launch` reads each

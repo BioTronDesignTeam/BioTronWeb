@@ -29,7 +29,7 @@ cp infra/.env.example infra/.env
 cp apps/auth/.env.example apps/auth/.env   # set the GitHub App values
 cp apps/exogui/.env.example apps/exogui/.env
 ./launch infra
-./launch web --build --no-biotron --no-calendar --no-status --no-sprinter
+./launch web --build --no-biotron --no-calendar --no-sprinter
 ```
 
 `./launch web --build` starts every app instead. `./launch` reads each

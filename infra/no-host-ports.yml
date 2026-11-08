@@ -20,10 +20,6 @@ services:
     ports: !reset []
   exogui-web:
     ports: !reset []
-  status-api:
-    ports: !reset []
-  status-web:
-    ports: !reset []
   sprinter-bot:
     ports: !reset []
   sprinter-web:

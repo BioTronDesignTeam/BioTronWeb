@@ -73,7 +73,7 @@ trap 'exit 143' TERM
   git ls-files --others --exclude-standard -z
 } > "$scratch/changed"
 
-apps='biotron calendar status auth exogui sprinter'
+apps='biotron calendar auth exogui sprinter'
 frontends='' backends='' touched='' all_frontends=$all all_backends=$all prisma=$all
 while IFS= read -r -d '' file; do
   case "$file" in
@@ -96,7 +96,7 @@ if $all_backends; then shared=yes; fi
 live_backends=''
 if $live_db; then
   for app in $backends; do
-    case $app in auth|calendar|status|sprinter) live_backends="${live_backends:+$live_backends }$app" ;; esac
+    case $app in auth|calendar|sprinter) live_backends="${live_backends:+$live_backends }$app" ;; esac
   done
 fi
 printf 'Base: %s (merge base %.12s)\nFrontends: %s\nBackends: %s\nShared Go modules: %s\n' "$base" "$merge_base" "${frontends:-none}" "${backends:-none}" "$shared"

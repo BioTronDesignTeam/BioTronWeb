@@ -1,4 +1,4 @@
-# One instance of the platform: its Postgres, then the six apps.
+# One instance of the platform: its Postgres, then the five apps.
 # Locally the project is `biotron`; `./launch --instance staging` runs the same
 # files as `biotron-staging`, with its own network, volumes, and settings.
 # App .env files are optional for local development. Runtime deployment
@@ -16,9 +16,6 @@ include:
   - path: apps/calendar/docker-compose.yml
     project_directory: apps/calendar
     env_file: ${CALENDAR_ENV_FILE:-/dev/null}
-  - path: apps/status/docker-compose.yml
-    project_directory: apps/status
-    env_file: ${STATUS_ENV_FILE:-/dev/null}
   - path: apps/auth/docker-compose.yml
     project_directory: apps/auth
     env_file: ${AUTH_ENV_FILE:-/dev/null}

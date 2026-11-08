@@ -34,7 +34,7 @@ Start Postgres once, from the monorepo root, then Auth alone:
 cp infra/.env.example infra/.env
 cp apps/auth/.env.example apps/auth/.env   # set the GitHub App values
 ./launch infra
-./launch web --build --no-biotron --no-calendar --no-exogui --no-status --no-sprinter
+./launch web --build --no-biotron --no-calendar --no-exogui --no-sprinter
 ```
 
 `./launch web --build` starts every app instead. `./launch` reads each
