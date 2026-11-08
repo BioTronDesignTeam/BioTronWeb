@@ -45,7 +45,7 @@ sprinter="sprinter_app:$SPRINTER_DB_PASSWORD"
 
 : "${AUTH_FRONTEND_URL:=https://auth.$d}"
 : "${AUTH_OAUTH_CALLBACK_URL:=https://auth.$d/api/auth/github/callback}"
-: "${AUTH_CORS_ORIGINS:=https://exogui.$d,https://status.$d,https://calendar.$d,https://sprinter.$d}"
+: "${AUTH_CORS_ORIGINS:=https://exogui.$d,https://calendar.$d,https://sprinter.$d}"
 : "${AUTH_COOKIE_DOMAIN:=.$d}"
 : "${AUTH_COOKIE_SECURE:=true}"
 : "${CALENDAR_FRONTEND_URL:=https://calendar.$d}"
