@@ -19,7 +19,6 @@ services:
       # Each app's own role (postgres/init/05-app-roles.sh).
       AUTH_DB_PASSWORD: ${AUTH_DB_PASSWORD:-}
       CALENDAR_DB_PASSWORD: ${CALENDAR_DB_PASSWORD:-}
-      STATUS_DB_PASSWORD: ${STATUS_DB_PASSWORD:-}
       SPRINTER_DB_PASSWORD: ${SPRINTER_DB_PASSWORD:-}
     volumes:
       # Postgres 18 images store data in a major-version-specific directory
@@ -59,7 +58,6 @@ services:
       SPRINTER_READER_PASSWORD: ${SPRINTER_READER_PASSWORD:-}
       AUTH_DB_PASSWORD: ${AUTH_DB_PASSWORD:-}
       CALENDAR_DB_PASSWORD: ${CALENDAR_DB_PASSWORD:-}
-      STATUS_DB_PASSWORD: ${STATUS_DB_PASSWORD:-}
       SPRINTER_DB_PASSWORD: ${SPRINTER_DB_PASSWORD:-}
     volumes:
       - ./postgres/init:/init:ro

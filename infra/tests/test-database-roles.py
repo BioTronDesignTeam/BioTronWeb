@@ -13,11 +13,10 @@ import unittest
 import uuid
 
 ROOT = Path(__file__).resolve().parents[2]
-DATABASE_APPS = {'auth': 'oauth', 'calendar': 'calendar', 'status': 'logger',
-                 'sprinter': 'sprinter'}
+DATABASE_APPS = {'auth': 'oauth', 'calendar': 'calendar', 'sprinter': 'sprinter'}
 # A table of each schema, to read as each role.
 TABLES = {'oauth': 'oauth.operators', 'calendar': 'calendar.calendar_scopes',
-          'logger': 'logger.health_checks', 'sprinter': 'sprinter.guards'}
+          'sprinter': 'sprinter.guards'}
 OWNER_PASSWORD = 'owner' + uuid.uuid4().hex
 PASSWORDS = {f'{app.upper()}_DB_PASSWORD': f'{app}{uuid.uuid4().hex}' for app in DATABASE_APPS}
 PASSWORDS['SPRINTER_READER_PASSWORD'] = 'reader' + uuid.uuid4().hex
@@ -156,12 +155,12 @@ class DatabaseRoleTests(unittest.TestCase):
 
     def test_an_app_writes_rows_but_changes_no_schema(self):
         self.assertAllowed(self.as_app(
-            'status', "INSERT INTO logger.health_checks (service, ok) "
-                      "VALUES ('roles-test', true) RETURNING 1"))
-        self.assertAllowed(self.as_app('status', "DELETE FROM logger.health_checks "
-                                                 "WHERE service = 'roles-test'"))
-        self.assertRefused(self.as_app('status', 'CREATE TABLE logger.extra (x int)'))
-        self.assertRefused(self.as_app('status', 'DROP TABLE logger.health_checks'),
+            'sprinter', "INSERT INTO sprinter.guards (subject, guild_id, updated_at) "
+                        "VALUES ('roles-test', '0', now()) RETURNING 1"))
+        self.assertAllowed(self.as_app('sprinter', "DELETE FROM sprinter.guards "
+                                                   "WHERE subject = 'roles-test'"))
+        self.assertRefused(self.as_app('sprinter', 'CREATE TABLE sprinter.extra (x int)'))
+        self.assertRefused(self.as_app('sprinter', 'DROP TABLE sprinter.guards'),
                            'must be owner')
         self.assertRefused(self.as_app('auth', 'UPDATE oauth._prisma_migrations SET logs = NULL'))
         self.assertRefused(self.as_app('auth', 'CREATE TEMP TABLE t (x int)'))
@@ -177,8 +176,7 @@ class DatabaseRoleTests(unittest.TestCase):
     def test_the_reader_sees_its_named_tables_and_nothing_else(self):
         for table in ('oauth.operators', 'oauth.apps', 'oauth.permissions', 'oauth.grants'):
             self.assertAllowed(self.as_reader(f'SELECT count(*) FROM {table}'))
-        for table in ('oauth.guest_keys', 'calendar.calendar_scopes', 'sprinter.guards',
-                      'logger.health_checks'):
+        for table in ('oauth.guest_keys', 'calendar.calendar_scopes', 'sprinter.guards'):
             self.assertRefused(self.as_reader(f'SELECT count(*) FROM {table}'))
         self.assertRefused(self.as_reader('BEGIN READ WRITE; CREATE TEMP TABLE t (x int); COMMIT'))
 

@@ -4,7 +4,6 @@
 #
 #   auth_app       oauth        AUTH_DB_PASSWORD
 #   calendar_app   calendar     CALENDAR_DB_PASSWORD
-#   status_app     logger       STATUS_DB_PASSWORD
 #   sprinter_app   sprinter     SPRINTER_DB_PASSWORD
 #
 # Each API connects as its role, which can read and write the rows of its own
@@ -23,13 +22,13 @@
 #
 # A role whose password is not set is skipped, so a laptop whose .env predates
 # the roles keeps working with the owner's URL; ./launch --runtime refuses to
-# deploy without all four.
+# deploy without all three.
 set -euo pipefail
 
 owner=${POSTGRES_USER:?POSTGRES_USER is not set}
 db=${POSTGRES_DB:-$owner}
 
-for entry in auth:oauth calendar:calendar status:logger sprinter:sprinter; do
+for entry in auth:oauth calendar:calendar sprinter:sprinter; do
   app=${entry%%:*} schema=${entry#*:}
   var=$(printf '%s' "$app" | tr '[:lower:]' '[:upper:]')_DB_PASSWORD
   role=${app}_app

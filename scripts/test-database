@@ -42,7 +42,7 @@ pg_host=${host%:*} pg_port=${host##*:}
 say() { echo "test-database: $*" >&2; }
 
 declare -A passwords=()
-for app in auth calendar status sprinter reader; do passwords[$app]=$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n'); done
+for app in auth calendar sprinter reader; do passwords[$app]=$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n'); done
 
 # One helper container from the postgres image, with infra/postgres/init
 # copied in rather than mounted, so this works from inside a container whose
@@ -53,7 +53,7 @@ helper() {
   docker create --name "$name" --network "$network" -e PGHOST="$pg_host" -e PGPORT="$pg_port" \
     -e PGUSER="$owner" -e PGPASSWORD="$owner_password" -e POSTGRES_USER="$owner" -e POSTGRES_DB="$database" \
     -e SPRINTER_READER_PASSWORD="${passwords[reader]}" -e AUTH_DB_PASSWORD="${passwords[auth]}" \
-    -e CALENDAR_DB_PASSWORD="${passwords[calendar]}" -e STATUS_DB_PASSWORD="${passwords[status]}" \
+    -e CALENDAR_DB_PASSWORD="${passwords[calendar]}" \
     -e SPRINTER_DB_PASSWORD="${passwords[sprinter]}" --entrypoint bash "$image" -ec "$1" >/dev/null
   docker cp "$root/infra/postgres/init/." "$name:/init" >/dev/null
   docker start -a "$name" >&2 || { docker rm -f "$name" >/dev/null; return 1; }
@@ -74,7 +74,7 @@ if [[ -z $migrate_image ]]; then
   docker build -q -t "$migrate_image" -f "$root/infra/migrate/Dockerfile" "$root" >/dev/null
 fi
 url() { local credentials=$1:$2; echo "postgresql://$credentials@$host/$database${3:+?schema=$3}"; }
-for entry in auth:oauth calendar:calendar status:logger sprinter:sprinter; do
+for entry in auth:oauth calendar:calendar sprinter:sprinter; do
   app=${entry%%:*} schema=${entry#*:}
   say "migrating $app"
   docker run --rm --network "$network" -e DATABASE_URL="$(url "$owner" "$owner_password" "$schema")" \
@@ -83,10 +83,9 @@ done
 
 echo "AUTH_TEST_DATABASE_URL=$(url auth_app "${passwords[auth]}" oauth)"
 echo "CALENDAR_TEST_DATABASE_URL=$(url calendar_app "${passwords[calendar]}" calendar)"
-echo "STATUS_TEST_DATABASE_URL=$(url status_app "${passwords[status]}" logger)"
 echo "SPRINTER_TEST_DATABASE_URL=$(url sprinter_app "${passwords[sprinter]}" sprinter)"
 echo "SPRINTER_TEST_READ_DATABASE_URL=$(url sprinter_reader "${passwords[reader]}")"
-# The owner, with no schema: Sprinter's read tests seed the oauth and logger
-# rows its read-only role then reads.
+# The owner, with no schema: Sprinter's read tests seed the oauth rows its
+# read-only role then reads.
 echo "SPRINTER_TEST_OWNER_DATABASE_URL=$(url "$owner" "$owner_password")"
 echo "BIOTRON_TEST_OWNER_DATABASE_URL=$(url "$owner" "$owner_password")"

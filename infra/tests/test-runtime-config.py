@@ -17,11 +17,10 @@ APPS = ('auth', 'calendar', 'exogui', 'biotron', 'sprinter')
 # The apps that own a database schema, each with its own DATABASE_URL.
 DATABASE_APPS = ('auth', 'calendar', 'sprinter')
 # Each app role's password, and every database password an instance needs.
-# status_app is retired with the Status app and goes in the next change.
-ROLE_PASSWORDS = {f'{app.upper()}_DB_PASSWORD': f'pw-{app}' for app in (*DATABASE_APPS, 'status')}
+ROLE_PASSWORDS = {f'{app.upper()}_DB_PASSWORD': f'pw-{app}' for app in DATABASE_APPS}
 DATABASE_PASSWORDS = dict(POSTGRES_PASSWORD='fixture-db', SPRINTER_READER_PASSWORD='fixture-reader',
                           AUTH_DB_PASSWORD='fixture-auth', CALENDAR_DB_PASSWORD='fixture-calendar',
-                          STATUS_DB_PASSWORD='fixture-status', SPRINTER_DB_PASSWORD='fixture-sprinter')
+                          SPRINTER_DB_PASSWORD='fixture-sprinter')
 
 
 def database_url_parts(url):

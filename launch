@@ -233,9 +233,9 @@ validate() {
     elif $name == "postgres" and ((($env.POSTGRES_PASSWORD // "") == "") or (($env.SPRINTER_READER_PASSWORD // "") == "")) then
       error("postgres: set POSTGRES_PASSWORD and SPRINTER_READER_PASSWORD")
     elif $name == "postgres" and $runtime and
-        ([$env.AUTH_DB_PASSWORD, $env.CALENDAR_DB_PASSWORD, $env.STATUS_DB_PASSWORD, $env.SPRINTER_DB_PASSWORD]
+        ([$env.AUTH_DB_PASSWORD, $env.CALENDAR_DB_PASSWORD, $env.SPRINTER_DB_PASSWORD]
          | any((. // "") == "")) then
-      error("postgres: set AUTH_DB_PASSWORD, CALENDAR_DB_PASSWORD, STATUS_DB_PASSWORD, and SPRINTER_DB_PASSWORD")
+      error("postgres: set AUTH_DB_PASSWORD, CALENDAR_DB_PASSWORD, and SPRINTER_DB_PASSWORD")
     else true end
   ' >/dev/null
 }
