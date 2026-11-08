@@ -29,14 +29,14 @@ what, and how a host is set up, deployed, migrated, and rotated, is in
 
 ## Instances and networks
 
-An instance is one Compose project holding its Postgres and six apps:
+An instance is one Compose project holding its Postgres and five apps:
 `biotron` on a laptop, `biotron-<instance>` from
 `./launch --instance <instance>`. Each has its own network,
 `biotron-<instance>` (`biotron` on a laptop), its own volumes, and, when named,
 no host ports.
 
 - Inside an instance's network the services keep their plain aliases:
-  `postgres`, `oauth-manager`, `status-api`, `calendar-api`, `biotron-web`,
+  `postgres`, `oauth-manager`, `calendar-api`, `biotron-web`,
   and so on. Apps reach each other and their database by
   these names, and cannot see any other instance.
 - Every web and API service also carries an instance-qualified alias, such as
@@ -115,8 +115,8 @@ cloudflared sends the visitor's address in `Cf-Connecting-Ip`. Nginx believes
 it only on a connection from the edge network (`set_real_ip_from
 EDGE_SUBNET`), so a container on an instance network that calls `edge-proxy`
 cannot choose its own. Nginx then sets `Cf-Connecting-Ip` itself on every
-request it forwards (`nginx/snippets/proxy-headers.conf`). Auth and Status
-read it only from a peer in `TRUSTED_PROXIES`, which defaults to loopback and
+request it forwards (`nginx/snippets/proxy-headers.conf`). Auth reads it only
+from a peer in `TRUSTED_PROXIES`, which defaults to loopback and
 the edge's address on the instance's network, `10.213.<n>.2`; `./launch`
 passes that address to Compose as `BIOTRON_EDGE_ADDRESS`. Any other caller,
 such as another container or the host, is keyed by its own address.
@@ -162,8 +162,8 @@ sudo docker compose -p biotron-prod ps
 
 The Nginx health response at `/_edge/health` is `ok`. Cloudflared exposes its
 readiness and metrics endpoint to the private edge network at
-`http://cloudflared:2000` for future Status integration; it is not published
-on the host.
+`http://cloudflared:2000`; it is not published on the host. Nothing here
+monitors the apps from outside; that is a separate decision.
 
 Test each public hostname through Cloudflare after its instance is running.
 A `502` means Nginx is reachable but that instance's application alias is not.
@@ -197,7 +197,7 @@ systemd service.
 
 Every image here is pinned by version and digest, and `scripts/check-images`
 fails on one that is not; Dependabot moves the tag and the digest together.
-The edge and the six frontends run the same stable Nginx, and each image's
+The edge and the five frontends run the same stable Nginx, and each image's
 final stage upgrades its OS packages, so the Trivy gate of
 `.github/workflows/deploy.yml` passes between base image updates. The
 migrate image keeps Node but drops npm, npx, and Corepack from its runtime
@@ -217,7 +217,6 @@ read and write the rows of its own schema and nothing else:
 |------|--------|----------|
 | `auth_app` | `oauth` | `AUTH_DB_PASSWORD` |
 | `calendar_app` | `calendar` | `CALENDAR_DB_PASSWORD` |
-| `status_app` | `logger` | `STATUS_DB_PASSWORD` |
 | `sprinter_app` | `sprinter` | `SPRINTER_DB_PASSWORD` |
 
 `postgres/init/05-app-roles.sh` makes them. The postgres image runs it once on
@@ -229,27 +228,26 @@ Default privileges give each app every table its migrations add.
 
 On a laptop, a role whose password `infra/.env` leaves empty is not made, and
 that app's `.env` must use the owner's URL instead. A deployment refuses to
-start without all four.
+start without all three.
 
 ## Read-only role for Sprinter
 
-Sprinter's model tools read `logger.health_checks` and four `oauth` tables,
-which Status and Auth own, through a dedicated role, `sprinter_reader`. What
-keeps it read-only is its grants: SELECT on those tables and nothing else, no
-other schema, and no temporary tables.
+Sprinter's `who_has_access` tool reads four `oauth` tables, which Auth owns,
+through a dedicated role, `sprinter_reader`. What keeps it read-only is its
+grants: SELECT on those tables and nothing else, no other schema, and no
+temporary tables.
 `default_transaction_read_only` is set too, as a second guard that the role
 could turn off.
 
 `postgres/init/10-sprinter-reader.sh` makes the role, and `postgres-roles`
-runs it on every start. The table grants are made again after each Status and
-Auth migration, by `migrate/grants/status.sql` and `migrate/grants/auth.sql`,
-because on a fresh cluster the tables do not exist until then, and a migration
-that recreates a table drops its grant. Nothing is run by hand, after a
+runs it on every start. The table grants are made again after each Auth
+migration, by `migrate/grants/auth.sql`, because on a fresh cluster the tables
+do not exist until then, and a migration that recreates a table drops its
+grant. Nothing is run by hand, after a
 restore included: the deploy that follows makes them.
 
-The grants name tables, with no default privileges: `logger.health_checks`,
-and in `oauth` `operators`, `apps`, `permissions`, and `grants`, never
-`guest_keys`, which holds the daily Exo guest key in plaintext and must never
+The grants name tables, with no default privileges: in `oauth`, `operators`,
+`apps`, `permissions`, and `grants`, never `guest_keys`, which holds the daily Exo guest key in plaintext and must never
 be readable outside Auth. A new table for the tools needs a line in both the
 script and the grants file; `tests/test-database-roles.py` checks what the
 role can read.
@@ -272,8 +270,8 @@ docker volume rm biotron-infrastructure_postgres-data
 ./launch web       # each app's *-migrate service applies its schema
 ```
 
-The four schemas are `oauth` (Auth), `logger` (Status), `calendar`, and
-`sprinter`. Exo GUI has none.
+The three schemas are `oauth` (Auth), `calendar`, and `sprinter`. Exo GUI has
+none.
 
 For an instance with data worth keeping, use "Copying an instance's data" in
 `deploy/README.md`: deploy a fresh instance on the new major, dump the old

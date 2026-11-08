@@ -34,7 +34,7 @@ import '@biotron/style/styles.css';
 ## Sessions
 
 `src/auth` is the one sign-in flow for Auth, Exo, Calendar, and Sprinter.
-Status and Site are public and must not mount it.
+Site is public and must not mount it.
 
 ```tsx
 <SessionProvider authUrl={AUTH_URL} appId="sprinter" permissions={['admin']}>

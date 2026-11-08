@@ -1,7 +1,8 @@
 # Sprinter
 
 Sprinter is the BioTron Discord bot and its admin UI. Two slash commands
-answer questions in Discord. An admin API holds the bot's configuration:
+answer questions in Discord about the team calendar and about who may use
+which app. An admin API holds the bot's configuration:
 who may run each command, and which Calendar scopes it will announce.
 
 A question goes to Gemini, which may call the bot's two read-only tools
@@ -146,8 +147,8 @@ boundary.
 
 The model answers from these two and nothing else. Both are read-only.
 `who_has_access` reads through a second Postgres pool that connects as a
-role with `SELECT` on four `oauth` tables — nothing else, and no write anywhere. That role is the
-containment: a model can be talked into asking for anything, so the
+role with `SELECT` on four `oauth` tables — nothing else, and no write
+anywhere. That role is the containment: a model can be talked into asking for anything, so the
 answer to "what stops it" is the grant, not the prompt.
 
 Every result passes through one cap. A cut result ends with a line
@@ -423,8 +424,9 @@ sqlc reads the schema from the Prisma migrations themselves, so a query
 that names a column no migration created does not generate. The read
 pool's schema is Auth's migrations, followed by
 `backend/internal/readstore/schema/oauth.sql`, which moves the tables into
-`oauth` as Postgres has them. Only the four `oauth` tables `sprinter_reader` may read are moved, so a query
-against `guest_keys` fails to generate as it would fail to run.
+`oauth` as Postgres has them. Only the four `oauth` tables `sprinter_reader`
+may read are moved, so a query against `guest_keys` fails to generate as it
+would fail to run.
 
 ## Frontend
 

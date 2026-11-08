@@ -118,7 +118,6 @@ Each Go service that calls `NewFromEnv` must pass these through, beside its
 | `apps/auth/docker-compose.yml` | `auth-api` |
 | `apps/calendar/docker-compose.yml` | `calendar-api` |
 | `apps/exogui/docker-compose.yml` | `exogui-api` |
-| `apps/status/docker-compose.yml` | `status-api` |
 | `apps/sprinter/docker-compose.yml` | `sprinter-bot` |
 
 `apps/biotron` has no Go service. Add the same names,

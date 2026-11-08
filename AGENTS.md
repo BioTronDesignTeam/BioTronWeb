@@ -15,7 +15,6 @@ Local development can use untracked `.env` files.
 |---|---|---|
 | `apps/biotron` | Public team website | `Biotron-Site` |
 | `apps/calendar` | Public calendars and feeds | `BiotronCalendar` |
-| `apps/status` | Public status page and health monitor | `Logger` |
 | `apps/auth` | GitHub OAuth, sessions, permissions | `OAuthManager` |
 | `apps/exogui` | Exoskeleton operator UI and API | `exo-gui` |
 | `apps/sprinter` | Discord bot and admin UI | `Sprinter` |
@@ -26,6 +25,11 @@ Local development can use untracked `.env` files.
 
 The old repositories are frozen. Code comments and app ids still use some old
 names, such as `OAuthManager` and `exo-gui`. They mean the paths above.
+
+The old `Logger` repository's status page and health monitor (`apps/status`)
+are retired. The public status page is Atlassian Statuspage: Cloudflare
+redirects `status.uwbiotron.ca` and `status.uwbiotron.dev` to it, outside this
+repository. Do not add a `status` app, edge hostname, or redirect here.
 
 ## How to work here
 
@@ -100,18 +104,17 @@ names, such as `OAuthManager` and `exo-gui`. They mean the paths above.
 |---|---|---|
 | `auth` | `5173` | `8080` |
 | `exogui` | `5174` | `8081` |
-| `status` | `5175` | `8082` |
 | `calendar` | `5176` | `8083` |
 | `biotron` | `5177` | n/a |
 | `sprinter` | `5178` | `8084` |
 
 - Auth's `8080` is fixed. The GitHub OAuth callback is registered against it.
+- `5175` and `8082` were Status's. Leave them unused.
 - Move any other host port only by updating this table, the README, and every
   app that names the port, in one change.
 - Only host ports follow this table. Every container listens on `8080`
   inside Docker. Services reach each other by network alias, such as
-  `http://oauth-manager:8080`, `http://status-api:8080`, and
-  `http://calendar-api:8080`.
+  `http://oauth-manager:8080` and `http://calendar-api:8080`.
 - The `18080`-`18084` proxy ports are retired. Do not bring them back.
 - CORS allow-lists must name both the `localhost` and the `127.0.0.1` form of
   each port. Browsers treat them as different origins.
@@ -129,7 +132,7 @@ names, such as `OAuthManager` and `exo-gui`. They mean the paths above.
   `COOKIE_SECURE=false`.
 - Known trade-off, accepted for now: one cookie reaches every subdomain, so a
   flaw in one app can expose the session for all of them. A move to per-app
-  sessions is its own project across four backends. Do not start it as side
+  sessions is its own project across three backends. Do not start it as side
   work.
 - A backend that cannot reach Auth answers 503. It fails closed, never open.
 - App ids and permissions: `exo-gui` has `live`, `historical`, and `commands`.
@@ -138,8 +141,8 @@ names, such as `OAuthManager` and `exo-gui`. They mean the paths above.
 - Frontends get the session from `@biotron/style`: `SessionProvider`,
   `useSession`, `RequireAuth`, `SignInScreen`, `AccessDenied`, and
   `AccountControls`. Do not write another session check. Calendar stays
-  public and gates only its editing on `can('write')`. Status and Site are
-  public and must not mount the provider.
+  public and gates only its editing on `can('write')`. The site is public
+  and must not mount the provider.
 - A signed-in Exo member with none of `live`, `historical`, or `commands`
   sees Access denied, not the app. Guests still get in.
 - Only Exo has a daily guest key. Guests may use Live and Historical, never
@@ -161,7 +164,7 @@ names, such as `OAuthManager` and `exo-gui`. They mean the paths above.
   two labels of the hostname, such as `uwbiotron.ca`, so every tool shows the
   same theme; on localhost and IP addresses it is host-only. It holds no
   secret.
-- The five tool frontends keep the full theme bootstrap script inline in
+- The four tool frontends keep the full theme bootstrap script inline in
   `index.html`, before React loads. It stops a white flash on page load. Do
   not move it into React or into `@biotron/style`.
 - Sign-in screens stay short: the logo and the product name. Exo keeps its
@@ -194,8 +197,9 @@ writing the words again, and keep docs that quote the UI in step.
 ## Logging
 
 - Every Go service sends events through `go/logclient`, to Grafana Cloud
-  and, for audit and product events, PostHog. Status stores no logs; it is
-  the status page and health monitor only.
+  and, for audit and product events, PostHog. Nothing in this repository
+  probes the apps from outside: the public status page is Atlassian
+  Statuspage, and outside monitoring is a separate decision.
 - Request events hold only method, path, status, and duration. Never log a
   query string, cookie, authorization header, credential, or token.
 - Skip health probes. A 4xx is a warning, a 5xx is an error, and the rest is
@@ -208,9 +212,9 @@ writing the words again, and keep docs that quote the UI in step.
 
 - **Prisma stays on `6.19.3`, exact.** Prisma 7 removes `url` from the schema
   datasource block. Adopting it needs a `prisma.config.ts` and a driver adapter
-  for all four schema-owning apps. The one Prisma CLI lives in
+  for all three schema-owning apps. The one Prisma CLI lives in
   `infra/migrate`. Treat it as a planned migration, not a bump.
-- **Nginx is the stable line, `1.30.x`, everywhere**: the six frontends and
+- **Nginx is the stable line, `1.30.x`, everywhere**: the five frontends and
   the edge run one version, and an odd (mainline) minor is not used.
   `scripts/check-images` fails on two versions.
 - **The Go APIs run on distroless static**, which has no shell and no
@@ -232,7 +236,7 @@ writing the words again, and keep docs that quote the UI in step.
   `base-uri 'none'`, `object-src 'none'`, `form-action 'self'`.
 - The resource-loading CSP is enforced too (`infra/nginx/sites/csp.template`).
   Its `script-src` allows same-origin bundles and one SHA-256 hash, which
-  covers the inline theme bootstrap because all five copies are
+  covers the inline theme bootstrap because all four copies are
   byte-identical. Keep them identical. An edit to the bootstrap needs the new
   hash in the template in the same change; `infra/tests` fails until it is
   there. Browsers report violations to `/_edge/csp-report`, which the edge
@@ -266,8 +270,9 @@ writing the words again, and keep docs that quote the UI in step.
 - Each app connects to Postgres as its own role, `<app>_app`, with data rights
   in its own schema only. Only migrations use the owner. Never give an app the
   owner's URL in a deployment; see `infra/README.md`.
-- One app per hostname: `www`, `calendar`, `auth`, `exogui`, `status`,
-  and `sprinter`. `infra/nginx` is the source of truth. Within a
+- One app per hostname: `www`, `calendar`, `auth`, `exogui`, and
+  `sprinter`. `status` is not an edge hostname: Cloudflare redirects it to
+  Atlassian Statuspage. `infra/nginx` is the source of truth. Within a
   hostname, `/` goes to the frontend and `/api/` to the backend.
 - Staging uses `uwbiotron.dev` and its app subdomains. Production uses
   `uwbiotron.ca`. Domains, secrets, and data differ; routing and containers do

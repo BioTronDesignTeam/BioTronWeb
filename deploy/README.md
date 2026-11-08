@@ -37,7 +37,7 @@ staging host:  Cloudflare ─ staging tunnel ─ cloudflared ─ Nginx ─ biotr
 
 | Compose project | What | Settings come from |
 | --- | --- | --- |
-| `biotron-<instance>` | The instance's Postgres and six apps, images tagged with a `main` commit | Its host's Infisical, environment `<instance>`, through `/etc/biotron/<instance>/identity.env` |
+| `biotron-<instance>` | The instance's Postgres and five apps, images tagged with a `main` commit | Its host's Infisical, environment `<instance>`, through `/etc/biotron/<instance>/identity.env` |
 | `biotron-edge` | Nginx and cloudflared | `/etc/biotron/edge.env` |
 | `biotron-secrets` | Infisical with its own Postgres and Redis | `/etc/biotron/infisical.env` |
 
@@ -51,7 +51,7 @@ temporary migration may run them:
 
 - **Networks.** Each instance has its own Docker network, `biotron-<instance>`,
   with a fixed subnet (`10.213.<n>.0/24`; `prod` is 2 and `staging` 1), and
-  the same service aliases (`postgres`, `oauth-manager`, `status-api`)
+  the same service aliases (`postgres`, `oauth-manager`, `calendar-api`)
   inside. A container cannot resolve or reach another instance's. Only Nginx
   joins every instance's network, always at address `.2`, and it reaches the
   apps through aliases that carry the instance name, such as
@@ -80,9 +80,8 @@ to read and write the rows of its own schema and nothing else:
 | --- | --- | --- |
 | `auth_app` | `oauth` | `AUTH_DB_PASSWORD` |
 | `calendar_app` | `calendar` | `CALENDAR_DB_PASSWORD` |
-| `status_app` | `logger` | `STATUS_DB_PASSWORD` |
 | `sprinter_app` | `sprinter` | `SPRINTER_DB_PASSWORD` |
-| `sprinter_reader` | SELECT on `logger.health_checks` and four `oauth` tables | `SPRINTER_READER_PASSWORD` |
+| `sprinter_reader` | SELECT on four `oauth` tables | `SPRINTER_READER_PASSWORD` |
 
 None of them is a superuser, owns a table, or can change a schema, so a flaw
 in one app cannot reach another app's data or run programs in the database
@@ -227,7 +226,7 @@ or `prod`), and a folder `/deploy` in it. It needs:
 | --- | --- |
 | `BASE_DOMAIN` | `uwbiotron.dev` for staging, `uwbiotron.ca` for production |
 | `POSTGRES_PASSWORD` | The instance's Postgres owner password, which migrations use. `openssl rand -hex 32` |
-| `AUTH_DB_PASSWORD`, `CALENDAR_DB_PASSWORD`, `STATUS_DB_PASSWORD`, `SPRINTER_DB_PASSWORD` | Each app's own role (see "Database roles"). `openssl rand -hex 32` each |
+| `AUTH_DB_PASSWORD`, `CALENDAR_DB_PASSWORD`, `SPRINTER_DB_PASSWORD` | Each app's own role (see "Database roles"). `openssl rand -hex 32` each |
 | `SPRINTER_READER_PASSWORD` | The read-only `sprinter_reader` role's password. `openssl rand -hex 32` |
 | `AUTH_GITHUB_APP_ID`, `AUTH_GITHUB_APP_CLIENT_ID`, `AUTH_GITHUB_APP_CLIENT_SECRET`, `AUTH_GITHUB_APP_PRIVATE_KEY` | This instance's GitHub App. See "The GitHub App" in `apps/auth/README.md` |
 | `AUTH_SESSION_SIGNING_KEY` | Signs Auth's session cookies. `openssl rand -base64 48`; changing it signs everyone out |
@@ -341,9 +340,10 @@ Do this once on each host, for its one instance (`<instance>` is `staging` or
    and the project ID into `/etc/biotron/<instance>/identity.env`.
 7. In Cloudflare Zero Trust, create a remotely managed tunnel for this host
    and add the public hostnames of its domain: the apex, `www`, `calendar`,
-   `auth`, `exogui`, `status`, and `sprinter`. Every hostname uses the origin
-   `http://nginx:8080`. Put the tunnel token and `EDGE_SITES` in
-   `/etc/biotron/edge.env`.
+   `auth`, `exogui`, and `sprinter`. Every hostname uses the origin
+   `http://nginx:8080`. `status` is not one: it is a Cloudflare redirect to
+   the public status page, set up outside this repository. Put the tunnel
+   token and `EDGE_SITES` in `/etc/biotron/edge.env`.
 8. Deploy: push to `main` (staging) or a release tag (production), or by
    hand:
 
@@ -399,9 +399,14 @@ stacks never serve at once.
 
    ```sh
    cd / && sudo docker compose -p biotron-staging exec -T postgres \
-     pg_restore -U biotron -d biotron --clean --if-exists --no-owner --no-privileges < ~/biotron.dump
+     pg_restore -U biotron -d biotron --clean --if-exists --no-owner --no-privileges \
+       --exclude-schema=logger < ~/biotron.dump
    sudo biotron-deploy staging <main-commit>
    ```
+
+   `--exclude-schema=logger` leaves out the retired Status app's schema. An
+   instance restored without it drops it, and its role, once:
+   `sudo docker compose -p biotron-<instance> exec -T postgres psql -U biotron -d biotron -c 'DROP SCHEMA IF EXISTS logger CASCADE; DROP ROLE IF EXISTS status_app'`.
 
 6. **Retire the old stack**, keeping its volumes for now: no `-v`.
 
@@ -452,7 +457,8 @@ because two copies must not both take writes.
    ```sh
    cd /
    sudo docker compose -p biotron-<instance> exec -T postgres \
-     pg_restore -U biotron -d biotron --clean --if-exists --no-owner --no-privileges < ~/biotron.dump
+     pg_restore -U biotron -d biotron --clean --if-exists --no-owner --no-privileges \
+       --exclude-schema=logger < ~/biotron.dump
    sudo biotron-deploy <instance> <commit>
    ```
 

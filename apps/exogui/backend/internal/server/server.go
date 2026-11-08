@@ -44,8 +44,8 @@ type gated struct {
 func newHandler(frontendURL string, events httplog.Sink, authz *authclient.Client, extra func(*http.ServeMux, gated)) http.Handler {
 	mux := http.NewServeMux()
 
-	// /health is public on purpose: the container healthcheck and Status's
-	// monitor poll it, and it reveals nothing.
+	// /health is public on purpose: anything that checks the API may poll it,
+	// and it reveals nothing.
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, r, http.StatusOK, map[string]any{"status": "ok"})
 	})

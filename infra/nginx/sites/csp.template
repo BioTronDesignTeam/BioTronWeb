@@ -10,7 +10,7 @@
 #
 # SCRIPTS. Each tool's index.html carries the same inline theme bootstrap,
 # which AGENTS.md keeps there so the dark theme applies before React loads.
-# The five copies are byte-identical, so one SHA-256 hash allows them all and
+# The four copies are byte-identical, so one SHA-256 hash allows them all and
 # no other inline script: an injected <script> or event handler does not run.
 # Editing the bootstrap changes its hash. infra/tests checks that every inline
 # script of every index.html matches the hash below; compute a new one with

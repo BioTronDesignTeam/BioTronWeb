@@ -1,6 +1,6 @@
 # BioTron platform
 
-One repository for the BioTron web platform: six products, the shared
+One repository for the BioTron web platform: five products, the shared
 component library, the shared Go client, and the edge that serves them. Every
 piece arrived with its full history from the repository it came from. This is
 where the platform is developed now; the separate repositories are frozen.
@@ -11,7 +11,6 @@ where the platform is developed now; the separate repositories are frozen.
 |---|---|---|
 | `apps/biotron` | Public team website (React, Three.js) | `Biotron-Site` |
 | `apps/calendar` | Public calendars and feeds (Go API, React UI, Prisma) | `BiotronCalendar` |
-| `apps/status` | Public status page and health monitor | `Logger` |
 | `apps/auth` | GitHub OAuth, sessions, per-tool permissions | `OAuthManager` |
 | `apps/exogui` | Exoskeleton operator UI and telemetry API | `exo-gui` |
 | `apps/sprinter` | Discord bot and admin UI | `Sprinter` |
@@ -19,6 +18,10 @@ where the platform is developed now; the separate repositories are frozen.
 | `go/logclient` | Go client every service uses to send events to Grafana and PostHog | `Logger/client` |
 | `go/authclient` | Go client and middleware the gated backends use to ask Auth about a session | new |
 | `infra` | Edge Nginx, cloudflared, Postgres, the migrate image, deployment manifests | `Server` |
+
+The old `Logger` repository's status page and health monitor are retired. The
+public status page is Atlassian Statuspage: Cloudflare redirects `status.` to
+it, outside this repository.
 
 Each app keeps its own `README.md`, `.env.example`, `docker-compose.yml`, and
 `prisma/` where it always was.
@@ -31,17 +34,17 @@ Each app keeps its own `README.md`, `.env.example`, `docker-compose.yml`, and
 - **`go.work`** lists every backend and the shared modules under `go/`. Each
   backend keeps its own `go.mod`, so an image compiles only its own code, but locally everything
   resolves together. Each module path is its folder under
-  `github.com/BioTronDesignTeam/BioTronWeb`, such as `.../apps/status/backend`.
+  `github.com/BioTronDesignTeam/BioTronWeb`, such as `.../apps/calendar/backend`.
 - **`docker-compose.yml`** is one instance of the platform: it includes
   `infra/docker-compose.yml` (Postgres) and every app, so an
   instance's data and apps are one Compose project. `./launch --instance
   staging` runs a second copy beside it with its own network and volumes. The
   edge and Infisical are separate projects. `docker compose up -d --build
-  status-web` builds one service, and each app's compose file still works
+  calendar-web` builds one service, and each app's compose file still works
   alone from its folder once the `biotron` network exists.
 
-Ports do not change: auth 5173/8080, exogui 5174/8081, status 5175/8082,
-calendar 5176/8083, biotron 5177, sprinter 5178/8084.
+Ports do not change: auth 5173/8080, exogui 5174/8081, calendar 5176/8083,
+biotron 5177, sprinter 5178/8084. 5175 and 8082 were Status's and stay unused.
 
 ## One baseline
 
@@ -73,7 +76,7 @@ An app's own `package.json` lists only what that app alone needs, such as
 ```bash
 npm ci                                   # every frontend and the library, once
 npm run build                            # builds packages/style, then each app
-npm run build -w apps/status/frontend    # one app
+npm run build -w apps/calendar/frontend  # one app
 npm run typecheck                        # tsc --noEmit in the library and every app
 npm run lint                             # Oxlint, type-aware, one configuration; fails on any finding
 npm run format:check                     # Prettier; `npm run format` rewrites the files
@@ -257,8 +260,8 @@ where none exists, and applies every app's migrations. After that any app
 runs natively against the sidecar, for example:
 
 ```bash
-cd apps/status/backend && set -a && . ../.env && set +a && PORT=8082 go run .
-npm run dev -w apps/status/frontend
+cd apps/calendar/backend && set -a && . ../.env && set +a && PORT=8083 go run .
+npm run dev -w apps/calendar/frontend
 ```
 
 Two things to know. The sidecar Postgres is its own definition, not a

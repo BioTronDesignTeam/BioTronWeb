@@ -53,13 +53,13 @@ client ID and secret go in `/etc/biotron/<instance>/identity.env` on the same
 host, never in Git or Infisical.
 
 All app Compose inputs support `APP_VARIABLE`, such as `AUTH_FRONTEND_URL` or
-`STATUS_HEALTH_INTERVAL`. These names are translated to the existing variable
+`CALENDAR_SITE_URL`. These names are translated to the existing variable
 names inside containers. Unprefixed values remain a local development
 fallback; **do not put generic `DATABASE_URL`, `WEB_PORT`, `API_PORT`,
 `FRONTEND_URL`, or `VITE_*` keys in Infisical**. `VITE_*` settings are build
 time inputs and have no effect on a deployed image. App identities are not
 isolated from each other inside an instance: one identity retrieves that
-instance's settings for all six apps.
+instance's settings for all five apps.
 
 Secrets are fetched at deploy time and handed to Compose in its environment;
 nothing is written to disk. Running containers keep their values through an
