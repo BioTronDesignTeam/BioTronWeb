@@ -657,7 +657,7 @@ class ContentSecurityPolicyTests(unittest.TestCase):
         self.assertNotIn("'unsafe-inline'", script_src)
         allowed = {s[len("'sha256-"):-1] for s in script_src if s.startswith("'sha256-")}
         pages = sorted(ROOT.glob('apps/*/frontend/index.html'))
-        self.assertEqual(len(pages), 6)
+        self.assertEqual(len(pages), 5)
         found = set()
         for page in pages:
             html = page.read_bytes()
