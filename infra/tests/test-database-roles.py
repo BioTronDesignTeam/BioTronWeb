@@ -175,10 +175,10 @@ class DatabaseRoleTests(unittest.TestCase):
                 self.assertRefused(self.as_app(app, "COPY (SELECT 1) TO PROGRAM 'id'"))
 
     def test_the_reader_sees_its_named_tables_and_nothing_else(self):
-        for table in ('oauth.operators', 'oauth.apps', 'oauth.permissions', 'oauth.grants',
-                      'logger.health_checks'):
+        for table in ('oauth.operators', 'oauth.apps', 'oauth.permissions', 'oauth.grants'):
             self.assertAllowed(self.as_reader(f'SELECT count(*) FROM {table}'))
-        for table in ('oauth.guest_keys', 'calendar.calendar_scopes', 'sprinter.guards'):
+        for table in ('oauth.guest_keys', 'calendar.calendar_scopes', 'sprinter.guards',
+                      'logger.health_checks'):
             self.assertRefused(self.as_reader(f'SELECT count(*) FROM {table}'))
         self.assertRefused(self.as_reader('BEGIN READ WRITE; CREATE TEMP TABLE t (x int); COMMIT'))
 

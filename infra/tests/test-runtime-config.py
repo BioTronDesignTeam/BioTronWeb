@@ -600,8 +600,8 @@ class DatabaseGrantTests(unittest.TestCase):
             for tables in re.findall(r'GRANT SELECT ON ([a-z_., ]+) TO sprinter_reader', sql):
                 after.update(t.strip() for t in tables.split(','))
         self.assertEqual(in_script, after)
-        self.assertEqual(in_script, {'logger.health_checks', 'oauth.operators', 'oauth.apps',
-                                     'oauth.permissions', 'oauth.grants'})
+        self.assertEqual(in_script, {'oauth.operators', 'oauth.apps', 'oauth.permissions',
+                                     'oauth.grants'})
 
     def test_every_app_with_a_schema_has_its_grants_file(self):
         for app in DATABASE_APPS:

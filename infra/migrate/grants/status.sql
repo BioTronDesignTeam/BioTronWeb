@@ -10,10 +10,5 @@ BEGIN
     -- Prisma's migration history is the owner's business.
     REVOKE ALL ON logger._prisma_migrations FROM status_app;
   END IF;
-  -- Sprinter's read-only role: these named tables and no others. Keep this
-  -- list the same as infra/postgres/init/10-sprinter-reader.sh's.
-  IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'sprinter_reader') THEN
-    GRANT SELECT ON logger.health_checks TO sprinter_reader;
-  END IF;
 END
 $$;

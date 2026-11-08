@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Creates the sprinter_reader role: SELECT on a few named tables of the logger
-# and oauth schemas, for Sprinter's model tools. The postgres image runs every
+# Creates the sprinter_reader role: SELECT on a few named tables of the oauth
+# schema, for Sprinter's model tools. The postgres image runs every
 # script in /docker-entrypoint-initdb.d/ once, on a fresh cluster; the
 # postgres-roles service of infra/docker-compose.yml runs it again on every
 # start of an instance, before the migrations. The table grants themselves are
@@ -36,43 +36,26 @@ ALTER ROLE sprinter_reader WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE
   NOREPLICATION NOBYPASSRLS PASSWORD :'pw';
 ALTER ROLE sprinter_reader SET default_transaction_read_only = on;
 
--- Apps create their own schema on first migrate, so on a fresh cluster
--- neither schema exists yet. Create them here, owned by the role that
--- migrates them, so the grants below have somewhere to land.
-CREATE SCHEMA IF NOT EXISTS logger AUTHORIZATION :"owner";
+-- Auth creates its schema on first migrate, so on a fresh cluster it does
+-- not exist yet. Create it here, owned by the role that migrates it, so the
+-- grants below have somewhere to land.
 CREATE SCHEMA IF NOT EXISTS oauth AUTHORIZATION :"owner";
 
-GRANT USAGE ON SCHEMA logger, oauth TO sprinter_reader;
-
--- Status: health_checks only, granted with the oauth tables below. It is the
--- one table Sprinter's tools read; a new logger table needs a deliberate
--- grant there, as a new oauth one does.
---
--- Earlier versions of this script granted the whole schema, present and
--- future tables. Revoking that first narrows an existing cluster when the
--- script is rerun. The default-privileges rule names the role that owns
--- Status's tables, the role Status migrates as: this cluster's superuser. It is
--- passed in as :"owner" rather than written out, so a cluster whose
--- POSTGRES_USER is not "biotron" still runs.
-REVOKE SELECT ON ALL TABLES IN SCHEMA logger FROM sprinter_reader;
-ALTER DEFAULT PRIVILEGES FOR ROLE :"owner" IN SCHEMA logger REVOKE SELECT ON TABLES FROM sprinter_reader;
+GRANT USAGE ON SCHEMA oauth TO sprinter_reader;
 
 -- Auth: named tables only, no default privileges. guest_keys must never be
 -- granted here or later: it holds the daily Exo guest key in plaintext. A new
 -- oauth table needs a deliberate line added to this list, not an automatic
 -- grant.
 --
--- On a fresh cluster none of these tables exist yet (Status and Auth have not
--- migrated), so each grant is guarded with to_regclass and skipped rather
--- than failing the whole script. The migrate image makes the same grants
--- after each Status and Auth migration (infra/migrate/grants/), which also
--- restores one that a migration recreating its table dropped; infra/tests
--- checks that both lists agree.
+-- On a fresh cluster none of these tables exist yet (Auth has not migrated),
+-- so each grant is guarded with to_regclass and skipped rather than failing
+-- the whole script. The migrate image makes the same grants after each Auth
+-- migration (infra/migrate/grants/auth.sql), which also restores one that a
+-- migration recreating its table dropped; infra/tests checks that both lists
+-- agree.
 DO $$
 BEGIN
-  IF to_regclass('logger.health_checks') IS NOT NULL THEN
-    GRANT SELECT ON logger.health_checks TO sprinter_reader;
-  END IF;
   IF to_regclass('oauth.operators') IS NOT NULL THEN
     GRANT SELECT ON oauth.operators TO sprinter_reader;
   END IF;
