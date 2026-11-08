@@ -4,28 +4,37 @@ set -euo pipefail
 
 usage() {
   cat <<'USAGE'
-Usage: ./pr-precheck [--base REF] [--all] [--plan]
+Usage: ./pr-precheck [--base REF] [--all] [--plan] [--no-live-db]
 
-Run CI's build, lint, test, secret, and vulnerability checks locally.
+Run CI's build, type, lint, format, test, sqlc, image, Prisma, workflow, secret, and
+vulnerability checks locally.
 Includes committed, staged, unstaged, and untracked nonignored changes.
 
   --base REF  Compare with this local ref (default: origin/main, then main)
-  --all       Check every app and the shared Go client
+  --all       Check every app and the shared Go modules
   --plan      Show selected checks without running or installing anything
+  --no-live-db
+              Skip the backends' live database tests, which need Docker
   --help      Show this help
 
-Use the devcontainer for Node, Go, golangci-lint, TruffleHog, Trivy, and jq.
+Use the devcontainer for Node, Go, golangci-lint, govulncheck, sqlc, actionlint,
+ShellCheck, zizmor, TruffleHog, Trivy, jq, and psql. The Prisma checks make and
+drop shadow databases in the Postgres of PRISMA_CHECK_DATABASE_URL (default:
+the devcontainer's).
 Security scans always run and require network access for live verification.
-No fetching, commits, pushes, migrations, or services are started.
+No fetching, commits, or pushes. For the live database tests of the selected
+backends, a throwaway Postgres container is started beside the devcontainer,
+built up with the roles and migrations as a deploy does, and removed at exit.
 USAGE
 }
 
-base='' all=false plan=false scratch=''
+base='' all=false plan=false scratch='' live_db=true test_pg=''
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --help|-h) usage; exit 0 ;;
     --all) all=true; shift ;;
     --plan) plan=true; shift ;;
+    --no-live-db) live_db=false; shift ;;
     --base)
       if [[ $# -lt 2 || "$2" == -* ]]; then echo '--base needs a local branch or commit' >&2; exit 1; fi
       base=$2; shift 2 ;;
@@ -50,7 +59,11 @@ head_commit=$(git rev-parse HEAD)
 merge_base=$(git merge-base "$base_commit" "$head_commit")
 
 scratch=$(mktemp -d "${TMPDIR:-/tmp}/biotron-pr-precheck.XXXXXX")
-trap 'rm -rf "$scratch"' EXIT
+cleanup() {
+  rm -rf "$scratch"
+  if [[ -n $test_pg ]]; then docker rm -f "$test_pg" >/dev/null 2>&1 || true; fi
+}
+trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 # NUL delimiters preserve spaces, newlines, and both sides of renames.
@@ -60,29 +73,46 @@ trap 'exit 143' TERM
   git ls-files --others --exclude-standard -z
 } > "$scratch/changed"
 
-apps='site calendar logger auth exo sprinter'
-frontends='' backends='' touched='' all_frontends=$all all_backends=$all
+apps='biotron calendar auth exogui sprinter'
+frontends='' backends='' touched='' all_frontends=$all all_backends=$all prisma=$all
 while IFS= read -r -d '' file; do
   case "$file" in
-    pr-precheck|.devcontainer/*|.github/workflows/ci.yml) all_frontends=true; all_backends=true ;;
-    packages/style/*|package.json|package-lock.json|tsconfig.base.json|.oxlintrc.json) all_frontends=true ;;
-    go/*|go.work|go.work.sum|.golangci.yml) all_backends=true ;;
-    apps/*) app=${file#apps/}; touched="$touched ${app%%/*}" ;;
+    pr-precheck|.devcontainer/*|.github/workflows/ci.yml) all_frontends=true; all_backends=true; prisma=true ;;
+    packages/style/*|package.json|package-lock.json|tsconfig.base.json|.oxlintrc.json|.prettierrc.json|.prettierignore) all_frontends=true ;;
+    go/*|go.work|go.work.sum) all_backends=true ;;
+    infra/migrate/*|scripts/check-prisma) prisma=true ;;
+    apps/*)
+      app=${file#apps/}; touched="$touched ${app%%/*}"
+      case "$file" in apps/*/prisma/*|apps/*/.env.example) prisma=true ;; esac ;;
   esac
 done < "$scratch/changed"
 for app in $apps; do
   if $all_frontends || [[ " $touched " == *" $app "* ]]; then frontends="${frontends:+$frontends }$app"; fi
-  if [[ $app != site ]] && { $all_backends || [[ " $touched " == *" $app "* ]]; }; then backends="${backends:+$backends }$app"; fi
+  if [[ $app != biotron ]] && { $all_backends || [[ " $touched " == *" $app "* ]]; }; then backends="${backends:+$backends }$app"; fi
 done
-logclient=no
-if $all_backends; then logclient=yes; fi
-printf 'Base: %s (merge base %.12s)\nFrontends: %s\nBackends: %s\nLog client: %s\n' "$base" "$merge_base" "${frontends:-none}" "${backends:-none}" "$logclient"
+shared=no
+if $all_backends; then shared=yes; fi
+# The backends that own a schema have live tests against a real database.
+live_backends=''
+if $live_db; then
+  for app in $backends; do
+    case $app in auth|calendar|sprinter) live_backends="${live_backends:+$live_backends }$app" ;; esac
+  done
+fi
+printf 'Base: %s (merge base %.12s)\nFrontends: %s\nBackends: %s\nShared Go modules: %s\n' "$base" "$merge_base" "${frontends:-none}" "${backends:-none}" "$shared"
+echo "Prisma: $(if $prisma; then echo 'format and migrations of every apps/*/prisma (scripts/check-prisma)'; else echo none; fi)"
+echo 'Images: pins and tool versions (scripts/check-images)'
+printf 'Live database tests: %s\n' "${live_backends:-none}"
+echo 'Workflows: actionlint and zizmor on every workflow'
+echo 'Shell scripts: ShellCheck on every one (scripts/list-shell-scripts)'
 echo 'Security: commit history, staged and working files, vulnerabilities and misconfigurations'
 if $plan; then exit 0; fi
 
-required='trufflehog trivy jq'
+required='trufflehog trivy jq actionlint shellcheck zizmor'
 if [[ -n $frontends ]]; then required="$required npm"; fi
-if [[ -n $backends || $logclient == yes ]]; then required="$required go golangci-lint"; fi
+if $prisma; then required="$required npm psql"; fi
+if [[ -n $backends || $shared == yes ]]; then required="$required go golangci-lint govulncheck sqlc"; fi
+if [[ -n $live_backends ]]; then required="$required docker"; fi
 missing=''
 for tool in $required; do
   if ! command -v "$tool" >/dev/null 2>&1; then missing="$missing $tool"; fi
@@ -166,24 +196,91 @@ scan_secrets() {
 if [[ -n $frontends ]]; then
   run 'npm dependencies' npm ci --ignore-scripts
   if $last_passed; then
+    run 'frontend format' npm run format:check
+    run 'shared style types' npm run typecheck -w packages/style
+    run 'shared style lint' npm exec --no -- oxlint --deny-warnings packages/style
+    run 'shared style tests' npm test -w packages/style
     run 'shared style build' npm run build -w packages/style
     style_built=$last_passed
     for app in $frontends; do
-      if $style_built; then run "$app frontend build" npm run build -w "apps/$app/frontend"; fi
-      run "$app frontend lint" npm exec --no -- oxlint "apps/$app/frontend/src"
+      if $style_built; then
+        run "$app frontend build" npm run build -w "apps/$app/frontend"
+        run "$app frontend tests" npm run test --if-present -w "apps/$app/frontend"
+      fi
+      run "$app frontend lint" npm exec --no -- oxlint --deny-warnings "apps/$app/frontend"
     done
     if ! $style_built; then echo 'SKIP app builds because the shared style build failed'; fi
   else echo 'SKIP frontend checks because dependency installation failed'
   fi
 fi
+# A throwaway Postgres in this container's network namespace, on a port of
+# its own, set up by scripts/test-database as CI's backend jobs are.
+start_test_database() {
+  local self password image
+  self=$(hostname)
+  if ! docker inspect "$self" >/dev/null 2>&1; then
+    echo "Docker does not know this container ($self). Run in the devcontainer, or pass --no-live-db." >&2
+    return 1
+  fi
+  password=$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')
+  image=$(sed -nE 's/^ *image: (postgres:[^[:space:]]+).*/\1/p' infra/docker-compose.yml | head -n 1)
+  test_pg=biotron-precheck-pg-$$
+  docker run -d --rm --name "$test_pg" --network "container:$self" -e POSTGRES_USER=biotron \
+    -e POSTGRES_PASSWORD="$password" -e POSTGRES_DB=biotron "$image" -p 54329 >/dev/null || return 1
+  PGPASSWORD=$password scripts/test-database --network "container:$self" --host 127.0.0.1:54329 > "$scratch/test-env" || return 1
+  set -a
+  # shellcheck source=/dev/null
+  . "$scratch/test-env"
+  set +a
+}
+# As in ci.yml: with a database set up, a live test that skips is a failure.
+every_live_test_ran() {
+  go test -race -p 1 -count=1 -run '^TestLive' -v ./... > "$scratch/live.txt" 2>&1 || { cat "$scratch/live.txt"; return 1; }
+  if grep -- '--- SKIP' "$scratch/live.txt"; then return 1; fi
+  grep -q -- '--- PASS: TestLive' "$scratch/live.txt"
+}
+live_ready=false
+if [[ -n $live_backends ]]; then
+  run 'live-test database' start_test_database
+  live_ready=$last_passed
+fi
+
 modules=''
 for app in $backends; do modules="$modules apps/$app/backend"; done
-if [[ $logclient == yes ]]; then modules="$modules go/logclient"; fi
+if [[ $shared == yes ]]; then modules="$modules go/authclient go/logclient"; fi
 for module in $modules; do
-  run "$module lint" in_directory "$root/$module" golangci-lint run ./...
+  run "$module lint" in_directory "$root/$module" golangci-lint run --config "$root/go/.golangci.yml" ./...
   run "$module vet" in_directory "$root/$module" go vet ./...
-  run "$module tests" in_directory "$root/$module" go test ./...
+  run "$module tests" in_directory "$root/$module" go test -race -skip '^TestLive' ./...
+  app=${module#apps/} app=${app%/backend}
+  if $live_ready && [[ " $live_backends " == *" $app "* ]]; then
+    run "$module live tests" in_directory "$root/$module" every_live_test_ran
+  fi
+  run "$module tidy" in_directory "$root/$module" go mod tidy -diff
+  run "$module vulnerabilities" in_directory "$root/$module" govulncheck ./...
+  # Same as .github/workflows/sqlc.yml: generated code matches its queries.
+  for config in sqlc.yaml sqlc.yml sqlc.json; do
+    if [[ -f $root/$module/$config ]]; then
+      run "$module sqlc" in_directory "$root/$module" sqlc diff -f "$config"
+    fi
+  done
 done
+
+if $prisma; then
+  run 'prisma dependencies' npm ci --prefix infra/migrate --no-audit --no-fund
+  if $last_passed; then
+    run 'prisma format and migrations' scripts/check-prisma
+  else echo 'SKIP the Prisma checks because their dependencies did not install'
+  fi
+fi
+run 'images' scripts/check-images
+
+run 'workflows' actionlint
+# Same as the workflows.yml job and the shellcheck job of ci.yml.
+run 'workflow security' zizmor --offline --config .github/zizmor.yml .github
+shell_scripts=()
+while IFS= read -r -d '' file; do shell_scripts+=("$file"); done < <(scripts/list-shell-scripts)
+run 'shell scripts' shellcheck -x "${shell_scripts[@]}"
 
 repo_url=$(jq -nr --arg root "$root" '"file://" + ($root | split("/") | map(@uri) | join("/"))')
 run 'commit secrets' scan_secrets git "$repo_url" --since-commit "$merge_base" --branch "$head_commit"

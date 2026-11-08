@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Prints every shell script of the repository, NUL-delimited, for ShellCheck
+# (the shellcheck job of ci.yml, and ./pr-precheck): each *.sh file, and each
+# other file whose first line is a sh or bash shebang. It reads the files Git
+# tracks or would track, so node_modules and other ignored files stay out.
+set -euo pipefail
+
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+git ls-files --cached --others --exclude-standard -z | while IFS= read -r -d '' file; do
+  [[ -f $file && ! -L $file ]] || continue
+  case $file in
+    *.sh) ;;
+    *) head -n 1 -- "$file" | grep -qE '^#! ?(/usr)?/bin/(env +)?(ba|da)?sh([[:space:]]|$)' || continue ;;
+  esac
+  printf '%s\0' "$file"
+done

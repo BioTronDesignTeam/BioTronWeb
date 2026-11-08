@@ -1,0 +1,719 @@
+#!/usr/bin/env python3
+"""Exercise real Compose interpolation and launch selection, without a daemon."""
+import base64
+import hashlib
+import json
+import os
+import re
+from pathlib import Path
+import shutil
+import subprocess
+import tempfile
+import unittest
+from urllib.parse import urlsplit
+
+ROOT = Path(__file__).resolve().parents[2]
+APPS = ('auth', 'calendar', 'exogui', 'biotron', 'sprinter')
+# The apps that own a database schema, each with its own DATABASE_URL.
+DATABASE_APPS = ('auth', 'calendar', 'sprinter')
+# Each app role's password, and every database password an instance needs.
+ROLE_PASSWORDS = {f'{app.upper()}_DB_PASSWORD': f'pw-{app}' for app in DATABASE_APPS}
+DATABASE_PASSWORDS = dict(POSTGRES_PASSWORD='fixture-db', SPRINTER_READER_PASSWORD='fixture-reader',
+                          AUTH_DB_PASSWORD='fixture-auth', CALENDAR_DB_PASSWORD='fixture-calendar',
+                          SPRINTER_DB_PASSWORD='fixture-sprinter')
+
+
+def database_url_parts(url):
+    """Split a database URL, so that no test spells out one with a password,
+    which secret scanners report."""
+    parts = urlsplit(url)
+    return (parts.scheme, parts.username, parts.password, f'{parts.hostname}:{parts.port}',
+            parts.path, parts.query)
+
+
+class RuntimeConfigTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        paths = ['launch', 'docker-compose.yml', 'infra/docker-compose.yml',
+                 'infra/edge/docker-compose.yml', 'infra/infisical/docker-compose.yml',
+                 'infra/no-host-ports.yml', 'deploy/instance-defaults.sh']
+        paths += [f'apps/{app}/docker-compose.yml' for app in APPS]
+        for path in paths:
+            dest = self.root / path
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(ROOT / path, dest)
+        # Don't inherit user configuration or credentials into fixtures.
+        self.env = {k: v for k, v in os.environ.items()
+                    if k in ('PATH', 'HOME', 'DOCKER_CONFIG')}
+        self.env.update(COMPOSE_DISABLE_ENV_FILE='true')
+
+    def run_command(self, *args, success=True):
+        result = subprocess.run(args, cwd=self.root, env=self.env,
+                                capture_output=True, text=True)
+        self.assertEqual(result.returncode == 0, success, result.stderr)
+        return result
+
+    def config(self, *args):
+        return json.loads(self.run_command('docker', 'compose', *args,
+                                          'config', '--format', 'json').stdout)
+
+    def secrets(self):
+        for app in DATABASE_APPS:
+            self.env[f'{app.upper()}_DATABASE_URL'] = f'fixture-{app}'
+        self.env.update(DATABASE_PASSWORDS)
+
+    def test_no_env_files_required_to_parse_or_stop_web(self):
+        self.assertEqual(len(self.config()['services']), 14)
+        self.run_command('./launch', 'stop', 'web', '--runtime', '--dry-run')
+
+    def test_database_and_public_config_are_isolated(self):
+        self.secrets()
+        self.env.update(AUTH_FRONTEND_URL='https://auth.example.test',
+                        SPRINTER_FRONTEND_URL='https://sprinter.example.test',
+                        AUTH_WEB_PORT='15173', SPRINTER_WEB_PORT='15178')
+        services = self.config()['services']
+        for app in DATABASE_APPS:
+            self.assertEqual(services[f'{app}-migrate']['environment']['DATABASE_URL'],
+                             f'fixture-{app}')
+        self.assertEqual(services['auth-api']['environment']['FRONTEND_URL'],
+                         'https://auth.example.test')
+        self.assertEqual(services['sprinter-bot']['environment']['FRONTEND_URL'],
+                         'https://sprinter.example.test')
+        self.assertEqual(services['auth-web']['ports'][0]['published'], '15173')
+        self.assertEqual(services['sprinter-web']['ports'][0]['published'], '15178')
+
+    def test_every_frontend_and_postgres_has_a_health_check(self):
+        # A deploy waits for health checks; the Go APIs, whose images have no
+        # shell to probe with, must instead stay up unrestarted.
+        services = self.config()['services']
+        for name, service in services.items():
+            if name.endswith('-web') or name == 'postgres':
+                self.assertIn('healthcheck', service, name)
+
+    def test_calendar_lets_local_sprinter_read_its_scopes(self):
+        origins = self.config()['services']['calendar-api']['environment']['CORS_ORIGINS']
+        for origin in ('http://localhost:5178', 'http://127.0.0.1:5178'):
+            self.assertIn(origin, origins.split(','))
+        example = (ROOT / 'apps/calendar/.env.example').read_text()
+        line = next(line for line in example.splitlines() if line.startswith('CORS_ORIGINS='))
+        self.assertEqual(line.split('=', 1)[1], origins)
+
+    def test_launch_accepts_injected_values(self):
+        self.secrets()
+        result = self.run_command('./launch', 'web', '--runtime', '--dry-run')
+        self.assertIn('auth-migrate', result.stdout)
+        self.assertNotIn('fixture-', result.stdout)
+
+    def test_launch_fails_for_missing_selected_credentials(self):
+        self.run_command('./launch', 'web', '--runtime', '--dry-run', success=False)
+        self.secrets()
+        del self.env['CALENDAR_DATABASE_URL']
+        self.run_command('./launch', 'web', '--runtime', '--dry-run', success=False)
+
+    def test_every_app_migrates_through_the_one_migrate_image(self):
+        services = self.config()['services']
+        migrates = sorted(name for name in services if name.endswith('-migrate'))
+        self.assertEqual(migrates, sorted(f'{app}-migrate' for app in DATABASE_APPS))
+        for app in DATABASE_APPS:
+            service = services[f'{app}-migrate']
+            self.assertEqual(service['image'], 'biotron-migrate:local')
+            self.assertEqual(service['build']['dockerfile'], 'infra/migrate/Dockerfile')
+            self.assertEqual(service['command'], [app])
+
+    def test_deploy_builds_every_image_compose_builds(self):
+        workflow = (ROOT / '.github/workflows/deploy.yml').read_text()
+        built = set(re.findall(r'- \{ name: ([a-z-]+),', workflow))
+        images = {service['image'].removeprefix('biotron-').split(':')[0]
+                  for service in self.config()['services'].values() if 'build' in service}
+        self.assertEqual(images, built - {'edge-nginx'})
+        # The merge job tags every image the build matrix builds.
+        merged = re.search(r'\n  merge:.*?image: \[([^\]]+)\]', workflow, re.S).group(1)
+        self.assertEqual({name.strip() for name in merged.split(',')}, built)
+        # Every image is built natively for both platforms production and
+        # staging run, and scanned on each.
+        self.assertIn('{ arch: amd64, runner: ubuntu-24.04 }', workflow)
+        self.assertIn('{ arch: arm64, runner: ubuntu-24.04-arm }', workflow)
+        self.assertNotIn('setup-qemu-action', workflow)
+        self.assertIn('image-ref: ${{ env.REPOSITORY }}@${{ steps.build.outputs.digest }}', workflow)
+
+    def test_ci_tests_against_the_postgres_that_instances_run(self):
+        compose = (ROOT / 'infra/docker-compose.yml').read_text()
+        image = re.search(r'image: (postgres:\S+)', compose).group(1)
+        ci = (ROOT / '.github/workflows/ci.yml').read_text()
+        self.assertIn(f"image: ${{{{ matrix.app != 'exogui' && '{image}' || '' }}}}", ci)
+        self.assertIn('scripts/test-database --network host --host 127.0.0.1:5432', ci)
+
+    def test_an_existing_image_tag_is_never_built_again(self):
+        bin_dir = self.root / 'bin'
+        bin_dir.mkdir()
+        fake = bin_dir / 'docker'
+        output = self.root / 'output'
+        env = dict(self.env, PATH=f'{bin_dir}:{self.env["PATH"]}', GITHUB_OUTPUT=str(output))
+        for answer, code, exists in (('a manifest list', 0, 'true'),
+                                     ('ERROR: ghcr.io/x/y:z: not found', 1, 'false'),
+                                     ('ERROR: failed to do request: connection refused', 1, None)):
+            fake.write_text(f'#!/bin/sh\necho "{answer}"\nexit {code}\n')
+            fake.chmod(0o755)
+            output.write_text('')
+            result = subprocess.run([str(ROOT / 'scripts/image-tag-exists'), 'ghcr.io/x/y:z'],
+                                    env=env, capture_output=True, text=True)
+            if exists is None:
+                self.assertNotEqual(result.returncode, 0, answer)
+                self.assertEqual(output.read_text(), '')
+            else:
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(output.read_text(), f'exists={exists}\n')
+        workflow = (ROOT / '.github/workflows/deploy.yml').read_text()
+        self.assertEqual(workflow.count('run: scripts/image-tag-exists "$REPOSITORY:$GITHUB_SHA"'), 2)
+        self.assertEqual(workflow.count("if: steps.existing.outputs.exists == 'false'"), 7)
+
+    def test_exogui_needs_no_database(self):
+        services = self.config()['services']
+        self.assertNotIn('exogui-migrate', services)
+        self.assertNotIn('DATABASE_URL', services['exogui-api']['environment'])
+        args = [f'--no-{app}' for app in APPS if app != 'exogui']
+        result = self.run_command('./launch', 'web', '--runtime', '--dry-run', *args)
+        self.assertIn('exogui-api', result.stdout)
+
+    def test_excluded_apps_do_not_need_secrets(self):
+        args = [f'--no-{app}' for app in APPS if app != 'biotron']
+        result = self.run_command('./launch', 'web', '--runtime', '--dry-run', *args)
+        self.assertIn('biotron-web', result.stdout)
+        self.assertNotIn('auth-api', result.stdout)
+
+    def test_local_files_work_and_runtime_ignores_them(self):
+        (self.root / 'apps/auth/.env').write_text('DATABASE_URL=fixture-local\n')
+        args = [f'--no-{app}' for app in APPS if app != 'auth']
+        self.run_command('./launch', 'web', '--dry-run', *args)
+        self.run_command('./launch', 'web', '--runtime', '--dry-run', *args,
+                         success=False)
+        self.env['AUTH_DATABASE_URL'] = 'fixture-injected'
+        self.run_command('./launch', 'web', '--runtime', '--dry-run', *args)
+
+    def test_edge_uses_environment_backed_tunnel_secret(self):
+        self.env.update(EDGE_SITES='prod=example.test', CLOUDFLARE_TUNNEL_TOKEN='fixture-tunnel')
+        config = self.config('-f', 'infra/edge/docker-compose.yml', '--env-file', '/dev/null')
+        self.assertEqual(config['secrets']['cloudflare_tunnel_token']['environment'],
+                         'CLOUDFLARE_TUNNEL_TOKEN')
+        self.assertNotIn('CLOUDFLARE_TUNNEL_TOKEN',
+                         config['services']['cloudflared'].get('environment', {}))
+
+    def test_edge_is_its_own_project(self):
+        self.env.update(POSTGRES_PASSWORD='fixture-db', SPRINTER_READER_PASSWORD='fixture-reader')
+        infra = self.config('-f', 'infra/docker-compose.yml', '--env-file', '/dev/null')
+        self.assertEqual(sorted(infra['services']), ['postgres', 'postgres-roles'])
+        (self.root / 'edge.env').write_text('EDGE_SITES=local=localhost\n')
+        self.env['EDGE_ENV_FILE'] = str(self.root / 'edge.env')
+        result = self.run_command('./launch', 'edge', '--no-tunnel', '--dry-run')
+        self.assertIn('infra/edge/docker-compose.yml', result.stdout)
+        self.assertTrue(result.stdout.rstrip().endswith('up -d nginx'), result.stdout)
+        self.run_command('./launch', 'infra', '--no-tunnel', '--dry-run', success=False)
+
+    def test_edge_joins_each_instance_network_and_no_other(self):
+        (self.root / 'edge.env').write_text(
+            'EDGE_SITES=staging=staging.example.test prod=example.test\n')
+        self.env['EDGE_ENV_FILE'] = str(self.root / 'edge.env')
+        result = self.run_command('./launch', 'edge', '--dry-run')
+        # Each instance network has a fixed subnet, with the edge at .2.
+        self.assertIn('docker network create biotron-staging --subnet 10.213.1.0/24 '
+                      '--ip-range 10.213.1.128/25 --gateway 10.213.1.1', result.stdout)
+        self.assertIn('docker network create biotron-prod --subnet 10.213.2.0/24', result.stdout)
+        self.assertNotIn('create biotron ', result.stdout)
+        self.assertIn('# override:         ipv4_address: 10.213.1.2', result.stdout)
+        self.assertIn('# override:         ipv4_address: 10.213.2.2', result.stdout)
+        (self.root / 'edge.env').write_text('EDGE_SITES=Prod=example.test\n')
+        self.run_command('./launch', 'edge', '--dry-run', success=False)
+
+    def test_backends_trust_only_the_edge_to_name_the_client(self):
+        # ./launch sets BIOTRON_EDGE_ADDRESS to the edge's address on the instance's
+        # network, the one in the edge override above; a laptop's is the default.
+        for address in (None, '10.213.2.2'):
+            if address:
+                self.env['BIOTRON_EDGE_ADDRESS'] = address
+            services = self.config()['services']
+            for service in ('auth-api',):
+                self.assertEqual(services[service]['environment']['TRUSTED_PROXIES'],
+                                 f'127.0.0.1,::1,{address or "10.213.0.2"}')
+        for path in ('apps/auth/docker-compose.yml', 'apps/auth/.env.example'):
+            self.assertNotIn('172.16.0.0/12', (ROOT / path).read_text(), path)
+        self.env['EDGE_SITES'] = 'prod=example.test'
+        edge = self.config('-f', 'infra/edge/docker-compose.yml', '--env-file', '/dev/null')
+        self.assertEqual(edge['networks']['edge']['ipam']['config'], [{'subnet': '10.213.255.0/29'}])
+        self.assertEqual(edge['services']['nginx']['environment']['EDGE_SUBNET'], '10.213.255.0/29')
+
+    def test_apps_carry_instance_qualified_aliases_for_the_edge(self):
+        edge_targets = {'biotron-web', 'calendar-api', 'calendar-web', 'oauth-manager',
+                        'oauth-web', 'exogui-api', 'exogui-web', 'sprinter', 'sprinter-web'}
+        for instance in (None, 'staging'):
+            if instance:
+                self.env['BIOTRON_INSTANCE'] = instance
+            prefix = instance or 'local'
+            aliases = set()
+            for service in self.config()['services'].values():
+                for net in (service.get('networks') or {}).values():
+                    aliases.update((net or {}).get('aliases') or [])
+            self.assertTrue({f'{prefix}-{name}' for name in edge_targets} <= aliases)
+        # Every upstream the edge names is one of those aliases.
+        template = (ROOT / 'infra/nginx/sites/site.conf.template').read_text()
+        upstreams = set(re.findall(r'http://\$\{INSTANCE\}-([a-z-]+):', template))
+        self.assertEqual(upstreams, edge_targets)
+
+    def test_every_server_of_an_instance_can_turn_crawlers_away(self):
+        template = (ROOT / 'infra/nginx/sites/site.conf.template').read_text()
+        servers = template.count('\nserver {')
+        self.assertEqual(template.count('    ${ROBOTS}\n'), servers)
+        nginx_conf = (ROOT / 'infra/nginx/nginx.conf').read_text()
+        self.assertIn('add_header X-Robots-Tag $robots_tag always;', nginx_conf)
+        snippet = (ROOT / 'infra/nginx/snippets/robots-noindex.conf').read_text()
+        self.assertIn('Disallow: /', snippet)
+
+    def test_local_project_keeps_its_names(self):
+        config = self.config()
+        self.assertEqual(config['name'], 'biotron')
+        self.assertEqual(config['networks']['biotron']['name'], 'biotron')
+        self.assertEqual(config['volumes']['postgres-data']['name'],
+                         'biotron-infrastructure_postgres-data')
+
+    def test_instances_get_their_own_project_network_and_volumes(self):
+        self.env.update(BIOTRON_INSTANCE='staging', BIOTRON_NETWORK='biotron-staging')
+        config = self.config('-p', 'biotron-staging')
+        self.assertEqual(config['name'], 'biotron-staging')
+        self.assertEqual({net['name'] for net in config['networks'].values()},
+                         {'biotron-staging'})
+        self.assertEqual({vol['name'] for vol in config['volumes'].values()},
+                         {'biotron-staging_postgres-data'})
+        for service in config['services'].values():
+            self.assertNotIn('container_name', service)
+
+    def test_launch_runs_an_instance_as_its_own_project(self):
+        self.secrets()
+        result = self.run_command('./launch', 'all', '--instance', 'prod', '--runtime', '--dry-run')
+        self.assertIn('docker network create biotron-prod', result.stdout)
+        ups = [line for line in result.stdout.splitlines() if ' up ' in line]
+        self.assertEqual(len(ups), 2, result.stdout)
+        self.assertTrue(all('-p biotron-prod' in line for line in ups), result.stdout)
+        self.assertTrue(ups[0].endswith('up -d postgres postgres-roles'), ups[0])
+        self.assertNotIn('postgres', ups[1])
+
+    def test_named_instances_publish_no_host_ports(self):
+        local = self.config()['services']
+        self.assertTrue(any(service.get('ports') for service in local.values()))
+        self.env.update(BIOTRON_INSTANCE='staging', BIOTRON_NETWORK='biotron-staging')
+        config = self.config('-p', 'biotron-staging', '-f', 'docker-compose.yml',
+                             '-f', 'infra/no-host-ports.yml')
+        self.assertEqual(sorted(config['services']), sorted(local))
+        for name, service in config['services'].items():
+            self.assertFalse(service.get('ports'), name)
+        self.secrets()
+        result = self.run_command('./launch', 'web', '--instance', 'staging', '--dry-run')
+        self.assertIn('-f infra/no-host-ports.yml', result.stdout)
+
+    def test_pull_deploys_tagged_images_without_building(self):
+        self.secrets()
+        args = ('./launch', 'all', '--instance', 'staging', '--runtime', '--pull', '--dry-run')
+        self.run_command(*args, success=False)
+        self.env.update(IMAGE_REGISTRY='ghcr.io/biotrondesignteam/', IMAGE_TAG='0' * 40)
+        lines = self.run_command(*args).stdout.splitlines()
+        pulls = [line for line in lines if ' pull ' in line]
+        ups = [line for line in lines if ' up ' in line]
+        self.assertEqual(len(pulls), 2)
+        self.assertEqual(len(ups), 2)
+        for line in ups:
+            self.assertIn('--no-build', line)
+            self.assertIn('--remove-orphans', line)
+            self.assertNotIn('--build ', line)
+        self.assertLess(lines.index(pulls[0]), lines.index(ups[0]))
+        self.run_command('./launch', 'web', '--pull', '--build', '--dry-run', success=False)
+
+    def test_launch_rejects_bad_or_shared_instance_names(self):
+        for name in ('Prod', 'edge', 'secrets', 'a-b', ''):
+            self.run_command('./launch', 'web', '--instance', name, '--dry-run', success=False)
+        self.run_command('./launch', 'edge', '--instance', 'prod', '--dry-run', success=False)
+
+    def test_infra_needs_database_passwords(self):
+        self.run_command('./launch', 'infra', '--runtime', '--dry-run', success=False)
+        self.env.update(POSTGRES_PASSWORD='fixture-db', SPRINTER_READER_PASSWORD='fixture-reader')
+        # A laptop may leave the app roles out; a deployment may not.
+        self.run_command('./launch', 'infra', '--dry-run')
+        self.run_command('./launch', 'infra', '--runtime', '--dry-run', success=False)
+        self.env.update(DATABASE_PASSWORDS)
+        self.run_command('./launch', 'infra', '--runtime', '--dry-run')
+
+    def test_migrations_run_as_the_owner_after_the_roles(self):
+        self.env.update(AUTH_DATABASE_URL='fixture-app', AUTH_MIGRATE_DATABASE_URL='fixture-owner')
+        services = self.config()['services']
+        self.assertEqual(services['auth-migrate']['environment']['DATABASE_URL'], 'fixture-owner')
+        self.assertEqual(services['auth-api']['environment']['DATABASE_URL'], 'fixture-app')
+        for app in DATABASE_APPS:
+            self.assertEqual(services[f'{app}-migrate']['depends_on']['postgres-roles']['condition'],
+                             'service_completed_successfully')
+        self.assertEqual(services['postgres-roles']['depends_on']['postgres']['condition'],
+                         'service_healthy')
+        # Without a separate owner URL, a laptop's single DATABASE_URL serves both.
+        del self.env['AUTH_MIGRATE_DATABASE_URL']
+        services = self.config()['services']
+        self.assertEqual(services['auth-migrate']['environment']['DATABASE_URL'], 'fixture-app')
+
+    def test_infisical_is_independent_and_loopback_only(self):
+        self.env.update(ENCRYPTION_KEY='fixture-key', AUTH_SECRET='fixture-auth',
+                        INFISICAL_DB_PASSWORD='fixture-db')
+        config = self.config('-f', 'infra/infisical/docker-compose.yml',
+                             '--env-file', '/dev/null')
+        self.assertEqual(config['name'], 'biotron-secrets')
+        self.assertNotIn('biotron', config['networks'])
+        self.assertEqual(config['services']['infisical']['ports'][0]['host_ip'],
+                         '127.0.0.1')
+        self.assertNotIn('ports', config['services']['db'])
+        self.assertNotIn('ports', config['services']['redis'])
+        self.assertEqual(config['volumes']['postgres-data']['name'],
+                         'biotron-secrets_postgres-data')
+        self.assertNotIn('infisical', self.config()['services'])
+        (self.root / 'bootstrap.env').write_text(
+            'ENCRYPTION_KEY=fixture-key\nAUTH_SECRET=fixture-auth\n'
+            'INFISICAL_DB_PASSWORD=fixture-db\n')
+        self.env['INFISICAL_BOOTSTRAP_FILE'] = str(self.root / 'bootstrap.env')
+        result = self.run_command('./launch', 'secrets', '--dry-run')
+        self.assertIn('infra/infisical/docker-compose.yml', result.stdout)
+        self.run_command('./launch', 'stop', 'secrets', '--dry-run')
+
+
+    def instance_defaults(self, **values):
+        self.env.update(values)
+        result = self.run_command('bash', 'deploy/instance-defaults.sh', 'env')
+        return dict(line.split('=', 1) for line in result.stdout.splitlines() if '=' in line)
+
+    def test_instance_defaults_derive_settings_from_the_domain_and_passwords(self):
+        env = self.instance_defaults(**ROLE_PASSWORDS, BASE_DOMAIN='example.test',
+                                     POSTGRES_PASSWORD='abc123', SPRINTER_READER_PASSWORD='def456')
+        # Each API connects as its own role; its migrations run as the owner.
+        for app, schema in (('auth', 'oauth'), ('calendar', 'calendar'), ('sprinter', 'sprinter')):
+            self.assertEqual(database_url_parts(env[f'{app.upper()}_DATABASE_URL']),
+                             ('postgresql', f'{app}_app', f'pw-{app}', 'postgres:5432', '/biotron',
+                              f'schema={schema}'))
+            self.assertEqual(database_url_parts(env[f'{app.upper()}_MIGRATE_DATABASE_URL']),
+                             ('postgresql', 'biotron', 'abc123', 'postgres:5432', '/biotron',
+                              f'schema={schema}'))
+        self.assertEqual(database_url_parts(env['SPRINTER_READ_DATABASE_URL']),
+                         ('postgresql', 'sprinter_reader', 'def456', 'postgres:5432', '/biotron', ''))
+        self.assertEqual(env['AUTH_OAUTH_CALLBACK_URL'],
+                         'https://auth.example.test/api/auth/github/callback')
+        self.assertEqual(env['AUTH_COOKIE_DOMAIN'], '.example.test')
+        self.assertEqual(env['CALENDAR_SITE_URL'], 'https://example.test')
+        # Sprinter's admin page reads Calendar's scope list from its own origin.
+        self.assertIn('https://sprinter.example.test', env['CALENDAR_CORS_ORIGINS'].split(','))
+        # A value Infisical sets wins over the derived one.
+        env = self.instance_defaults(AUTH_FRONTEND_URL='https://login.example.test')
+        self.assertEqual(env['AUTH_FRONTEND_URL'], 'https://login.example.test')
+
+    def test_instance_defaults_reject_missing_or_unsafe_values(self):
+        self.run_command('bash', 'deploy/instance-defaults.sh', 'true', success=False)
+        self.env.update(BASE_DOMAIN='example.test', POSTGRES_PASSWORD='abc',
+                        SPRINTER_READER_PASSWORD='def456')
+        # Every app role needs its password.
+        self.run_command('bash', 'deploy/instance-defaults.sh', 'true', success=False)
+        self.env.update(ROLE_PASSWORDS)
+        self.run_command('bash', 'deploy/instance-defaults.sh', 'true')
+        self.env.update(AUTH_DB_PASSWORD='a@b')
+        self.run_command('bash', 'deploy/instance-defaults.sh', 'true', success=False)
+        self.env.update(ROLE_PASSWORDS, POSTGRES_PASSWORD='a@b')
+        self.run_command('bash', 'deploy/instance-defaults.sh', 'true', success=False)
+        self.run_command('bash', 'deploy/instance-defaults.sh', 'true', success=False)
+        self.env.update(POSTGRES_PASSWORD='abc', BASE_DOMAIN='Example.test')
+        self.run_command('bash', 'deploy/instance-defaults.sh', 'true', success=False)
+
+    def test_derived_settings_satisfy_launch(self):
+        self.env.update(**ROLE_PASSWORDS, BASE_DOMAIN='example.test', POSTGRES_PASSWORD='abc123',
+                        SPRINTER_READER_PASSWORD='def456',
+                        IMAGE_REGISTRY='ghcr.io/biotrondesignteam/', IMAGE_TAG='0' * 40)
+        self.run_command('bash', 'deploy/instance-defaults.sh', './launch', 'all',
+                         '--instance', 'prod', '--runtime', '--pull', '--dry-run')
+
+class DeployTests(unittest.TestCase):
+    """The deploy script and workflow keep staging and production apart."""
+
+    SHA = '0123456789abcdef0123456789abcdef01234567'
+
+    def test_deploy_workflow_logs_in_per_environment(self):
+        workflow = (ROOT / '.github/workflows/deploy.yml').read_text()
+        self.assertIn("tags: tag:biotron-ci-${{ env.INSTANCE }}", workflow)
+        self.assertIn("DEPLOY_USER: deploy-${{ startsWith(github.ref, 'refs/tags/') && 'prod' || 'staging' }}",
+                      workflow)
+        self.assertEqual(workflow.count('tailscale ssh "$DEPLOY_USER@$DEPLOY_HOST"'), 2)
+        self.assertNotIn('deploy@', workflow)
+        self.assertNotIn('tag:biotron-ci\n', workflow)
+
+    def test_deploy_refuses_malformed_calls_before_anything_else(self):
+        # These checks run before the script asks for root, so they hold for
+        # whatever a sudoers wildcard lets through.
+        for args in [('prod', 'abc'), ('staging', self.SHA, 'prod'), ('Prod', self.SHA),
+                     ('local', self.SHA), ('staging', self.SHA.upper()), ()]:
+            result = subprocess.run(['bash', str(ROOT / 'deploy/biotron-deploy'), *args],
+                                    capture_output=True, text=True)
+            self.assertNotEqual(result.returncode, 0, args)
+            self.assertNotIn('run as root', result.stderr, args)
+
+    @unittest.skipUnless(shutil.which('jq'), 'jq is not installed')
+    def test_prod_needs_a_release_tag_on_the_commit(self):
+        script = (ROOT / 'deploy/biotron-deploy').read_text()
+        self.assertIn('[[ $target != prod ]] || check_release_tag', script)
+        jq_filter = re.search(r"jq -e --arg commit \"\$revision\" \\\n\s*'([^']+)'", script).group(1)
+        tags = [
+            {'name': 'v1.4.0', 'commit': {'sha': self.SHA}},
+            {'name': 'nightly', 'commit': {'sha': 'f' * 40}},
+            {'name': 'v1.5.0; rm', 'commit': {'sha': 'e' * 40}},
+        ]
+        for commit, tagged in [(self.SHA, True), ('f' * 40, False), ('e' * 40, False), ('d' * 40, False)]:
+            result = subprocess.run(['jq', '-e', '--arg', 'commit', commit, jq_filter],
+                                    input=json.dumps(tags), capture_output=True, text=True)
+            self.assertEqual(result.returncode == 0, tagged, commit)
+
+
+class DeployScriptTests(unittest.TestCase):
+    """deploy/biotron-deploy's functions, sourced one by one, with Docker and
+    GitHub replaced by shell functions."""
+
+    SHA = '0123456789abcdef0123456789abcdef01234567'
+    OLD = '2026-01-01T00:00:00.000000000Z'
+    # A fake `docker` for wait_healthy: each container is a line of
+    # id, service, state, health, exit code, restart policy, restart count, and
+    # start time in $FAKE/containers. A restart count of `+` grows on every look.
+    DOCKER = r'''
+docker() {
+  case $1 in
+    ps) if [[ $2 == -aq ]]; then cut -f1 "$FAKE/containers"; else echo 'the container table'; fi ;;
+    inspect)
+      local id=${*: -1} line
+      line=$(grep "^$id"$'\t' "$FAKE/containers")
+      if [[ $(cut -f7 <<<"$line") == + ]]; then
+        echo x >> "$FAKE/looks.$id"
+        line=$(awk -F'\t' -v n="$(wc -l < "$FAKE/looks.$id")" 'BEGIN{OFS="\t"} {$7=n; print}' <<<"$line")
+      fi
+      cut -f2- <<<"$line" ;;
+    logs) echo "SECRET log line of ${*: -1}" ;;
+  esac
+}
+install() { mkdir -p "${@: -1}"; }
+sleep() { :; }
+'''
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.fake = Path(self.temp.name)
+
+    def bash(self, script):
+        """Sources the deploy script, then runs `script` in the same shell."""
+        prelude = (f'source {ROOT}/deploy/biotron-deploy\n{self.DOCKER}\n'
+                   f'logdir={self.fake}/log target=staging revision={self.SHA}\n')
+        return subprocess.run(['bash', '-c', prelude + script], capture_output=True, text=True,
+                              env={**os.environ, 'FAKE': str(self.fake)})
+
+    def containers(self, *rows):
+        self.fake.joinpath('containers').write_text(
+            ''.join('\t'.join(row) + '\n' for row in rows))
+
+    def logs(self):
+        return ''.join(path.read_text() for path in (self.fake / 'log').glob('*.log'))
+
+    def test_read_env_file_reads_values_without_running_them(self):
+        env = self.fake / 'identity.env'
+        env.write_bytes(b'# a comment\n\nA="x=y"\r\nB=\'z\'\nC=$(touch pwned)\n')
+        result = self.bash(f'read_env_file {env}; printf "%s|" "$file_A" "$file_B" "$file_C"')
+        self.assertEqual(result.stdout, 'x=y|z|$(touch pwned)|', result.stderr)
+        self.assertFalse((ROOT / 'pwned').exists())
+        env.write_text('export A=1\n')
+        result = self.bash(f'read_env_file {env}')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('unexpected line', result.stderr)
+
+    def test_only_a_commit_on_main_deploys(self):
+        for status, deploys in (('ahead', True), ('identical', True), ('behind', False),
+                                ('diverged', False)):
+            result = self.bash(f"curl() {{ echo '{{\"status\":\"{status}\"}}'; }}; check_on_main")
+            self.assertEqual(result.returncode == 0, deploys, (status, result.stderr))
+            if not deploys:
+                self.assertIn('is not a commit on main', result.stderr)
+        result = self.bash('curl() { return 22; }; check_on_main')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('cannot ask GitHub', result.stderr)
+
+    def test_wait_healthy_accepts_ready_containers(self):
+        self.containers(
+            ('a1', 'auth-migrate', 'exited', 'none', '0', 'no', '0', self.OLD),
+            ('a2', 'auth-api', 'running', 'none', '0', 'unless-stopped', '3', self.OLD),
+            ('a3', 'auth-web', 'running', 'healthy', '0', 'unless-stopped', '0', self.OLD))
+        result = self.bash('stable_seconds=0; wait_healthy biotron-staging')
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_a_failed_migration_ends_the_wait_and_keeps_its_logs_private(self):
+        self.containers(
+            ('a1', 'auth-migrate', 'exited', 'none', '1', 'no', '0', self.OLD),
+            ('a2', 'auth-api', 'created', 'none', '0', 'unless-stopped', '0', self.OLD))
+        result = self.bash('ready_timeout=3600; wait_healthy biotron-staging')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('not ready: auth-migrate (exited 1)', result.stderr)
+        self.assertIn('failed to start', result.stderr)
+        self.assertNotIn('SECRET', result.stderr + result.stdout)
+        self.assertIn('SECRET log line of a1', self.logs())
+
+    def test_a_crash_loop_is_not_ready(self):
+        self.containers(
+            ('a2', 'auth-api', 'running', 'none', '0', 'unless-stopped', '+', self.OLD))
+        result = self.bash('ready_timeout=3600; wait_healthy biotron-staging')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('auth-api (restarting, crash loop)', result.stderr)
+
+    def test_a_container_must_stay_up_for_a_while(self):
+        just_now = subprocess.run(['date', '-u', '+%Y-%m-%dT%H:%M:%S.000000000Z'],
+                                  capture_output=True, text=True, check=True).stdout.strip()
+        self.containers(
+            ('a2', 'auth-api', 'running', 'none', '0', 'unless-stopped', '0', just_now))
+        result = self.bash('ready_timeout=0; wait_healthy biotron-staging')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('is not ready after 0s', result.stderr)
+        result = self.bash('stable_seconds=0; wait_healthy biotron-staging')
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_a_failed_launch_still_records_why(self):
+        self.containers(
+            ('a1', 'calendar-migrate', 'exited', 'none', '1', 'no', '0', self.OLD))
+        result = self.bash('report_launch_failure biotron-staging')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('not ready: calendar-migrate (exited 1)', result.stderr)
+        self.assertIn('SECRET log line of a1', self.logs())
+
+
+class DatabaseGrantTests(unittest.TestCase):
+    """The role scripts and the grants the migrate image makes agree."""
+
+    def test_reader_tables_are_the_same_in_the_init_script_and_after_migrations(self):
+        script = (ROOT / 'infra/postgres/init/10-sprinter-reader.sh').read_text()
+        in_script = set(re.findall(r'GRANT SELECT ON ([a-z_]+\.[a-z_]+) TO sprinter_reader', script))
+        after = set()
+        for app in DATABASE_APPS:
+            sql = (ROOT / f'infra/migrate/grants/{app}.sql').read_text()
+            for tables in re.findall(r'GRANT SELECT ON ([a-z_., ]+) TO sprinter_reader', sql):
+                after.update(t.strip() for t in tables.split(','))
+        self.assertEqual(in_script, after)
+        self.assertEqual(in_script, {'oauth.operators', 'oauth.apps', 'oauth.permissions',
+                                     'oauth.grants'})
+
+    def test_every_app_with_a_schema_has_its_grants_file(self):
+        for app in DATABASE_APPS:
+            sql = (ROOT / f'infra/migrate/grants/{app}.sql').read_text()
+            self.assertIn(f"rolname = '{app}_app'", sql)
+
+
+class DeployShellTests(unittest.TestCase):
+    """deploy/biotron-deploy-shell, the CI accounts' login shell, runs a deploy
+    and nothing else."""
+
+    SHA = '0123456789abcdef0123456789abcdef01234567'
+
+    def shell(self, *args):
+        return subprocess.run([str(ROOT / 'deploy/biotron-deploy-shell'), *args],
+                              capture_output=True, text=True)
+
+    def test_refuses_everything_but_a_deploy(self):
+        for args in [(), ('-l',), ('-c', 'id'), ('-c', 'bash'), ('-i',),
+                     ('-c', f'sudo /usr/local/sbin/biotron-deploy staging {self.SHA}; id'),
+                     ('-c', f'sudo /usr/local/sbin/biotron-deploy staging {self.SHA} prod'),
+                     ('-c', f'sudo /usr/local/sbin/biotron-deploy staging $(id)'),
+                     ('-c', f'sudo /usr/local/sbin/biotron-deploy Staging {self.SHA}'),
+                     ('-c', f'sudo /tmp/biotron-deploy staging {self.SHA}'),
+                     ('-c', f'sudo -u root /usr/local/sbin/biotron-deploy staging {self.SHA}'),
+                     ('-c', f'sudo /usr/local/sbin/biotron-deploy staging {self.SHA}\nid'),
+                     ('-c', 'x', 'y')]:
+            result = self.shell(*args)
+            self.assertEqual(result.returncode, 1, args)
+            self.assertIn('this account can only run', result.stderr, args)
+
+    def test_passes_a_deploy_to_sudo(self):
+        # sudo is absent, or refuses for want of the real script; either way
+        # the shell let the command through rather than refusing it.
+        for args in [('-c', f'sudo /usr/local/sbin/biotron-deploy staging {self.SHA}'),
+                     ('-l', '-c', f'/usr/local/sbin/biotron-deploy edge {self.SHA}')]:
+            result = self.shell(*args)
+            self.assertNotIn('this account can only run', result.stderr, args)
+
+    def test_the_workflow_sends_the_form_the_shell_accepts(self):
+        workflow = (ROOT / '.github/workflows/deploy.yml').read_text()
+        self.assertIn('sudo /usr/local/sbin/biotron-deploy "$INSTANCE" "$REVISION"', workflow)
+        self.assertIn('sudo /usr/local/sbin/biotron-deploy edge "$REVISION"', workflow)
+
+
+class ContentSecurityPolicyTests(unittest.TestCase):
+    """The edge's enforced CSP allows exactly the inline scripts the apps ship."""
+
+    def policy(self):
+        template = (ROOT / 'infra/nginx/sites/csp.template').read_text()
+        line = '\n'.join(l for l in template.splitlines() if l and not l.startswith('#'))
+        return dict((d.split()[0], d.split()[1:]) for d in line.split('; '))
+
+    def test_every_inline_script_matches_a_hash_in_the_policy(self):
+        script_src = self.policy()['script-src']
+        self.assertNotIn("'unsafe-inline'", script_src)
+        allowed = {s[len("'sha256-"):-1] for s in script_src if s.startswith("'sha256-")}
+        pages = sorted(ROOT.glob('apps/*/frontend/index.html'))
+        self.assertEqual(len(pages), 5)
+        found = set()
+        for page in pages:
+            html = page.read_bytes()
+            for attributes, body in re.findall(rb'<script([^>]*)>(.*?)</script>', html, re.S):
+                if b'src=' in attributes:
+                    continue
+                digest = base64.b64encode(hashlib.sha256(body).digest()).decode()
+                self.assertIn(digest, allowed, f'{page.relative_to(ROOT)}: an inline script '
+                              'whose hash is not in infra/nginx/sites/csp.template')
+                found.add(digest)
+        # No stale hash stays behind to allow a script nobody ships.
+        self.assertEqual(found, allowed)
+
+    def test_violations_are_reported_to_the_edge(self):
+        policy = self.policy()
+        self.assertEqual(policy['report-uri'], ['/_edge/csp-report'])
+        self.assertEqual(policy['report-to'], ['csp'])
+        nginx_conf = (ROOT / 'infra/nginx/nginx.conf').read_text()
+        self.assertIn("add_header Content-Security-Policy $csp_policy always;", nginx_conf)
+        self.assertIn('Reporting-Endpoints \'csp="/_edge/csp-report"\'', nginx_conf)
+        self.assertNotIn('Report-Only $', nginx_conf)
+
+
+class LineEndingTests(unittest.TestCase):
+    """Scripts and the files hashed or copied into images stay LF."""
+
+    def tracked(self):
+        result = subprocess.run(['git', 'ls-files', '-z'], cwd=ROOT, capture_output=True,
+                                check=True)
+        return [name for name in result.stdout.decode().split('\0') if name]
+
+    def eol(self, paths):
+        result = subprocess.run(['git', 'check-attr', '-z', 'eol', '--stdin'], cwd=ROOT,
+                                input='\0'.join(paths).encode(), capture_output=True,
+                                check=True)
+        fields = result.stdout.decode().split('\0')
+        return {fields[i]: fields[i + 2] for i in range(0, len(fields) - 2, 3)}
+
+    @unittest.skipUnless(shutil.which('git') and (ROOT / '.git').exists(), 'not a git checkout')
+    def test_every_script_and_html_file_is_lf(self):
+        wanted = []
+        for name in self.tracked():
+            path = ROOT / name
+            if path.is_symlink() or not path.is_file():
+                continue
+            if name.endswith(('.sh', '.html', '.conf', '.template')):
+                wanted.append(name)
+                continue
+            with path.open('rb') as handle:
+                if handle.read(2) == b'#!':
+                    wanted.append(name)
+        self.assertIn('launch', wanted)
+        self.assertIn('deploy/biotron-deploy', wanted)
+        eol = self.eol(wanted)
+        self.assertEqual([name for name in wanted if eol.get(name) != 'lf'], [])
+
+
+if __name__ == '__main__':
+    unittest.main()

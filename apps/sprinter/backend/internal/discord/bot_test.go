@@ -10,8 +10,8 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/model"
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/store"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/model"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/store"
 )
 
 // call is one thing the bot did to Discord, in the order it did it. The order
@@ -29,6 +29,8 @@ type fakeAPI struct {
 	parent map[string]string
 	// threadErr fails StartThread; followupErr fails Followup.
 	threadErr, followupErr error
+	// dmErr fails DirectMessage.
+	dmErr error
 }
 
 func newFakeAPI() *fakeAPI { return &fakeAPI{parent: map[string]string{}} }
@@ -92,6 +94,14 @@ func (f *fakeAPI) Send(channelID, content string) error {
 	return nil
 }
 
+func (f *fakeAPI) DirectMessage(userID, content string) error {
+	if f.dmErr != nil {
+		return f.dmErr
+	}
+	f.record(call{kind: "dm", channel: userID, content: content})
+	return nil
+}
+
 func (f *fakeAPI) Typing(channelID string) {
 	f.record(call{kind: "typing", channel: channelID})
 }
@@ -105,13 +115,23 @@ type fakeStore struct {
 	// guardDelay stands in for a slow database. The acknowledgement has to
 	// have gone out before this is waited on.
 	guardDelay time.Duration
+	// bySubject, when set, answers each subject with its own guard and
+	// the rest with ErrNotFound, instead of guard for everything.
+	bySubject map[string]store.Guard
 
 	mu      sync.Mutex
 	threads []store.Thread
 	turns   []model.Message
 }
 
-func (f *fakeStore) GetGuard(context.Context, string) (store.Guard, error) {
+func (f *fakeStore) GetGuard(_ context.Context, subject string) (store.Guard, error) {
+	if f.bySubject != nil {
+		guard, ok := f.bySubject[subject]
+		if !ok {
+			return store.Guard{}, store.ErrNotFound
+		}
+		return guard, nil
+	}
 	if f.guardDelay > 0 {
 		time.Sleep(f.guardDelay)
 	}
@@ -167,6 +187,7 @@ func testBot(api *fakeAPI, sprinterStore Store, runner Runner) *Bot {
 		api: api, store: sprinterStore,
 		options: Options{Runner: runner, Model: "fake", MaxThreadTurns: DefaultMaxThreadTurns},
 		limits:  newLimiter(maxConcurrent),
+		threads: newThreadLocks(),
 	}
 }
 

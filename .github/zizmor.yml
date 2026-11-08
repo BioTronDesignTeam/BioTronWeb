@@ -1,0 +1,11 @@
+# zizmor: the security checks of the workflows and of dependabot.yml (the
+# actionlint job of workflows.yml, and ./pr-precheck). It runs offline, so
+# the audits that need the GitHub API, such as known vulnerable actions, are
+# left to Dependabot.
+rules:
+  # Every action is pinned by its commit, not by a tag that its owner can
+  # move, with the release in a comment; Dependabot moves both.
+  unpinned-uses:
+    config:
+      policies:
+        "*": hash-pin

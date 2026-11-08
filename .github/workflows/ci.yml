@@ -4,9 +4,9 @@
 # The build, test, and lint jobs then fan out, in parallel, only over those
 # parts: a pull request that never touches Auth does not build Auth. Two
 # shared pieces widen the fan-out on purpose: a change to packages/style or
-# the root tooling rebuilds every frontend, and a change to go/ or go.work
-# re-tests every backend. The secret and vulnerability scans run on every
-# change regardless of what it touched.
+# the root tooling rebuilds every frontend, and a change to go/, go.work, or
+# the Go lint setup re-tests every backend. The secret and vulnerability
+# scans run on every change regardless of what it touched.
 name: ci
 
 on:
@@ -18,20 +18,46 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# Every job only reads the repository, and no step pushes, so no checkout
+# keeps the token. Each action is pinned by commit SHA with its release in
+# a comment; Dependabot moves both (.github/dependabot.yml).
 permissions:
   contents: read
 
 jobs:
+  compose-config:
+    name: runtime configuration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: validate Compose and launch without starting containers
+        run: |
+          for script in launch deploy/*.sh deploy/biotron-deploy deploy/biotron-deploy-shell infra/nginx/docker-entrypoint.d/*.sh; do bash -n "$script"; done
+          python3 infra/tests/test-runtime-config.py
+      - name: run the edge image and its sites script
+        run: python3 infra/tests/test-edge.py
+      - name: run the Postgres image, the role scripts, and the migrate image
+        run: python3 infra/tests/test-database-roles.py
+
   changes:
     name: what changed
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
     outputs:
       frontends: ${{ steps.plan.outputs.frontends }}
       backends: ${{ steps.plan.outputs.backends }}
-      logclient: ${{ steps.plan.outputs.logclient }}
+      shared: ${{ steps.plan.outputs.shared }}
+      prisma: ${{ steps.filter.outputs.prisma }}
+      golangci-lint: ${{ steps.tools.outputs.golangci-lint }}
+      govulncheck: ${{ steps.tools.outputs.govulncheck }}
+      trufflehog: ${{ steps.tools.outputs.trufflehog }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         id: filter
         with:
           filters: |
@@ -41,29 +67,41 @@ jobs:
               - 'package-lock.json'
               - 'tsconfig.base.json'
               - '.oxlintrc.json'
+              - '.prettierrc.json'
+              - '.prettierignore'
+            database:
+              - 'infra/postgres/**'
+              - 'infra/migrate/**'
+              - 'infra/docker-compose.yml'
+              - 'scripts/test-database'
             gowork:
               - 'go.work'
               - 'go.work.sum'
               - 'go/**'
-            site:
-              - 'apps/site/**'
+              - '.devcontainer/Dockerfile'
+            biotron:
+              - 'apps/biotron/**'
             calendar:
               - 'apps/calendar/**'
-            logger:
-              - 'apps/logger/**'
             auth:
               - 'apps/auth/**'
-            exo:
-              - 'apps/exo/**'
+            exogui:
+              - 'apps/exogui/**'
             sprinter:
               - 'apps/sprinter/**'
+            prisma:
+              - 'apps/*/prisma/**'
+              - 'apps/*/.env.example'
+              - 'infra/migrate/**'
+              - 'scripts/check-prisma'
+              - '.github/workflows/ci.yml'
       - name: plan the fan-out
         id: plan
         env:
           CHANGED: ${{ steps.filter.outputs.changes }}
         run: |
-          all='["site","calendar","logger","auth","exo","sprinter"]'
-          with_backend='["calendar","logger","auth","exo","sprinter"]'
+          all='["biotron","calendar","auth","exogui","sprinter"]'
+          with_backend='["calendar","auth","exogui","sprinter"]'
           changed_apps=$(jq -c --argjson all "$all" '[.[] | select(. as $x | $all | index($x) != null)]' <<<"$CHANGED")
           if jq -e 'index("style") != null' <<<"$CHANGED" >/dev/null; then
             frontends="$all"
@@ -72,49 +110,111 @@ jobs:
           fi
           if jq -e 'index("gowork") != null' <<<"$CHANGED" >/dev/null; then
             backends="$with_backend"
-            logclient=true
+            shared='["authclient","logclient"]'
           else
             backends=$(jq -c --argjson go "$with_backend" '[.[] | select(. as $x | $go | index($x) != null)]' <<<"$changed_apps")
-            logclient=false
+            shared='[]'
+          fi
+          # A change to the roles or the migrations re-tests every backend
+          # that owns a schema against a database built from them.
+          if jq -e 'index("database") != null' <<<"$CHANGED" >/dev/null; then
+            backends=$(jq -c '. + ["auth","calendar","sprinter"] | unique' <<<"$backends")
           fi
           {
             echo "frontends=$frontends"
             echo "backends=$backends"
-            echo "logclient=$logclient"
+            echo "shared=$shared"
           } >> "$GITHUB_OUTPUT"
           echo "frontends: $frontends"
           echo "backends:  $backends"
-          echo "logclient: $logclient"
+          echo "shared:    $shared"
+      # The tool releases of the devcontainer image, read from its FROM lines
+      # (which Dependabot updates) and its govulncheck ARG line, so CI and
+      # ./pr-precheck run the same ones.
+      - name: read tool versions
+        id: tools
+        run: |
+          # tool OUTPUT IMAGE: the tag that .devcontainer/Dockerfile pins IMAGE to.
+          tool() {
+            local version
+            version=$(sed -nE "s|^FROM $2:(v?[0-9]+\.[0-9]+\.[0-9]+)@sha256:.*|\1|p" .devcontainer/Dockerfile)
+            if [[ ! $version =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "::error::No single $2 version in .devcontainer/Dockerfile"
+              exit 1
+            fi
+            echo "$1=$version" | tee -a "$GITHUB_OUTPUT"
+          }
+          tool golangci-lint golangci/golangci-lint
+          tool trufflehog trufflesecurity/trufflehog
+          # govulncheck has no image, so its release is an ARG line.
+          version=$(sed -nE 's|^ARG GOVULNCHECK_VERSION=(v[0-9]+\.[0-9]+\.[0-9]+)$|\1|p' .devcontainer/Dockerfile)
+          if [[ ! $version =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::No single govulncheck version in .devcontainer/Dockerfile"
+            exit 1
+          fi
+          echo "govulncheck=$version" | tee -a "$GITHUB_OUTPUT"
 
   frontend:
     name: frontend ${{ matrix.app }}
     needs: changes
     if: needs.changes.outputs.frontends != '[]'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
         app: ${{ fromJSON(needs.changes.outputs.frontends) }}
+    # The run: steps read the app from the environment, never from an
+    # expression pasted into the script.
+    env:
+      APP: ${{ matrix.app }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
           cache: npm
       # Only this app, the shared library, and the root lint tooling. Scripts
       # stay off, as in the Dockerfiles: the library is built explicitly.
-      - run: npm ci --ignore-scripts --include-workspace-root --workspace packages/style --workspace apps/${{ matrix.app }}/frontend
+      - run: npm ci --ignore-scripts --include-workspace-root --workspace packages/style --workspace "apps/$APP/frontend"
       - run: npm run build -w packages/style
-      - run: npm run build -w apps/${{ matrix.app }}/frontend
+      - run: npm run build -w "apps/$APP/frontend"
+      - run: npm run test --if-present -w "apps/$APP/frontend"
       # Oxlint reads .oxlintrc.json at the root; type-aware rules resolve
       # through the app's own tsconfig.
-      - run: npx oxlint apps/${{ matrix.app }}/frontend/src
+      - run: npx oxlint --deny-warnings "apps/$APP/frontend"
+
+  # The shared library, once for every frontend run: each app build above
+  # only type-checks the parts of it that app imports.
+  frontend-shared:
+    name: frontend shared
+    needs: changes
+    if: needs.changes.outputs.frontends != '[]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --ignore-scripts --include-workspace-root --workspace packages/style
+      # Prettier checks every frontend at once (.prettierignore scopes it).
+      - run: npm run format:check
+      - run: npm run typecheck -w packages/style
+      - run: npx oxlint --deny-warnings packages/style
+      - run: npm test -w packages/style
 
   backend:
     name: backend ${{ matrix.app }}
     needs: changes
     if: needs.changes.outputs.backends != '[]'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -122,46 +222,175 @@ jobs:
     defaults:
       run:
         working-directory: apps/${{ matrix.app }}/backend
+    # The live tests' database, for every backend that owns a schema. An
+    # empty image starts no service, so Exo GUI gets none. The image is the
+    # one infra/docker-compose.yml runs; infra/tests checks they match.
+    services:
+      postgres:
+        image: ${{ matrix.app != 'exogui' && 'postgres:18.6-alpine@sha256:123b17998ccaf47e53b502e8c6a1e79afd8f579c6f3eec83c563da026f957395' || '' }}
+        env:
+          POSTGRES_USER: biotron
+          POSTGRES_PASSWORD: ci-only-throwaway
+          POSTGRES_DB: biotron
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U biotron -d biotron"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      LIVE_TESTS: ${{ matrix.app != 'exogui' }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: apps/${{ matrix.app }}/backend/go.mod
           cache-dependency-path: apps/${{ matrix.app }}/backend/go.sum
-      - uses: golangci/golangci-lint-action@v8
+      # The roles and every app's migrations, as a deploy makes them; the
+      # *_TEST_DATABASE_URL variables then reach every later step.
+      - name: prepare the live-test database
+        if: env.LIVE_TESTS == 'true'
+        working-directory: .
+        env:
+          PGPASSWORD: ci-only-throwaway
+        run: scripts/test-database --network host --host 127.0.0.1:5432 >> "$GITHUB_ENV"
+      # The one config under go/ serves every module; nothing finds it by
+      # walking up from a module, so it is named.
+      - uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
         with:
-          version: latest
+          version: ${{ needs.changes.outputs.golangci-lint }}
           working-directory: apps/${{ matrix.app }}/backend
+          args: --config=${{ github.workspace }}/go/.golangci.yml
       - run: go vet ./...
-      - run: go test ./...
+      # The live tests run in the next step, one package at a time.
+      - run: go test -race -skip '^TestLive' ./...
+      # The live tests share one database, so the packages run one at a time
+      # (-p 1). A live test skips when its database variable is unset; one is
+      # set above, so a skip here means the setup broke, not that it is missing.
+      - name: live tests, every one of them run
+        if: env.LIVE_TESTS == 'true'
+        run: |
+          go test -race -p 1 -count=1 -run '^TestLive' -v ./... | tee "$RUNNER_TEMP/live.txt"
+          if grep -- '--- SKIP' "$RUNNER_TEMP/live.txt"; then
+            echo '::error::A live test skipped'
+            exit 1
+          fi
+          grep -q -- '--- PASS: TestLive' "$RUNNER_TEMP/live.txt" || { echo '::error::No live test ran'; exit 1; }
+      # go.mod and go.sum already hold exactly what the code imports.
+      - run: go mod tidy -diff
+      # Known vulnerabilities in the code paths this module calls, with the
+      # govulncheck release of the devcontainer.
+      - name: govulncheck
+        env:
+          GOVULNCHECK: ${{ needs.changes.outputs.govulncheck }}
+        run: |
+          go install "golang.org/x/vuln/cmd/govulncheck@$GOVULNCHECK"
+          govulncheck ./...
 
-  logclient:
-    name: go/logclient
+  # The shared Go modules under go/, which every backend builds through
+  # go.work.
+  shared:
+    name: go/${{ matrix.module }}
     needs: changes
-    if: needs.changes.outputs.logclient == 'true'
-    runs-on: ubuntu-latest
+    if: needs.changes.outputs.shared != '[]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        module: ${{ fromJSON(needs.changes.outputs.shared) }}
     defaults:
       run:
-        working-directory: go/logclient
+        working-directory: go/${{ matrix.module }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          go-version-file: go/logclient/go.mod
-          cache-dependency-path: go/logclient/go.sum
-      - uses: golangci/golangci-lint-action@v8
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          version: latest
-          working-directory: go/logclient
+          go-version-file: go/${{ matrix.module }}/go.mod
+          cache-dependency-path: go/${{ matrix.module }}/go.sum
+      # The one config under go/ serves every module; nothing finds it by
+      # walking up from a module, so it is named.
+      - uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+        with:
+          version: ${{ needs.changes.outputs.golangci-lint }}
+          working-directory: go/${{ matrix.module }}
+          args: --config=${{ github.workspace }}/go/.golangci.yml
       - run: go vet ./...
-      - run: go test ./...
+      - run: go test -race ./...
+      # go.mod and go.sum already hold exactly what the code imports.
+      - run: go mod tidy -diff
+      # Known vulnerabilities in the code paths this module calls, with the
+      # govulncheck release of the devcontainer.
+      - name: govulncheck
+        env:
+          GOVULNCHECK: ${{ needs.changes.outputs.govulncheck }}
+        run: |
+          go install "golang.org/x/vuln/cmd/govulncheck@$GOVULNCHECK"
+          govulncheck ./...
+
+  # Every base image and third-party compose image is pinned by version and
+  # digest, and the devcontainer's Go, Node, and Prisma are production's
+  # (scripts/check-images). Cheap, so it runs on every change.
+  images:
+    name: images
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: scripts/check-images
+
+  # Each app's schema.prisma is formatted, and its migrations build exactly
+  # that schema (scripts/check-prisma), in shadow databases on a throwaway
+  # Postgres: the image of infra/docker-compose.yml, which check-images keeps
+  # this line in step with.
+  prisma:
+    name: prisma
+    needs: changes
+    if: needs.changes.outputs.prisma == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:18.6-alpine@sha256:123b17998ccaf47e53b502e8c6a1e79afd8f579c6f3eec83c563da026f957395
+        env:
+          POSTGRES_USER: prisma
+          POSTGRES_PASSWORD: prisma
+          POSTGRES_DB: prisma
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U prisma -d prisma"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: infra/migrate/package-lock.json
+      - run: npm ci --prefix infra/migrate --no-audit --no-fund
+      - run: scripts/check-prisma
+        env:
+          PRISMA_CHECK_DATABASE_URL: postgresql://prisma:prisma@localhost:5432/prisma # trufflehog:ignore
 
   secrets:
     name: secrets (TruffleHog)
-    runs-on: ubuntu-latest
+    needs: changes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           fetch-depth: 0
       # Scans the commits the change adds and fails on any verified live
       # credential, or one whose check errored (unknown). Unverified results
@@ -171,20 +400,26 @@ jobs:
       # can never resolve, so a placeholder and a real one look the same to
       # the scanner. The token types that matter (GitHub, Cloudflare,
       # Discord, AWS) verify against their provider and do gate.
-      - uses: trufflesecurity/trufflehog@main
+      # The action runs the TruffleHog image of the version it is given (the
+      # latest by default), so it gets the one of the devcontainer.
+      - uses: trufflesecurity/trufflehog@363923b901c911a9164f50b6c423f47c15372b1c # v3.97.4
         with:
+          version: ${{ needs.changes.outputs.trufflehog }}
           extra_args: --results=verified,unknown
 
   vulnerabilities:
     name: vulnerabilities (Trivy)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       # Lockfiles, go.sum files, Dockerfiles, and compose files. Fails on a
       # fixable HIGH or CRITICAL finding; unfixable ones are reported only.
       # Accepted findings live in .trivyignore.yaml with their reasons; Trivy
       # only reads the YAML form when it is named explicitly.
-      - uses: aquasecurity/trivy-action@v0.36.0
+      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: fs
           scan-ref: .
@@ -193,3 +428,46 @@ jobs:
           ignore-unfixed: true
           exit-code: '1'
           trivyignores: .trivyignore.yaml
+
+  # ShellCheck on every shell script (scripts/list-shell-scripts), on every
+  # change: it takes seconds, and the scripts run on the deploy host.
+  shellcheck:
+    name: shell scripts (ShellCheck)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The ShellCheck of the actionlint image that .devcontainer/Dockerfile
+      # copies it from, by the same digest, so this job and ./pr-precheck
+      # agree. Dependabot updates that FROM line.
+      - name: ShellCheck every shell script
+        run: |
+          image=$(sed -nE 's|^FROM (rhysd/actionlint:[0-9.]+@sha256:[0-9a-f]{64}) AS actionlint$|\1|p' .devcontainer/Dockerfile)
+          if [[ -z $image ]]; then
+            echo "::error::No pinned actionlint image in .devcontainer/Dockerfile"
+            exit 1
+          fi
+          mapfile -d '' scripts < <(scripts/list-shell-scripts)
+          printf '%s\n' "${scripts[@]}"
+          docker run --rm -v "$PWD:/repo:ro" -w /repo --entrypoint shellcheck "$image" -x "${scripts[@]}"
+
+  # The one check the main ruleset requires. The build and test jobs above
+  # only exist for the parts a change touches, so they cannot be required by
+  # name; this job waits for all of them and fails if any failed or was
+  # cancelled. A skipped job (nothing to build) counts as passing.
+  passed:
+    name: ci passed
+    if: always()
+    needs: [compose-config, changes, frontend, frontend-shared, backend, shared, images, prisma, secrets, vulnerabilities, shellcheck]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "$RESULTS"
+          for result in $RESULTS; do
+            case $result in success|skipped) ;; *) exit 1 ;; esac
+          done

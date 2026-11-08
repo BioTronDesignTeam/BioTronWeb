@@ -1,12 +1,10 @@
+import { identityLine } from '@biotron/style';
 import type { OrgMember } from '../api';
 import { panelHeading } from './ui';
 
-function memberSuffix(member: OrgMember): string {
-  return [
-    member.is_banned ? ' · banned' : '',
-    member.is_manager ? ' · manager' : '',
-    member.is_superuser ? ' · superuser' : '',
-  ].join('');
+/** `@login · Role`, with the highest role only, then a ban if there is one. */
+function memberLine(member: OrgMember): string {
+  return `${identityLine(member)}${member.is_banned ? ' · Banned' : ''}`;
 }
 
 export default function OrgMemberList({
@@ -19,7 +17,7 @@ export default function OrgMemberList({
   onSelect: (memberId: number) => void;
 }) {
   return (
-    <div className="border-b border-slate-200 lg:border-b-0 lg:border-r dark:border-white/10">
+    <div className="border-b border-slate-200 lg:border-r lg:border-b-0 dark:border-white/10">
       <div className="border-b border-slate-200 px-4 py-4 dark:border-white/10">
         <h2 className={panelHeading}>Members</h2>
       </div>
@@ -34,7 +32,8 @@ export default function OrgMemberList({
               <button
                 type="button"
                 onClick={() => onSelect(member.github_id)}
-                className={`flex w-full min-h-11 items-center gap-3 px-4 py-3 text-left transition ${
+                aria-pressed={selectedMemberId === member.github_id}
+                className={`flex min-h-11 w-full items-center gap-3 px-4 py-3 text-left transition ${
                   selectedMemberId === member.github_id
                     ? 'bg-slate-100 dark:bg-surface-2'
                     : 'hover:bg-slate-50 dark:hover:bg-surface-2/50'
@@ -55,9 +54,8 @@ export default function OrgMemberList({
                   <div className="truncate text-sm font-medium text-slate-900 dark:text-white">
                     {member.name || member.login}
                   </div>
-                  <div className="truncate text-xs text-slate-500 dark:text-muted">
-                    @{member.login}
-                    {memberSuffix(member)}
+                  <div className="truncate text-xs text-slate-600 dark:text-muted">
+                    {memberLine(member)}
                   </div>
                 </div>
               </button>

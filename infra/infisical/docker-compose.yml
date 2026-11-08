@@ -1,0 +1,67 @@
+# Independent of the application databases, networks, and launch all/stop.
+name: biotron-secrets
+
+services:
+  infisical:
+    image: ${INFISICAL_IMAGE:-infisical/infisical:v0.166.2@sha256:3f014f284cb9af5b12087681cbbddc55244fe8e58a8d080987cd3e0f262bf837}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?set ENCRYPTION_KEY in the bootstrap file}
+      AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET in the bootstrap file}
+      SITE_URL: ${INFISICAL_SITE_URL:-http://localhost:8090}
+      DB_CONNECTION_URI: postgresql://infisical:${INFISICAL_DB_PASSWORD:?set INFISICAL_DB_PASSWORD}@db:5432/infisical
+      REDIS_URL: redis://redis:6379
+    ports:
+      - "127.0.0.1:${INFISICAL_PORT:-8090}:8080"
+    networks:
+      - secrets
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+
+  db:
+    image: postgres:16.10-alpine@sha256:029660641a0cfc575b14f336ba448fb8a75fd595d42e1fa316b9fb4378742297
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: infisical
+      POSTGRES_DB: infisical
+      POSTGRES_PASSWORD: ${INFISICAL_DB_PASSWORD:?set INFISICAL_DB_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - secrets
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "infisical", "-d", "infisical"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    security_opt:
+      - no-new-privileges:true
+
+  redis:
+    image: redis:7.4.6-alpine@sha256:3b73847e72874be07e6657b129a94761662b79bc0f679273757d4218573b2a98
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    networks:
+      - secrets
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  secrets:
+
+volumes:
+  postgres-data:
+  redis-data:

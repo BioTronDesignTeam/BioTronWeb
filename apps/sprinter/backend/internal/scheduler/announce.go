@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/calendar"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/store"
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/calendar"
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/store"
 )
 
 // announceTimeLayout is how an announcement, an edit, or a cancellation note
@@ -49,11 +49,16 @@ func (s *Scheduler) postOrEditAnnouncement(ctx context.Context, automation store
 	case errors.Is(err, store.ErrNotFound):
 		// An announcement pings nobody: its text is an event title and a
 		// location, both written by whoever put the event on the calendar.
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		messageID, sendErr := s.discord.SendMessage(automation.ChannelID, content, nil)
 		if sendErr != nil {
 			return fmt.Errorf("post announcement for %s: %w", occ.UID, sendErr)
 		}
-		if _, err := s.store.UpsertPosted(ctx, automation.ID, occ.UID, occ.RecurrenceID, sequence, automation.ChannelID, messageID); err != nil {
+		recordCtx, cancel := recordContext(ctx)
+		defer cancel()
+		if _, err := s.store.UpsertPosted(recordCtx, automation.ID, occ.UID, occ.RecurrenceID, sequence, automation.ChannelID, messageID); err != nil {
 			return fmt.Errorf("record posted occurrence %s: %w", occ.UID, err)
 		}
 		s.emit(logclient.Info, "Announcement posted", map[string]any{
@@ -65,10 +70,15 @@ func (s *Scheduler) postOrEditAnnouncement(ctx context.Context, automation store
 	case posted.Sequence < sequence:
 		// Changing an automation's destination affects new announcements.
 		// An existing message still belongs to the channel it was posted in.
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if err := s.discord.EditMessage(posted.ChannelID, posted.MessageID, content); err != nil {
 			return fmt.Errorf("edit announcement %s: %w", posted.MessageID, err)
 		}
-		if _, err := s.store.UpsertPosted(ctx, automation.ID, occ.UID, occ.RecurrenceID, sequence, posted.ChannelID, posted.MessageID); err != nil {
+		recordCtx, cancel := recordContext(ctx)
+		defer cancel()
+		if _, err := s.store.UpsertPosted(recordCtx, automation.ID, occ.UID, occ.RecurrenceID, sequence, posted.ChannelID, posted.MessageID); err != nil {
 			return fmt.Errorf("record updated occurrence %s: %w", occ.UID, err)
 		}
 		s.emit(logclient.Info, "Announcement updated", map[string]any{

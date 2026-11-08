@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/model"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/model"
 )
 
 const calendarCap = 4000
@@ -64,11 +64,11 @@ func (t CalendarUpcoming) Run(ctx context.Context, args json.RawMessage) (string
 	if err := decode(args, &parsed); err != nil {
 		return "", err
 	}
-	limit, err := clampInt(parsed.Limit, 5, 1, 20)
+	limit, err := clampInt(parsed.Limit, 5, 20)
 	if err != nil {
 		return "", fmt.Errorf("limit %w", err)
 	}
-	days, err := clampInt(parsed.Days, 42, 1, 90)
+	days, err := clampInt(parsed.Days, 42, 90)
 	if err != nil {
 		return "", fmt.Errorf("days %w", err)
 	}

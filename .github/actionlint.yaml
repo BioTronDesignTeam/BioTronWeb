@@ -1,0 +1,9 @@
+# actionlint reads this file itself (the workflows.yml job, ./pr-precheck).
+#
+# The configuration variables the workflows read (vars.*). With this list,
+# actionlint fails on any other name, so a typo cannot silently read an empty
+# value. Each is set per GitHub Environment; see
+# deploy/README.md. Add a new variable here when a workflow starts to use it.
+config-variables:
+  - DEPLOY_EDGE
+  - DEPLOY_HOST

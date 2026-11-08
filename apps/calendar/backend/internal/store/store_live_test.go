@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	calendarlogic "github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/calendar"
-	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/model"
+	calendarlogic "github.com/BioTronDesignTeam/BioTronWeb/apps/calendar/backend/internal/calendar"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/calendar/backend/internal/model"
 )
 
 // These exercise the store against a real PostgreSQL, because the two things
@@ -389,5 +389,157 @@ func TestLiveDeleteSeriesRemovesAPublishedSeriesAndItsOverrides(t *testing.T) {
 
 	if _, err := store.DeleteSeries(ctx, seriesID); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("deleting a series that is gone returned %v, want ErrNotFound", err)
+	}
+}
+
+// Every store call the handlers make, end to end, so a change to how the SQL
+// is written cannot quietly change what a scope or a series reads back as.
+func TestLiveScopeAndSeriesLifecycle(t *testing.T) {
+	store, ctx := liveStore(t)
+	resetFixtures(t, store, ctx)
+
+	parentID := testProjectID
+	subteam, err := store.CreateScope(ctx, model.Scope{
+		Kind: model.ScopeSubteam, Name: "Controls & Signals", Slug: Slug("Controls & Signals"), ParentID: &parentID,
+	})
+	if err != nil {
+		t.Fatalf("create scope: %v", err)
+	}
+	if subteam.Path != "Narrowing fixture · Controls & Signals" || subteam.SlugPath != "narrowing-fixture-controls-signals" ||
+		subteam.Status != model.ScopeActive || subteam.ParentID == nil || *subteam.ParentID != testProjectID ||
+		subteam.ArchivedAt != nil || subteam.ChildCount != 0 || subteam.EventCount != 0 {
+		t.Fatalf("created scope reads back as %+v", subteam)
+	}
+	if _, err := store.CreateScope(ctx, model.Scope{
+		Kind: model.ScopeSubteam, Name: "Controls & Signals", Slug: Slug("Controls & Signals"), ParentID: &parentID,
+	}); !errors.Is(err, ErrConflict) {
+		t.Fatalf("a duplicate slug returned %v, want ErrConflict", err)
+	}
+
+	renamed, err := store.RenameScope(ctx, subteam.ID, "Software", "software")
+	if err != nil || renamed.Name != "Software" || renamed.Path != "Narrowing fixture · Software" {
+		t.Fatalf("rename: %+v, %v", renamed, err)
+	}
+	if _, err := store.RenameScope(ctx, "0f0f0f0f-0000-4000-8000-00000000ffff", "Gone", "gone"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("renaming a missing scope returned %v", err)
+	}
+
+	team, err := store.GetScope(ctx, teamScopeID)
+	if err != nil || team.Kind != model.ScopeTeam || team.ParentID != nil || team.Path != "BioTron" {
+		t.Fatalf("team root reads back as %+v, %v", team, err)
+	}
+	if _, err := store.SetScopeArchived(ctx, teamScopeID, true); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("archiving the team root returned %v, want ErrNotFound", err)
+	}
+
+	archived, err := store.SetScopeArchived(ctx, testProjectID, true)
+	if err != nil || archived.Status != model.ScopeArchived || archived.ArchivedAt == nil || archived.ChildCount != 1 {
+		t.Fatalf("archive: %+v, %v", archived, err)
+	}
+	if active, err := store.ScopeIsActive(ctx, subteam.ID); err != nil || active {
+		t.Fatalf("a subteam under an archived project reads active=%v, %v", active, err)
+	}
+	public, err := store.ListScopes(ctx, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, scope := range public {
+		if scope.ID == subteam.ID || scope.ID == testProjectID {
+			t.Fatalf("the public scope list carries the archived tree: %+v", scope)
+		}
+	}
+	all, err := store.ListScopes(ctx, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(all) < 3 || all[0].Kind != model.ScopeTeam {
+		t.Fatalf("the editor's scope list is %+v", all)
+	}
+	restored, err := store.SetScopeArchived(ctx, testProjectID, false)
+	if err != nil || restored.Status != model.ScopeActive || restored.ArchivedAt != nil {
+		t.Fatalf("restore: %+v, %v", restored, err)
+	}
+	if active, err := store.ScopeIsActive(ctx, subteam.ID); err != nil || !active {
+		t.Fatalf("a restored subteam reads active=%v, %v", active, err)
+	}
+	if active, err := store.ScopeIsActive(ctx, "0f0f0f0f-0000-4000-8000-00000000ffff"); err != nil || active {
+		t.Fatalf("a missing scope reads active=%v, %v", active, err)
+	}
+
+	start, _ := calendarlogic.ParseLocalDateTime("2026-09-07T18:00:00")
+	end, _ := calendarlogic.ParseLocalDateTime("2026-09-07T19:30:00")
+	until, _ := calendarlogic.ParseLocalDate("2026-12-07")
+	created, err := store.CreateSeries(ctx, model.EventSeries{
+		ScopeID: subteam.ID, Title: "Software sync", Description: "Weekly", Location: "E5",
+		URL: "https://example.com", StartsAtLocal: start, EndsAtLocal: end,
+		Timezone: "America/Toronto", RecurrenceUntil: &until,
+	})
+	if err != nil {
+		t.Fatalf("create series: %v", err)
+	}
+	if created.State != model.EventDraft || created.Sequence != 0 || created.ScopePath != "Narrowing fixture · Software" ||
+		created.ScopeKind != model.ScopeSubteam || created.ScopeName != "Software" ||
+		!created.StartsAtLocal.Equal(start) || created.StartsAtLocal.Location() != time.UTC ||
+		created.RecurrenceUntil == nil || !created.RecurrenceUntil.Equal(until) ||
+		created.PublishedAt != nil || len(created.UID) == 0 {
+		t.Fatalf("created series reads back as %+v", created)
+	}
+	if err := store.DeleteScope(ctx, subteam.ID); !errors.Is(err, ErrConflict) {
+		t.Fatalf("deleting a scope with events returned %v", err)
+	}
+
+	created.Title = "Software sync (moved)"
+	created.RecurrenceUntil = nil
+	if _, err := store.UpdateSeries(ctx, created, created.Sequence+1); !errors.Is(err, ErrConflict) {
+		t.Fatalf("a stale update returned %v, want ErrConflict", err)
+	}
+	missing := created
+	missing.ID = "0f0f0f0f-0000-4000-8000-00000000ffff"
+	if _, err := store.UpdateSeries(ctx, missing, 0); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("updating a missing series returned %v, want ErrNotFound", err)
+	}
+	updated, err := store.UpdateSeries(ctx, created, created.Sequence)
+	if err != nil || updated.Sequence != 1 || updated.Title != "Software sync (moved)" || updated.RecurrenceUntil != nil {
+		t.Fatalf("update: %+v, %v", updated, err)
+	}
+	if _, err := store.CancelSeries(ctx, updated.ID, updated.Sequence); !errors.Is(err, ErrConflict) {
+		t.Fatalf("cancelling a draft returned %v, want ErrConflict", err)
+	}
+	published, err := store.PublishSeries(ctx, updated.ID, updated.Sequence)
+	if err != nil || published.State != model.EventPublished || published.PublishedAt == nil || published.Sequence != 2 {
+		t.Fatalf("publish: %+v, %v", published, err)
+	}
+	cancelled, err := store.CancelSeries(ctx, published.ID, published.Sequence)
+	if err != nil || cancelled.State != model.EventCancelled || cancelled.CancelledAt == nil || cancelled.Sequence != 3 {
+		t.Fatalf("cancel: %+v, %v", cancelled, err)
+	}
+	republished, err := store.PublishSeries(ctx, cancelled.ID, cancelled.Sequence)
+	if err != nil || republished.CancelledAt != nil || republished.PublishedAt == nil || !republished.PublishedAt.Equal(*published.PublishedAt) {
+		t.Fatalf("republish: %+v, %v", republished, err)
+	}
+
+	feed, err := store.ListFeedSeries(ctx, subteam.ID)
+	if err != nil || len(feed) != 1 || feed[0].ID != created.ID {
+		t.Fatalf("the subteam feed reads %+v, %v", feed, err)
+	}
+	drafts, err := store.ListSeries(ctx, "", true, nil)
+	if err != nil || len(drafts) == 0 {
+		t.Fatalf("the editor's series list reads %+v, %v", drafts, err)
+	}
+	if _, err := store.GetSeries(ctx, "0f0f0f0f-0000-4000-8000-00000000ffff"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("a missing series returned %v, want ErrNotFound", err)
+	}
+
+	if _, err := store.DeleteSeries(ctx, created.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.DeleteScope(ctx, subteam.ID); err != nil {
+		t.Fatalf("deleting an empty leaf: %v", err)
+	}
+	if err := store.DeleteScope(ctx, subteam.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("deleting a deleted scope returned %v", err)
+	}
+	if err := store.DeleteScope(ctx, teamScopeID); !errors.Is(err, ErrConflict) {
+		t.Fatalf("deleting the team root returned %v", err)
 	}
 }

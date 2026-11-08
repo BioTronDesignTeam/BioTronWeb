@@ -1,4 +1,5 @@
 import { useState, type FormEvent, type ReactNode } from 'react';
+import { authStrings } from './auth/strings';
 import { Brand } from './Brand';
 import { ThemeToggle } from './ThemeToggle';
 
@@ -8,10 +9,7 @@ const GitHubMark = () => (
   </svg>
 );
 
-export type AuthNotice = {
-  content: ReactNode;
-  tone?: 'info' | 'error';
-};
+export type AuthNotice = { content: ReactNode; tone?: 'info' | 'error' };
 
 export type AuthAction = {
   label: string;
@@ -50,9 +48,10 @@ export type AuthScreenProps = {
 function noticeKeys(notices: readonly AuthNotice[]): string[] {
   const seen = new Map<string, number>();
   return notices.map((notice) => {
-    const text = typeof notice.content === 'string' || typeof notice.content === 'number'
-      ? String(notice.content)
-      : 'node';
+    const text =
+      typeof notice.content === 'string' || typeof notice.content === 'number'
+        ? String(notice.content)
+        : 'node';
     const base = `${notice.tone ?? 'info'}:${text}`;
     const occurrence = seen.get(base) ?? 0;
     seen.set(base, occurrence + 1);
@@ -86,20 +85,26 @@ function AuthActionControl({ action }: { action: AuthAction }) {
   );
 
   if (action.href) {
-    return <a className="biotron-auth-action" href={action.href}>{contents}</a>;
+    return (
+      <a className="biotron-auth-action" href={action.href}>
+        {contents}
+      </a>
+    );
   }
   return (
-    <button className="biotron-auth-action" type="button" onClick={action.onClick}>{contents}</button>
+    <button className="biotron-auth-action" type="button" onClick={action.onClick}>
+      {contents}
+    </button>
   );
 }
 
 function guestLabels(guestAccess: GuestAccess) {
   return {
-    label: guestAccess.label ?? 'Daily guest key',
-    placeholder: guestAccess.placeholder ?? 'XXXX-XXXX-XXXX',
-    submitLabel: guestAccess.submitLabel ?? 'Continue as guest',
-    submittingLabel: guestAccess.submittingLabel ?? 'Checking…',
-    errorMessage: guestAccess.errorMessage ?? 'Invalid or expired key.',
+    label: guestAccess.label ?? authStrings.guestKeyLabel,
+    placeholder: guestAccess.placeholder ?? authStrings.guestKeyPlaceholder,
+    submitLabel: guestAccess.submitLabel ?? authStrings.guestSubmit,
+    submittingLabel: guestAccess.submittingLabel ?? authStrings.guestSubmitting,
+    errorMessage: guestAccess.errorMessage ?? authStrings.guestInvalid,
   };
 }
 
@@ -177,10 +182,15 @@ export function AuthScreen({
         {description && <div className="biotron-auth-card__description">{description}</div>}
         <AuthNotices notices={notices} />
         {action && <AuthActionControl action={action} />}
-        {loading && <div className="biotron-auth-loading" aria-label="Loading" />}
+        {/* Decoration: the notice above already says it is retrying. */}
+        {loading && <div className="biotron-auth-loading" aria-hidden="true" />}
         {guestAccess && (
           <>
-            <div className="biotron-auth-divider"><span />or<span /></div>
+            <div className="biotron-auth-divider">
+              <span />
+              or
+              <span />
+            </div>
             <GuestAccessForm guestAccess={guestAccess} />
           </>
         )}

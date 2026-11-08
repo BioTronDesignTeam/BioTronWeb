@@ -7,30 +7,29 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gofiber/fiber/v3"
-	"github.com/google/uuid"
-
-	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/ical"
-	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/model"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/calendar/backend/internal/ical"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/calendar/backend/internal/model"
 )
 
-func (h *Handler) allFeed(c fiber.Ctx) error {
-	series, err := h.store.ListFeedSeries(c.Context(), "")
+func (h *Handler) allFeed(w http.ResponseWriter, r *http.Request) error {
+	series, err := h.store.ListFeedSeries(r.Context(), "")
 	if err != nil {
 		return err
 	}
-	return h.sendFeed(c, "All BioTron events", "all-biotron-events.ics", h.config.PublicBaseURL+"/v1/feeds/all.ics", time.Time{}, series)
+	return h.sendFeed(w, r, "All BioTron events", "all-biotron-events.ics", h.config.PublicBaseURL+"/v1/feeds/all.ics", time.Time{}, series)
 }
 
-func (h *Handler) scopeFeed(c fiber.Ctx) error {
-	if uuid.Validate(c.Params("id")) != nil {
-		return fiber.ErrNotFound
+func (h *Handler) scopeFeed(w http.ResponseWriter, r *http.Request) error {
+	file, ics := strings.CutSuffix(r.PathValue("file"), ".ics")
+	id, ok := canonicalID(file)
+	if !ics || !ok {
+		return errNotFound
 	}
-	scope, err := h.store.GetScope(c.Context(), c.Params("id"))
+	scope, err := h.store.GetScope(r.Context(), id)
 	if err != nil {
 		return err
 	}
-	series, err := h.store.ListFeedSeries(c.Context(), scope.ID)
+	series, err := h.store.ListFeedSeries(r.Context(), scope.ID)
 	if err != nil {
 		return err
 	}
@@ -42,10 +41,10 @@ func (h *Handler) scopeFeed(c fiber.Ctx) error {
 	}
 	filename := scope.SlugPath + ".ics"
 	source := h.config.PublicBaseURL + "/v1/feeds/scopes/" + scope.ID + ".ics"
-	return h.sendFeed(c, name, filename, source, scope.UpdatedAt, series)
+	return h.sendFeed(w, r, name, filename, source, scope.UpdatedAt, series)
 }
 
-func (h *Handler) sendFeed(c fiber.Ctx, name, filename, source string, metadataModified time.Time, series []model.EventSeries) error {
+func (h *Handler) sendFeed(w http.ResponseWriter, r *http.Request, name, filename, source string, metadataModified time.Time, series []model.EventSeries) error {
 	feed, err := ical.Build(name, source, series, h.location)
 	if err != nil {
 		return err
@@ -54,42 +53,60 @@ func (h *Handler) sendFeed(c fiber.Ctx, name, filename, source string, metadataM
 	if metadataModified.After(lastModified) {
 		lastModified = metadataModified
 	}
-	c.Set(fiber.HeaderContentType, "text/calendar; charset=utf-8")
-	c.Set(fiber.HeaderContentDisposition, fmt.Sprintf(`inline; filename="%s"`, safeFilename(filename)))
-	return sendCacheable(c, feed.Content, lastModified, true)
+	w.Header().Set("Content-Type", "text/calendar; charset=utf-8")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`inline; filename="%s"`, safeFilename(filename)))
+	return sendCacheable(w, r, feed.Content, lastModified)
 }
 
 // sendCacheable gives every public read the same validators: a strong
-// content-hash ETag, a Last-Modified derived from the data, and a short shared
-// cache window. honourModifiedSince is false for resources whose content also
-// changes with the clock, where an unchanged Last-Modified would hand a client
-// a stale 304 long after the body should have changed.
-func sendCacheable(c fiber.Ctx, body []byte, lastModified time.Time, honourModifiedSince bool) error {
+// content-hash ETag, an informational Last-Modified, and a short shared cache
+// window.
+//
+// Only If-None-Match can earn a 304; If-Modified-Since is never honoured.
+// Last-Modified is the newest updated_at among the rows a response still
+// holds, and that misses changes a client must see:
+//   - a deleted series leaves no row behind, so the date stays put or goes
+//     back, and a feed would answer 304 while still listing the deleted event;
+//   - renaming a parent project renames a subteam's feed without touching the
+//     subteam's row;
+//   - the header has one-second resolution, so a second edit in the same
+//     second as a fetch is invisible;
+//   - the upcoming list slides with the clock while its rows stay the same.
+//
+// The ETag hashes the exact bytes sent, so it changes whenever anything a
+// client would see changes. A client that revalidates by date alone gets a
+// full 200 every time. That costs bandwidth, never correctness, and the
+// server builds the body either way to compute the ETag.
+func sendCacheable(w http.ResponseWriter, r *http.Request, body []byte, lastModified time.Time) error {
 	etag := fmt.Sprintf(`"%x"`, sha256.Sum256(body))
-	lastModified = lastModified.UTC().Truncate(time.Second)
-	c.Set(fiber.HeaderETag, etag)
-	c.Set(fiber.HeaderLastModified, lastModified.Format(http.TimeFormat))
-	c.Set(fiber.HeaderCacheControl, "public, max-age=60, stale-while-revalidate=300")
-	if ifNoneMatch := c.Get(fiber.HeaderIfNoneMatch); ifNoneMatch != "" {
-		if etagMatches(ifNoneMatch, etag) {
-			return notModified(c)
-		}
-	} else if modifiedSince := c.Get(fiber.HeaderIfModifiedSince); honourModifiedSince && modifiedSince != "" {
-		if parsed, err := http.ParseTime(modifiedSince); err == nil && !lastModified.After(parsed) {
-			return notModified(c)
-		}
+	w.Header().Set("ETag", etag)
+	w.Header().Set("Last-Modified", lastModified.UTC().Truncate(time.Second).Format(http.TimeFormat))
+	w.Header().Set("Cache-Control", "public, max-age=60, stale-while-revalidate=300")
+	if ifNoneMatch := r.Header.Get("If-None-Match"); ifNoneMatch != "" && etagMatches(ifNoneMatch, etag) {
+		return notModified(w)
 	}
-	return c.Send(body)
+	_, _ = w.Write(body)
+	return nil
 }
 
-// A 304 must not carry a body. Fiber v2's SendStatus wrote the status text as
-// one whenever the body was empty, which is why this sends explicitly instead.
-// Fiber v3 resets the body for statuses that disallow one and fasthttp drops it
-// again on the way out, so the framework now enforces this too — the explicit
-// send stays because it says what the response is meant to be rather than
-// relying on two layers below it to agree.
-func notModified(c fiber.Ctx) error {
-	return c.Status(fiber.StatusNotModified).Send(nil)
+// A 304 carries no body; the validators and Cache-Control stay.
+func notModified(w http.ResponseWriter) error {
+	w.WriteHeader(http.StatusNotModified)
+	return nil
+}
+
+// noContent answers a delete that left nothing to return.
+func noContent(w http.ResponseWriter) error {
+	w.WriteHeader(http.StatusNoContent)
+	return nil
+}
+
+// queryOr is a query parameter, or fallback when it is absent or empty.
+func queryOr(r *http.Request, name, fallback string) string {
+	if value := r.URL.Query().Get(name); value != "" {
+		return value
+	}
+	return fallback
 }
 
 // etagMatches implements RFC 9110 weak comparison for If-None-Match: the header

@@ -19,9 +19,9 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/model"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/store"
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/model"
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/store"
 )
 
 // discordTimeout bounds one call to Discord. An interaction token is valid for
@@ -74,6 +74,7 @@ type Bot struct {
 	events  *logclient.Client
 	options Options
 	limits  *limiter
+	threads *threadLocks
 	// connected is read by /health from another goroutine, and the gateway
 	// drops and resumes while the process stays up.
 	connected atomic.Bool
@@ -104,7 +105,7 @@ func New(token string, sprinterStore Store, events *logclient.Client, options Op
 	bot := &Bot{
 		session: session, api: sessionAPI{session: session},
 		store: sprinterStore, events: events,
-		options: options, limits: newLimiter(maxConcurrent),
+		options: options, limits: newLimiter(maxConcurrent), threads: newThreadLocks(),
 	}
 
 	// Handlers are registered before Open so the gateway's first Ready cannot
@@ -254,11 +255,12 @@ func (b *Bot) handleCommand(interaction *discordgo.InteractionCreate, data disco
 	answerCtx, cancelAnswer := context.WithTimeout(context.Background(), answerTimeout)
 	defer cancelAnswer()
 	reply, err := b.options.Runner.Answer(answerCtx, Request{
-		Subject:   subject,
-		GuildID:   interaction.GuildID,
-		ChannelID: interaction.ChannelID,
-		UserID:    asker,
-		Question:  question,
+		Subject:    subject,
+		GuildID:    interaction.GuildID,
+		ChannelID:  interaction.ChannelID,
+		UserID:     asker,
+		Question:   question,
+		Privileged: subject == commandAgent && b.mayReadRoster(interaction),
 	})
 	if err != nil {
 		log.Printf("answer %q: %v", subject, err)
@@ -271,18 +273,18 @@ func (b *Bot) handleCommand(interaction *discordgo.InteractionCreate, data disco
 		return
 	}
 
+	if reply.Private {
+		// The answer read the access roster. It goes to the person who
+		// asked, and the channel only learns where it went.
+		b.deliverPrivately(interaction, asker, reply.Text)
+		b.answered(subject, asker, interaction.ChannelID, started, reply)
+		return
+	}
 	first := b.post(interaction, reply.Text)
 	if shouldOpenThread(subject, first, reply) {
 		b.openThread(interaction, first, question, reply)
 	}
-	payload := map[string]any{
-		"subject":     subject,
-		"user_id":     asker,
-		"channel_id":  interaction.ChannelID,
-		"duration_ms": time.Since(started).Milliseconds(),
-	}
-	addCost(payload, reply)
-	b.events.LogAsync(logclient.Info, "Question answered", payload)
+	b.answered(subject, asker, interaction.ChannelID, started, reply)
 }
 
 // onMessage carries thread follow-ups. Everything that is not a person typing
@@ -333,6 +335,21 @@ func (b *Bot) handleThreadMessage(message *discordgo.MessageCreate) {
 		return
 	}
 	defer release()
+
+	// One follow-up at a time per thread, and the thread re-read once it is
+	// this one's turn: the follow-up before it may have used the last turn.
+	unlock := b.threads.lock(thread.ThreadID)
+	defer unlock()
+	thread, err = b.reloadThread(thread.ThreadID)
+	if err != nil {
+		log.Printf("read thread %q: %v", message.ChannelID, err)
+		return
+	}
+	if thread.TurnCount >= b.options.MaxThreadTurns {
+		b.say(message.ChannelID,
+			"This thread has reached its limit. Start a new one with /agent-thread.")
+		return
+	}
 
 	// A thread answer has no deferred reply to stand in for it, so the typing
 	// indicator is the only sign the bot is working.
@@ -393,6 +410,12 @@ func (b *Bot) handleThreadMessage(message *discordgo.MessageCreate) {
 	}
 	addCost(payload, reply)
 	b.events.LogAsync(logclient.Info, "Question answered", payload)
+}
+
+func (b *Bot) reloadThread(threadID string) (store.Thread, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), store.Timeout)
+	defer cancel()
+	return b.store.GetThread(ctx, threadID)
 }
 
 // threadAllowed re-runs the `agent-thread` guard for a follow-up. The guard
@@ -680,3 +703,62 @@ func userID(interaction *discordgo.InteractionCreate) string {
 // Session exposes the gateway session for the scheduler's Discord adapter,
 // which posts announcements and nudges outside any interaction.
 func (b *Bot) Session() *discordgo.Session { return b.session }
+
+func (b *Bot) answered(subject, asker, channelID string, started time.Time, reply Reply) {
+	payload := map[string]any{
+		"subject":     subject,
+		"user_id":     asker,
+		"channel_id":  channelID,
+		"duration_ms": time.Since(started).Milliseconds(),
+	}
+	if reply.Private {
+		payload["delivered"] = "dm"
+	}
+	addCost(payload, reply)
+	b.events.LogAsync(logclient.Info, "Question answered", payload)
+}
+
+// mayReadRoster reports whether this `/agent` question may use the
+// privileged tools. Auth shows who holds which grant, who is a manager or a
+// superuser, and who is banned only to managers and superusers. Sprinter
+// knows the asker only as a Discord member, with no link to their GitHub
+// identity, so Auth cannot be asked; the who-has-access guard stands in, and
+// a manager sets it to a role only managers and superusers hold. No guard,
+// or one the asker does not pass, means no roster: it fails closed.
+func (b *Bot) mayReadRoster(interaction *discordgo.InteractionCreate) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), store.Timeout)
+	guard, err := b.store.GetGuard(ctx, store.SubjectWhoHasAccess)
+	cancel()
+	if err != nil {
+		if !errors.Is(err, store.ErrNotFound) {
+			log.Printf("read guard %q: %v", store.SubjectWhoHasAccess, err)
+		}
+		return false
+	}
+	ok, _ := b.allowedHere(guard, interaction)
+	return ok
+}
+
+// The sentences that replace the deferred reply when an answer went to the
+// asker alone.
+const (
+	privateSentMessage   = "I sent you the answer in a direct message, because it lists who has permission to use BioTron apps."
+	privateFailedMessage = "This answer lists who has permission to use BioTron apps, so it only goes by direct message, and I could not send you one. Allow direct messages from this server's members, then ask again."
+)
+
+// deliverPrivately sends an answer that read the access roster to the person
+// who asked, by direct message, and tells the channel only that it did. It
+// never falls back to the channel.
+func (b *Bot) deliverPrivately(interaction *discordgo.InteractionCreate, asker, answer string) {
+	for _, part := range splitMessage(answer, messageLimit) {
+		if err := b.api.DirectMessage(asker, part); err != nil {
+			log.Printf("direct message: %v", err)
+			b.events.LogAsync(logclient.Error, "Follow-up failed", map[string]any{
+				"channel_id": interaction.ChannelID, "error": err.Error(), "delivery": "dm",
+			})
+			b.replace(interaction, privateFailedMessage)
+			return
+		}
+	}
+	b.replace(interaction, privateSentMessage)
+}

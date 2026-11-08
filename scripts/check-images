@@ -1,0 +1,144 @@
+#!/usr/bin/env bash
+# Checks the container images of the repository:
+#
+#   - Every FROM line of every Dockerfile, and every COPY --from= that names an
+#     image, pins a third-party image by version and digest
+#     (name:version@sha256:...), so a rebuild gets the same bytes and
+#     Dependabot moves the version and the digest together. A FROM of an
+#     earlier stage is fine as it is.
+#   - Every image: of every compose file pins a third-party image the same
+#     way. The images built here (${IMAGE_REGISTRY:-biotron-}<name>:<tag>) are
+#     tagged by commit, so they are left out.
+#   - The tools of development are those of production: the Go and the Node
+#     of .devcontainer/Dockerfile are those of the golang and node images
+#     that build the apps, every Nginx image is one version, and the Prisma
+#     of infra/migrate is the version that README.md and AGENTS.md name.
+#   - The devcontainer and the prisma job of CI run the Postgres of
+#     infra/docker-compose.yml. Dependabot moves the compose files, not the
+#     CI service, so this check makes the CI line follow.
+#
+# gcr.io/distroless images publish no version tags: their tag names the
+# variant (static-debian13:nonroot), and the digest is the version.
+#
+# ./pr-precheck and the images job of .github/workflows/ci.yml run it.
+set -euo pipefail
+
+top=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)
+cd "$top"
+failed=0
+
+fail() {
+  printf '%s\n' "$@" >&2
+  failed=1
+}
+
+# A pinned reference: [registry/]name:version@sha256:<64 hex digits>.
+pinned='^[a-z0-9./_-]+:[A-Za-z0-9._-]+@sha256:[0-9a-f]{64}$'
+
+dockerfiles=() composes=()
+tracked=$(git ls-files --cached --others --exclude-standard) || { echo 'check-images needs a git checkout' >&2; exit 1; }
+while IFS= read -r file; do
+  case "${file##*/}" in
+    *.dockerignore) ;;
+    Dockerfile | Dockerfile.* | *.Dockerfile) dockerfiles+=("$file") ;;
+    docker-compose*.yml | docker-compose*.yaml | compose*.yml | compose*.yaml) composes+=("$file") ;;
+  esac
+done <<<"$tracked"
+
+for file in "${dockerfiles[@]}"; do
+  stages=' '
+  while read -r number line; do
+    read -r -a words <<<"$line"
+    keyword=${words[0]^^}
+    image=''
+    if [[ $keyword == FROM ]]; then
+      for word in "${words[@]:1}"; do
+        if [[ $word != --* ]]; then image=$word; break; fi
+      done
+      if [[ ${#words[@]} -ge 2 && ${words[-2]^^} == AS ]]; then stages+="${words[-1]} "; fi
+    else
+      for word in "${words[@]:1}"; do
+        if [[ $word == --from=* ]]; then image=${word#--from=}; fi
+      done
+      # COPY --from=<stage> or --from=<index> names a stage, not an image.
+      if [[ $image != *[:/@]* ]]; then image=''; fi
+    fi
+    if [[ -z $image || $image == scratch || $stages == *" $image "* ]]; then continue; fi
+    if [[ ! $image =~ $pinned ]]; then
+      fail "$file:$number: pin $image by version and digest (name:version@sha256:...)"
+    fi
+  done < <(grep -inE '^[[:space:]]*(FROM|COPY)[[:space:]]' "$file" | sed -E 's/^([0-9]+):/\1 /' |
+    grep -iE '^[0-9]+ [[:space:]]*(FROM|COPY[[:space:]].*--from=)' || true)
+done
+
+for file in "${composes[@]}"; do
+  while IFS=: read -r number value; do
+    value=${value#*image:}
+    value=$(sed -E 's/^[[:space:]]+//; s/[[:space:]]+(#.*)?$//; s/^"(.*)"$/\1/; s/^'\''(.*)'\''$/\1/' <<<"$value")
+    case $value in
+      "\${IMAGE_REGISTRY:-biotron-}"*) continue ;;
+      # ${VARIABLE:-default}: the default is what runs unless it is set.
+      "\${"*:-*"}") value=${value#*:-}; value=${value%\}} ;;
+    esac
+    if [[ ! $value =~ $pinned ]]; then
+      fail "$file:$number: pin $value by version and digest (name:version@sha256:...)"
+    fi
+  done < <(grep -nE '^[[:space:]]+image:[[:space:]]*[^[:space:]]' "$file" || true)
+done
+
+# versions IMAGE FILE... prints each distinct version of the image IMAGE in
+# the FROM lines of FILE: the tag up to its first "-".
+versions() {
+  local image=$1
+  shift
+  sed -nE "s#^FROM +(--platform=[^ ]+ +)?$image:v?([0-9][^-@ ]*).*#\\2#p" "$@" | sort -u | paste -sd ' ' -
+}
+
+# same NAME DEVELOPMENT PRODUCTION WHERE: one version, and the same in both.
+same() {
+  local name=$1 development=$2 production=$3 where=$4
+  echo "$name: ${development:-(not found)} in .devcontainer/Dockerfile, ${production:-(not found)} in $where"
+  if [[ -z $production || $production == *' '* ]]; then
+    fail "$where must name one version of $name."
+  elif [[ $development != "$production" ]]; then
+    fail "Move $name in .devcontainer/Dockerfile to $production, or move $where with it."
+  fi
+}
+
+backends=(apps/*/backend/Dockerfile)
+node_images=()
+for file in "${dockerfiles[@]}"; do
+  if [[ $file != .devcontainer/* ]] && grep -qE '^FROM +(--platform=[^ ]+ +)?node:' "$file"; then node_images+=("$file"); fi
+done
+same Go "$(versions golang .devcontainer/Dockerfile)" "$(versions golang "${backends[@]}")" 'the backend Dockerfiles'
+same Node "$(versions node .devcontainer/Dockerfile)" "$(versions node "${node_images[@]}")" 'the frontend and migrate Dockerfiles'
+
+nginx=$(versions nginx "${dockerfiles[@]}")
+echo "Nginx: ${nginx:-(not found)} in the Dockerfiles"
+if [[ -z $nginx || $nginx == *' '* ]]; then
+  fail 'Give every Nginx image one version: the frontends and infra/nginx serve the same way.'
+fi
+
+# postgres FILE prints each distinct postgres image of FILE.
+postgres() { sed -nE 's/^[[:space:]]+image:[[:space:]]*(postgres:[^[:space:]]+).*/\1/p' "$1" | sort -u | paste -sd ' ' -; }
+instance=$(postgres infra/docker-compose.yml)
+for file in .devcontainer/docker-compose.yml .github/workflows/ci.yml; do
+  other=$(postgres "$file")
+  if [[ $other != "$instance" ]]; then
+    fail "$file runs ${other:-no Postgres}; use the Postgres of infra/docker-compose.yml, $instance."
+  fi
+done
+echo "Postgres: $instance in infra/docker-compose.yml, the devcontainer, and CI"
+
+prisma=$(sed -nE 's/^ *"prisma": *"([^"]+)".*/\1/p' infra/migrate/package.json)
+locked=$(jq -r '.packages["node_modules/prisma"].version // empty' infra/migrate/package-lock.json)
+readme=$(sed -nE 's/^\| Prisma \| ([^ |]+) \|.*/\1/p' README.md)
+agents=$(sed -nE "s/.*Prisma stays on \`([^\`]+)\`.*/\\1/p" AGENTS.md)
+echo "Prisma: ${prisma:-(not found)} in infra/migrate/package.json, ${locked:-(not found)} in its lockfile, ${readme:-(not found)} in README.md, ${agents:-(not found)} in AGENTS.md"
+if [[ ! $prisma =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  fail 'Pin prisma to an exact version in infra/migrate/package.json.'
+elif [[ $locked != "$prisma" || $readme != "$prisma" || $agents != "$prisma" ]]; then
+  fail "Name Prisma $prisma in infra/migrate/package-lock.json (npm install --prefix infra/migrate), the README.md tool table, and AGENTS.md."
+fi
+
+[[ $failed -eq 0 ]]

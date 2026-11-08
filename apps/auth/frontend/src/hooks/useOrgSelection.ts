@@ -7,11 +7,7 @@ import { type Grant, memberGrants } from '../api';
  * Keeping the three in a reducer means that cascade is described once instead
  * of being re-implemented at every call site that changes part of it.
  */
-export type OrgSelection = {
-  memberId: number | null;
-  appId: string;
-  permissionKey: string;
-};
+export type OrgSelection = { memberId: number | null; appId: string; permissionKey: string };
 
 type Action =
   | { type: 'select-member'; memberId: number }
@@ -39,7 +35,10 @@ export function useOrgSelection() {
 
   return {
     selection,
-    selectMember: useCallback((memberId: number) => dispatch({ type: 'select-member', memberId }), []),
+    selectMember: useCallback(
+      (memberId: number) => dispatch({ type: 'select-member', memberId }),
+      [],
+    ),
     selectApp: useCallback((appId: string) => dispatch({ type: 'select-app', appId }), []),
     selectPermission: useCallback(
       (permissionKey: string) => dispatch({ type: 'select-permission', permissionKey }),
@@ -49,19 +48,21 @@ export function useOrgSelection() {
   };
 }
 
+const noGrants: Grant[] = [];
+
 /** Grants of the currently selected member, reloaded whenever the choice moves. */
 export function useMemberGrants(memberId: number | null, onError: (message: string) => void) {
-  const [grants, setGrants] = useState<Grant[]>([]);
+  // Grants are kept with the member they belong to, so a change of member
+  // shows none until that member's grants land, never the last member's.
+  const [loaded, setLoaded] = useState<{ memberId: number; grants: Grant[] } | null>(null);
+  const grants = memberId && loaded?.memberId === memberId ? loaded.grants : noGrants;
 
   useEffect(() => {
-    if (!memberId) {
-      setGrants([]);
-      return;
-    }
+    if (!memberId) return;
     let cancelled = false;
     void memberGrants(memberId)
-      .then((loaded) => {
-        if (!cancelled) setGrants(loaded);
+      .then((next) => {
+        if (!cancelled) setLoaded({ memberId, grants: next });
       })
       .catch((e) => {
         if (!cancelled) onError(e instanceof Error ? e.message : 'Failed to load grants');
@@ -73,7 +74,7 @@ export function useMemberGrants(memberId: number | null, onError: (message: stri
 
   const reload = useCallback(async () => {
     if (!memberId) return;
-    setGrants(await memberGrants(memberId));
+    setLoaded({ memberId, grants: await memberGrants(memberId) });
   }, [memberId]);
 
   return { grants, reload };

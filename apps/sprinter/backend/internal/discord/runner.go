@@ -5,7 +5,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/model"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/common"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/model"
 )
 
 // messageLimit is Discord's per-message character cap.
@@ -20,16 +21,23 @@ type Request struct {
 	// ThreadID is set on a follow-up inside a thread and empty on a command.
 	ThreadID string
 	UserID   string
-	Question string
+	// Privileged lets the runner offer the privileged tools. The bot sets it
+	// only for a `/agent` question from someone the who-has-access guard
+	// admits, and then sends any answer that used one to that person alone.
+	Privileged bool
+	Question   string
 }
 
 // Reply is one answered question. Messages is the transcript the answer built,
 // which the bot stores as the thread's turns: the loop knows how many turns it
 // took and what each tool returned, and the bot must not guess at that.
 type Reply struct {
-	Text         string
-	Messages     []model.Message
-	Tools        []string
+	Text     string
+	Messages []model.Message
+	Tools    []string
+	// Private says the answer used a privileged tool. The bot sends it to
+	// the person who asked, by direct message, and never to the channel.
+	Private      bool
 	InputTokens  int
 	OutputTokens int
 }
@@ -81,10 +89,7 @@ func splitMessage(text string, limit int) []string {
 			// An answer holding an accent or an emoji puts a character across
 			// the limit, and splitting one leaves both messages holding half
 			// a character, which is not valid UTF-8.
-			cut = limit
-			for cut > 0 && !utf8.RuneStart(text[cut]) {
-				cut--
-			}
+			cut = common.RuneStart(text, limit)
 			if cut == 0 {
 				// One character wider than the whole limit. Take it whole:
 				// a cut of zero would remove nothing and loop forever.

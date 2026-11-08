@@ -1,8 +1,9 @@
 // Package calendar reads occurrences from Calendar's public API. Sprinter
-// never writes to Calendar and never sees a draft or a cancelled occurrence's
-// note — /v1/events drops a cancelled occurrence outright, which is why the
-// scheduler package treats "an occurrence Sprinter used to see is now absent"
-// as the cancellation signal.
+// never writes to Calendar and never sees a draft. /v1/events drops a
+// cancelled occurrence outright, and also one in an archived scope, so an
+// occurrence Sprinter used to see and no longer does is only a question.
+// The All Events feed answers it: it keeps cancelled occurrences, marked
+// STATUS:CANCELLED, and loses only what was deleted.
 package calendar
 
 import (
@@ -14,6 +15,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/common"
 )
 
 // localDateLayout matches Calendar's own from/to query format: a wall-clock
@@ -43,13 +46,16 @@ type Occurrence struct {
 	Modified         bool      `json:"modified"`
 }
 
-// Sequence is the occurrence's edit counter: the override's when it has one,
-// otherwise the series'. Calendar bumps it on every edit, which is what lets
-// the scheduler tell an already-posted occurrence from a changed one.
+// Sequence is the occurrence's edit counter, the same value Calendar's ICS
+// feed sends as SEQUENCE: the series' sequence alone. Calendar bumps it, in
+// the same transaction, on every series edit, every occurrence edit and every
+// occurrence reset, and never lowers it, so it only ever rises. That is what
+// lets the scheduler tell an already-posted occurrence from a changed one.
+//
+// OverrideSequence is not part of it. An override row restarts at 1 when an
+// occurrence is reset and edited again, so any value built from it, alone or
+// added to the series', can go down, and the edit would never reach Discord.
 func (o Occurrence) Sequence() int {
-	if o.OverrideSequence != 0 {
-		return o.OverrideSequence
-	}
 	return o.SeriesSequence
 }
 
@@ -87,13 +93,13 @@ func (c *Client) Occurrences(ctx context.Context, scopeID string, from, to time.
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
+	// Calendar reads each date as the local midnight that starts it. from's
+	// own date starts at or before from, but to's would stop up to a day
+	// short of to, so to is sent as the next date. That also keeps to after
+	// from when both fall on one local day, which /v1/events requires. The
+	// extra hours are cut off again below.
 	fromDate := from.In(c.location)
-	toDate := to.In(c.location)
-	// /v1/events requires strict to > from; two instants inside the same
-	// local day would otherwise resolve to the same date and be refused.
-	if !dateAfter(toDate, fromDate) {
-		toDate = toDate.AddDate(0, 0, 1)
-	}
+	toDate := to.In(c.location).AddDate(0, 0, 1)
 
 	query := url.Values{
 		"from": {fromDate.Format(localDateLayout)},
@@ -120,31 +126,24 @@ func (c *Client) Occurrences(ctx context.Context, scopeID string, from, to time.
 		return nil, fmt.Errorf("read occurrences response: %w", err)
 	}
 	if response.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("calendar returned HTTP %d: %s", response.StatusCode, truncate(body, 200))
+		return nil, fmt.Errorf("calendar returned HTTP %d: %s", response.StatusCode, common.Truncate(strings.TrimSpace(string(body)), 200))
 	}
 	var occurrences []Occurrence
 	if err := json.Unmarshal(body, &occurrences); err != nil {
 		return nil, fmt.Errorf("decode occurrences: %w", err)
 	}
-	return occurrences, nil
+	return within(occurrences, from, to), nil
 }
 
-func dateAfter(a, b time.Time) bool {
-	ay, am, ad := a.Date()
-	by, bm, bd := b.Date()
-	if ay != by {
-		return ay > by
+// within keeps the occurrences that overlap [from, to] exactly. The dates on
+// the wire widen the window to whole local days on both sides; the caller
+// asked for instants.
+func within(occurrences []Occurrence, from, to time.Time) []Occurrence {
+	kept := occurrences[:0]
+	for _, occ := range occurrences {
+		if occ.EndsAt.After(from) && !occ.StartsAt.After(to) {
+			kept = append(kept, occ)
+		}
 	}
-	if am != bm {
-		return am > bm
-	}
-	return ad > bd
-}
-
-func truncate(body []byte, n int) string {
-	text := strings.TrimSpace(string(body))
-	if len(text) > n {
-		return text[:n] + "..."
-	}
-	return text
+	return kept
 }

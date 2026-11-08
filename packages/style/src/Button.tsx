@@ -6,9 +6,6 @@ export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 
 export function Button({ className = '', tone = 'primary', ...props }: ButtonProps) {
   return (
-    <button
-      className={`biotron-button biotron-button--${tone} ${className}`.trim()}
-      {...props}
-    />
+    <button className={`biotron-button biotron-button--${tone} ${className}`.trim()} {...props} />
   );
 }

@@ -12,6 +12,10 @@ const (
 	SubjectAgentThread = "agent-thread"
 	SubjectAnnounce    = "announce"
 	SubjectNudge       = "nudge"
+	// SubjectWhoHasAccess admits a `/agent` question to the who_has_access
+	// tool. Auth shows that roster to managers and superusers only, so this
+	// guard should name a Discord role only they hold.
+	SubjectWhoHasAccess = "who-has-access"
 )
 
 // The automation kinds and delivery modes, spelled as the enum values the

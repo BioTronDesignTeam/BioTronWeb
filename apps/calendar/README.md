@@ -10,14 +10,14 @@ weekly meeting keeps its hour across a daylight-saving change.
 The public site's Calendar page reads the next few events from
 `GET /v1/events/upcoming` and links here. Editing requires the
 `calendar/write` permission from Auth; browsing requires nothing. This
-app was the `BiotronCalendar` repository. The old name remains in the Go
-module path and the Compose project name `biotron-calendar`.
+app was the `BiotronCalendar` repository. The old name remains in the
+`BiotronCalendar started` and `BiotronCalendar stopping` events.
 
 ## Layout
 
 | Path | What |
 |------|------|
-| `backend/` | Go Fiber API. Postgres through pgx. No Redis. |
+| `backend/` | Go `net/http` API. Postgres through pgx and sqlc. No Redis. |
 | `frontend/` | Vite and React UI, served by Nginx. |
 | `prisma/` | Schema and migrations. The Go service runs its own queries. |
 | `docker-compose.yml` | `calendar-migrate`, `calendar-api`, `calendar-web` on the `biotron` network. |
@@ -25,13 +25,17 @@ module path and the Compose project name `biotron-calendar`.
 
 ## Run
 
-Start the shared Postgres once, from the monorepo root, then Calendar:
+Start Postgres once, from the monorepo root, then Calendar alone:
 
 ```bash
-docker compose -f infra/docker-compose.yml --env-file infra/.env up -d
+cp infra/.env.example infra/.env
 cp apps/calendar/.env.example apps/calendar/.env
-docker compose up -d --build calendar-migrate calendar-api calendar-web
+./launch infra
+./launch web --build --no-biotron --no-auth --no-exogui --no-sprinter
 ```
+
+`./launch web --build` starts every app instead. `./launch` reads each
+app's `.env`; plain `docker compose` from the root does not.
 
 The UI is at http://localhost:5176 and the API at http://localhost:8083.
 To edit events, run Auth as well. The API reaches it at
@@ -58,8 +62,9 @@ schema migrated, and skip without it.
 
 ## Environment
 
-One file, `apps/calendar/.env`, feeds Compose, the backend, the
-frontend, and Prisma. Do not add environment files below it.
+One file, `apps/calendar/.env`, feeds the containers, the backend, the
+frontend, and Prisma. Compose gets it through `./launch` or when run in
+this folder. Do not add environment files below it.
 
 - `VITE_API_URL` is the public API address for both the browser and feed
   metadata. Use `http://localhost:8083` locally; behind the production edge,
@@ -85,14 +90,13 @@ frontend, and Prisma. Do not add environment files below it.
   each feed's `URL` line, only needed for a separate subscriber address.
   Existing overrides continue to work. In an existing `.env`, remove it if
   it matches `VITE_API_URL`; remove the unused `VITE_SITE_URL` as well.
-- `LOGGER_INGEST_TOKEN` must match Logger's. Leave it empty to send nothing.
 
 ## API
 
 | Method | Path | Who | Notes |
 |--------|------|-----|-------|
 | GET | `/health` | anyone | `503` when the database is down |
-| GET | `/v1/auth/status` | anyone | `operator` and `can_write` for the cookie sent |
+| GET | `/v1/auth/status` | anyone | `operator`, `can_write`, and `permissions` for the cookie sent |
 | GET | `/v1/scopes` | anyone | active scopes |
 | GET | `/v1/events?from=&to=&scope_id=` | anyone | occurrences in a date window; default today to three months ahead |
 | GET | `/v1/events/upcoming?limit=&days=` | anyone | the next occurrences; `limit` 1 to 20, default 5; `days` 1 to 90, default 42 |
@@ -106,17 +110,19 @@ frontend, and Prisma. Do not add environment files below it.
 | POST | `/v1/admin/events` | editor | creates a draft |
 | PATCH | `/v1/admin/events/:id` | editor | edits the series |
 | POST | `/v1/admin/events/:id/publish`, `/cancel` | editor | a cancelled series can be published again |
-| DELETE | `/v1/admin/events/:id` | editor | drafts only |
+| DELETE | `/v1/admin/events/:id` | editor | any state; removes it for good and tells no subscriber. Cancel to tell them |
 | PUT | `/v1/admin/events/:id/occurrences` | editor | changes or cancels one occurrence |
 | DELETE | `/v1/admin/events/:id/occurrences?recurrence_id_local=&expected_sequence=` | editor | resets one occurrence to the series |
 
 Editor means an operator whose Auth session holds `calendar/write`. On
-every editor request the API forwards the cookie to Auth's `/auth/me`
-and `/v1/check?app=calendar&permission=write`. It reads both so the log
-can name the operator behind the change. No cookie answers `401`, a
+every editor request the API forwards the cookie, through `go/authclient`,
+to Auth's `/v1/session?app=calendar&permission=write`, which names the
+operator and their permission in one call, so the log can name the
+operator behind the change. The public routes never call Auth. No cookie answers `401`, a
 session without the permission `403`, an unreachable Auth `503`. Every
 mutating request must carry `X-Requested-With: XMLHttpRequest`, which
-blocks cross-site form posts.
+blocks cross-site form posts. An `:id` that is not a UUID answers `404`;
+a `scope_id` or `parent_id` that is not one answers `400`.
 
 Every write to an existing series carries `expected_sequence`. The
 `sequence` rises on each edit, publish, cancel, and occurrence change; a
@@ -126,19 +132,23 @@ no new or published events. Only a published weekly series can have
 occurrence changes. A change stores only the fields that differ from the
 series, keyed by the occurrence's original start, so a field left alone
 follows later series-wide edits. Cancelling a series cancels every
-occurrence, changed ones included. A new term gets a new series; there
+occurrence, changed ones included, and keeps it in every feed so subscribers
+are told. Deleting removes a series in any state for good, with its
+occurrence changes, and tells no subscriber. A new term gets a new series; there
 is no "this and future" edit.
 
 ### Logging
 
-Calendar reports to Logger as `calendar-api`. Every admin event names the
-operator as `actor_id` and `actor_login`, so a change can be traced to the
-person who made it.
+Calendar reports to Grafana and PostHog as `calendar-api`, through
+`go/logclient`. Every admin event names the operator as `actor_id` and
+`actor_login`, so a change can be traced to the person who made it.
 
 | Message | Level | Payload |
 |---------|-------|---------|
 | `BiotronCalendar started` | info | `port` |
 | `BiotronCalendar stopping` | info | — |
+| `Database connection failed` | error | `error`; the API then exits |
+| `Listener failed` | error | `error`; the API then exits |
 | `Configuration warning` | warning | `warning` |
 | `HTTP request completed` | info, warning on 4xx, error on 5xx | `method`, `path`, `status`, `duration_ms`, `actor` and `error` when known |
 | `Authorization service unavailable` | error | `error` |
@@ -151,7 +161,7 @@ person who made it.
 | `Event updated` | info | `series_id`, `sequence` |
 | `Event published` | info | `series_id`, `scope_id`, `title` |
 | `Event cancelled` | info | `series_id` |
-| `Event deleted` | info | `series_id` |
+| `Event deleted` | info | `series_id`, `title`, `state` |
 | `Occurrence changed` | info | `series_id`, `recurrence_id_local`, `cancelled` |
 | `Occurrence reset` | info | `series_id`, `recurrence_id_local` |
 
@@ -184,16 +194,26 @@ daylight saving. Feed URLs use the scope id, so a rename never breaks a
 subscription. An archived scope leaves the public JSON, but its feed
 keeps its events.
 
+Every `VEVENT` of a series carries the series' `SEQUENCE`, changed
+occurrences included. It rises on every change to the series or to one
+of its occurrences, a reset included, so a client that honours
+`SEQUENCE` never sees it go down.
+
 The feeds and `/v1/events/upcoming` send `ETag`, `Last-Modified`, and
 `Cache-Control: public, max-age=60, stale-while-revalidate=300`, and
-answer a matching `If-None-Match` with `304`. Only the feeds honour
-`If-Modified-Since`: the upcoming window moves with the clock.
+answer a matching `If-None-Match` with `304`. `If-Modified-Since` is
+never honoured. `Last-Modified` is the newest edit among the rows still
+served, so it misses a deleted event, a parent project's rename, and two
+edits in one second; the `ETag` hashes the body and misses nothing. A
+client that revalidates by date alone gets a full `200`.
 
 ## Frontend
 
 The header leads with the wordmark from `@biotron/style`; the "Calendar"
-label hides on phones. Log in sends the browser to Auth's GitHub login
-and back. An editor gets a Manage button.
+label hides on phones. The page is public; Sign in sends the browser to
+Auth's GitHub sign-in and back, and a holder of `calendar/write` gets a
+Manage button. The session and account controls are the shared ones from
+`@biotron/style`.
 
 - **Month grid** on tablets and up, **Agenda** on phones: the same weeks
   as a grid with today circled, or as a list of days with events.
@@ -206,8 +226,8 @@ and back. An editor gets a Manage button.
 - **Event details**. Scope path, series and occurrence chips, time in
   ET, location, description, and link. An editor also gets Edit series
   and, on a weekly series, Edit and Cancel this occurrence.
-- **Manage** (editors). Events: Edit, Publish, Cancel series, Delete a
-  draft. Projects & subteams: Rename, Archive, Restore, Delete, Add.
+- **Manage** (editors). Events: Edit, Publish, Cancel series, Delete in
+  any state. Projects & subteams: Rename, Archive, Restore, Delete, Add.
   Destructive actions confirm in a dialog.
 
 `VITE_API_URL` and `VITE_AUTH_URL` are compiled into the bundle; Compose
@@ -228,6 +248,16 @@ scope with series cannot be deleted. The Go store sets `search_path`
 from the `?schema=` in `DATABASE_URL`.
 
 To create a migration in the devcontainer, source `apps/calendar/.env`
-and run `npm run --prefix apps/calendar/prisma migrate`. The
-`calendar-migrate` service applies the migrations as the image's `node`
-user.
+and run `infra/migrate/migrate calendar dev --name <name>` from the
+repository root. The `calendar-migrate` service applies the migrations
+with the shared migrate image, `infra/migrate`.
+
+The store's SQL is in `backend/internal/store/queries/queries.sql`. sqlc
+1.31.1 turns it into Go beside it, reading the schema from the Prisma
+migrations, so a migration needs no second copy of the schema. After you
+change a query or add a migration, regenerate from the monorepo root and
+commit the result:
+
+```bash
+docker run --rm -v "$PWD:/src" -w /src/apps/calendar/backend sqlc/sqlc:1.31.1 generate
+```

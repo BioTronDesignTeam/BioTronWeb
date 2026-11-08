@@ -2,13 +2,10 @@ package auth
 
 import (
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/base64"
-	"encoding/hex"
+	"net/http"
 	"strings"
 	"time"
-
-	"github.com/gofiber/fiber/v3"
 )
 
 const SessionCookie = "oauth_session"
@@ -21,28 +18,32 @@ func newToken() (string, error) {
 	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 
-func hashToken(token string) string {
-	sum := sha256.Sum256([]byte(token))
-	return hex.EncodeToString(sum[:])
-}
-
-func sameSite(s string) string {
+func sameSite(s string) http.SameSite {
 	switch strings.ToLower(s) {
 	case "none":
-		return fiber.CookieSameSiteNoneMode
+		return http.SameSiteNoneMode
 	case "strict":
-		return fiber.CookieSameSiteStrictMode
+		return http.SameSiteStrictMode
 	default:
-		return fiber.CookieSameSiteLaxMode
+		return http.SameSiteLaxMode
 	}
 }
 
-func setSessionCookie(c fiber.Ctx, token string, secure bool, sameSiteStr, domain string, ttl time.Duration) {
-	c.Cookie(&fiber.Cookie{
+// cookieValue returns the value of the named request cookie, or "".
+func cookieValue(r *http.Request, name string) string {
+	c, err := r.Cookie(name)
+	if err != nil {
+		return ""
+	}
+	return c.Value
+}
+
+func setSessionCookie(w http.ResponseWriter, token string, secure bool, sameSiteStr, domain string, ttl time.Duration) {
+	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: Secure follows COOKIE_SECURE, which config refuses to leave off with an https callback, a cookie domain, or SameSite=None: it is off only on plain-http localhost.
 		Name:     SessionCookie,
 		Value:    token,
 		Path:     "/",
-		HTTPOnly: true,
+		HttpOnly: true,
 		Secure:   secure,
 		SameSite: sameSite(sameSiteStr),
 		Domain:   domain,
@@ -50,12 +51,12 @@ func setSessionCookie(c fiber.Ctx, token string, secure bool, sameSiteStr, domai
 	})
 }
 
-func clearSessionCookie(c fiber.Ctx, secure bool, sameSiteStr, domain string) {
-	c.Cookie(&fiber.Cookie{
+func clearSessionCookie(w http.ResponseWriter, secure bool, sameSiteStr, domain string) {
+	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: Secure follows COOKIE_SECURE, which config refuses to leave off with an https callback, a cookie domain, or SameSite=None: it is off only on plain-http localhost.
 		Name:     SessionCookie,
 		Value:    "",
 		Path:     "/",
-		HTTPOnly: true,
+		HttpOnly: true,
 		Secure:   secure,
 		SameSite: sameSite(sameSiteStr),
 		Domain:   domain,

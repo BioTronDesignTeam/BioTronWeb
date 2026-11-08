@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { calendarApi } from './api';
+import { useSession } from '@biotron/style';
+import { calendarApi, setUnauthorizedHandler } from './api';
 import { deleteConfirmation } from './deleteCopy';
 import { fullDateTimeLabel, stepAnchor, todayAnchor, viewRange, type CalendarView } from './date';
-import type { AuthStatus, EventPayload, EventSeries, Occurrence, Scope } from './types';
+import type { EventPayload, EventSeries, Occurrence, Scope } from './types';
 import { AdminPanel } from './components/AdminPanel';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { EventDetails } from './components/EventDetails';
@@ -15,15 +16,19 @@ import { SubscribePanel } from './components/SubscribePanel';
 import { ViewSwitch } from './components/ViewSwitch';
 
 export function App() {
-  const [auth, setAuth] = useState<AuthStatus>({ can_write: false });
+  // The page is public. Signing in only unlocks editing, for holders of calendar/write.
+  const { can, expire } = useSession();
+  const canWrite = can('write');
   const [scopes, setScopes] = useState<Scope[]>([]);
   const [occurrences, setOccurrences] = useState<Occurrence[]>([]);
-  const [view, setView] = useState<CalendarView>('month');
+  const [view, setView] = useState<CalendarView>('week');
   // A day inside the range on screen. The arrows move it by the view's own unit.
   const [anchor, setAnchor] = useState(() => todayAnchor());
   const [selectedScopes, setSelectedScopes] = useState<string[]>([]);
   // Open beside the grid on a wide screen, closed on a narrow one where it would cover the calendar.
-  const [sidebarOpen, setSidebarOpen] = useState(() => window.matchMedia('(min-width: 1024px)').matches);
+  const [sidebarOpen, setSidebarOpen] = useState(
+    () => window.matchMedia('(min-width: 1024px)').matches,
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [managing, setManaging] = useState(false);
@@ -41,7 +46,10 @@ export function App() {
   const [eventDraft, setEventDraft] = useState<EventDraft>();
   const [cancellingSeries, setCancellingSeries] = useState<Occurrence>();
   const [deletingSeries, setDeletingSeries] = useState<Occurrence>();
-  const [editingOccurrence, setEditingOccurrence] = useState<{ occurrence: Occurrence; series: EventSeries }>();
+  const [editingOccurrence, setEditingOccurrence] = useState<{
+    occurrence: Occurrence;
+    series: EventSeries;
+  }>();
   const [cancellingOccurrence, setCancellingOccurrence] = useState<Occurrence>();
   const [eventActionError, setEventActionError] = useState('');
 
@@ -59,23 +67,16 @@ export function App() {
   // No selection means every calendar, which is the resting state of the
   // filter and what its Clear button returns to.
   const visibleOccurrences = useMemo(
-    () => (selectedScopes.length === 0
-      ? occurrences
-      : occurrences.filter((occurrence) => selectedScopes.includes(occurrence.scope_id))),
+    () =>
+      selectedScopes.length === 0
+        ? occurrences
+        : occurrences.filter((occurrence) => selectedScopes.includes(occurrence.scope_id)),
     [occurrences, selectedScopes],
   );
 
-  const loadAuth = useCallback(async () => {
-    try {
-      setAuth(await calendarApi.authStatus());
-    } catch {
-      setAuth({ can_write: false });
-    }
-  }, []);
-
-  const loadScopes = useCallback(async () => {
-    setScopes(await calendarApi.scopes());
-  }, []);
+  // Every loader below sets state only as its responses land, so the effects
+  // that start them never set state synchronously.
+  const loadScopes = useCallback(() => calendarApi.scopes().then(setScopes), []);
 
   // Month and scope changes overlap on a slow connection, and whichever
   // response landed last used to win: three taps on "Next month" could paint
@@ -85,55 +86,86 @@ export function App() {
   const occurrenceAbort = useRef<AbortController>(undefined);
   const occurrencesInFlight = useRef(0);
 
-  const loadOccurrences = useCallback(async () => {
+  const fetchOccurrences = useCallback(() => {
     occurrenceAbort.current?.abort();
     const controller = new AbortController();
     occurrenceAbort.current = controller;
     const request = ++occurrenceRequest.current;
     occurrencesInFlight.current += 1;
-    setLoading(true);
-    setError('');
-    try {
-      const next = await calendarApi.occurrences(range.from, range.to, undefined, controller.signal);
-      if (request === occurrenceRequest.current) setOccurrences(next);
-    } catch (caught) {
-      if (request !== occurrenceRequest.current || controller.signal.aborted) return;
-      // Leaving the previous month's events on screen under an error banner
-      // reads as if they belong to the month that failed.
-      setOccurrences([]);
-      setError(caught instanceof Error ? caught.message : 'Could not load the calendar.');
-    } finally {
-      occurrencesInFlight.current -= 1;
-      // The progress bar belongs to the newest request rather than the first
-      // one to settle, so it stays up while a superseded fetch unwinds.
-      setLoading(occurrencesInFlight.current > 0);
-    }
+    return calendarApi
+      .occurrences(range.from, range.to, undefined, controller.signal)
+      .then(
+        (next) => {
+          if (request === occurrenceRequest.current) setOccurrences(next);
+        },
+        (caught: unknown) => {
+          if (request !== occurrenceRequest.current || controller.signal.aborted) return;
+          // Leaving the previous month's events on screen under an error banner
+          // reads as if they belong to the month that failed.
+          setOccurrences([]);
+          setError(caught instanceof Error ? caught.message : 'Could not load the calendar.');
+        },
+      )
+      .finally(() => {
+        occurrencesInFlight.current -= 1;
+        // The progress bar belongs to the newest request rather than the first
+        // one to settle, so it stays up while a superseded fetch unwinds.
+        setLoading(occurrencesInFlight.current > 0);
+      });
   }, [range.from, range.to]);
 
-  const loadAdmin = useCallback(async () => {
-    if (!auth.can_write) return;
+  // A new range shows the progress bar and drops the last range's error from
+  // the render that asks for it; the effect below then fetches it.
+  const [shownRange, setShownRange] = useState(range);
+  if (shownRange.from !== range.from || shownRange.to !== range.to) {
+    setShownRange(range);
+    setLoading(true);
+    setError('');
+  }
+
+  /** Reloads the range on screen, from an event handler. */
+  const loadOccurrences = useCallback(() => {
+    setLoading(true);
+    setError('');
+    return fetchOccurrences();
+  }, [fetchOccurrences]);
+
+  const loadAdmin = useCallback(() => {
+    if (!canWrite) return Promise.resolve();
     setAdminLoading(true);
     setAdminError('');
-    try {
-      const [nextScopes, nextEvents] = await Promise.all([calendarApi.adminScopes(), calendarApi.adminEvents()]);
-      setAdminScopes(nextScopes);
-      setAdminEvents(nextEvents);
-    } catch (caught) {
-      setAdminError(caught instanceof Error ? caught.message : 'Could not load calendar administration.');
-    } finally {
-      setAdminLoading(false);
-    }
-  }, [auth.can_write]);
+    return Promise.all([calendarApi.adminScopes(), calendarApi.adminEvents()])
+      .then(
+        ([nextScopes, nextEvents]) => {
+          setAdminScopes(nextScopes);
+          setAdminEvents(nextEvents);
+        },
+        (caught: unknown) =>
+          setAdminError(
+            caught instanceof Error ? caught.message : 'Could not load calendar administration.',
+          ),
+      )
+      .finally(() => setAdminLoading(false));
+  }, [canWrite]);
+
+  // Opening the manager is the event that loads it.
+  function manage() {
+    setManaging(true);
+    void loadAdmin();
+  }
 
   useEffect(() => {
-    void Promise.all([loadAuth(), loadScopes()]).catch(() => setError('Could not load the calendar.'));
-  }, [loadAuth, loadScopes]);
+    void loadScopes().catch(() => setError('Could not load the calendar.'));
+  }, [loadScopes]);
 
   useEffect(() => {
-    void loadOccurrences();
+    setUnauthorizedHandler(expire);
+  }, [expire]);
+
+  useEffect(() => {
+    void fetchOccurrences();
     return () => occurrenceAbort.current?.abort();
-  }, [loadOccurrences]);
-  useEffect(() => { if (managing) void loadAdmin(); }, [managing, loadAdmin]);
+  }, [fetchOccurrences]);
 
   // A write can land and the reload behind it still fail. The editor is closed
   // by then, so its own error slot is gone; say so on the page instead of
@@ -174,7 +206,10 @@ export function App() {
     const events = await calendarApi.adminEvents();
     setAdminEvents(events);
     const found = events.find((candidate) => candidate.id === occurrence.series_id);
-    if (!found) throw new Error('This event series is no longer available. Reload the calendar and try again.');
+    if (!found)
+      throw new Error(
+        'This event series is no longer available. Reload the calendar and try again.',
+      );
     return found;
   }
 
@@ -186,7 +221,9 @@ export function App() {
       else setEditingOccurrence({ occurrence, series });
       setSelectedOccurrence(undefined);
     } catch (caught) {
-      setEventActionError(caught instanceof Error ? caught.message : 'Could not open the event for editing.');
+      setEventActionError(
+        caught instanceof Error ? caught.message : 'Could not open the event for editing.',
+      );
     }
   }
 
@@ -205,8 +242,17 @@ export function App() {
     }
   }
 
+  // For a form with its own error slot: a refusal is thrown back to it, so it
+  // stays open with what was typed and says why, rather than closing or
+  // clearing while only the banner explains.
+  async function mutateFromForm(action: () => Promise<unknown>) {
+    setAdminError('');
+    await action();
+    await refreshAfterMutation();
+  }
+
   const editorScopes = managing ? adminScopes : scopes;
-  const showingAdmin = managing && auth.can_write;
+  const showingAdmin = managing && canWrite;
   const step = (direction: -1 | 1) => setAnchor((current) => stepAnchor(view, current, direction));
   const viewSwitch = <ViewSwitch view={view} onChange={setView} />;
   // The Manage screen's button. It must not inherit the slot of an earlier click on the grid.
@@ -219,41 +265,125 @@ export function App() {
     // The calendar view fills the window and never scrolls as a page, so every
     // region inside it must scroll on its own. The Manage view is a long
     // document and scrolls the usual way.
-    <div className={`bg-white text-ink dark:bg-page dark:text-white ${showingAdmin ? 'min-h-dvh' : 'flex h-dvh flex-col overflow-hidden'}`}>
+    <div
+      className={`bg-white text-ink dark:bg-page dark:text-white ${showingAdmin ? 'min-h-dvh' : 'flex h-dvh flex-col overflow-hidden'}`}
+    >
       <Header
-        auth={auth} managing={managing} onPublic={() => setManaging(false)} onLoggedOut={() => { setAuth({ can_write: false }); setManaging(false); }}
-        toolbar={showingAdmin ? undefined : <CalendarToolbar view={view} anchor={anchor} onStep={step} />}
+        canWrite={canWrite}
+        managing={managing}
+        onPublic={() => setManaging(false)}
+        onSignedOut={() => setManaging(false)}
+        toolbar={
+          showingAdmin ? undefined : <CalendarToolbar view={view} anchor={anchor} onStep={step} />
+        }
         viewSwitch={showingAdmin ? undefined : viewSwitch}
-        sidebar={showingAdmin ? undefined : { open: sidebarOpen, filterCount: selectedScopes.length, onToggle: () => setSidebarOpen((open) => !open) }}
+        sidebar={
+          showingAdmin
+            ? undefined
+            : {
+                open: sidebarOpen,
+                filterCount: selectedScopes.length,
+                onToggle: () => setSidebarOpen((open) => !open),
+              }
+        }
       />
       {showingAdmin ? (
         <AdminPanel
-          scopes={adminScopes} events={adminEvents} loading={adminLoading} error={adminError}
-          onCreateEvent={startCreating} onEditEvent={(event) => setEditingEvent(event)}
-          onPublishEvent={async (event) => { await mutate(() => calendarApi.publishEvent(event.id, event.sequence)); }}
-          onCancelEvent={async (event) => { await mutate(() => calendarApi.cancelEvent(event.id, event.sequence)); }}
-          onDeleteEvent={async (event) => { await mutate(() => calendarApi.deleteEvent(event.id)); }}
-          onCreateScope={async (kind, name, parentId) => { await mutate(() => calendarApi.createScope({ kind, name, parent_id: parentId })); }}
-          onRenameScope={async (scope, name) => { await mutate(() => calendarApi.renameScope(scope.id, name)); }}
-          onArchiveScope={async (scope) => { await mutate(() => calendarApi.archiveScope(scope.id)); }}
-          onRestoreScope={async (scope) => { await mutate(() => calendarApi.restoreScope(scope.id)); }}
-          onDeleteScope={async (scope) => { await mutate(() => calendarApi.deleteScope(scope.id)); }}
+          scopes={adminScopes}
+          events={adminEvents}
+          loading={adminLoading}
+          error={adminError}
+          onCreateEvent={startCreating}
+          onEditEvent={(event) => setEditingEvent(event)}
+          onPublishEvent={async (event) => {
+            await mutate(() => calendarApi.publishEvent(event.id, event.sequence));
+          }}
+          onCancelEvent={async (event) => {
+            await mutate(() => calendarApi.cancelEvent(event.id, event.sequence));
+          }}
+          onDeleteEvent={async (event) => {
+            await mutate(() => calendarApi.deleteEvent(event.id));
+          }}
+          onCreateScope={async (kind, name, parentId) => {
+            await mutateFromForm(() =>
+              calendarApi.createScope({ kind, name, parent_id: parentId }),
+            );
+          }}
+          onRenameScope={async (scope, name) => {
+            await mutateFromForm(() => calendarApi.renameScope(scope.id, name));
+          }}
+          onArchiveScope={async (scope) => {
+            await mutate(() => calendarApi.archiveScope(scope.id));
+          }}
+          onRestoreScope={async (scope) => {
+            await mutate(() => calendarApi.restoreScope(scope.id));
+          }}
+          onDeleteScope={async (scope) => {
+            await mutate(() => calendarApi.deleteScope(scope.id));
+          }}
         />
       ) : (
         <div className="flex min-h-0 flex-1">
-          <Sidebar open={sidebarOpen} view={view} anchor={anchor} onStep={step} viewSwitch={viewSwitch} onManage={auth.can_write ? () => setManaging(true) : undefined} scopes={scopes} selectedScopes={selectedScopes} onScopeChange={setSelectedScopes} onClose={() => setSidebarOpen(false)}
+          <Sidebar
+            open={sidebarOpen}
+            view={view}
+            anchor={anchor}
+            onStep={step}
+            viewSwitch={viewSwitch}
+            onManage={canWrite ? manage : undefined}
+            scopes={scopes}
+            selectedScopes={selectedScopes}
+            onScopeChange={setSelectedScopes}
+            onClose={() => setSidebarOpen(false)}
             onSubscribe={() => {
               // As a drawer the sidebar would sit open behind the subscribe panel.
               if (!window.matchMedia('(min-width: 1024px)').matches) setSidebarOpen(false);
               setShowSubscribe(true);
             }}
           />
-          <PublicCalendar view={view} anchor={anchor} onCreate={auth.can_write ? (draft) => { setEventDraft(draft); setCreatingEvent(true); } : undefined} onOpenDay={(day) => { setAnchor(day); setView('day'); }} occurrences={visibleOccurrences} loading={loading} error={error} onSelectEvent={(occurrence) => { setEventActionError(''); setSelectedOccurrence(occurrence); }} />
+          <PublicCalendar
+            view={view}
+            anchor={anchor}
+            onCreate={
+              canWrite
+                ? (draft) => {
+                    setEventDraft(draft);
+                    setCreatingEvent(true);
+                  }
+                : undefined
+            }
+            onOpenDay={(day) => {
+              setAnchor(day);
+              setView('day');
+            }}
+            occurrences={visibleOccurrences}
+            loading={loading}
+            error={error}
+            onSelectEvent={(occurrence) => {
+              setEventActionError('');
+              setSelectedOccurrence(occurrence);
+            }}
+          />
         </div>
       )}
 
       {showSubscribe && <SubscribePanel scopes={scopes} onClose={() => setShowSubscribe(false)} />}
-      {selectedOccurrence && <EventDetails occurrence={selectedOccurrence} canWrite={auth.can_write} error={eventActionError} onClose={() => { setEventActionError(''); setSelectedOccurrence(undefined); }} onEditSeries={() => void openEditor(selectedOccurrence, 'series')} onEditOccurrence={() => void openEditor(selectedOccurrence, 'occurrence')} onCancelOccurrence={() => setCancellingOccurrence(selectedOccurrence)} onCancelSeries={() => setCancellingSeries(selectedOccurrence)} onDeleteSeries={() => setDeletingSeries(selectedOccurrence)} />}
+      {selectedOccurrence && (
+        <EventDetails
+          occurrence={selectedOccurrence}
+          canWrite={canWrite}
+          error={eventActionError}
+          onClose={() => {
+            setEventActionError('');
+            setSelectedOccurrence(undefined);
+          }}
+          onEditSeries={() => void openEditor(selectedOccurrence, 'series')}
+          onEditOccurrence={() => void openEditor(selectedOccurrence, 'occurrence')}
+          onCancelOccurrence={() => setCancellingOccurrence(selectedOccurrence)}
+          onCancelSeries={() => setCancellingSeries(selectedOccurrence)}
+          onDeleteSeries={() => setDeletingSeries(selectedOccurrence)}
+        />
+      )}
       {cancellingOccurrence && (
         <ConfirmDialog
           title="Cancel this occurrence?"
@@ -263,7 +393,16 @@ export function App() {
           onCancel={() => setCancellingOccurrence(undefined)}
           onConfirm={async () => {
             const occurrence = cancellingOccurrence;
-            const success = await mutate(() => calendarApi.updateOccurrence(occurrence.series_id, { recurrence_id_local: occurrence.recurrence_id_local, state: 'CANCELLED', patch: {}, expected_sequence: occurrence.series_sequence }), true);
+            const success = await mutate(
+              () =>
+                calendarApi.updateOccurrence(occurrence.series_id, {
+                  recurrence_id_local: occurrence.recurrence_id_local,
+                  state: 'CANCELLED',
+                  patch: {},
+                  expected_sequence: occurrence.series_sequence,
+                }),
+              true,
+            );
             setCancellingOccurrence(undefined);
             if (success) setSelectedOccurrence(undefined);
           }}
@@ -272,15 +411,20 @@ export function App() {
       {cancellingSeries && (
         <ConfirmDialog
           title={cancellingSeries.recurring ? 'Cancel this series?' : 'Cancel this event?'}
-          message={cancellingSeries.recurring
-            ? `Every remaining occurrence of "${cancellingSeries.title}" is cancelled and subscribers receive the cancellation. The series stays in the feed so their calendars can reconcile it, and it can be republished later.`
-            : `"${cancellingSeries.title}" is cancelled and subscribers receive the cancellation. It stays in the feed so their calendars can reconcile it, and it can be republished later.`}
+          message={
+            cancellingSeries.recurring
+              ? `Every remaining occurrence of "${cancellingSeries.title}" is cancelled and subscribers receive the cancellation. The series stays in the feed so their calendars can reconcile it, and it can be republished later.`
+              : `"${cancellingSeries.title}" is cancelled and subscribers receive the cancellation. It stays in the feed so their calendars can reconcile it, and it can be republished later.`
+          }
           confirmLabel={cancellingSeries.recurring ? 'Cancel the series' : 'Cancel the event'}
           destructive
           onCancel={() => setCancellingSeries(undefined)}
           onConfirm={async () => {
             const occurrence = cancellingSeries;
-            const success = await mutate(() => calendarApi.cancelEvent(occurrence.series_id, occurrence.series_sequence), true);
+            const success = await mutate(
+              () => calendarApi.cancelEvent(occurrence.series_id, occurrence.series_sequence),
+              true,
+            );
             setCancellingSeries(undefined);
             if (success) setSelectedOccurrence(undefined);
           }}
@@ -300,18 +444,46 @@ export function App() {
           }}
         />
       )}
-      {(creatingEvent || editingEvent) && <EventEditor event={editingEvent || undefined} draft={eventDraft} scopes={editorScopes} onClose={() => { setCreatingEvent(false); setEditingEvent(undefined); }} onSave={saveEvent} />}
-      {editingOccurrence && <OccurrenceEditor occurrence={editingOccurrence.occurrence} series={editingOccurrence.series} onClose={() => setEditingOccurrence(undefined)} onSave={async (patch) => {
-        const { occurrence } = editingOccurrence;
-        await calendarApi.updateOccurrence(occurrence.series_id, { recurrence_id_local: occurrence.recurrence_id_local, state: 'MODIFIED', patch, expected_sequence: occurrence.series_sequence });
-        setEditingOccurrence(undefined);
-        await refreshAfterMutation();
-      }} onReset={async () => {
-        const { occurrence } = editingOccurrence;
-        await calendarApi.resetOccurrence(occurrence.series_id, occurrence.recurrence_id_local, occurrence.series_sequence);
-        setEditingOccurrence(undefined);
-        await refreshAfterMutation();
-      }} />}
+      {(creatingEvent || editingEvent) && (
+        <EventEditor
+          event={editingEvent || undefined}
+          draft={eventDraft}
+          scopes={editorScopes}
+          onClose={() => {
+            setCreatingEvent(false);
+            setEditingEvent(undefined);
+          }}
+          onSave={saveEvent}
+        />
+      )}
+      {editingOccurrence && (
+        <OccurrenceEditor
+          occurrence={editingOccurrence.occurrence}
+          series={editingOccurrence.series}
+          onClose={() => setEditingOccurrence(undefined)}
+          onSave={async (patch) => {
+            const { occurrence } = editingOccurrence;
+            await calendarApi.updateOccurrence(occurrence.series_id, {
+              recurrence_id_local: occurrence.recurrence_id_local,
+              state: 'MODIFIED',
+              patch,
+              expected_sequence: occurrence.series_sequence,
+            });
+            setEditingOccurrence(undefined);
+            await refreshAfterMutation();
+          }}
+          onReset={async () => {
+            const { occurrence } = editingOccurrence;
+            await calendarApi.resetOccurrence(
+              occurrence.series_id,
+              occurrence.recurrence_id_local,
+              occurrence.series_sequence,
+            );
+            setEditingOccurrence(undefined);
+            await refreshAfterMutation();
+          }}
+        />
+      )}
     </div>
   );
 }

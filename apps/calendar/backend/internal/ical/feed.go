@@ -7,8 +7,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	calendarlogic "github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/calendar"
-	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/model"
+	calendarlogic "github.com/BioTronDesignTeam/BioTronWeb/apps/calendar/backend/internal/calendar"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/calendar/backend/internal/model"
 )
 
 const productID = "-//BioTron Design Team//BioTron Calendar//EN"
@@ -149,7 +149,13 @@ func overrideEventLines(event model.EventSeries, override model.EventOverride) (
 		"RECURRENCE-ID" + datePropertySuffix(override.RecurrenceIDLocal, event.AllDay),
 		"DTSTAMP:" + utcDateTime(updated),
 		"LAST-MODIFIED:" + utcDateTime(updated),
-		fmt.Sprintf("SEQUENCE:%d", event.Sequence+override.Sequence),
+		// The series sequence alone, never plus the override's: every change
+		// or reset of an occurrence bumps the series in the same transaction,
+		// so this already rises with each edit. A reset deletes the override
+		// row, so a new override starts its own count again at 1, and the sum
+		// went down after a reset and re-edit. A client that honours SEQUENCE
+		// then ignored the newer instance.
+		fmt.Sprintf("SEQUENCE:%d", event.Sequence),
 		dateProperty("DTSTART", start, event.AllDay),
 		dateProperty("DTEND", end, event.AllDay),
 	}

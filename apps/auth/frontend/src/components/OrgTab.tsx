@@ -20,7 +20,9 @@ export default function OrgTab({
   onRevokeGrant,
   onBan,
   onUnban,
+  onSignOut,
   onSetManager,
+  meId,
 }: {
   members: OrgMember[];
   selectedMember: OrgMember | null;
@@ -36,7 +38,9 @@ export default function OrgTab({
   onRevokeGrant: (grant: Grant) => void;
   onBan: (id: number) => void;
   onUnban: (id: number) => void;
+  onSignOut: (member: OrgMember) => void;
   onSetManager: (id: number, manager: boolean) => void;
+  meId: number;
 }) {
   // Below the lg breakpoint the detail stacks under the member list, so a tap
   // on a member would otherwise change something off screen. Scroll it up
@@ -48,7 +52,10 @@ export default function OrgTab({
     if (selectedMemberId === null) return;
     if (!window.matchMedia('(max-width: 1023px)').matches) return;
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    detailRef.current?.scrollIntoView({ block: 'start', behavior: reduceMotion ? 'auto' : 'smooth' });
+    detailRef.current?.scrollIntoView({
+      block: 'start',
+      behavior: reduceMotion ? 'auto' : 'smooth',
+    });
   }, [selectedMemberId]);
 
   return (
@@ -62,7 +69,7 @@ export default function OrgTab({
         <div ref={detailRef} className="min-w-0 scroll-mt-20">
           {!selectedMember ? (
             <div className="flex h-full items-center justify-center px-6 py-16 text-sm text-slate-500 dark:text-muted">
-              Select a member to manage access.
+              Select a member to grant or revoke permissions.
             </div>
           ) : (
             <OrgMemberDetail
@@ -78,7 +85,9 @@ export default function OrgTab({
               onRevokeGrant={onRevokeGrant}
               onBan={onBan}
               onUnban={onUnban}
+              onSignOut={onSignOut}
               onSetManager={onSetManager}
+              meId={meId}
             />
           )}
         </div>

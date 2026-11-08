@@ -1,11 +1,12 @@
 import { useMemo } from 'react';
+import { authStrings, roleOf } from '@biotron/style';
 import type { AppInfo, Grant, Me, Permission } from '../api';
 import { divided, mutedText, panel, panelEmpty, panelHeader, panelHeading } from './ui';
 
 /**
  * Held permissions are green chips with a check; the rest are plain outlined
  * chips, so the difference survives without colour. There is nothing to click:
- * access is asked for in a meeting or on Discord and a manager grants it from
+ * a permission is asked for in a meeting or on Discord and a manager grants it from
  * the Org tab.
  */
 function PermissionChip({ label, granted }: { label: string; granted: boolean }) {
@@ -54,19 +55,19 @@ export default function AccessTab({
     [grants],
   );
 
-  const role = me.is_superuser ? 'superuser' : 'manager';
+  const role = roleOf(me).toLowerCase();
 
   return (
     <section className={panel}>
       <div className={panelHeader}>
         <h2 className={panelHeading}>Your permissions</h2>
         {fullAccess ? (
-          <p className="mt-1 text-sm text-emerald-600 dark:text-emerald-400">
-            You have full access to every tool as a {role}.
+          <p className="mt-1 text-sm text-emerald-700 dark:text-emerald-400">
+            As a {role}, you hold every permission in every tool.
           </p>
         ) : (
           <p className={`mt-1 ${mutedText}`}>
-            To change these, ask a manager in a meeting or on Discord.
+            A manager grants and revokes these. {authStrings.askAManager}
           </p>
         )}
       </div>
@@ -83,7 +84,9 @@ export default function AccessTab({
                 <div className={`mt-1 break-words ${mutedText}`}>{app.description || app.id}</div>
               </div>
               {perms.length === 0 ? (
-                <p className="mt-3 text-sm text-slate-400 dark:text-faint">No permissions defined.</p>
+                <p className="mt-3 text-sm text-slate-500 dark:text-faint">
+                  No permissions defined.
+                </p>
               ) : (
                 <div className="mt-4 flex flex-wrap gap-2">
                   {perms.map((perm) => (

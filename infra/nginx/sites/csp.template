@@ -1,0 +1,51 @@
+# Resource-loading half of the edge Content-Security-Policy, enforced.
+#
+# 40-biotron-sites.sh fills ${BASE_DOMAIN} in the policy line at the bottom
+# once per instance in EDGE_SITES and maps each domain to its own policy, so
+# every instance names only its own product subdomains. nginx.conf sends the
+# mapped value as Content-Security-Policy at http level, beside the
+# deployment-independent document-level policy; a browser enforces both, so
+# they add up rather than override each other. An unknown host gets no
+# header. Lines starting with # are left out of the header.
+#
+# SCRIPTS. Each tool's index.html carries the same inline theme bootstrap,
+# which AGENTS.md keeps there so the dark theme applies before React loads.
+# The four copies are byte-identical, so one SHA-256 hash allows them all and
+# no other inline script: an injected <script> or event handler does not run.
+# Editing the bootstrap changes its hash. infra/tests checks that every inline
+# script of every index.html matches the hash below; compute a new one with
+#
+#   perl -0ne 'print $1 while /<script>(.*?)<\/script>/sg' apps/auth/frontend/index.html |
+#     openssl dgst -sha256 -binary | openssl base64
+#
+# and keep the copies identical. .gitattributes keeps index.html LF, as the
+# hash assumes.
+#
+# STYLES keep 'unsafe-inline': React writes style attributes throughout, and
+# each index.html has a small <style>. A style cannot run code.
+#
+# Violations are reported to the edge (report-uri, report-to), which logs
+# them: see snippets/csp-report.conf.
+#
+# The directives were derived by reading what the apps actually load, and
+# checked by browsing every app with the policy enforced:
+#   script-src              same-origin Vite bundles and the hashed bootstrap.
+#   style-src               the inline <style> in each index.html, plus React
+#                           inline style attributes.
+#   img-src                 same-origin assets, Vite's inlined data: URIs,
+#                           blob: textures of the site's 3D models, and GitHub
+#                           avatars (operator.avatar_url is rendered in the
+#                           account menu of all four authenticated apps).
+#   font-src                Tailwind ships no webfont and no frontend links
+#                           Google Fonts; data: covers any future inlined face.
+#   connect-src             each frontend calls its own API and, cross-origin,
+#                           auth.${BASE_DOMAIN}; the public site and Sprinter
+#                           call the calendar API. Enumerated, not wildcarded.
+#                           The site's 3D lighting files are self-hosted
+#                           (apps/biotron/frontend/public/hdri), so no
+#                           third-party origin is listed.
+#   worker-src blob:        Three.js loaders on the public site construct their
+#                           decoder workers from blobs.
+#   frame-src 'none'        no frontend embeds an iframe.
+#   report-uri, report-to   the edge logs each violation.
+default-src 'self'; script-src 'self' 'sha256-SRsBKnFT7raAfsMsc1moMQx0K/6SZ+7uvHVQ8YD2kQo='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://avatars.githubusercontent.com; font-src 'self' data:; connect-src 'self' https://${BASE_DOMAIN} https://www.${BASE_DOMAIN} https://auth.${BASE_DOMAIN} https://exogui.${BASE_DOMAIN} https://calendar.${BASE_DOMAIN} https://sprinter.${BASE_DOMAIN}; worker-src 'self' blob:; frame-src 'none'; frame-ancestors 'none'; base-uri 'none'; object-src 'none'; form-action 'self'; report-uri /_edge/csp-report; report-to csp

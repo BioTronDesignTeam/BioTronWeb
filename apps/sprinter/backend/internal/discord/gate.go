@@ -1,7 +1,7 @@
 package discord
 
 import (
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/store"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/store"
 )
 
 // reason is why a command was refused. It goes into the log and picks the
@@ -22,7 +22,7 @@ const (
 // act on and no more: naming the allowed roles or channels would leak the
 // guard to someone the guard exists to keep out.
 var refusals = map[reason]string{
-	reasonNoGuard:     "This command is not configured yet. Ask an admin to set its guard.",
+	reasonNoGuard:     "This command is not configured yet. Ask a manager.",
 	reasonNoGuild:     "Run this in a server channel, not a direct message.",
 	reasonWrongGuild:  "This command is not available in this server.",
 	reasonNoMember:    "I could not read your roles. Try again in a server channel.",

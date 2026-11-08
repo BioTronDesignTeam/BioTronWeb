@@ -1,0 +1,23 @@
+# Prettier formats the frontends, the shared style library, and the root
+# frontend configuration. Everything else has its own formatter or none.
+node_modules/
+dist/
+package-lock.json
+
+# Go has gofmt; Prisma has prisma format.
+go/
+apps/*/backend/
+apps/*/prisma/
+go.work.sum
+
+# Infrastructure, deployment, CI, and the devcontainer are outside the
+# frontend toolchain.
+infra/
+deploy/
+.github/
+.devcontainer/
+*.yml
+*.yaml
+
+# Prose is wrapped by hand.
+*.md

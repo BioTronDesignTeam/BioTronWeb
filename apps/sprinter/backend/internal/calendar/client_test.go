@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 )
@@ -35,7 +36,7 @@ func TestOccurrencesRequestsExpectedWindow(t *testing.T) {
 
 	client := NewClient(server.URL, toronto)
 	from := time.Date(2026, 9, 10, 8, 0, 0, 0, time.UTC)
-	to := from.Add(2 * time.Hour)
+	to := from.Add(8 * time.Hour)
 	occurrences, err := client.Occurrences(context.Background(), "s1", from, to)
 	if err != nil {
 		t.Fatalf("Occurrences: %v", err)
@@ -44,33 +45,97 @@ func TestOccurrencesRequestsExpectedWindow(t *testing.T) {
 		t.Fatalf("len = %d", len(occurrences))
 	}
 	occ := occurrences[0]
-	if occ.UID != "abc" || occ.Sequence() != 3 || !occ.Modified {
+	if occ.UID != "abc" || occ.Sequence() != 2 || !occ.Modified {
 		t.Fatalf("occurrence = %+v", occ)
 	}
 
-	parsed, err := http.NewRequest(http.MethodGet, "http://x/?"+gotQuery, nil)
+	parsed, err := url.ParseQuery(gotQuery)
 	if err != nil {
 		t.Fatalf("parse query: %v", err)
 	}
-	if got := parsed.URL.Query().Get("scope_id"); got != "s1" {
+	if got := parsed.Get("scope_id"); got != "s1" {
 		t.Fatalf("scope_id = %q", got)
 	}
-	if got := parsed.URL.Query().Get("from"); got != "2026-09-10" {
+	if got := parsed.Get("from"); got != "2026-09-10" {
 		t.Fatalf("from = %q", got)
 	}
-	if got := parsed.URL.Query().Get("to"); got != "2026-09-11" {
+	if got := parsed.Get("to"); got != "2026-09-11" {
 		t.Fatalf("to = %q, want the next day since from and to fall in the same local day", got)
 	}
 }
 
-func TestOccurrencesSequenceFallsBackToSeries(t *testing.T) {
-	occ := Occurrence{SeriesSequence: 4}
-	if occ.Sequence() != 4 {
-		t.Fatalf("Sequence() = %d, want 4", occ.Sequence())
+// Calendar reads to as the midnight that starts its date. Sending to's own
+// date would stop the window up to a day short; the next date covers it, and
+// the client trims the answer back to the instants it was asked for.
+func TestOccurrencesCoverTheExactWindow(t *testing.T) {
+	toronto, err := time.LoadLocation("America/Toronto")
+	if err != nil {
+		t.Fatalf("load location: %v", err)
 	}
-	occ.OverrideSequence = 7
-	if occ.Sequence() != 7 {
-		t.Fatalf("Sequence() = %d, want 7", occ.Sequence())
+	from := time.Date(2026, 9, 10, 13, 0, 0, 0, toronto)
+	to := from.Add(169 * time.Hour) // 2026-09-17 14:00 local
+	occurrence := func(uid string, starts time.Time) map[string]any {
+		return map[string]any{
+			"uid": uid, "recurrence_id_local": starts.Format("2006-01-02T15:04:05"),
+			"series_sequence": 1, "title": uid,
+			"starts_at": starts, "ends_at": starts.Add(time.Hour),
+		}
+	}
+	var gotQuery url.Values
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotQuery = r.URL.Query()
+		_ = json.NewEncoder(w).Encode([]map[string]any{
+			occurrence("ended-before-from", from.Add(-3*time.Hour)),
+			occurrence("running-at-from", from.Add(-30*time.Minute)),
+			occurrence("last-hour", to.Add(-time.Hour)),
+			occurrence("after-to", to.Add(time.Hour)),
+		})
+	}))
+	defer server.Close()
+
+	occurrences, err := NewClient(server.URL, toronto).Occurrences(context.Background(), "", from, to)
+	if err != nil {
+		t.Fatalf("Occurrences: %v", err)
+	}
+	if got := gotQuery.Get("from"); got != "2026-09-10" {
+		t.Fatalf("from = %q", got)
+	}
+	if got := gotQuery.Get("to"); got != "2026-09-18" {
+		t.Fatalf("to = %q, want 2026-09-18 so the window reaches 14:00 on the 17th", got)
+	}
+	var uids []string
+	for _, occ := range occurrences {
+		uids = append(uids, occ.UID)
+	}
+	if len(uids) != 2 || uids[0] != "running-at-from" || uids[1] != "last-hour" {
+		t.Fatalf("kept %v, want only what overlaps [from, to]", uids)
+	}
+}
+
+// Sequence is the series' sequence alone, which is what the ICS feed sends
+// as SEQUENCE. The override's restarts at 1 after a reset, so it is ignored.
+func TestSequenceIsTheSeriesSequence(t *testing.T) {
+	occ := Occurrence{SeriesSequence: 4, OverrideSequence: 7}
+	if occ.Sequence() != 4 {
+		t.Fatalf("Sequence() = %d, want 4, the ICS feed's SEQUENCE", occ.Sequence())
+	}
+}
+
+// Calendar bumps the series on every occurrence edit and reset. Through an
+// edit, a second edit, a reset and a re-edit, the sequence must rise every
+// time, though series plus override would fall at the reset.
+func TestSequenceRisesThroughEditResetAndReEdit(t *testing.T) {
+	steps := []Occurrence{
+		{SeriesSequence: 5},                      // announced
+		{SeriesSequence: 6, OverrideSequence: 1}, // occurrence edited
+		{SeriesSequence: 7, OverrideSequence: 2}, // edited again
+		{SeriesSequence: 8},                      // reset to the series
+		{SeriesSequence: 9, OverrideSequence: 1}, // edited again, a new override row
+	}
+	for i := 1; i < len(steps); i++ {
+		if steps[i].Sequence() <= steps[i-1].Sequence() {
+			t.Fatalf("step %d: sequence went from %d to %d", i, steps[i-1].Sequence(), steps[i].Sequence())
+		}
 	}
 }
 

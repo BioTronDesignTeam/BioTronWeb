@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
@@ -12,13 +13,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gofiber/fiber/v3"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	calendarlogic "github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/calendar"
-	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/config"
-	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/model"
-	"github.com/BioTronDesignTeam/BiotronCalendar/backend/internal/store"
+	calendarlogic "github.com/BioTronDesignTeam/BioTronWeb/apps/calendar/backend/internal/calendar"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/calendar/backend/internal/config"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/calendar/backend/internal/model"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/calendar/backend/internal/store"
 )
 
 // This drives the real route, against a real database, on a fixture clock, so
@@ -63,7 +63,7 @@ func fixturePool(t *testing.T, ctx context.Context, databaseURL string) *pgxpool
 	return pool
 }
 
-func liveUpcomingApp(t *testing.T, now time.Time) (*fiber.App, *store.Store, *pgxpool.Pool, context.Context) {
+func liveUpcomingApp(t *testing.T, now time.Time) (http.Handler, *store.Store, *pgxpool.Pool, context.Context) {
 	t.Helper()
 	databaseURL := os.Getenv("CALENDAR_TEST_DATABASE_URL")
 	if databaseURL == "" {
@@ -85,9 +85,9 @@ func liveUpcomingApp(t *testing.T, now time.Time) (*fiber.App, *store.Store, *pg
 		location: location,
 		now:      func() time.Time { return now },
 	}
-	app := fiber.New()
-	app.Get("/v1/events/upcoming", handler.listUpcoming)
-	app.Get("/v1/events", handler.listOccurrences)
+	app := http.NewServeMux()
+	app.Handle("GET /v1/events/upcoming", handler.serve(handler.listUpcoming))
+	app.Handle("GET /v1/events", handler.serve(handler.listOccurrences))
 	return app, calendarStore, fixturePool(t, ctx, databaseURL), ctx
 }
 
@@ -113,18 +113,15 @@ func liveSeed(t *testing.T, calendarStore *store.Store, ctx context.Context, uid
 	}
 }
 
-func liveGet(t *testing.T, app *fiber.App, target string) []model.Occurrence {
+func liveGet(t *testing.T, app http.Handler, target string) []model.Occurrence {
 	t.Helper()
-	response, err := app.Test(httptest.NewRequest(fiber.MethodGet, target, nil), fiber.TestConfig{Timeout: 10 * time.Second})
-	if err != nil {
-		t.Fatal(err)
-	}
+	response := serveTest(app, httptest.NewRequest(http.MethodGet, target, nil))
 	defer response.Body.Close()
 	body, err := io.ReadAll(response.Body)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if response.StatusCode != fiber.StatusOK {
+	if response.StatusCode != http.StatusOK {
 		t.Fatalf("GET %s returned %d: %s", target, response.StatusCode, body)
 	}
 	var occurrences []model.Occurrence

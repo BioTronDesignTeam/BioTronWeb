@@ -1,0 +1,31 @@
+# The store's queries, made into Go by sqlc 1.31.1. Run from this folder:
+#
+#   docker run --rm -v "$PWD/..:/src" -w /src/backend sqlc/sqlc:1.31.1 generate
+#
+# The schema is the SQL of the Prisma migrations, in name order, so there is
+# no second copy of it to drift. The queries live in
+# internal/store/queries/queries.sql, and sqlc writes package queries beside
+# them: generated code, never edited by hand. Commit it with the query.
+version: "2"
+sql:
+  - engine: postgresql
+    schema: ../prisma/migrations/*/migration.sql
+    queries: internal/store/queries/queries.sql
+    gen:
+      go:
+        package: queries
+        out: internal/store/queries
+        sql_package: pgx/v5
+        # A nullable column is a pointer (*string), not pgtype.Text.
+        emit_pointers_for_null_types: true
+        # models.go holds only the tables that the queries return.
+        omit_unused_structs: true
+        overrides:
+          - db_type: timestamptz
+            go_type: time.Time
+# The Go names the store already uses, so a row converts to its type as is.
+overrides:
+  go:
+    rename:
+      github_id: GitHubID
+      avatar_url: AvatarURL

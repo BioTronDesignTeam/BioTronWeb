@@ -10,13 +10,11 @@
   "forwardPorts": [
     5173,
     5174,
-    5175,
     5176,
     5177,
     5178,
     8080,
     8081,
-    8082,
     8083,
     8084
   ],
@@ -25,16 +23,13 @@
       "label": "Auth"
     },
     "5174": {
-      "label": "Exo"
-    },
-    "5175": {
-      "label": "Logger"
+      "label": "Exo GUI"
     },
     "5176": {
       "label": "Calendar"
     },
     "5177": {
-      "label": "Site"
+      "label": "BioTron site"
     },
     "5178": {
       "label": "Sprinter"
@@ -43,10 +38,7 @@
       "label": "Auth API"
     },
     "8081": {
-      "label": "Exo API"
-    },
-    "8082": {
-      "label": "Logger API"
+      "label": "Exo GUI API"
     },
     "8083": {
       "label": "Calendar API"

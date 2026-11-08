@@ -10,8 +10,8 @@ import (
 
 	"google.golang.org/genai"
 
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/model"
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/tools"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/model"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/tools"
 )
 
 // These tests never reach the network. Everything that can be wrong without a
@@ -97,11 +97,11 @@ func TestToContentsMapsRolesAndToolTurns(t *testing.T) {
 	history := []model.Message{
 		{Role: model.RoleUser, Text: "which services logged errors?"},
 		{Role: model.RoleAssistant, Text: "checking", ToolCalls: []model.ToolCall{{
-			ID: syntheticID("recent_logs", 1, 0), Name: "recent_logs",
+			ID: syntheticID("calendar_upcoming", 1, 0), Name: "calendar_upcoming",
 			Args: json.RawMessage(`{"level":"error","limit":5}`),
 		}}},
 		{Role: model.RoleUser, ToolResults: []model.ToolResult{{
-			ID: syntheticID("recent_logs", 1, 0), Name: "recent_logs", Content: "two rows",
+			ID: syntheticID("calendar_upcoming", 1, 0), Name: "calendar_upcoming", Content: "two rows",
 		}}},
 		{Role: model.RoleAssistant, Text: "two services did"},
 	}
@@ -123,7 +123,7 @@ func TestToContentsMapsRolesAndToolTurns(t *testing.T) {
 	if len(call.Parts) != 2 || call.Parts[0].Text != "checking" {
 		t.Fatalf("assistant parts = %+v", call.Parts)
 	}
-	if call.Parts[1].FunctionCall == nil || call.Parts[1].FunctionCall.Name != "recent_logs" {
+	if call.Parts[1].FunctionCall == nil || call.Parts[1].FunctionCall.Name != "calendar_upcoming" {
 		t.Fatalf("function call part = %+v", call.Parts[1])
 	}
 	if call.Parts[1].FunctionCall.Args["level"] != "error" {
@@ -136,7 +136,7 @@ func TestToContentsMapsRolesAndToolTurns(t *testing.T) {
 	}
 
 	answer := contents[2].Parts[0].FunctionResponse
-	if answer == nil || answer.Name != "recent_logs" || answer.Response["output"] != "two rows" {
+	if answer == nil || answer.Name != "calendar_upcoming" || answer.Response["output"] != "two rows" {
 		t.Fatalf("function response part = %+v", answer)
 	}
 	if answer.ID != "" {
@@ -146,9 +146,9 @@ func TestToContentsMapsRolesAndToolTurns(t *testing.T) {
 
 func TestToContentsMarksAnErroredToolAndKeepsARealID(t *testing.T) {
 	contents, err := toContents([]model.Message{
-		{Role: model.RoleAssistant, ToolCalls: []model.ToolCall{{ID: "vendor-1", Name: "recent_logs"}}},
+		{Role: model.RoleAssistant, ToolCalls: []model.ToolCall{{ID: "vendor-1", Name: "calendar_upcoming"}}},
 		{Role: model.RoleUser, ToolResults: []model.ToolResult{{
-			ID: "vendor-1", Name: "recent_logs", Content: "limit must be 1 to 50", IsError: true,
+			ID: "vendor-1", Name: "calendar_upcoming", Content: "limit must be 1 to 50", IsError: true,
 		}}},
 		{Role: model.RoleAssistant},
 	})
@@ -177,8 +177,8 @@ func TestFromResponseSynthesisesCallIDsAndCountsTokens(t *testing.T) {
 		Candidates: []*genai.Candidate{{Content: &genai.Content{Parts: []*genai.Part{
 			{Text: "thinking out loud", Thought: true},
 			{Text: "  looking now  "},
-			{FunctionCall: &genai.FunctionCall{Name: "recent_logs", Args: map[string]any{"limit": float64(5)}}},
-			{FunctionCall: &genai.FunctionCall{Name: "recent_logs", Args: map[string]any{"limit": float64(9)}}},
+			{FunctionCall: &genai.FunctionCall{Name: "calendar_upcoming", Args: map[string]any{"limit": float64(5)}}},
+			{FunctionCall: &genai.FunctionCall{Name: "calendar_upcoming", Args: map[string]any{"limit": float64(9)}}},
 		}}}},
 		UsageMetadata: &genai.GenerateContentResponseUsageMetadata{
 			PromptTokenCount: 120, CandidatesTokenCount: 30, ThoughtsTokenCount: 7,
@@ -280,7 +280,7 @@ func TestSyntheticCallIDsAreUniqueAcrossResponses(t *testing.T) {
 	one := func() *genai.GenerateContentResponse {
 		return &genai.GenerateContentResponse{
 			Candidates: []*genai.Candidate{{Content: &genai.Content{Parts: []*genai.Part{
-				{FunctionCall: &genai.FunctionCall{Name: "recent_logs"}},
+				{FunctionCall: &genai.FunctionCall{Name: "calendar_upcoming"}},
 			}}}},
 		}
 	}
@@ -317,14 +317,12 @@ func TestNameCarriesTheModelID(t *testing.T) {
 // adapter cannot convert would otherwise be found by a person in Discord.
 func TestEveryRealToolDeclarationConverts(t *testing.T) {
 	var specs []model.ToolSpec
-	for _, tool := range tools.All(nil, "http://logger", "http://calendar") {
+	for _, tool := range tools.All(nil, "http://calendar") {
 		specs = append(specs, tool.Spec())
 	}
-	// The SQL tools need a reader to be built, so their specs are taken from
-	// the types directly rather than from All.
-	specs = append(specs,
-		tools.RecentLogs{}.Spec(), tools.LogHistory{}.Spec(),
-		tools.HealthHistory{}.Spec(), tools.WhoHasAccess{}.Spec())
+	// The SQL tool needs a reader to be built, so its spec is taken from the
+	// type directly rather than from All.
+	specs = append(specs, tools.WhoHasAccess{}.Spec())
 
 	declarations, err := toDeclarations(specs)
 	if err != nil {

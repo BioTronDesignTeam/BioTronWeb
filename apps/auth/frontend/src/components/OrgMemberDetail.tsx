@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { authStrings, roleOf } from '@biotron/style';
 import type { AppInfo, Grant, OrgMember, Permission } from '../api';
 import type { OrgSelection } from '../hooks/useOrgSelection';
 import {
@@ -14,33 +15,45 @@ import {
 const sectionHeading = 'text-sm font-semibold text-slate-900 dark:text-white';
 const fieldLabel = 'text-xs font-medium text-slate-500 dark:text-muted';
 
-type PendingAction = 'ban' | 'make-manager' | 'remove-manager';
+type PendingAction = 'ban' | 'sign-out' | 'make-manager' | 'remove-manager';
 
 /**
- * Ban and the manager flag both end the person's sessions and change what
- * they can do everywhere, so each one asks once, in words that say what will
- * happen, before it runs. Unban only restores what a ban took away and stays a
- * single click.
+ * A ban ends the person's sessions, and the manager flag changes what they
+ * can do everywhere from their next request, so each one asks once, in words
+ * that say what will happen, before it runs. Unban only restores what a ban
+ * took away and stays a single click.
  */
-function consequence(action: PendingAction, member: OrgMember): { title: string; detail: string; confirm: string } {
+function consequence(
+  action: PendingAction,
+  member: OrgMember,
+): { title: string; detail: string; confirm: string } {
   const who = `@${member.login}`;
   switch (action) {
     case 'ban':
       return {
         title: `Ban ${who}?`,
-        detail: 'They are signed out everywhere now and cannot sign in to any BioTron tool until a manager unbans them.',
+        detail:
+          'They are signed out everywhere now and cannot sign in to any BioTron tool until a manager unbans them.',
         confirm: 'Ban',
+      };
+    case 'sign-out':
+      return {
+        title: authStrings.signOutMemberTitle(who),
+        detail: authStrings.signOutMemberDetail,
+        confirm: authStrings.signOutMember,
       };
     case 'make-manager':
       return {
         title: `Make ${who} a manager?`,
-        detail: 'They get every permission in every tool, can grant and revoke access, and see the Keys and Org tabs. They are signed out and must sign in again.',
+        detail:
+          'They get every permission in every tool, can grant and revoke permissions, and see the Keys and Org tabs. The change applies on their next request.',
         confirm: 'Make manager',
       };
     case 'remove-manager':
       return {
         title: `Remove ${who} as manager?`,
-        detail: 'They keep only the permissions listed below and are signed out until they sign in again.',
+        detail:
+          'They keep only the permissions listed below. The change applies on their next request.',
         confirm: 'Remove manager',
       };
   }
@@ -49,14 +62,18 @@ function consequence(action: PendingAction, member: OrgMember): { title: string;
 function MemberActions({
   member,
   canManage,
+  canSignOut,
   onBan,
   onUnban,
+  onSignOut,
   onSetManager,
 }: {
   member: OrgMember;
   canManage: boolean;
+  canSignOut: boolean;
   onBan: (id: number) => void;
   onUnban: (id: number) => void;
+  onSignOut: (member: OrgMember) => void;
   onSetManager: (id: number, manager: boolean) => void;
 }) {
   const [pending, setPending] = useState<PendingAction | null>(null);
@@ -77,6 +94,7 @@ function MemberActions({
     const action = pending;
     setPending(null);
     if (action === 'ban') onBan(member.github_id);
+    else if (action === 'sign-out') onSignOut(member);
     else onSetManager(member.github_id, action === 'make-manager');
   };
 
@@ -93,6 +111,15 @@ function MemberActions({
       ) : (
         <button type="button" onClick={() => setPending('ban')} className={dangerButton}>
           Ban…
+        </button>
+      )}
+      {canSignOut && (
+        <button
+          type="button"
+          onClick={() => setPending('sign-out')}
+          className={compactSecondaryButton}
+        >
+          {authStrings.signOutMember}…
         </button>
       )}
       {canManage && (
@@ -113,7 +140,10 @@ function MemberActions({
       >
         {text && (
           <>
-            <p id={`confirm-${member.github_id}-title`} className="text-sm font-semibold text-slate-900 dark:text-white">
+            <p
+              id={`confirm-${member.github_id}-title`}
+              className="text-sm font-semibold text-slate-900 dark:text-white"
+            >
               {text.title}
             </p>
             <p id={`confirm-${member.github_id}-detail`} className={`mt-1 ${mutedText}`}>
@@ -127,7 +157,11 @@ function MemberActions({
               >
                 {text.confirm}
               </button>
-              <button type="button" onClick={() => setPending(null)} className={compactSecondaryButton}>
+              <button
+                type="button"
+                onClick={() => setPending(null)}
+                className={compactSecondaryButton}
+              >
                 Cancel
               </button>
             </div>
@@ -250,11 +284,14 @@ export default function OrgMemberDetail({
   onSelectPermission,
   onCreateGrant,
   onRevokeGrant,
+  meId,
   onBan,
   onUnban,
+  onSignOut,
   onSetManager,
 }: {
   member: OrgMember;
+  meId: number;
   apps: AppInfo[];
   permissions: Permission[];
   grants: Grant[];
@@ -266,6 +303,7 @@ export default function OrgMemberDetail({
   onRevokeGrant: (grant: Grant) => void;
   onBan: (id: number) => void;
   onUnban: (id: number) => void;
+  onSignOut: (member: OrgMember) => void;
   onSetManager: (id: number, manager: boolean) => void;
 }) {
   const appNameById = useMemo(() => new Map(apps.map((app) => [app.id, app.name])), [apps]);
@@ -282,7 +320,10 @@ export default function OrgMemberDetail({
   // grants still on record stay listed, because they come back into force the
   // moment the manager flag is removed.
   const staff = member.is_superuser || member.is_manager;
-  const role = member.is_superuser ? 'superuser' : 'manager';
+  const role = roleOf(member).toLowerCase();
+  // Auth refuses a sign-out of yourself (Sign out everywhere is in the account
+  // menu) and, unless you are a superuser, of a superuser.
+  const canSignOut = member.github_id !== meId && (canManage || !member.is_superuser);
 
   return (
     <div className="flex flex-col">
@@ -294,8 +335,8 @@ export default function OrgMemberDetail({
             </h3>
             <p className={`mt-0.5 break-words ${mutedText}`}>@{member.login}</p>
             {member.last_login_at && (
-              <p className="mt-1 text-xs text-slate-400 dark:text-faint">
-                Last login {new Date(member.last_login_at).toLocaleString()}
+              <p className="mt-1 text-xs text-slate-500 dark:text-faint">
+                {authStrings.lastSignIn} {new Date(member.last_login_at).toLocaleString()}
               </p>
             )}
           </div>
@@ -303,18 +344,22 @@ export default function OrgMemberDetail({
             key={member.github_id}
             member={member}
             canManage={canManage}
+            canSignOut={canSignOut}
             onBan={onBan}
             onUnban={onUnban}
+            onSignOut={onSignOut}
             onSetManager={onSetManager}
           />
         </div>
       </div>
 
-      <div className={`px-4 py-4 sm:px-6 ${staff ? '' : 'border-b border-slate-200 dark:border-white/10'}`}>
+      <div
+        className={`px-4 py-4 sm:px-6 ${staff ? '' : 'border-b border-slate-200 dark:border-white/10'}`}
+      >
         <h4 className={sectionHeading}>Grants</h4>
         {staff ? (
-          <p className="mt-2 text-sm text-emerald-600 dark:text-emerald-400">
-            Full access as {role}. Every permission in every tool is held, so there is nothing to grant.
+          <p className="mt-2 text-sm text-emerald-700 dark:text-emerald-400">
+            As a {role}, they hold every permission in every tool, so there is nothing to grant.
           </p>
         ) : null}
         {(!staff || grants.length > 0) && (
@@ -324,7 +369,7 @@ export default function OrgMemberDetail({
 
       {!staff && (
         <div className="px-4 py-4 sm:px-6">
-          <h4 className={sectionHeading}>Grant access</h4>
+          <h4 className={sectionHeading}>Grant a permission</h4>
           <GrantForm
             apps={apps}
             permissions={permissions}

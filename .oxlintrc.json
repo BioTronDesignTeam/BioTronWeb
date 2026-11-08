@@ -1,54 +1,28 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": [
-    "typescript",
-    "unicorn",
-    "oxc",
-    "react",
-    "jsx-a11y",
-    "import"
-  ],
-  "options": {
-    "typeAware": true
-  },
-  "env": {
-    "browser": true,
-    "es2024": true
-  },
-  "ignorePatterns": [
-    "**/dist/**",
-    "**/node_modules/**",
-    "apps/*/prisma/**",
-    "go/**",
-    "infra/**"
-  ],
-  "categories": {
-    "correctness": "error"
-  },
+  "plugins": ["typescript", "unicorn", "oxc", "react", "jsx-a11y", "import"],
+  "options": { "typeAware": true },
+  "env": { "browser": true, "es2024": true },
+  "ignorePatterns": ["**/dist/**", "**/node_modules/**", "apps/*/prisma/**", "go/**", "infra/**"],
+  "categories": { "correctness": "error" },
   "rules": {
     "react/hooks": "error",
     "react/iframe-missing-sandbox": "error",
-    "react/exhaustive-effect-dependencies": "warn",
-    "react/only-export-components": "warn",
-    "react/no-unstable-nested-components": "warn",
-    "react/jsx-no-constructed-context-values": "warn",
-    "react/no-array-index-key": "warn",
-    "react/set-state-in-effect": "warn",
-    "react/immutability": "warn",
-    "react/refs": "warn",
-    "import/no-cycle": "warn",
-    "jsx-a11y/prefer-tag-over-role": "warn"
+    "react/exhaustive-effect-dependencies": "error",
+    "react/only-export-components": "error",
+    "react/no-unstable-nested-components": "error",
+    "react/jsx-no-constructed-context-values": "error",
+    "react/no-array-index-key": "error",
+    "react/set-state-in-effect": "error",
+    "react/immutability": "error",
+    "react/refs": "error",
+    "import/no-cycle": "error",
+    "jsx-a11y/prefer-tag-over-role": "error"
   },
   "overrides": [
     {
-      "files": [
-        "**/*.config.ts",
-        "packages/style/scripts/**",
-        "packages/style/src/vite.js"
-      ],
-      "env": {
-        "node": true
-      }
+      "files": ["**/*.config.ts", "packages/style/scripts/**", "packages/style/src/vite.js"],
+      "env": { "node": true }
     }
   ]
 }

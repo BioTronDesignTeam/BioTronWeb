@@ -7,9 +7,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/calendar"
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/model"
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/store"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/calendar"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/model"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/store"
 )
 
 // fakeStore is the in-memory Store the scheduler tests drive. It is not
@@ -66,7 +66,10 @@ func (f *fakeStore) ListSeenFuture(_ context.Context, automationID string, now t
 	return future, nil
 }
 
-func (f *fakeStore) DeleteSeen(_ context.Context, automationID, uid, recurrenceIDLocal string) error {
+func (f *fakeStore) DeleteSeen(ctx context.Context, automationID, uid, recurrenceIDLocal string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	key := seenKey(automationID, uid, recurrenceIDLocal)
 	if _, ok := f.seen[key]; !ok {
 		return store.ErrNotFound
@@ -83,7 +86,11 @@ func (f *fakeStore) GetPosted(_ context.Context, automationID, uid, recurrenceID
 	return posted, nil
 }
 
-func (f *fakeStore) UpsertPosted(_ context.Context, automationID, uid, recurrenceIDLocal string, sequence int, channelID, messageID string) (store.PostedOccurrence, error) {
+func (f *fakeStore) UpsertPosted(ctx context.Context, automationID, uid, recurrenceIDLocal string, sequence int, channelID, messageID string) (store.PostedOccurrence, error) {
+	// Like pgx, a write on a cancelled context fails.
+	if err := ctx.Err(); err != nil {
+		return store.PostedOccurrence{}, err
+	}
 	f.upsertPostedCalls++
 	posted := store.PostedOccurrence{
 		AutomationID: automationID, UID: uid, RecurrenceIDLocal: recurrenceIDLocal,
@@ -98,7 +105,10 @@ func (f *fakeStore) HasNudge(_ context.Context, automationID, uid, recurrenceIDL
 	return ok, nil
 }
 
-func (f *fakeStore) InsertNudge(_ context.Context, automationID, uid, recurrenceIDLocal string, sequence int, trigger, status string, messageID *string) (store.Nudge, error) {
+func (f *fakeStore) InsertNudge(ctx context.Context, automationID, uid, recurrenceIDLocal string, sequence int, trigger, status string, messageID *string) (store.Nudge, error) {
+	if err := ctx.Err(); err != nil {
+		return store.Nudge{}, err
+	}
 	key := nudgeKey(automationID, uid, recurrenceIDLocal, sequence, trigger)
 	if _, ok := f.nudges[key]; ok {
 		return store.Nudge{}, store.ErrConflict
@@ -121,15 +131,42 @@ type fakeCalendar struct {
 	// from and to record the last window asked for, so a test can pin the
 	// span the cancellation check compares over.
 	from, to time.Time
+
+	// feedBody is the all.ics the feed answers with; feedErr fails it.
+	feedBody  string
+	feedErr   error
+	feedCalls int
+	// panicScope makes Occurrences panic for that one scope.
+	panicScope string
 }
 
-func (f *fakeCalendar) Occurrences(_ context.Context, _ string, from, to time.Time) ([]calendar.Occurrence, error) {
+func (f *fakeCalendar) Occurrences(_ context.Context, scopeID string, from, to time.Time) ([]calendar.Occurrence, error) {
+	if f.panicScope != "" && scopeID == f.panicScope {
+		panic("calendar fake exploded")
+	}
 	f.calls++
 	f.from, f.to = from, to
 	if f.err != nil {
 		return nil, f.err
 	}
 	return f.occurrences, nil
+}
+
+// emptyFeed is a calendar with no series in it: every vanished occurrence
+// reads as deleted.
+const emptyFeed = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nEND:VCALENDAR\r\n"
+
+// Feed answers with feedBody, an empty calendar when unset, or feedErr.
+func (f *fakeCalendar) Feed(context.Context) (*calendar.Feed, error) {
+	f.feedCalls++
+	if f.feedErr != nil {
+		return nil, f.feedErr
+	}
+	body := f.feedBody
+	if body == "" {
+		body = emptyFeed
+	}
+	return calendar.ParseFeed([]byte(body), toronto)
 }
 
 // fakeDiscord records every call the scheduler makes and answers
@@ -142,6 +179,10 @@ type fakeDiscord struct {
 	sentMessages   []sentMessage
 	editedMessages []editedMessage
 	dms            []sentMessage
+
+	// onSend runs after each SendMessage, as if something happened while
+	// Discord was answering.
+	onSend func()
 }
 
 type sentMessage struct {
@@ -188,10 +229,16 @@ func (f *fakeDiscord) ChannelMessages(channelID string, limit int, beforeID, aft
 // fake can page by id the way Discord does.
 func snowflakeAt(t time.Time, n int) string {
 	millis := t.UnixMilli() - discordEpochMillis
+	if millis < 0 || n < 0 {
+		panic("snowflakeAt: a time before the Discord epoch or a negative counter")
+	}
 	return strconv.FormatUint(uint64(millis)<<22|uint64(n), 10)
 }
 
 func (f *fakeDiscord) SendMessage(channelID, content string, mentionUsers []string) (string, error) {
+	if f.onSend != nil {
+		defer f.onSend()
+	}
 	f.nextID++
 	id := fmt.Sprintf("msg-%d", f.nextID)
 	f.sentMessages = append(f.sentMessages, sentMessage{

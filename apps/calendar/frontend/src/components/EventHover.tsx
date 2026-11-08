@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import { createPortal } from 'react-dom';
 import { fullDateTimeLabel } from '../date';
 import { HoverContext, type HoverBinding } from '../eventHover';
@@ -30,7 +38,10 @@ export function EventHoverProvider({ children }: { children: ReactNode }) {
 
   const show = useCallback((occurrence: Occurrence, element: HTMLElement, delay: number) => {
     window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(() => setTarget({ occurrence, anchor: element.getBoundingClientRect() }), delay);
+    timer.current = window.setTimeout(
+      () => setTarget({ occurrence, anchor: element.getBoundingClientRect() }),
+      delay,
+    );
   }, []);
 
   useEffect(() => () => window.clearTimeout(timer.current), []);
@@ -49,15 +60,24 @@ export function EventHoverProvider({ children }: { children: ReactNode }) {
     };
   }, [target, hide]);
 
-  const bind = useMemo(() => (occurrence: Occurrence): HoverBinding => ({
-    // Touch has no hover: a finger lands as pointerenter and then a click, and
-    // the card would flash under the details it is about to open.
-    onPointerEnter: (event) => { if (event.pointerType === 'mouse') show(occurrence, event.currentTarget, OPEN_DELAY); },
-    onPointerLeave: hide,
-    onFocus: (event) => { if (event.currentTarget.matches(':focus-visible')) show(occurrence, event.currentTarget, 0); },
-    onBlur: hide,
-    'aria-describedby': target?.occurrence === occurrence ? CARD_ID : undefined,
-  }), [show, hide, target]);
+  const bind = useMemo(
+    () =>
+      (occurrence: Occurrence): HoverBinding => ({
+        // Touch has no hover: a finger lands as pointerenter and then a click, and
+        // the card would flash under the details it is about to open.
+        onPointerEnter: (event) => {
+          if (event.pointerType === 'mouse') show(occurrence, event.currentTarget, OPEN_DELAY);
+        },
+        onPointerLeave: hide,
+        onFocus: (event) => {
+          if (event.currentTarget.matches(':focus-visible'))
+            show(occurrence, event.currentTarget, 0);
+        },
+        onBlur: hide,
+        'aria-describedby': target?.occurrence === occurrence ? CARD_ID : undefined,
+      }),
+    [show, hide, target],
+  );
 
   return (
     <HoverContext.Provider value={bind}>
@@ -78,7 +98,8 @@ function HoverCard({ target }: { target: HoverTarget }) {
     const box = card.current?.getBoundingClientRect();
     if (!box) return;
     const right = anchor.right + GAP;
-    const left = right + box.width <= window.innerWidth - GAP ? right : anchor.left - GAP - box.width;
+    const left =
+      right + box.width <= window.innerWidth - GAP ? right : anchor.left - GAP - box.width;
     setPlace({
       left: Math.max(GAP, Math.min(left, window.innerWidth - GAP - box.width)),
       top: Math.max(GAP, Math.min(anchor.top, window.innerHeight - GAP - box.height)),
@@ -90,18 +111,34 @@ function HoverCard({ target }: { target: HoverTarget }) {
       ref={card}
       id={CARD_ID}
       role="tooltip"
-      style={{ top: place?.top ?? 0, left: place?.left ?? 0, visibility: place ? 'visible' : 'hidden' }}
+      style={{
+        top: place?.top ?? 0,
+        left: place?.left ?? 0,
+        visibility: place ? 'visible' : 'hidden',
+      }}
       className="pointer-events-none fixed z-40 max-h-[calc(100dvh-1rem)] w-72 max-w-[calc(100vw-1rem)] overflow-hidden rounded-2xl border border-ink/10 bg-white p-4 text-ink shadow-xl dark:border-line-strong dark:bg-surface dark:text-white"
     >
       {/* The card cannot be scrolled, so every field that can run long is cut to fit. The full text is one click away. */}
-      <p className="line-clamp-3 break-words font-semibold leading-snug">{occurrence.title}</p>
+      <p className="line-clamp-3 leading-snug font-semibold break-words">{occurrence.title}</p>
       <p className="mt-1 text-sm text-ink/70 dark:text-muted">{fullDateTimeLabel(occurrence)}</p>
       <div className="mt-3 flex flex-wrap gap-1.5">
-        <span className="rounded-full bg-brand/10 px-2.5 py-0.5 text-xs font-semibold text-brand dark:bg-brand/25 dark:text-link">{occurrence.scope_path}</span>
-        {occurrence.recurring && <span className="rounded-full bg-deep/10 px-2.5 py-0.5 text-xs font-semibold text-deep dark:bg-white/10 dark:text-white">Weekly</span>}
+        <span className="rounded-full bg-brand/10 px-2.5 py-0.5 text-xs font-semibold text-brand dark:bg-brand/25 dark:text-link">
+          {occurrence.scope_path}
+        </span>
+        {occurrence.recurring && (
+          <span className="rounded-full bg-deep/10 px-2.5 py-0.5 text-xs font-semibold text-deep dark:bg-white/10 dark:text-white">
+            Weekly
+          </span>
+        )}
       </div>
-      {occurrence.location && <p className="mt-3 line-clamp-3 break-words text-sm">{occurrence.location}</p>}
-      {occurrence.description && <p className="mt-2 line-clamp-4 whitespace-pre-wrap break-words text-sm text-ink/70 dark:text-muted">{occurrence.description}</p>}
+      {occurrence.location && (
+        <p className="mt-3 line-clamp-3 text-sm break-words">{occurrence.location}</p>
+      )}
+      {occurrence.description && (
+        <p className="mt-2 line-clamp-4 text-sm break-words whitespace-pre-wrap text-ink/70 dark:text-muted">
+          {occurrence.description}
+        </p>
+      )}
     </div>
   );
 }

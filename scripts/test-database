@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+# Prepares a Postgres database for the backends' live tests (*_live_test.go)
+# the way a deploy does: the roles of infra/postgres/init, then every app's
+# migrations through the migrate image. Prints the test variables, one
+# KEY=value line each, for $GITHUB_ENV or `export`:
+#
+#   scripts/test-database --network host --host 127.0.0.1:5432
+#
+#   --network NET     the Docker network the helper containers join, from
+#                     which --host is reachable (host, or container:<id>)
+#   --host HOST:PORT  the Postgres server, as seen from that network
+#   --database NAME   created if missing (default biotron)
+#   --migrate-image   an infra/migrate image built already (default: build one)
+#
+# PGUSER and PGPASSWORD name the cluster owner (default biotron). Each app's
+# test URL uses that app's own role, so the tests run with the rights the app
+# has in production; the owner URL, with no schema, is
+# SPRINTER_TEST_OWNER_DATABASE_URL and BIOTRON_TEST_OWNER_DATABASE_URL. The
+# role passwords are new on every run. Used by the backend jobs of ci.yml and
+# by ./pr-precheck. It needs Docker and nothing else.
+set -euo pipefail
+
+network='' host='' database=biotron migrate_image=''
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --network) network=$2; shift 2 ;;
+    --host) host=$2; shift 2 ;;
+    --database) database=$2; shift 2 ;;
+    --migrate-image) migrate_image=$2; shift 2 ;;
+    *) echo "test-database: unknown option $1" >&2; exit 2 ;;
+  esac
+done
+[[ -n $network && $host =~ ^[A-Za-z0-9.-]+:[0-9]+$ && $database =~ ^[a-z_][a-z0-9_]*$ ]] ||
+  { echo 'usage: scripts/test-database --network NET --host HOST:PORT [--database NAME] [--migrate-image IMAGE]' >&2; exit 2; }
+owner=${PGUSER:-biotron} owner_password=${PGPASSWORD:-}
+[[ -n $owner_password ]] || { echo 'test-database: set PGPASSWORD to the owner password' >&2; exit 2; }
+
+root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+image=$(sed -nE 's/^ *image: (postgres:[^[:space:]]+).*/\1/p' "$root/infra/docker-compose.yml" | head -n 1)
+[[ -n $image ]] || { echo 'test-database: no postgres image in infra/docker-compose.yml' >&2; exit 1; }
+pg_host=${host%:*} pg_port=${host##*:}
+say() { echo "test-database: $*" >&2; }
+
+declare -A passwords=()
+for app in auth calendar sprinter reader; do passwords[$app]=$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n'); done
+
+# One helper container from the postgres image, with infra/postgres/init
+# copied in rather than mounted, so this works from inside a container whose
+# paths the Docker daemon cannot see.
+helper() {
+  local name
+  name=biotron-test-database-$$-$RANDOM
+  docker create --name "$name" --network "$network" -e PGHOST="$pg_host" -e PGPORT="$pg_port" \
+    -e PGUSER="$owner" -e PGPASSWORD="$owner_password" -e POSTGRES_USER="$owner" -e POSTGRES_DB="$database" \
+    -e SPRINTER_READER_PASSWORD="${passwords[reader]}" -e AUTH_DB_PASSWORD="${passwords[auth]}" \
+    -e CALENDAR_DB_PASSWORD="${passwords[calendar]}" \
+    -e SPRINTER_DB_PASSWORD="${passwords[sprinter]}" --entrypoint bash "$image" -ec "$1" >/dev/null
+  docker cp "$root/infra/postgres/init/." "$name:/init" >/dev/null
+  docker start -a "$name" >&2 || { docker rm -f "$name" >/dev/null; return 1; }
+  docker rm -f "$name" >/dev/null
+}
+
+say "waiting for $host"
+# shellcheck disable=SC2016 # expanded in the helper container, on purpose
+helper 'for _ in $(seq 60); do pg_isready -q -d postgres && exit 0; sleep 1; done; pg_isready -d postgres; exit 1'
+say "creating the database $database and the roles"
+helper "psql -XAtq -d postgres -c \"SELECT 1 FROM pg_database WHERE datname = '$database'\" | grep -q 1 ||
+  psql -Xq -d postgres -c 'CREATE DATABASE $database'
+for script in /init/*.sh; do bash \"\$script\"; done"
+
+if [[ -z $migrate_image ]]; then
+  migrate_image=biotron-test-migrate:local
+  say "building $migrate_image"
+  docker build -q -t "$migrate_image" -f "$root/infra/migrate/Dockerfile" "$root" >/dev/null
+fi
+url() { local credentials=$1:$2; echo "postgresql://$credentials@$host/$database${3:+?schema=$3}"; }
+for entry in auth:oauth calendar:calendar sprinter:sprinter; do
+  app=${entry%%:*} schema=${entry#*:}
+  say "migrating $app"
+  docker run --rm --network "$network" -e DATABASE_URL="$(url "$owner" "$owner_password" "$schema")" \
+    "$migrate_image" "$app" >&2
+done
+
+echo "AUTH_TEST_DATABASE_URL=$(url auth_app "${passwords[auth]}" oauth)"
+echo "CALENDAR_TEST_DATABASE_URL=$(url calendar_app "${passwords[calendar]}" calendar)"
+echo "SPRINTER_TEST_DATABASE_URL=$(url sprinter_app "${passwords[sprinter]}" sprinter)"
+echo "SPRINTER_TEST_READ_DATABASE_URL=$(url sprinter_reader "${passwords[reader]}")"
+# The owner, with no schema: Sprinter's read tests seed the oauth rows its
+# read-only role then reads.
+echo "SPRINTER_TEST_OWNER_DATABASE_URL=$(url "$owner" "$owner_password")"
+echo "BIOTRON_TEST_OWNER_DATABASE_URL=$(url "$owner" "$owner_password")"

@@ -13,9 +13,7 @@ const MoonIcon = () => (
   </svg>
 );
 
-export type ThemeToggleProps = {
-  className?: string;
-};
+export type ThemeToggleProps = { className?: string };
 
 export function ThemeToggle({ className = '' }: ThemeToggleProps) {
   const [theme, setTheme] = useState<Theme>(documentTheme);
@@ -27,22 +25,17 @@ export function ThemeToggle({ className = '' }: ThemeToggleProps) {
   useEffect(() => {
     const synchronize = () => {
       const stored = storedTheme();
-      if (stored) setTheme((current) => current === stored ? current : stored);
-    };
-    const onStorage = (event: StorageEvent) => {
-      if (event.key === 'darkMode') synchronize();
+      if (stored) setTheme((current) => (current === stored ? current : stored));
     };
     const onVisibilityChange = () => {
       if (document.visibilityState === 'visible') synchronize();
     };
     const interval = window.setInterval(synchronize, 1000);
     window.addEventListener('focus', synchronize);
-    window.addEventListener('storage', onStorage);
     document.addEventListener('visibilitychange', onVisibilityChange);
     return () => {
       window.clearInterval(interval);
       window.removeEventListener('focus', synchronize);
-      window.removeEventListener('storage', onStorage);
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };
   }, []);
@@ -58,8 +51,12 @@ export function ThemeToggle({ className = '' }: ThemeToggleProps) {
       onClick={() => setTheme(dark ? 'light' : 'dark')}
     >
       <span className="biotron-theme-toggle__thumb" aria-hidden="true" />
-      <span className="biotron-theme-toggle__option"><SunIcon /></span>
-      <span className="biotron-theme-toggle__option"><MoonIcon /></span>
+      <span className="biotron-theme-toggle__option">
+        <SunIcon />
+      </span>
+      <span className="biotron-theme-toggle__option">
+        <MoonIcon />
+      </span>
     </button>
   );
 }

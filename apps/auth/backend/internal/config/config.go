@@ -1,9 +1,13 @@
 package config
 
 import (
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -12,43 +16,45 @@ import (
 // Config is the backend's runtime configuration, sourced from environment
 // variables. See ../.env.example for the full list.
 type Config struct {
-	Port               string
-	DatabaseURL        string
-	RedisURL           string
-	CacheTTL           time.Duration
-	GitHubClientID     string
-	GitHubClientSecret string
-	GitHubOrg          string
-	CallbackURL        string
-	FrontendURL        string
-	AllowedOrigins     []string
-	CookieSecure       bool
-	CookieSameSite     string
-	CookieDomain       string
-	SessionTTL         time.Duration
-	TrustedProxies     []string
-	SuperuserIDs       map[int64]bool
+	Port                  string
+	DatabaseURL           string
+	GitHubAppID           string
+	GitHubAppClientID     string
+	GitHubAppClientSecret string
+	GitHubAppPrivateKey   string
+	GitHubOrg             string
+	CallbackURL           string
+	FrontendURL           string
+	AllowedOrigins        []string
+	CookieSecure          bool
+	CookieSameSite        string
+	CookieDomain          string
+	SessionTTL            time.Duration
+	SessionSigningKey     string
+	TrustedProxies        []string
+	SuperuserIDs          map[int64]bool
 }
 
 func Load() Config {
 	frontendURL := getenv("FRONTEND_URL", "http://localhost:5173")
 	return Config{
-		Port:               getenv("PORT", "8080"),
-		DatabaseURL:        os.Getenv("DATABASE_URL"),
-		RedisURL:           getenv("REDIS_URL", "redis://127.0.0.1:6379/0"),
-		CacheTTL:           time.Duration(getint("CACHE_TTL_SECONDS", 300)) * time.Second,
-		GitHubClientID:     os.Getenv("GITHUB_CLIENT_ID"),
-		GitHubClientSecret: os.Getenv("GITHUB_CLIENT_SECRET"),
-		GitHubOrg:          getenv("GITHUB_ORG", "BioTronDesignTeam"),
-		CallbackURL:        getenv("OAUTH_CALLBACK_URL", "http://localhost:8080/auth/github/callback"),
-		FrontendURL:        frontendURL,
-		AllowedOrigins:     parseOrigins(frontendURL, os.Getenv("CORS_ORIGINS")),
-		CookieSecure:       getbool("COOKIE_SECURE", false),
-		CookieSameSite:     getenv("COOKIE_SAMESITE", "Lax"),
-		CookieDomain:       strings.TrimSpace(os.Getenv("COOKIE_DOMAIN")),
-		SessionTTL:         time.Duration(getint("SESSION_TTL_HOURS", 168)) * time.Hour,
-		TrustedProxies:     splitCSV(getenv("TRUSTED_PROXIES", "127.0.0.1,::1")),
-		SuperuserIDs:       parseIntSet(os.Getenv("SUPERUSER_GITHUB_IDS")),
+		Port:                  getenv("PORT", "8080"),
+		DatabaseURL:           os.Getenv("DATABASE_URL"),
+		GitHubAppID:           strings.TrimSpace(os.Getenv("GITHUB_APP_ID")),
+		GitHubAppClientID:     strings.TrimSpace(os.Getenv("GITHUB_APP_CLIENT_ID")),
+		GitHubAppClientSecret: strings.TrimSpace(os.Getenv("GITHUB_APP_CLIENT_SECRET")),
+		GitHubAppPrivateKey:   os.Getenv("GITHUB_APP_PRIVATE_KEY"),
+		GitHubOrg:             getenv("GITHUB_ORG", "BioTronDesignTeam"),
+		CallbackURL:           getenv("OAUTH_CALLBACK_URL", "http://localhost:8080/auth/github/callback"),
+		FrontendURL:           frontendURL,
+		AllowedOrigins:        parseOrigins(frontendURL, os.Getenv("CORS_ORIGINS")),
+		CookieSecure:          getbool("COOKIE_SECURE", false),
+		CookieSameSite:        getenv("COOKIE_SAMESITE", "Lax"),
+		CookieDomain:          strings.TrimSpace(os.Getenv("COOKIE_DOMAIN")),
+		SessionTTL:            time.Duration(getint("SESSION_TTL_HOURS", 168)) * time.Hour,
+		SessionSigningKey:     os.Getenv("SESSION_SIGNING_KEY"),
+		TrustedProxies:        splitCSV(getenv("TRUSTED_PROXIES", "127.0.0.1,::1")),
+		SuperuserIDs:          parseIntSet(os.Getenv("SUPERUSER_GITHUB_IDS")),
 	}
 }
 
@@ -56,7 +62,33 @@ func (c Config) IsSuperuserID(id int64) bool {
 	return c.SuperuserIDs[id]
 }
 
+// SuperuserIDList returns SUPERUSER_GITHUB_IDS as a sorted list.
+func (c Config) SuperuserIDList() []int64 {
+	ids := make([]int64, 0, len(c.SuperuserIDs))
+	for id, ok := range c.SuperuserIDs {
+		if ok {
+			ids = append(ids, id)
+		}
+	}
+	slices.Sort(ids)
+	return ids
+}
+
+// Validate refuses a configuration the service must not start with: a cookie
+// that a deployment would ship without Secure, or a missing or malformed
+// GitHub App credential. Auth fails at startup rather than at the first
+// sign-in.
 func (c Config) Validate() error {
+	if err := c.validateCookies(); err != nil {
+		return err
+	}
+	if err := c.validateSession(); err != nil {
+		return err
+	}
+	return c.validateGitHubApp()
+}
+
+func (c Config) validateCookies() error {
 	switch strings.ToLower(c.CookieSameSite) {
 	case "lax", "none", "strict":
 	default:
@@ -159,4 +191,76 @@ func getint(key string, def int) int {
 		}
 	}
 	return def
+}
+
+func (c Config) validateGitHubApp() error {
+	var missing []string
+	for _, v := range []struct{ name, value string }{
+		{"GITHUB_APP_ID", c.GitHubAppID},
+		{"GITHUB_APP_CLIENT_ID", c.GitHubAppClientID},
+		{"GITHUB_APP_CLIENT_SECRET", c.GitHubAppClientSecret},
+		{"GITHUB_APP_PRIVATE_KEY", c.GitHubAppPrivateKey},
+	} {
+		if strings.TrimSpace(v.value) == "" {
+			missing = append(missing, v.name)
+		}
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("%s must be set: create the GitHub App as apps/auth/README.md describes", strings.Join(missing, ", "))
+	}
+	if id, err := strconv.ParseInt(c.GitHubAppID, 10, 64); err != nil || id <= 0 {
+		return errors.New("GITHUB_APP_ID must be the App's numeric id, not its client id")
+	}
+	if _, err := ParsePrivateKey(c.GitHubAppPrivateKey); err != nil {
+		return err
+	}
+	return nil
+}
+
+// ParsePrivateKey reads the App's private key: the PEM file GitHub hands out,
+// PKCS#1 or PKCS#8. An .env value cannot always hold line breaks, so a key
+// written on one line with literal \n sequences is accepted too. The error
+// never repeats the value.
+func ParsePrivateKey(raw string) (*rsa.PrivateKey, error) {
+	text := strings.TrimSpace(strings.ReplaceAll(raw, `\n`, "\n"))
+	block, _ := pem.Decode([]byte(text))
+	if block == nil {
+		return nil, errors.New("GITHUB_APP_PRIVATE_KEY is not a PEM private key")
+	}
+	if key, err := x509.ParsePKCS1PrivateKey(block.Bytes); err == nil {
+		return key, nil
+	}
+	parsed, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+	if err != nil {
+		return nil, errors.New("GITHUB_APP_PRIVATE_KEY is not an RSA private key")
+	}
+	key, ok := parsed.(*rsa.PrivateKey)
+	if !ok {
+		return nil, errors.New("GITHUB_APP_PRIVATE_KEY is not an RSA private key")
+	}
+	return key, nil
+}
+
+// minSigningKey is the shortest SESSION_SIGNING_KEY accepted: 256 bits, the
+// size of the HMAC-SHA256 that signs the session cookie.
+const minSigningKey = 32
+
+func (c Config) validateSession() error {
+	key := c.SessionSigningKey
+	if len(key) < minSigningKey {
+		return fmt.Errorf("SESSION_SIGNING_KEY must be at least %d characters: generate one with `openssl rand -base64 48`", minSigningKey)
+	}
+	// A key of one repeated character, or one copied from an example, is
+	// long enough and still guessable.
+	distinct := map[rune]bool{}
+	for _, r := range key {
+		distinct[r] = true
+	}
+	if len(distinct) < 10 || strings.Contains(strings.ToLower(key), "change-me") {
+		return errors.New("SESSION_SIGNING_KEY looks like a placeholder: generate one with `openssl rand -base64 48`")
+	}
+	if c.SessionTTL <= 0 {
+		return errors.New("SESSION_TTL_HOURS must be a positive number of hours")
+	}
+	return nil
 }

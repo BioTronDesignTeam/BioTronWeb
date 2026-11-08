@@ -20,9 +20,9 @@ reviews:
   path_instructions:
     - path: "apps/*/backend/**"
       instructions: >-
-        Go services on Fiber v3 with pgx. Flag unchecked errors, SQL assembled
-        from strings, and any log line that could carry a cookie, token, query
-        string, or credential.
+        Go services on net/http with pgx and sqlc. Flag unchecked errors, SQL
+        assembled from strings, and any log line that could carry a cookie,
+        token, query string, or credential.
     - path: "apps/*/frontend/**"
       instructions: >-
         React 19 with Tailwind v4 and the shared @biotron/style package. A

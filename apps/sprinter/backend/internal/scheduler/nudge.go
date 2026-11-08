@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/calendar"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/model"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/store"
 	"github.com/BioTronDesignTeam/BioTronWeb/go/logclient"
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/calendar"
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/model"
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/store"
 )
 
 // nudgeTimeLayout is the shorter local-time format a nudge uses, since it
@@ -85,6 +85,11 @@ func (s *Scheduler) runNudge(ctx context.Context, automation store.Automation, u
 	}
 
 	draft, draftErr := s.draftAnnouncement(ctx, title, startsAt, trigger)
+	// A shutdown that cut the draft short must not send a nudge saying the
+	// draft failed. The next run sends the real one.
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	body := nudgeBody(s.location, title, startsAt, draft, draftErr)
 
 	var (
@@ -108,7 +113,9 @@ func (s *Scheduler) runNudge(ctx context.Context, automation store.Automation, u
 	}
 
 	sentMessageID := messageID
-	if _, err := s.store.InsertNudge(ctx, automation.ID, uid, recurrenceIDLocal, sequence, trigger, store.NudgeSent, &sentMessageID); err != nil &&
+	recordCtx, cancel := recordContext(ctx)
+	defer cancel()
+	if _, err := s.store.InsertNudge(recordCtx, automation.ID, uid, recurrenceIDLocal, sequence, trigger, store.NudgeSent, &sentMessageID); err != nil &&
 		!errors.Is(err, store.ErrConflict) {
 		return fmt.Errorf("record sent nudge %s: %w", uid, err)
 	}
@@ -129,7 +136,7 @@ func (s *Scheduler) runNudge(ctx context.Context, automation store.Automation, u
 // short, which means the window is exhausted.
 func (s *Scheduler) channelSatisfied(automation store.Automation, since time.Time) (bool, error) {
 	afterID := snowflakeAfter(since)
-	for page := 0; page < channelHistoryMaxPages; page++ {
+	for range channelHistoryMaxPages {
 		messages, err := s.discord.ChannelMessages(automation.ChannelID, channelHistoryPageLimit, "", afterID)
 		if err != nil {
 			return false, err
@@ -185,6 +192,11 @@ func (s *Scheduler) draftAnnouncement(ctx context.Context, title string, startsA
 	} else {
 		ask = fmt.Sprintf("Write a short Discord announcement for %q, scheduled for %s.", title, when)
 	}
+	// The scheduler's context runs until shutdown, and ticks run one at a
+	// time. Without a deadline of its own, one stalled draft would stop
+	// every automation until the process restarts.
+	ctx, cancel := context.WithTimeout(ctx, s.modelTimeout)
+	defer cancel()
 	response, err := s.model.Generate(ctx,
 		"You write short Discord announcements for a university robotics team.",
 		[]model.Message{{Role: model.RoleUser, Text: ask}}, nil)

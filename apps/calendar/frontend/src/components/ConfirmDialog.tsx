@@ -1,9 +1,12 @@
 import { useState, type FormEvent } from 'react';
 import { Modal } from './Modal';
 
-const cancelClass = 'min-h-11 rounded-full px-5 text-sm font-semibold hover:bg-soft/25 dark:hover:bg-white/10';
-const primaryClass = 'min-h-11 rounded-full bg-deep px-5 text-sm font-semibold text-white hover:bg-brand dark:bg-brand dark:hover:brightness-110 disabled:opacity-50';
-const destructiveClass = 'min-h-11 rounded-full bg-red-700 px-5 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-50';
+const cancelClass =
+  'min-h-11 rounded-full px-5 text-sm font-semibold hover:bg-soft/25 dark:hover:bg-white/10';
+const primaryClass =
+  'min-h-11 rounded-full bg-deep px-5 text-sm font-semibold text-white hover:bg-brand dark:bg-brand dark:hover:brightness-110 disabled:opacity-50';
+const destructiveClass =
+  'min-h-11 rounded-full bg-red-700 px-5 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-50';
 
 interface ConfirmDialogProps {
   title: string;
@@ -20,7 +23,14 @@ interface ConfirmDialogProps {
  * browser chrome that no theme, no keyboard trap, and no wording of ours
  * reaches.
  */
-export function ConfirmDialog({ title, message, confirmLabel, destructive = false, onCancel, onConfirm }: ConfirmDialogProps) {
+export function ConfirmDialog({
+  title,
+  message,
+  confirmLabel,
+  destructive = false,
+  onCancel,
+  onConfirm,
+}: ConfirmDialogProps) {
   const [busy, setBusy] = useState(false);
 
   async function confirm() {
@@ -36,8 +46,17 @@ export function ConfirmDialog({ title, message, confirmLabel, destructive = fals
     <Modal title={title} onClose={onCancel}>
       <p className="text-sm leading-6 text-ink/70 dark:text-muted">{message}</p>
       <div className="mt-7 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-        <button type="button" onClick={onCancel} className={cancelClass}>Keep as is</button>
-        <button type="button" disabled={busy} onClick={() => void confirm()} className={destructive ? destructiveClass : primaryClass}>{confirmLabel}</button>
+        <button type="button" onClick={onCancel} className={cancelClass}>
+          Keep as is
+        </button>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void confirm()}
+          className={destructive ? destructiveClass : primaryClass}
+        >
+          {confirmLabel}
+        </button>
       </div>
     </Modal>
   );
@@ -60,9 +79,20 @@ interface PromptDialogProps {
  * only discovered after the round trip, as a red banner somewhere else on the
  * page. The same limits the API enforces are applied here, before sending.
  */
-export function PromptDialog({ title, message, label, initialValue, confirmLabel, minLength, maxLength, onCancel, onConfirm }: PromptDialogProps) {
+export function PromptDialog({
+  title,
+  message,
+  label,
+  initialValue,
+  confirmLabel,
+  minLength,
+  maxLength,
+  onCancel,
+  onConfirm,
+}: PromptDialogProps) {
   const [value, setValue] = useState(initialValue);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
   const trimmed = value.trim();
   const invalid = trimmed.length < minLength || trimmed.length > maxLength;
 
@@ -70,8 +100,12 @@ export function PromptDialog({ title, message, label, initialValue, confirmLabel
     event.preventDefault();
     if (invalid || trimmed === initialValue) return;
     setBusy(true);
+    setError('');
     try {
       await onConfirm(trimmed);
+    } catch (caught) {
+      // Stay open with the typed value, and say why the server refused it.
+      setError(caught instanceof Error ? caught.message : 'The change failed.');
     } finally {
       setBusy(false);
     }
@@ -92,12 +126,27 @@ export function PromptDialog({ title, message, label, initialValue, confirmLabel
             className="mt-1 min-h-11 w-full rounded-xl border border-ink/15 bg-transparent px-3 py-2 text-sm outline-none focus:border-brand dark:border-line-strong dark:bg-surface-deep dark:focus:border-link"
           />
         </label>
-        <p className="mt-2 text-xs text-ink/50 dark:text-muted">
-          {invalid ? `Use between ${minLength} and ${maxLength} characters.` : `${trimmed.length} of ${maxLength} characters.`}
+        <p className="mt-2 text-xs text-ink/65 dark:text-muted">
+          {invalid
+            ? `Use between ${minLength} and ${maxLength} characters.`
+            : `${trimmed.length} of ${maxLength} characters.`}
         </p>
+        {error && (
+          <p role="alert" className="mt-2 text-sm text-red-700 dark:text-red-300">
+            {error}
+          </p>
+        )}
         <div className="mt-7 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <button type="button" onClick={onCancel} className={cancelClass}>Cancel</button>
-          <button type="submit" disabled={busy || invalid || trimmed === initialValue} className={primaryClass}>{confirmLabel}</button>
+          <button type="button" onClick={onCancel} className={cancelClass}>
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={busy || invalid || trimmed === initialValue}
+            className={primaryClass}
+          >
+            {confirmLabel}
+          </button>
         </div>
       </form>
     </Modal>

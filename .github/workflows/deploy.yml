@@ -1,0 +1,221 @@
+# A push to main builds and scans every image once, tags it with the commit,
+# and deploys it to staging. A v* tag on a commit that staging already deployed
+# sends those same images to production without rebuilding. Running this
+# workflow by hand on an older tag rolls production back to it.
+name: deploy
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+# Each action is pinned by commit SHA with its release in a comment, as in
+# ci.yml; Dependabot moves both. The images job pushes to GHCR and the deploy
+# job reaches the host, so a moved action tag must never run in either.
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-${{ startsWith(github.ref, 'refs/tags/') && 'production' || 'staging' }}
+  cancel-in-progress: false
+
+jobs:
+  # Each image is built once per commit, natively on an amd64 and an arm64
+  # runner, scanned there, and pushed by digest. The merge job below then
+  # tags the two digests together as <image>:<commit>. A tag that exists
+  # already is never built or pushed again, so a rerun of this workflow, or a
+  # rollback, deploys exactly the bytes staging tested.
+  images:
+    name: image ${{ matrix.image.name }} ${{ matrix.platform.arch }}
+    if: github.ref == 'refs/heads/main'
+    runs-on: ${{ matrix.platform.runner }}
+    permissions:
+      contents: read # check out the Dockerfiles and sources
+      packages: write # push the images to GHCR
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - { arch: amd64, runner: ubuntu-24.04 }
+          - { arch: arm64, runner: ubuntu-24.04-arm }
+        image:
+          - { name: biotron-web, context: ., dockerfile: apps/biotron/frontend/Dockerfile }
+          - { name: calendar-web, context: ., dockerfile: apps/calendar/frontend/Dockerfile }
+          - { name: calendar-api, context: ., dockerfile: apps/calendar/backend/Dockerfile }
+          - { name: auth-web, context: ., dockerfile: apps/auth/frontend/Dockerfile }
+          - { name: auth-api, context: ., dockerfile: apps/auth/backend/Dockerfile }
+          - { name: exogui-web, context: ., dockerfile: apps/exogui/frontend/Dockerfile }
+          - { name: exogui-api, context: ., dockerfile: apps/exogui/backend/Dockerfile }
+          - { name: sprinter-web, context: ., dockerfile: apps/sprinter/frontend/Dockerfile }
+          - { name: sprinter-bot, context: ., dockerfile: apps/sprinter/backend/Dockerfile }
+          - { name: migrate, context: ., dockerfile: infra/migrate/Dockerfile }
+          - { name: edge-nginx, context: infra/nginx, dockerfile: infra/nginx/Dockerfile }
+    env:
+      REPOSITORY: ghcr.io/biotrondesignteam/${{ matrix.image.name }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Skip an image that this commit has already
+        id: existing
+        run: scripts/image-tag-exists "$REPOSITORY:$GITHUB_SHA"
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+        if: steps.existing.outputs.exists == 'false'
+      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        id: build
+        if: steps.existing.outputs.exists == 'false'
+        with:
+          context: ${{ matrix.image.context }}
+          file: ${{ matrix.image.dockerfile }}
+          platforms: linux/${{ matrix.platform.arch }}
+          outputs: type=image,name=${{ env.REPOSITORY }},push-by-digest=true,name-canonical=true,push=true
+          build-args: |
+            VITE_SITE_URL=https://__BASE_DOMAIN__
+            VITE_CALENDAR_API_URL=https://calendar.__BASE_DOMAIN__/api
+            VITE_API_BASE=/api
+            VITE_API_URL=/api
+            VITE_AUTH_URL=https://auth.__BASE_DOMAIN__/api
+            VITE_CALENDAR_URL=${{ matrix.image.name == 'sprinter-web' && 'https://calendar.__BASE_DOMAIN__/api' || 'https://calendar.__BASE_DOMAIN__' }}
+      # On the image's own architecture: production runs the arm64 one.
+      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        if: steps.existing.outputs.exists == 'false'
+        with:
+          image-ref: ${{ env.REPOSITORY }}@${{ steps.build.outputs.digest }}
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: '1'
+      - name: Record the digest for the merge job
+        if: steps.existing.outputs.exists == 'false'
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          [[ $DIGEST =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "::error::No digest from the build: '$DIGEST'"; exit 1; }
+          mkdir -p "$RUNNER_TEMP/digests"
+          touch "$RUNNER_TEMP/digests/${DIGEST#sha256:}"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: steps.existing.outputs.exists == 'false'
+        with:
+          name: digest-${{ matrix.image.name }}-${{ matrix.platform.arch }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  # Tags each image's two digests, amd64 and arm64, as one <image>:<commit>.
+  merge:
+    name: tag ${{ matrix.image }}
+    needs: images
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read # check out the tag check script
+      packages: write # push the multi-platform tag to GHCR
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [biotron-web, calendar-web, calendar-api, auth-web, auth-api, exogui-web, exogui-api,
+                sprinter-web, sprinter-bot, migrate, edge-nginx]
+    env:
+      REPOSITORY: ghcr.io/biotrondesignteam/${{ matrix.image }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Skip an image that this commit has already
+        id: existing
+        run: scripts/image-tag-exists "$REPOSITORY:$GITHUB_SHA"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        if: steps.existing.outputs.exists == 'false'
+        with:
+          pattern: digest-${{ matrix.image }}-*
+          path: ${{ runner.temp }}/digests
+          merge-multiple: true
+      - name: Tag the amd64 and arm64 digests as the commit
+        if: steps.existing.outputs.exists == 'false'
+        run: |
+          mapfile -t digests < <(find "$RUNNER_TEMP/digests" -type f -printf "$REPOSITORY@sha256:%f\n" | sort)
+          [[ ${#digests[@]} -eq 2 ]] || { echo "::error::Expected 2 digests, found ${#digests[@]}"; exit 1; }
+          docker buildx imagetools create -t "$REPOSITORY:$GITHUB_SHA" "${digests[@]}"
+          docker buildx imagetools inspect "$REPOSITORY:$GITHUB_SHA"
+
+  candidate:
+    name: candidate commit
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read # check out main to test the tag is on it
+      actions: read # find the successful staging run of the commit
+    outputs:
+      revision: ${{ steps.resolve.outputs.revision }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Find the commit whose images to deploy
+        id: resolve
+        run: |
+          set -euo pipefail
+          revision=$(git rev-parse "$GITHUB_SHA^{commit}")
+          case $GITHUB_REF in
+            refs/heads/main) ;;
+            refs/tags/v*)
+              [[ $GITHUB_REF_NAME =~ ^v[0-9A-Za-z.-]+$ ]] || { echo 'Release tags may use only letters, digits, dots and dashes' >&2; exit 1; }
+              git fetch origin main
+              git merge-base --is-ancestor "$revision" origin/main || { echo "$GITHUB_REF_NAME is not a commit on main" >&2; exit 1; }
+              result=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/deploy.yml/runs?head_sha=$revision&branch=main&status=success&per_page=1" --jq '.total_count')
+              [[ $result -gt 0 ]] || { echo "No successful staging deployment of $revision; tag a commit that staging deployed" >&2; exit 1; }
+              ;;
+            *) echo 'Deploy runs only from main or a v* tag' >&2; exit 1 ;;
+          esac
+          echo "revision=$revision" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  deploy:
+    name: deploy ${{ startsWith(github.ref, 'refs/tags/') && 'prod' || 'staging' }}
+    needs: [candidate, merge]
+    if: always() && needs.candidate.result == 'success' && (needs.merge.result == 'success' || (startsWith(github.ref, 'refs/tags/') && needs.merge.result == 'skipped'))
+    runs-on: ubuntu-latest
+    environment: ${{ startsWith(github.ref, 'refs/tags/') && 'production' || 'staging' }}
+    # It checks out nothing: the host downloads the commit's files itself.
+    permissions:
+      id-token: write # sign in to Tailscale with OIDC, no long-lived key
+    env:
+      DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+      INSTANCE: ${{ startsWith(github.ref, 'refs/tags/') && 'prod' || 'staging' }}
+      # Each instance has a host of its own. deploy-staging may deploy only
+      # staging and its host's edge, deploy-prod only prod and its edge
+      # (deploy/README.md), and each logs in to its own host only.
+      DEPLOY_USER: deploy-${{ startsWith(github.ref, 'refs/tags/') && 'prod' || 'staging' }}
+      REVISION: ${{ needs.candidate.outputs.revision }}
+    steps:
+      - uses: tailscale/github-action@99a8333667fff04fdd6cffb46dfd409f8329a7bf # v4.3.0
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          audience: ${{ secrets.TS_AUDIENCE }}
+          # Each environment has its own Tailscale identity and tag, which may
+          # log in only as that environment's account on the host.
+          tags: tag:biotron-ci-${{ env.INSTANCE }}
+      # The host keeps no checkout and no .env files. biotron-deploy downloads
+      # this commit's Compose files, checks the commit is on main (and, for
+      # prod, that a v* tag names it), fetches the instance's settings from
+      # Infisical, and pulls the tested images.
+      - name: Deploy the instance
+        run: |
+          [[ $DEPLOY_HOST =~ ^[a-zA-Z0-9.-]+$ && $REVISION =~ ^[0-9a-f]{40}$ ]] || exit 1
+          tailscale ssh "$DEPLOY_USER@$DEPLOY_HOST" sudo /usr/local/sbin/biotron-deploy "$INSTANCE" "$REVISION"
+      # Each host runs its own edge, which this deploy updates from the same
+      # commit. DEPLOY_EDGE turns it off for a host whose edge serves more
+      # than one instance; then exactly one environment updates it.
+      - name: Deploy the host's edge
+        if: vars.DEPLOY_EDGE == 'true'
+        run: tailscale ssh "$DEPLOY_USER@$DEPLOY_HOST" sudo /usr/local/sbin/biotron-deploy edge "$REVISION"

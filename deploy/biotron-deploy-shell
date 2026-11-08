@@ -1,0 +1,32 @@
+#!/bin/bash -p
+# The login shell of the CI accounts, deploy-staging and deploy-prod. It runs
+# one command and nothing else: a deploy, as the workflow sends it over
+# Tailscale SSH:
+#
+#   sudo /usr/local/sbin/biotron-deploy <target> <40-character commit>
+#
+# Tailscale SSH runs a remote command through the account's login shell as
+# `<shell> -c '<command>'`. This shell never hands the command to another
+# shell: it checks it against that one form and runs sudo with the two
+# arguments itself. An interactive login, any other command, or any other
+# argument is refused. sudoers (deploy/README.md) still decides which targets
+# each account may deploy, and biotron-deploy checks its arguments again.
+#
+# Install it root-owned at /usr/local/sbin/biotron-deploy-shell, list it in
+# /etc/shells, and make it each CI account's shell; see deploy/README.md.
+# -p, on the first line: bash reads no BASH_ENV or ENV file.
+set -euo pipefail
+
+refuse() {
+  echo "biotron-deploy-shell: $*; this account can only run sudo /usr/local/sbin/biotron-deploy <target> <commit>" >&2
+  exit 1
+}
+
+# A login shell may be started as `-c <command>`, or with -l or --login first.
+args=("$@")
+while [[ ${#args[@]} -gt 0 && ( ${args[0]} == -l || ${args[0]} == --login ) ]]; do args=("${args[@]:1}"); done
+[[ ${#args[@]} -eq 2 && ${args[0]} == -c ]] || refuse 'no interactive shell'
+
+pattern='^(sudo )?/usr/local/sbin/biotron-deploy ([a-z][a-z0-9]{0,15}) ([0-9a-f]{40})$'
+[[ ${args[1]} =~ $pattern ]] || refuse 'command refused'
+exec /usr/bin/sudo -n /usr/local/sbin/biotron-deploy "${BASH_REMATCH[2]}" "${BASH_REMATCH[3]}"

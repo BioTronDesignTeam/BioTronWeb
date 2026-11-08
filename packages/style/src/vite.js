@@ -35,11 +35,7 @@ export function biotronFavicon(options = {}) {
       });
     },
     generateBundle() {
-      this.emitFile({
-        type: 'asset',
-        fileName,
-        source: getSource(),
-      });
+      this.emitFile({ type: 'asset', fileName, source: getSource() });
     },
   };
 }

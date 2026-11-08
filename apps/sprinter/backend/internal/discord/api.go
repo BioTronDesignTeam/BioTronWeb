@@ -2,6 +2,7 @@ package discord
 
 import (
 	"context"
+	"net/http"
 	"time"
 
 	"github.com/bwmarrin/discordgo"
@@ -24,6 +25,8 @@ type api interface {
 	StartThread(channelID, messageID, name string) (string, error)
 	// Send posts a plain message to a channel or a thread.
 	Send(channelID, content string) error
+	// DirectMessage sends content to one user in their direct messages.
+	DirectMessage(userID, content string) error
 	// Typing shows the typing indicator once.
 	Typing(channelID string)
 	// ParentChannelID is the channel a thread hangs off, or "" when the id
@@ -40,6 +43,13 @@ func noMentions() *discordgo.MessageAllowedMentions {
 	return &discordgo.MessageAllowedMentions{Parse: []discordgo.AllowedMentionType{}}
 }
 
+// noEmbeds is on every message the bot sends, edits, or defers. Without it
+// Discord unfurls any link in the text, fetching the URL with no click. A
+// model talked into writing a link that carries data, by an event title or
+// an operator's name in a tool result, would leak that data to whoever runs
+// the host the moment the message posts.
+const noEmbeds = discordgo.MessageFlagsSuppressEmbeds
+
 // sessionAPI is api over a live gateway session. It is the only place in the
 // bot that calls discordgo, and it gives every call the same deadline.
 type sessionAPI struct {
@@ -54,28 +64,24 @@ func (s sessionAPI) with() (discordgo.RequestOption, context.CancelFunc) {
 func (s sessionAPI) Acknowledge(interaction *discordgo.Interaction) error {
 	option, cancel := s.with()
 	defer cancel()
-	return s.session.InteractionRespond(interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
-	}, option)
+	return s.session.InteractionRespond(interaction, deferredResponse(), option)
 }
 
 func (s sessionAPI) EditResponse(interaction *discordgo.Interaction, content string) error {
 	option, cancel := s.with()
 	defer cancel()
-	_, err := s.session.InteractionResponseEdit(interaction, &discordgo.WebhookEdit{
-		Content:         &content,
-		AllowedMentions: noMentions(),
-	}, option)
+	// discordgo's WebhookEdit has no flags field, so the edit is sent as the
+	// same PATCH InteractionResponseEdit makes, with a body that has one.
+	uri := discordgo.EndpointWebhookMessage(interaction.AppID, interaction.Token, "@original")
+	_, err := s.session.RequestWithBucketID(http.MethodPatch, uri, responseEdit(content),
+		discordgo.EndpointWebhookToken("", ""), option)
 	return err
 }
 
 func (s sessionAPI) Followup(interaction *discordgo.Interaction, content string) (*discordgo.Message, error) {
 	option, cancel := s.with()
 	defer cancel()
-	return s.session.FollowupMessageCreate(interaction, true, &discordgo.WebhookParams{
-		Content:         content,
-		AllowedMentions: noMentions(),
-	}, option)
+	return s.session.FollowupMessageCreate(interaction, true, followupParams(content), option)
 }
 
 func (s sessionAPI) StartThread(channelID, messageID, name string) (string, error) {
@@ -94,10 +100,7 @@ func (s sessionAPI) StartThread(channelID, messageID, name string) (string, erro
 func (s sessionAPI) Send(channelID, content string) error {
 	option, cancel := s.with()
 	defer cancel()
-	_, err := s.session.ChannelMessageSendComplex(channelID, &discordgo.MessageSend{
-		Content:         content,
-		AllowedMentions: noMentions(),
-	}, option)
+	_, err := s.session.ChannelMessageSendComplex(channelID, messageSend(content), option)
 	return err
 }
 
@@ -129,3 +132,43 @@ func (s sessionAPI) ParentChannelID(channelID string) string {
 // typingInterval refreshes the indicator, which Discord clears after about
 // ten seconds.
 const typingInterval = 8 * time.Second
+
+// The payloads below are every message body the bot sends. Each one parses no
+// mentions and suppresses embeds; payload_test.go holds them to it.
+
+func deferredResponse() *discordgo.InteractionResponse {
+	return &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{Flags: noEmbeds},
+	}
+}
+
+// editBody is a WebhookEdit with the flags field discordgo leaves out.
+type editBody struct {
+	Content         string                            `json:"content"`
+	AllowedMentions *discordgo.MessageAllowedMentions `json:"allowed_mentions"`
+	Flags           discordgo.MessageFlags            `json:"flags"`
+}
+
+func responseEdit(content string) editBody {
+	return editBody{Content: content, AllowedMentions: noMentions(), Flags: noEmbeds}
+}
+
+func followupParams(content string) *discordgo.WebhookParams {
+	return &discordgo.WebhookParams{Content: content, AllowedMentions: noMentions(), Flags: noEmbeds}
+}
+
+func messageSend(content string) *discordgo.MessageSend {
+	return &discordgo.MessageSend{Content: content, AllowedMentions: noMentions(), Flags: noEmbeds}
+}
+
+func (s sessionAPI) DirectMessage(userID, content string) error {
+	option, cancel := s.with()
+	defer cancel()
+	channel, err := s.session.UserChannelCreate(userID, option)
+	if err != nil {
+		return err
+	}
+	_, err = s.session.ChannelMessageSendComplex(channel.ID, messageSend(content), option)
+	return err
+}

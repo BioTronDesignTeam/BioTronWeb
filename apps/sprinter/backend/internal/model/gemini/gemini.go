@@ -14,10 +14,11 @@ import (
 	"strconv"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	"google.golang.org/genai"
 
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/model"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/model"
 )
 
 const (
@@ -47,10 +48,27 @@ func New(ctx context.Context, apiKey, modelID string) (*Model, error) {
 	if strings.TrimSpace(modelID) == "" {
 		return nil, errors.New("gemini: model id is empty")
 	}
-	client, err := genai.NewClient(ctx, &genai.ClientConfig{
-		APIKey:  apiKey,
-		Backend: genai.BackendGeminiAPI,
-	})
+	return newModel(ctx, apiKey, modelID, &http.Client{Timeout: requestTimeout}, "")
+}
+
+// requestTimeout bounds one HTTP request to Gemini, whatever the caller's
+// context says. The genai client sets none of its own, and a request that
+// stalls with no deadline holds whoever asked for good: a nudge draft would
+// stop the scheduler. The agent loop keeps a deadline for a whole question
+// as well; this is the floor under every call.
+const requestTimeout = 90 * time.Second
+
+// newModel is New with the HTTP client and, for a test, the endpoint chosen.
+func newModel(ctx context.Context, apiKey, modelID string, httpClient *http.Client, baseURL string) (*Model, error) {
+	config := &genai.ClientConfig{
+		APIKey:     apiKey,
+		Backend:    genai.BackendGeminiAPI,
+		HTTPClient: httpClient,
+	}
+	if baseURL != "" {
+		config.HTTPOptions.BaseURL = baseURL
+	}
+	client, err := genai.NewClient(ctx, config)
 	if err != nil {
 		return nil, fmt.Errorf("gemini: new client: %w", err)
 	}
@@ -129,9 +147,9 @@ func toDeclarations(tools []model.ToolSpec) ([]*genai.FunctionDeclaration, error
 const syntheticPrefix = "gemini-call-"
 
 // responseSeq numbers each response this process maps. Without it, two turns
-// that both call recent_logs first would each invent
-// "gemini-call-recent_logs-0", and a transcript replayed later could not say
-// which result answered which call.
+// that both call calendar_upcoming first would each invent
+// "gemini-call-calendar_upcoming-0", and a transcript replayed later could not
+// say which result answered which call.
 var responseSeq atomic.Uint64
 
 func syntheticID(name string, response uint64, index int) string {

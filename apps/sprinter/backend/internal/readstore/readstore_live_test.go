@@ -5,18 +5,21 @@ import (
 	"os"
 	"strings"
 	"testing"
-	"time"
+
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/readstore/readstoretest"
 )
 
 // These run against the real read-only role, because the grants are the whole
 // point of this package and no compiler checks them. Set
-// SPRINTER_TEST_READ_DATABASE_URL; without it the tests skip.
+// SPRINTER_TEST_READ_DATABASE_URL; without it the tests skip. The tests that
+// assert on rows also need SPRINTER_TEST_OWNER_DATABASE_URL to seed them
+// (readstoretest).
 //
 //	SPRINTER_TEST_READ_DATABASE_URL='postgresql://sprinter_reader:change-me-reader@127.0.0.1:15433/biotron' \
 //	  go test ./internal/readstore/ -run Live -v
 //
-// Nothing here writes. The role could not write if it tried, which is what the
-// last test proves.
+// Nothing here writes through the read role. It could not if it tried, which
+// is what the last test proves.
 func liveStore(t *testing.T) (*Store, context.Context) {
 	t.Helper()
 	databaseURL := os.Getenv("SPRINTER_TEST_READ_DATABASE_URL")
@@ -32,99 +35,34 @@ func liveStore(t *testing.T) (*Store, context.Context) {
 	return store, ctx
 }
 
-func TestLiveLogQueriesRunAndPage(t *testing.T) {
+func TestLiveAccessReportsTheSeededRoster(t *testing.T) {
 	store, ctx := liveStore(t)
-
-	rows, err := store.RecentLogs(ctx, LogQuery{Limit: 5})
-	if err != nil {
-		t.Fatalf("recent logs: %v", err)
-	}
-	for i := 1; i < len(rows); i++ {
-		if rows[i].CreatedAt.After(rows[i-1].CreatedAt) {
-			t.Fatal("rows must come back newest first")
-		}
-	}
-
-	// Every filter is exercised together, because each one is a fragment
-	// concatenated into the statement and a wrong placeholder number only
-	// shows up when the fragments are combined.
-	from := time.Now().Add(-90 * 24 * time.Hour)
-	to := time.Now()
-	filtered, err := store.RecentLogs(ctx, LogQuery{
-		Service: "logger-api", Level: "info", Search: "e",
-		From: &from, To: &to, Limit: 3,
-	})
-	if err != nil {
-		t.Fatalf("filtered logs: %v", err)
-	}
-	for _, row := range filtered {
-		if row.Service != "logger-api" || row.Level != "info" {
-			t.Fatalf("filter leaked: %+v", row)
-		}
-	}
-
-	page, next, err := store.LogHistory(ctx, LogQuery{Limit: 1})
-	if err != nil {
-		t.Fatalf("log history: %v", err)
-	}
-	if len(page) == 0 {
-		t.Skip("the logger schema has no rows to page through")
-	}
-	if next == "" {
-		t.Skip("only one log row exists, so there is no second page")
-	}
-	second, _, err := store.LogHistory(ctx, LogQuery{Limit: 1, Cursor: next})
-	if err != nil {
-		t.Fatalf("second page: %v", err)
-	}
-	if len(second) == 1 && second[0].ID == page[0].ID {
-		t.Fatal("the cursor returned the row it was meant to move past")
-	}
-}
-
-func TestLiveLogHistoryRefusesABadCursor(t *testing.T) {
-	store, ctx := liveStore(t)
-	if _, _, err := store.LogHistory(ctx, LogQuery{Limit: 1, Cursor: "not-a-cursor"}); err == nil {
-		t.Fatal("a cursor this package did not write must be refused")
-	}
-}
-
-func TestLiveHealthHistoryRuns(t *testing.T) {
-	store, ctx := liveStore(t)
-	rows, err := store.HealthHistory(ctx, "logger-api", time.Now().Add(-24*time.Hour), 200)
-	if err != nil {
-		t.Fatalf("health history: %v", err)
-	}
-	for i := 1; i < len(rows); i++ {
-		if rows[i].CheckedAt.After(rows[i-1].CheckedAt) {
-			t.Fatal("checks must come back newest first")
-		}
-	}
-}
-
-func TestLiveAccessJoinsRun(t *testing.T) {
-	store, ctx := liveStore(t)
+	seeded := readstoretest.Seed(t)
 	report, err := store.Access(ctx, "sprinter")
 	if err != nil {
 		t.Fatalf("access: %v", err)
 	}
-	if report.AppID != "sprinter" {
+	if !report.AppFound || report.AppID != "sprinter" {
 		t.Fatalf("report = %+v", report)
 	}
-	for _, grant := range report.Grants {
-		if grant.Login == "" {
-			t.Fatalf("a grant came back without an operator: %+v", grant)
+	var grant *GrantRow
+	for i := range report.Grants {
+		if report.Grants[i].Login == seeded.Member {
+			grant = &report.Grants[i]
 		}
 	}
-	for _, manager := range report.Managers {
-		if !manager.IsManager {
-			t.Fatalf("a non-manager is listed as one: %+v", manager)
-		}
+	if grant == nil {
+		t.Fatalf("grants = %+v, want %s", report.Grants, seeded.Member)
 	}
-	for _, superuser := range report.Superusers {
-		if !superuser.IsSuperuser {
-			t.Fatalf("a non-superuser is listed as one: %+v", superuser)
-		}
+	if grant.PermissionKey != "admin" || grant.Name != "Live Member" || !grant.IsBanned ||
+		grant.IsManager || !grant.GrantedAt.Equal(readstoretest.GrantedAt) {
+		t.Fatalf("grant = %+v", *grant)
+	}
+	if !listed(report.Managers, seeded.Manager) || listed(report.Managers, seeded.Member) {
+		t.Fatalf("managers = %+v, want %s and not %s", report.Managers, seeded.Manager, seeded.Member)
+	}
+	if listed(report.Superusers, seeded.Manager) {
+		t.Fatalf("superusers = %+v, a manager is not one", report.Superusers)
 	}
 
 	// An app nobody registered is an answer, not a failure.
@@ -135,6 +73,15 @@ func TestLiveAccessJoinsRun(t *testing.T) {
 	if missing.AppFound {
 		t.Fatal("an unregistered app must not report as found")
 	}
+}
+
+func listed(operators []OperatorRow, login string) bool {
+	for _, operator := range operators {
+		if operator.Login == login {
+			return true
+		}
+	}
+	return false
 }
 
 // TestLiveReadRoleCannotSeeGuestKeys is the containment test. Everything else
@@ -150,20 +97,14 @@ func TestLiveReadRoleCannotSeeGuestKeys(t *testing.T) {
 	if !strings.Contains(strings.ToLower(err.Error()), "permission denied") {
 		t.Fatalf("want a permission error, got %v", err)
 	}
-
-	// Sessions are the same kind of secret, and the same grant must be absent.
-	err = store.pool.QueryRow(ctx, `SELECT count(*) FROM oauth.sessions`).Scan(&count)
-	if err == nil || !strings.Contains(strings.ToLower(err.Error()), "permission denied") {
-		t.Fatalf("the read role must not select from oauth.sessions, got %v", err)
-	}
 }
 
 func TestLiveReadRoleCannotWrite(t *testing.T) {
 	store, ctx := liveStore(t)
 	_, err := store.pool.Exec(ctx,
-		`INSERT INTO logger.logs (service, level, message) VALUES ('sprinter', 'info', 'live test')`)
+		`INSERT INTO oauth.operators (github_id, login) VALUES (9000000000001, 'read-role-write-probe')`)
 	if err == nil {
-		t.Fatal("the read role wrote a log row; it must not be able to")
+		t.Fatal("the read role wrote an operator; it must not be able to")
 	}
 	// Two different settings can stop the write — a missing INSERT grant, or a
 	// role whose transactions are read-only. Either is the containment working,

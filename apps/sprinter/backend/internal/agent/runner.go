@@ -3,8 +3,8 @@ package agent
 import (
 	"context"
 
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/discord"
-	"github.com/BioTronDesignTeam/Sprinter/backend/internal/model"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/discord"
+	"github.com/BioTronDesignTeam/BioTronWeb/apps/sprinter/backend/internal/model"
 )
 
 // Runner puts the loop behind the bot's Runner interface.
@@ -21,6 +21,9 @@ type Runner struct {
 func NewRunner(agent *Agent) Runner { return Runner{agent: agent} }
 
 func (r Runner) Answer(ctx context.Context, req discord.Request) (discord.Reply, error) {
+	if req.Privileged {
+		return toReply(r.agent.AnswerPrivileged(ctx, req.Question))
+	}
 	return toReply(r.agent.Answer(ctx, req.Question))
 }
 
@@ -38,6 +41,7 @@ func toReply(result Result, err error) (discord.Reply, error) {
 		// store. The person still reads the sentence and can try again.
 		Messages:     result.Messages,
 		Tools:        result.Tools,
+		Private:      result.Private,
 		InputTokens:  result.InputTokens,
 		OutputTokens: result.OutputTokens,
 	}, nil
