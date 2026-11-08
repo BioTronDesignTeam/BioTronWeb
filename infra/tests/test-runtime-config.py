@@ -246,8 +246,7 @@ class RuntimeConfigTests(unittest.TestCase):
 
     def test_apps_carry_instance_qualified_aliases_for_the_edge(self):
         edge_targets = {'biotron-web', 'calendar-api', 'calendar-web', 'oauth-manager',
-                        'oauth-web', 'exogui-api', 'exogui-web', 'status-api', 'status-web',
-                        'sprinter', 'sprinter-web'}
+                        'oauth-web', 'exogui-api', 'exogui-web', 'sprinter', 'sprinter-web'}
         for instance in (None, 'staging'):
             if instance:
                 self.env['BIOTRON_INSTANCE'] = instance

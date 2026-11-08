@@ -107,31 +107,6 @@ server {
 
 server {
     listen 8080;
-    server_name status.${BASE_DOMAIN};
-
-    include /etc/nginx/snippets/edge-health.conf;
-    ${ROBOTS}
-
-    location = /api {
-        return 308 /api/;
-    }
-
-    location /api/ {
-        set $backend http://${INSTANCE}-status-api:8080;
-        rewrite ^/api/?(.*)$ /$1 break;
-        proxy_pass $backend;
-        include /etc/nginx/snippets/proxy-headers.conf;
-    }
-
-    location / {
-        set $frontend http://${INSTANCE}-status-web:80;
-        proxy_pass $frontend;
-        include /etc/nginx/snippets/proxy-headers.conf;
-    }
-}
-
-server {
-    listen 8080;
     server_name sprinter.${BASE_DOMAIN};
 
     include /etc/nginx/snippets/edge-health.conf;

@@ -72,12 +72,12 @@ When Nginx starts, `nginx/docker-entrypoint.d/40-biotron-sites.sh` renders
 | `calendar.uwbiotron.ca` | `prod-calendar-web:80` | `prod-calendar-api:8080` |
 | `auth.uwbiotron.ca` | `prod-oauth-web:80` | `prod-oauth-manager:8080` |
 | `exogui.uwbiotron.ca` | `prod-exogui-web:80` | `prod-exogui-api:8080` |
-| `status.uwbiotron.ca` | `prod-status-web:80` | `prod-status-api:8080` |
 | `sprinter.uwbiotron.ca` | `prod-sprinter-web:80` | `prod-sprinter:8080` |
 
-`www` redirects to the apex. Unknown hostnames return `404`. Upstreams are
-resolved per request, so an instance that is down answers `502` and the
-others are unaffected. `/api/` is removed before forwarding so an external
+`www` redirects to the apex. Unknown hostnames return `404`. `status.` is not
+served here: Cloudflare redirects it to the public status page, outside this
+repository. Upstreams are resolved per request, so an instance that is down
+answers `502` and the others are unaffected. `/api/` is removed before forwarding so an external
 request for `/api/health` reaches the Go service as `/health`. Redirects stay
 relative (`absolute_redirect off`), so `/api` answers `Location: /api/`.
 
